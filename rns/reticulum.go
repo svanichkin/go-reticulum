@@ -1,6 +1,10 @@
 package rns
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/binary"
@@ -323,7 +327,11 @@ func listenUnix(addr string) (net.Listener, string, func(), error) {
 		if err == nil {
 			return ln, addr, func() {}, nil
 		}
-		Log("Could not bind abstract UNIX socket, falling back to filesystem socket: "+err.Error(), LogWarning)
+		// Abstract UNIX socket bind failed. On Linux, abstract sockets have no
+		// filesystem presence and cannot go stale, so a bind failure means
+		// another process definitively holds the socket. Return the error
+		// immediately so the caller connects as a client; no dial-probe needed.
+		return nil, "", nil, err
 	}
 	path := fallbackUnixSocketPath(addr)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -419,35 +427,129 @@ func (c *gobRPCConn) Close() error {
 	return c.conn.Close()
 }
 
-func performRPCHandshake(conn net.Conn, key []byte, server bool) error {
-	var lengthBuf [2]byte
-	if server {
-		if _, err := io.ReadFull(conn, lengthBuf[:]); err != nil {
-			return err
-		}
-		expected := binary.BigEndian.Uint16(lengthBuf[:])
-		buf := make([]byte, expected)
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			return err
-		}
-		if subtle.ConstantTimeCompare(buf, key) != 1 {
-			return errors.New("invalid rpc key")
-		}
-		return nil
-	}
-	if len(key) > 0xFFFF {
-		return errors.New("rpc key too long")
-	}
-	binary.BigEndian.PutUint16(lengthBuf[:], uint16(len(key)))
-	if _, err := conn.Write(lengthBuf[:]); err != nil {
+// rpcSendBytes sends data using Python multiprocessing.connection wire format:
+// [4-byte signed big-endian length][data]
+func rpcSendBytes(conn net.Conn, data []byte) error {
+	var hdr [4]byte
+	binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+	if _, err := conn.Write(hdr[:]); err != nil {
 		return err
 	}
-	if len(key) > 0 {
-		if _, err := conn.Write(key); err != nil {
-			return err
-		}
+	if len(data) > 0 {
+		_, err := conn.Write(data)
+		return err
 	}
 	return nil
+}
+
+// rpcRecvBytes reads data using Python multiprocessing.connection wire format.
+func rpcRecvBytes(conn net.Conn, maxLen int) ([]byte, error) {
+	var hdr [4]byte
+	if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+		return nil, err
+	}
+	n := int(binary.BigEndian.Uint32(hdr[:]))
+	if maxLen > 0 && n > maxLen {
+		return nil, fmt.Errorf("rpc message too large: %d bytes", n)
+	}
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
+
+// performRPCHandshake implements the Python multiprocessing.connection
+// HMAC challenge-response authentication protocol.
+//
+// Server sequence: deliver_challenge → answer_challenge
+// Client sequence: answer_challenge → deliver_challenge
+func performRPCHandshake(conn net.Conn, key []byte, server bool) error {
+	if server {
+		if err := rpcDeliverChallenge(conn, key); err != nil {
+			return fmt.Errorf("deliver challenge: %w", err)
+		}
+		return rpcAnswerChallenge(conn, key)
+	}
+	if err := rpcAnswerChallenge(conn, key); err != nil {
+		return fmt.Errorf("answer challenge: %w", err)
+	}
+	return rpcDeliverChallenge(conn, key)
+}
+
+var (
+	rpcChallenge = []byte("#CHALLENGE#")
+	rpcWelcome   = []byte("#WELCOME#")
+	rpcFailure   = []byte("#FAILURE#")
+)
+
+// rpcDeliverChallenge sends a challenge and verifies the peer's response.
+func rpcDeliverChallenge(conn net.Conn, key []byte) error {
+	randBytes := make([]byte, 40)
+	if _, err := rand.Read(randBytes); err != nil {
+		return err
+	}
+	digestPrefix := []byte("{sha256}")
+	challengeMsg := append(digestPrefix, randBytes...)
+	msg := append(rpcChallenge, challengeMsg...)
+	if err := rpcSendBytes(conn, msg); err != nil {
+		return err
+	}
+	resp, err := rpcRecvBytes(conn, 256)
+	if err != nil {
+		return err
+	}
+	expected, err := rpcCreateResponse(key, challengeMsg)
+	if err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare(resp, expected) != 1 {
+		_ = rpcSendBytes(conn, rpcFailure)
+		return errors.New("digest sent was rejected")
+	}
+	return rpcSendBytes(conn, rpcWelcome)
+}
+
+// rpcAnswerChallenge reads a server challenge and responds with HMAC.
+func rpcAnswerChallenge(conn net.Conn, key []byte) error {
+	msg, err := rpcRecvBytes(conn, 256)
+	if err != nil {
+		return err
+	}
+	if len(msg) < len(rpcChallenge) || !bytes.Equal(msg[:len(rpcChallenge)], rpcChallenge) {
+		return fmt.Errorf("protocol error, expected challenge, got: %q", msg)
+	}
+	challengeMsg := msg[len(rpcChallenge):]
+	digest, err := rpcCreateResponse(key, challengeMsg)
+	if err != nil {
+		return err
+	}
+	if err := rpcSendBytes(conn, digest); err != nil {
+		return err
+	}
+	resp, err := rpcRecvBytes(conn, 256)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(resp, rpcWelcome) {
+		return errors.New("digest sent was rejected")
+	}
+	return nil
+}
+
+// rpcCreateResponse computes the HMAC response for a challenge message.
+// It handles both legacy (HMAC-MD5) and modern (prefixed HMAC-SHA256) formats.
+func rpcCreateResponse(key, message []byte) ([]byte, error) {
+	digestPrefix := []byte("{sha256}")
+	if len(message) >= len(digestPrefix) && bytes.Equal(message[:len(digestPrefix)], digestPrefix) {
+		mac := hmac.New(sha256.New, key)
+		mac.Write(message)
+		sum := mac.Sum(nil)
+		return append(digestPrefix, sum...), nil
+	}
+	mac := hmac.New(md5.New, key)
+	mac.Write(message)
+	return mac.Sum(nil), nil
 }
 
 // helper hex parser
@@ -1038,7 +1140,7 @@ func (r *Reticulum) startLocalInterface() error {
 		transportEnabled = false
 		remoteManagementEnabled = false
 		allowProbes = false
-		Logf(LogDebug, "Connected to locally available Reticulum instance via RPC at %s (%s)", r.rpcAddr, r.rpcNetwork)
+		Logf(LogNotice, "Connected to locally available Reticulum shared instance via RPC")
 
 		// Python parity: create a LocalInterface client interface placeholder.
 		siName := "default"
@@ -1078,6 +1180,8 @@ func (r *Reticulum) startLocalInterface() error {
 			LocalInterfacePort: r.localInterfacePort,
 		}, si); err != nil {
 			Logf(LogError, "Could not connect to LocalInterface IPC server: %v", err)
+		} else {
+			Log("Connected to shared instance LocalInterface packet socket", LogNotice)
 		}
 
 		return nil

@@ -47,7 +47,8 @@ func packetAddr(cfg LocalConfig) (network, addr string) {
 	}
 	// Abstract AF_UNIX addresses ("\x00...") are only supported on Linux.
 	if cfg.UseAFUnix && vendor.UseAFUnix() && runtime.GOOS == "linux" {
-		return "unix", "\x00rns/" + socketName + "/local"
+		// Python RNS uses "\x00rns/{name}" (no "/local" suffix) for the packet IPC socket.
+		return "unix", "\x00rns/" + socketName
 	}
 	// Python falls back to TCP when AF_UNIX isn't used/available.
 	if cfg.LocalInterfacePort > 0 {

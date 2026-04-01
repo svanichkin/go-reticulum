@@ -31,8 +31,8 @@ const (
 	linkKeepaliveMin       = 5 * time.Second
 	linkStaleFactor        = 2
 	linkWatchdogMaxSleep   = 5 * time.Second
-	// Python parity: default link mode is AES_128_CBC (0x00).
-	linkDefaultMode   = LinkModeAES128CBC
+	// Python parity: default link mode is AES_256_CBC (0x01) since RNS 0.9.x.
+	linkDefaultMode   = LinkModeAES256CBC
 	linkDefaultPerHop = time.Duration(DEFAULT_PER_HOP_TIMEOUT) * time.Second
 )
 
@@ -68,8 +68,8 @@ const (
 )
 
 var (
-	// Python supports AES_128_CBC and AES_256_CBC; keep both enabled for parity.
-	linkEnabledModes     = []int{LinkModeAES128CBC, LinkModeAES256CBC}
+	// Python parity: only AES_256_CBC is enabled since RNS 0.9.x.
+	linkEnabledModes     = []int{LinkModeAES256CBC}
 	linkModeDescriptions = map[int]string{
 		LinkModeAES128CBC: "AES_128_CBC",
 		LinkModeAES256CBC: "AES_256_CBC",
@@ -370,6 +370,9 @@ func (l *Link) sendLinkRequest() error {
 	l.packet = packet
 	l.requestData = payload
 	l.EstablishmentCost += len(packet.Raw)
+
+	Logf(LogDebug, "LINKREQUEST: linkID=%x dest=%x mode=%d hops=%d timeout=%v",
+		l.LinkID, packet.DestinationHash, l.Mode, l.expectedHops, l.estTimeout)
 
 	receipt := packet.Send()
 	l.requestTime = time.Now()
@@ -1549,18 +1552,21 @@ func (l *Link) watchdogLoop() {
 
 func (l *Link) checkTimeouts() {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	if l.Status == LinkClosed {
+		l.mu.Unlock()
 		return
 	}
 
 	// Python: in PENDING/HANDSHAKE, establishment timeout is based on request_time.
 	if (l.Status == LinkPending || l.Status == LinkHandshake) && !l.requestTime.IsZero() && l.estTimeout > 0 {
 		if time.Since(l.requestTime) >= l.estTimeout {
-			Log("Link establishment timed out", LOG_VERBOSE)
-			l.teardown(LinkTimeout)
+			Logf(LogVerbose, "Link establishment timed out: linkID=%x elapsed=%v timeout=%v", l.LinkID, time.Since(l.requestTime), l.estTimeout)
+			l.mu.Unlock()
+			go l.teardown(LinkTimeout)
+			return
 		}
+		l.mu.Unlock()
 		return
 	}
 
@@ -1573,6 +1579,7 @@ func (l *Link) checkTimeouts() {
 		last = l.activatedAt
 	}
 	if last.IsZero() {
+		l.mu.Unlock()
 		return
 	}
 
@@ -1599,8 +1606,12 @@ func (l *Link) checkTimeouts() {
 	// Python: once stale, close after an additional timeout interval.
 	if l.Status == LinkStale && time.Since(last) >= l.StaleTime+timeout {
 		Log("Link watchdog stale timeout reached, closing link", LOG_WARNING)
-		l.teardown(LinkTimeout)
+		l.mu.Unlock()
+		go l.teardown(LinkTimeout)
+		return
 	}
+
+	l.mu.Unlock()
 }
 
 func (l *Link) rttTimeout() time.Duration {
@@ -1788,9 +1799,15 @@ func (l *Link) handleRequestPacket(packet *Packet) {
 		Log(fmt.Sprintf("%s received malformed request payload: %v", l, err), LOG_WARNING)
 		return
 	}
-	if l.handleRequestAndReportAllowed(packet.GetTruncatedHash(), unpacked, packet) {
-		l.ProvePacket(packet)
-	}
+	// Dispatch the request handler in a goroutine so that slow response
+	// generators (e.g. database queries) do not block the transport's
+	// packet processing. This is safe because Inbound/Outbound use an
+	// RWMutex that allows concurrent read-side callers.
+	go func() {
+		if l.handleRequestAndReportAllowed(packet.GetTruncatedHash(), unpacked, packet) {
+			l.ProvePacket(packet)
+		}
+	}()
 }
 
 func (l *Link) handleRequestAndReportAllowed(requestID []byte, unpacked []any, packet *Packet) bool {
@@ -2199,6 +2216,7 @@ func registerLinkWithTransport(l *Link) {
 	if l.Initiator {
 		if !linkSliceContains(PendingLinks, l) {
 			PendingLinks = append(PendingLinks, l)
+			Logf(LogDebug, "registerLinkWithTransport: added initiator link %x to PendingLinks (now %d)", l.LinkID, len(PendingLinks))
 		}
 	} else {
 		if !linkSliceContains(ActiveLinks, l) {
