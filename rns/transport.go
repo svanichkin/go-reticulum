@@ -46,8 +46,9 @@ const (
 const TransportAppName = "rnstransport"
 
 const (
-	MaxReceipts                 = 1024
-	TransportPathRequestTimeout = 15.0
+	MaxReceipts                   = 1024
+	TransportPathRequestTimeout   = 15.0
+	DefaultDiscoveryRequiredValue = 14
 	// DestinationTimeout mirrors Python Transport.DESTINATION_TIMEOUT.
 	DestinationTimeout      = 7 * 24 * time.Hour
 	packetCacheMaxEntries   = 512
@@ -63,6 +64,9 @@ const (
 	maxRandomBlobs          = 64
 	persistRandomBlobs      = 32
 	maxRateTimestamps       = 16
+	mgmtAnnounceInterval    = 2 * time.Hour
+	initialMgmtAnnounceWait = 15 * time.Second
+	blackholeCheckInterval  = 60 * time.Second
 )
 
 var (
@@ -70,6 +74,14 @@ var (
 )
 
 type hashKey [truncatedHashBytes]byte
+
+type transportBackgroundWorker interface {
+	Start()
+}
+
+type noopTransportWorker struct{}
+
+func (noopTransportWorker) Start() {}
 
 // AnnounceHandler mirrors the Python announce handler callback.
 // If AspectFilter returns a non-empty string, only announces whose NAME_HASH
@@ -79,12 +91,33 @@ type AnnounceHandler interface {
 	ReceivedAnnounce(destinationHash []byte, announcedIdentity *Identity, appData []byte)
 }
 
+// AnnounceHandlerWithPacketHash receives the announce packet hash in addition
+// to the legacy callback parameters, matching the Python 4-argument callback.
+type AnnounceHandlerWithPacketHash interface {
+	AnnounceHandler
+	ReceivedAnnounceWithPacketHash(destinationHash []byte, announcedIdentity *Identity, appData []byte, announcePacketHash []byte)
+}
+
+// AnnounceHandlerWithPacketInfo receives both announce_packet_hash and
+// is_path_response, matching the Python 5-argument callback.
+type AnnounceHandlerWithPacketInfo interface {
+	AnnounceHandler
+	ReceivedAnnounceWithPacketInfo(destinationHash []byte, announcedIdentity *Identity, appData []byte, announcePacketHash []byte, isPathResponse bool)
+}
+
+// PathResponseAnnounceHandler opts a handler into receiving PATH_RESPONSE
+// announces, mirroring Python's receive_path_responses flag.
+type PathResponseAnnounceHandler interface {
+	ReceivePathResponses() bool
+}
+
 var (
 	Owner *Reticulum
 
 	// TransportIdentity is the identity used for transport control destinations
 	// like remote management. It is initialised in Start() if missing.
 	TransportIdentity *Identity
+	NetworkIdentity   *Identity
 
 	ProbeDestination *Destination
 
@@ -105,14 +138,16 @@ var (
 	// which were bare flags with no memory barriers — a data race that
 	// caused silent deadlocks when multiple goroutines called Outbound
 	// concurrently (e.g. teardown packets from watchdog goroutines).
-	jobsMu sync.RWMutex
-	JobInterval      = 250 * time.Millisecond
-	LinksLastChecked time.Time
-	LinksCheckInt    = time.Second
-	ReceiptsLast     time.Time
-	ReceiptsCheckInt = time.Second
-	AnnLast          time.Time
-	AnnCheckInt      = time.Second
+	jobsMu                sync.RWMutex
+	JobInterval           = 250 * time.Millisecond
+	LinksLastChecked      time.Time
+	LinksCheckInt         = time.Second
+	ReceiptsLast          time.Time
+	ReceiptsCheckInt      = time.Second
+	AnnLast               time.Time
+	AnnCheckInt           = time.Second
+	InterfaceLastJobs     time.Time
+	InterfaceJobsInterval = 5 * time.Second
 
 	pathTable       = make(map[hashKey]*PathEntry)
 	pathTableMu     sync.RWMutex
@@ -153,10 +188,28 @@ var (
 	remoteManagementAllowedMu sync.RWMutex
 	remoteManagementAllowed   = make(map[string][]byte)
 	remoteManagementDest      *Destination
+	instanceDestination       *Destination
+	networkDestination        *Destination
 	pathRequestDest           *Destination
 	tunnelSynthesizeDest      *Destination
 	controlDestinations       []*Destination
+	mgmtDestinations          []*Destination
 	remoteManagementActive    bool
+	blackholeDestination      *Destination
+	LastMgmtAnnounce          time.Time
+	discoveryRequiredValue    = DefaultDiscoveryRequiredValue
+	blackholeLastChecked      time.Time
+	interfaceAnnouncer        transportBackgroundWorker
+	discoveryHandler          any
+	blackholeUpdater          transportBackgroundWorker
+	interfaceAnnouncerFactory = func() transportBackgroundWorker { return noopTransportWorker{} }
+	discoveryHandlerFactory   = func(requiredValue int, discoverInterfaces bool) any {
+		return struct {
+			RequiredValue      int
+			DiscoverInterfaces bool
+		}{RequiredValue: requiredValue, DiscoverInterfaces: discoverInterfaces}
+	}
+	blackholeUpdaterFactory = func() transportBackgroundWorker { return noopTransportWorker{} }
 
 	tunnelsMu sync.RWMutex
 	tunnels   = make(map[string]*tunnelEntry)
@@ -173,6 +226,12 @@ var (
 	discoveryPRTags    = make(map[string]struct{})
 	discoveryPRTagFIFO []string
 	maxPRTags          = 32000
+
+	discoveryPathRequestsMu sync.Mutex
+	discoveryPathRequests   = make(map[hashKey]*discoveryPathRequest)
+
+	blackholeMu          sync.RWMutex
+	blackholedIdentities = make(map[hashKey]*blackholeEntry)
 
 	pendingLocalPathRequestsMu sync.Mutex
 	pendingLocalPathRequests   = make(map[hashKey]*Interface)
@@ -276,6 +335,14 @@ func announceHandlerWants(handler AnnounceHandler, announceNameHash []byte) bool
 	return bytes.Equal(want, announceNameHash)
 }
 
+func announceHandlerWantsPathResponses(handler AnnounceHandler) bool {
+	if handler == nil {
+		return false
+	}
+	prHandler, ok := any(handler).(PathResponseAnnounceHandler)
+	return ok && prHandler.ReceivePathResponses()
+}
+
 func dispatchAnnounceHandlers(packet *Packet) {
 	if packet == nil {
 		return
@@ -293,13 +360,40 @@ func dispatchAnnounceHandlers(packet *Packet) {
 		if !announceHandlerWants(h, nameHash) {
 			continue
 		}
+		if packet.Context == PacketPATH_RESPONSE && !announceHandlerWantsPathResponses(h) {
+			continue
+		}
 		func() {
 			defer func() {
 				if rec := recover(); rec != nil {
 					Logf(LogError, "Announce handler panic: %v", rec)
 				}
 			}()
-			h.ReceivedAnnounce(copyBytes(packet.DestinationHash), announced, appData)
+
+			packetHash := copyBytes(packet.PacketHash)
+			if len(packetHash) == 0 {
+				packetHash = copyBytes(packet.GetHash())
+			}
+
+			switch handler := any(h).(type) {
+			case AnnounceHandlerWithPacketInfo:
+				handler.ReceivedAnnounceWithPacketInfo(
+					copyBytes(packet.DestinationHash),
+					announced,
+					appData,
+					packetHash,
+					packet.Context == PacketPATH_RESPONSE,
+				)
+			case AnnounceHandlerWithPacketHash:
+				handler.ReceivedAnnounceWithPacketHash(
+					copyBytes(packet.DestinationHash),
+					announced,
+					appData,
+					packetHash,
+				)
+			default:
+				h.ReceivedAnnounce(copyBytes(packet.DestinationHash), announced, appData)
+			}
 		}()
 	}
 }
@@ -310,6 +404,53 @@ func dispatchAnnounceHandlers(packet *Packet) {
 // mechanism without going through full transport ingress.
 func NotifyAnnounceHandlers(packet *Packet) {
 	dispatchAnnounceHandlers(packet)
+}
+
+// SetNetworkIdentity mirrors Python Transport.set_network_identity().
+// The identity is only set once, matching the Python behaviour.
+func SetNetworkIdentity(identity *Identity) {
+	if identity == nil || NetworkIdentity != nil {
+		return
+	}
+	NetworkIdentity = identity
+	if Owner != nil {
+		configureControlDestinations()
+	}
+}
+
+// HasNetworkIdentity mirrors Python Transport.has_network_identity().
+func HasNetworkIdentity() bool {
+	return NetworkIdentity != nil
+}
+
+// EnableDiscovery mirrors Python Transport.enable_discovery().
+func EnableDiscovery() {
+	if interfaceAnnouncer != nil {
+		return
+	}
+	interfaceAnnouncer = interfaceAnnouncerFactory()
+	if interfaceAnnouncer != nil {
+		interfaceAnnouncer.Start()
+	}
+}
+
+// DiscoverInterfaces mirrors Python Transport.discover_interfaces().
+func DiscoverInterfaces() {
+	if discoveryHandler != nil {
+		return
+	}
+	discoveryHandler = discoveryHandlerFactory(discoveryRequiredValue, true)
+}
+
+// EnableBlackholeUpdater mirrors Python Transport.enable_blackhole_updater().
+func EnableBlackholeUpdater() {
+	if blackholeUpdater != nil {
+		return
+	}
+	blackholeUpdater = blackholeUpdaterFactory()
+	if blackholeUpdater != nil {
+		blackholeUpdater.Start()
+	}
 }
 
 func removeLocalClientInterface(ifc *Interface) {
@@ -408,10 +549,9 @@ func AddRemoteManagementAllowed(hash []byte) {
 	if len(hash) == 0 {
 		return
 	}
-	key := string(hash)
 	remoteManagementAllowedMu.Lock()
-	if _, ok := remoteManagementAllowed[key]; !ok {
-		remoteManagementAllowed[key] = append([]byte(nil), hash...)
+	if _, ok := remoteManagementAllowed[string(hash)]; !ok {
+		remoteManagementAllowed[string(hash)] = append([]byte(nil), hash...)
 	}
 	remoteManagementAllowedMu.Unlock()
 }
@@ -421,9 +561,8 @@ func RemoteManagementAllowedContains(hash []byte) bool {
 	if len(hash) == 0 {
 		return false
 	}
-	key := string(hash)
 	remoteManagementAllowedMu.RLock()
-	_, ok := remoteManagementAllowed[key]
+	_, ok := remoteManagementAllowed[string(hash)]
 	remoteManagementAllowedMu.RUnlock()
 	return ok
 }
@@ -501,6 +640,17 @@ type announceRateEntry struct {
 	Timestamps     []time.Time
 }
 
+type discoveryPathRequest struct {
+	Timeout             time.Time
+	RequestingInterface *Interface
+}
+
+type blackholeEntry struct {
+	Source []byte
+	Until  *time.Time
+	Reason *string
+}
+
 type cachedPacket struct {
 	Raw        []byte
 	Interface  *Interface
@@ -571,9 +721,11 @@ func Start(owner *Reticulum) {
 	LastCacheCleaned = time.Now().Add(60 * time.Second)
 	ensureTransportIdentity()
 	loadPacketHashlist()
+	reloadBlackhole()
 	loadDestinationTable()
 	loadTunnelTable()
 	configureControlDestinations()
+	LastMgmtAnnounce = time.Now().Add(-(mgmtAnnounceInterval - initialMgmtAnnounceWait))
 
 	// ... the rest of start() is ported here:
 	// loading identities, tables, probe destination, etc.
@@ -596,17 +748,6 @@ func Start(owner *Reticulum) {
 	// start background loops
 	go JobLoop()
 	go CountTrafficLoop()
-}
-
-type serialisedPathEntry struct {
-	DestinationHash []byte
-	Timestamp       float64
-	NextHop         []byte
-	Hops            int
-	Expires         float64
-	RandomBlobs     [][]byte
-	InterfaceHash   []byte
-	PacketHash      []byte
 }
 
 func interfaceHash(ifc *Interface) []byte {
@@ -696,6 +837,9 @@ func loadDestinationTable() {
 
 		rawAnnounce, err := os.ReadFile(announceCachePath(packetHash))
 		if err != nil || len(rawAnnounce) == 0 || recvIf == nil {
+			continue
+		}
+		if identity := IdentityRecall(dst); identity != nil && isBlackholedIdentity(identity.Hash) {
 			continue
 		}
 
@@ -849,6 +993,430 @@ func loadTunnelTable() {
 	}
 }
 
+func blackholeStoragePath() string {
+	if Owner == nil || strings.TrimSpace(Owner.StoragePath) == "" {
+		return ""
+	}
+	return filepath.Join(Owner.StoragePath, "blackhole")
+}
+
+func blackholeLocalPath() string {
+	base := blackholeStoragePath()
+	if base == "" {
+		return ""
+	}
+	return filepath.Join(base, "local")
+}
+
+func isBlackholedIdentity(identityHash []byte) bool {
+	key, ok := makeHashKey(identityHash)
+	if !ok {
+		return false
+	}
+	blackholeMu.RLock()
+	_, exists := blackholedIdentities[key]
+	blackholeMu.RUnlock()
+	return exists
+}
+
+func serialisableBlackholeEntry(entry *blackholeEntry) map[string]any {
+	if entry == nil {
+		return map[string]any{"source": nil, "until": nil, "reason": nil}
+	}
+	out := map[string]any{
+		"source": copyBytes(entry.Source),
+		"until":  nil,
+		"reason": nil,
+	}
+	if entry.Until != nil && !entry.Until.IsZero() {
+		out["until"] = float64(entry.Until.Unix())
+	}
+	if entry.Reason != nil {
+		out["reason"] = *entry.Reason
+	}
+	return out
+}
+
+func blackholeListSnapshot() map[hashKey]map[string]any {
+	blackholeMu.RLock()
+	defer blackholeMu.RUnlock()
+	out := make(map[hashKey]map[string]any, len(blackholedIdentities))
+	for key, entry := range blackholedIdentities {
+		out[key] = serialisableBlackholeEntry(entry)
+	}
+	return out
+}
+
+// BlackholedIdentities returns a snapshot of the current blackhole table.
+// The snapshot mirrors Python Transport.blackholed_identities semantics while
+// keeping Go callers insulated from internal state mutation.
+func BlackholedIdentities() map[hashKey]map[string]any {
+	return blackholeListSnapshot()
+}
+
+func blackholeKeyFromValue(value any) (hashKey, bool) {
+	switch v := value.(type) {
+	case string:
+		return makeHashKey([]byte(v))
+	case []byte:
+		return makeHashKey(v)
+	default:
+		return hashKey{}, false
+	}
+}
+
+func blackholeEntryFromValue(value any, sourceOverride []byte, now time.Time) *blackholeEntry {
+	raw, ok := value.(map[any]any)
+	if !ok {
+		if typed, ok := value.(map[string]any); ok {
+			raw = make(map[any]any, len(typed))
+			for k, v := range typed {
+				raw[k] = v
+			}
+		} else {
+			return nil
+		}
+	}
+
+	entry := &blackholeEntry{Source: copyBytes(sourceOverride)}
+	if len(entry.Source) == 0 {
+		if source, ok := asBytesValue(raw["source"]); ok && len(source) > 0 {
+			entry.Source = source
+		}
+	}
+	if untilVal, exists := raw["until"]; exists && untilVal != nil {
+		if untilUnix, ok := asFloatValue(untilVal); ok && untilUnix > 0 {
+			until := time.Unix(int64(untilUnix), 0)
+			if now.After(until) {
+				return nil
+			}
+			entry.Until = &until
+		}
+	}
+	if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+		if reason, ok := asStringValue(reasonVal); ok {
+			entry.Reason = &reason
+		}
+	}
+	return entry
+}
+
+func blackholeListFromValue(value any, sourceOverride []byte, now time.Time) map[hashKey]*blackholeEntry {
+	out := make(map[hashKey]*blackholeEntry)
+	switch typed := value.(type) {
+	case map[hashKey]map[string]any:
+		for key, entryValue := range typed {
+			entry := blackholeEntryFromValue(entryValue, sourceOverride, now)
+			if entry != nil {
+				out[key] = entry
+			}
+		}
+	case map[hashKey]any:
+		for key, entryValue := range typed {
+			entry := blackholeEntryFromValue(entryValue, sourceOverride, now)
+			if entry != nil {
+				out[key] = entry
+			}
+		}
+	case map[any]any:
+		for rawKey, rawValue := range typed {
+			key, ok := blackholeKeyFromValue(rawKey)
+			if !ok {
+				continue
+			}
+			entry := blackholeEntryFromValue(rawValue, sourceOverride, now)
+			if entry != nil {
+				out[key] = entry
+			}
+		}
+	case map[string]any:
+		for rawKey, rawValue := range typed {
+			key, ok := blackholeKeyFromValue(rawKey)
+			if !ok {
+				continue
+			}
+			entry := blackholeEntryFromValue(rawValue, sourceOverride, now)
+			if entry != nil {
+				out[key] = entry
+			}
+		}
+	}
+	return out
+}
+
+func blackholeSourcePath(sourceIdentityHash []byte) string {
+	basePath := blackholeStoragePath()
+	if basePath == "" {
+		return ""
+	}
+	if TransportIdentity != nil && bytesEqual(sourceIdentityHash, TransportIdentity.Hash) {
+		return filepath.Join(basePath, "local")
+	}
+	if len(sourceIdentityHash) != truncatedHashBytes {
+		return ""
+	}
+	return filepath.Join(basePath, hex.EncodeToString(sourceIdentityHash))
+}
+
+func persistBlackholeSource(sourceIdentityHash []byte, entries map[hashKey]map[string]any) error {
+	path := blackholeSourcePath(sourceIdentityHash)
+	if path == "" {
+		return nil
+	}
+	packed, err := umsgpack.Packb(entries)
+	if err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	if fileExists(path) {
+		_ = os.Remove(path)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	return nil
+}
+
+func mergeRemoteBlackhole(sourceIdentityHash []byte, value any, now time.Time) int {
+	if len(sourceIdentityHash) != truncatedHashBytes {
+		return 0
+	}
+	decoded := blackholeListFromValue(value, sourceIdentityHash, now)
+	if len(decoded) == 0 {
+		return 0
+	}
+
+	added := 0
+	serialisable := make(map[hashKey]map[string]any, len(decoded))
+	blackholeMu.Lock()
+	for key, entry := range decoded {
+		if entry == nil {
+			continue
+		}
+		serialisable[key] = serialisableBlackholeEntry(entry)
+		if _, exists := blackholedIdentities[key]; exists {
+			continue
+		}
+		blackholedIdentities[key] = entry
+		added++
+	}
+	blackholeMu.Unlock()
+
+	if added > 0 {
+		removeBlackholedPaths()
+		if err := persistBlackholeSource(sourceIdentityHash, serialisable); err != nil {
+			Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceIdentityHash), err)
+		}
+	}
+	return added
+}
+
+func persistBlackhole() error {
+	localPath := blackholeLocalPath()
+	if localPath == "" || TransportIdentity == nil {
+		return nil
+	}
+
+	blackholeMu.RLock()
+	localBlackhole := make(map[hashKey]map[string]any)
+	for key, entry := range blackholedIdentities {
+		if entry == nil || !bytesEqual(entry.Source, TransportIdentity.Hash) {
+			continue
+		}
+		localBlackhole[key] = serialisableBlackholeEntry(entry)
+	}
+	blackholeMu.RUnlock()
+
+	packed, err := umsgpack.Packb(localBlackhole)
+	if err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	_ = os.MkdirAll(filepath.Dir(localPath), 0o755)
+	tmpPath := localPath + ".tmp"
+	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	if fileExists(localPath) {
+		_ = os.Remove(localPath)
+	}
+	if err := os.Rename(tmpPath, localPath); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		return err
+	}
+	return nil
+}
+
+func reloadBlackhole() {
+	basePath := blackholeStoragePath()
+	if basePath == "" {
+		return
+	}
+	entries, err := os.ReadDir(basePath)
+	if err != nil {
+		return
+	}
+
+	now := time.Now()
+	loaded := make(map[hashKey]*blackholeEntry)
+	enabledSources := BlackholeSources()
+	for _, entry := range entries {
+		if entry == nil || entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		var sourceIdentityHash []byte
+		if name == "local" {
+			if TransportIdentity == nil {
+				continue
+			}
+			sourceIdentityHash = copyBytes(TransportIdentity.Hash)
+		} else {
+			decoded, err := hex.DecodeString(name)
+			if err != nil || len(decoded) != truncatedHashBytes {
+				Logf(LogError, "Could not load blackholed identities from source file %s: invalid source identity hash", name)
+				continue
+			}
+			enabled := false
+			for _, source := range enabledSources {
+				if bytesEqual(source, decoded) {
+					enabled = true
+					break
+				}
+			}
+			if !enabled {
+				Logf(LogVerbose, "Skipping disabled blackhole source %s", PrettyHexRep(decoded))
+				continue
+			}
+			sourceIdentityHash = decoded
+		}
+
+		path := filepath.Join(basePath, name)
+		packed, err := os.ReadFile(path)
+		if err != nil {
+			Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+			continue
+		}
+		raw := map[any]any{}
+		if err := umsgpack.Unpackb(packed, &raw); err != nil {
+			Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+			continue
+		}
+		for rawKey, rawValue := range raw {
+			key, ok := blackholeKeyFromValue(rawKey)
+			if !ok {
+				continue
+			}
+			if existing := loaded[key]; existing != nil && TransportIdentity != nil && bytesEqual(existing.Source, TransportIdentity.Hash) {
+				continue
+			}
+			decodedEntry := blackholeEntryFromValue(rawValue, sourceIdentityHash, now)
+			if decodedEntry == nil {
+				continue
+			}
+			loaded[key] = decodedEntry
+		}
+	}
+
+	blackholeMu.Lock()
+	blackholedIdentities = loaded
+	blackholeMu.Unlock()
+	removeBlackholedPaths()
+}
+
+func removeBlackholedPaths() {
+	drop := make([]hashKey, 0)
+	pathTableMu.RLock()
+	for key := range pathTable {
+		identity := IdentityRecall(key[:])
+		if identity == nil || !isBlackholedIdentity(identity.Hash) {
+			continue
+		}
+		drop = append(drop, key)
+	}
+	pathTableMu.RUnlock()
+
+	if len(drop) == 0 {
+		return
+	}
+	pathTableMu.Lock()
+	for _, key := range drop {
+		delete(pathTable, key)
+	}
+	pathTableMu.Unlock()
+	Logf(LogInfo, "Removed %d destination(s) associated with blackholed identities from path table", len(drop))
+}
+
+func cullBlackholedIdentities(now time.Time) bool {
+	removed := 0
+	persist := false
+	blackholeMu.Lock()
+	for key, entry := range blackholedIdentities {
+		if entry == nil {
+			delete(blackholedIdentities, key)
+			removed++
+			continue
+		}
+		if entry.Until != nil && !entry.Until.IsZero() && now.After(*entry.Until) {
+			if TransportIdentity != nil && bytesEqual(entry.Source, TransportIdentity.Hash) {
+				persist = true
+			}
+			delete(blackholedIdentities, key)
+			removed++
+		}
+	}
+	blackholeMu.Unlock()
+	if persist {
+		_ = persistBlackhole()
+	}
+	if removed > 0 {
+		Logf(LogVerbose, "Removed %d blackholed identities", removed)
+	}
+	return removed > 0
+}
+
+func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bool {
+	key, ok := makeHashKey(identityHash)
+	if !ok || TransportIdentity == nil {
+		return false
+	}
+
+	entry := &blackholeEntry{Source: copyBytes(TransportIdentity.Hash)}
+	if until != nil && !until.IsZero() {
+		t := *until
+		entry.Until = &t
+	}
+	if reason != nil {
+		r := *reason
+		entry.Reason = &r
+	}
+
+	blackholeMu.Lock()
+	if _, exists := blackholedIdentities[key]; exists {
+		blackholeMu.Unlock()
+		return false
+	}
+	blackholedIdentities[key] = entry
+	blackholeMu.Unlock()
+
+	_ = persistBlackhole()
+	removeBlackholedPaths()
+	Logf(LogInfo, "Blackholed identity %s", PrettyHexRep(identityHash))
+	return true
+}
+
+func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, _ *Identity, _ time.Time) any {
+	return blackholeListSnapshot()
+}
+
 func ensureTransportIdentity() {
 	if TransportIdentity != nil || Owner == nil {
 		return
@@ -937,6 +1505,9 @@ func TransportPersistData() {
 	}
 	if err := saveTunnelTable(); err != nil {
 		Logf(LogError, "Error while saving tunnel table to disk: %v", err)
+	}
+	if err := persistBlackhole(); err != nil {
+		Logf(LogError, "Error while saving blackhole list to disk: %v", err)
 	}
 	lastTablesPersisted = time.Now()
 }
@@ -1200,6 +1771,21 @@ func CountTrafficLoop() {
 	}
 }
 
+func runInterfaceJobs(now time.Time) bool {
+	if !InterfaceLastJobs.IsZero() && now.Sub(InterfaceLastJobs) <= InterfaceJobsInterval {
+		return false
+	}
+
+	PrioritiseInterfaces()
+	for _, ifc := range Interfaces {
+		if ifc != nil {
+			ifc.ProcessHeldAnnounces(PathfinderMaxHops)
+		}
+	}
+	InterfaceLastJobs = now
+	return true
+}
+
 // -------- main job loop --------
 
 func JobLoop() {
@@ -1212,6 +1798,7 @@ func JobLoop() {
 func Jobs() {
 	var outgoing []*Packet
 	pathRequests := make(map[hashKey]*Interface)
+	var mgmtAnnouncements []*Destination
 	var culled bool
 
 	// TryLock: if Inbound/Outbound is active, skip this job cycle rather
@@ -1239,6 +1826,9 @@ func Jobs() {
 					}
 				}
 			}
+		}
+		if len(mgmtAnnouncements) > 0 {
+			go announceManagementDestinations(mgmtAnnouncements)
 		}
 	}()
 	shouldGC := false
@@ -1296,6 +1886,7 @@ func Jobs() {
 			delete(pendingLocalPathRequests, key)
 		}
 		pendingLocalPathRequestsMu.Unlock()
+		cullDiscoveryPathRequests(now)
 		pendingPRsLastChecked = now
 	}
 
@@ -1339,10 +1930,17 @@ func Jobs() {
 	if len(heldAnnounces) > 0 {
 		processHeldAnnounces(now, &outgoing)
 	}
-	for _, ifc := range Interfaces {
-		if ifc != nil {
-			ifc.ProcessHeldAnnounces(PathfinderMaxHops)
+	runInterfaceJobs(now)
+
+	if due := dueManagementDestinations(now); len(due) > 0 {
+		mgmtAnnouncements = due
+	}
+
+	if now.Sub(blackholeLastChecked) > blackholeCheckInterval {
+		if cullBlackholedIdentities(now) {
+			culled = true
 		}
+		blackholeLastChecked = now
 	}
 
 	if shouldGC || culled {
@@ -1440,6 +2038,62 @@ func processHeldAnnounces(now time.Time, outgoing *[]*Packet) {
 	}
 }
 
+func rememberDiscoveryPathRequest(destinationHash []byte, requestingInterface *Interface, now time.Time) bool {
+	key, ok := makeHashKey(destinationHash)
+	if !ok || requestingInterface == nil {
+		return false
+	}
+
+	discoveryPathRequestsMu.Lock()
+	defer discoveryPathRequestsMu.Unlock()
+
+	if entry := discoveryPathRequests[key]; entry != nil && now.Before(entry.Timeout) {
+		return false
+	}
+
+	discoveryPathRequests[key] = &discoveryPathRequest{
+		Timeout:             now.Add(time.Duration(TransportPathRequestTimeout * float64(time.Second))),
+		RequestingInterface: requestingInterface,
+	}
+	return true
+}
+
+func popDiscoveryPathRequest(destinationHash []byte, now time.Time) *discoveryPathRequest {
+	key, ok := makeHashKey(destinationHash)
+	if !ok {
+		return nil
+	}
+
+	discoveryPathRequestsMu.Lock()
+	defer discoveryPathRequestsMu.Unlock()
+
+	entry := discoveryPathRequests[key]
+	if entry == nil {
+		return nil
+	}
+	if !entry.Timeout.IsZero() && !now.Before(entry.Timeout) {
+		delete(discoveryPathRequests, key)
+		return nil
+	}
+
+	delete(discoveryPathRequests, key)
+	return entry
+}
+
+func cullDiscoveryPathRequests(now time.Time) bool {
+	discoveryPathRequestsMu.Lock()
+	defer discoveryPathRequestsMu.Unlock()
+
+	removed := false
+	for key, entry := range discoveryPathRequests {
+		if entry == nil || (!entry.Timeout.IsZero() && !now.Before(entry.Timeout)) {
+			delete(discoveryPathRequests, key)
+			removed = true
+		}
+	}
+	return removed
+}
+
 // QueueAnnounce schedules a packet for rebroadcast, mirroring the behaviour of
 // the Python transport announce table. Only ANNOUNCE packets are queued.
 func QueueAnnounce(p *Packet, opts ...AnnounceOption) {
@@ -1518,11 +2172,15 @@ func configureControlDestinations() {
 	}
 	ensureCoreControlDestinations()
 	ensureProbeDestination()
+	ensureNetworkDestinations()
+	ensureBlackholeDestination()
 	if !RemoteManagementEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
 		disableRemoteManagementDestination()
+		refreshManagementDestinations()
 		return
 	}
 	enableRemoteManagementDestination()
+	refreshManagementDestinations()
 }
 
 func ensureProbeDestination() {
@@ -1546,6 +2204,53 @@ func ensureProbeDestination() {
 	dest.Announce(nil, false, nil, nil, true)
 	ProbeDestination = dest
 	Logf(LogNotice, "Transport Instance will respond to probe requests on %s", dest)
+}
+
+func ensureNetworkDestinations() {
+	if Owner == nil || Owner.IsConnectedToSharedInstance || NetworkIdentity == nil {
+		return
+	}
+	if instanceDestination == nil {
+		dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network", "instance", strings.ToLower(hex.EncodeToString(NetworkIdentity.Hash)))
+		if err != nil {
+			Logf(LogError, "Could not create network instance destination: %v", err)
+		} else {
+			instanceDestination = dest
+		}
+	}
+	if networkDestination == nil {
+		dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network")
+		if err != nil {
+			Logf(LogError, "Could not create network destination: %v", err)
+		} else {
+			networkDestination = dest
+		}
+	}
+}
+
+func ensureBlackholeDestination() {
+	if Owner == nil {
+		return
+	}
+	if !PublishBlackholeEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
+		if blackholeDestination != nil {
+			blackholeDestination.DeregisterRequestHandler("/list")
+		}
+		blackholeDestination = nil
+		return
+	}
+	if blackholeDestination == nil {
+		dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "info", "blackhole")
+		if err != nil {
+			Logf(LogError, "Could not create blackhole destination: %v", err)
+			return
+		}
+		blackholeDestination = dest
+	}
+	if err := blackholeDestination.RegisterRequestHandler("/list", blackholeListHandler, DestinationALLOW_ALL, nil); err != nil {
+		Logf(LogError, "Could not register blackhole list handler: %v", err)
+		return
+	}
 }
 
 func ensureCoreControlDestinations() {
@@ -1613,6 +2318,48 @@ func disableRemoteManagementDestination() {
 	remoteManagementDest.DeregisterRequestHandler("/path")
 	unregisterControlHash(remoteManagementDest.Hash())
 	remoteManagementActive = false
+}
+
+func refreshManagementDestinations() {
+	dests := make([]*Destination, 0, 4)
+	if remoteManagementActive && remoteManagementDest != nil {
+		dests = append(dests, remoteManagementDest)
+	}
+	if blackholeDestination != nil {
+		dests = append(dests, blackholeDestination)
+	}
+	if Owner != nil && !Owner.IsConnectedToSharedInstance && NetworkIdentity != nil {
+		if instanceDestination != nil {
+			dests = append(dests, instanceDestination)
+		}
+		if networkDestination != nil {
+			dests = append(dests, networkDestination)
+		}
+	}
+	if ProbeDestination != nil {
+		dests = append(dests, ProbeDestination)
+	}
+	mgmtDestinations = dests
+}
+
+func dueManagementDestinations(now time.Time) []*Destination {
+	if len(mgmtDestinations) == 0 {
+		return nil
+	}
+	if !LastMgmtAnnounce.IsZero() && now.Sub(LastMgmtAnnounce) <= mgmtAnnounceInterval {
+		return nil
+	}
+	LastMgmtAnnounce = now
+	return append([]*Destination(nil), mgmtDestinations...)
+}
+
+func announceManagementDestinations(dests []*Destination) {
+	for _, dest := range dests {
+		if dest == nil {
+			continue
+		}
+		dest.Announce(nil, false, nil, nil, true)
+	}
 }
 
 func remoteStatusHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *Identity, _ time.Time) any {
@@ -1759,17 +2506,84 @@ func pathRequestHandler(data []byte, packet *Packet) {
 		return
 	}
 
-	// Forward the request while preserving the tag to avoid loops (Python behaviour).
+	// Python parity: local clients forward path requests to all other interfaces
+	// using a fresh request tag.
 	if attached == nil {
 		requestPathOnInterface(destinationHash, nil, tagBytes, true)
 		return
 	}
+	if IsLocalClientInterface(attached) {
+		requestTag := IdentityGetRandomHash()
+		for _, ifc := range Interfaces {
+			if ifc == nil || ifc == attached {
+				continue
+			}
+			requestPathOnInterface(destinationHash, ifc, requestTag, false)
+		}
+		return
+	}
+
+	// Python parity: only interfaces in DISCOVER_PATHS_FOR start recursive
+	// discovery on behalf of external peers.
+	if !shouldDiscoverPathsFor(attached) {
+		return
+	}
+
+	now := time.Now()
+	if !rememberDiscoveryPathRequest(destinationHash, attached, now) {
+		Logf(LogDebug, "There is already a waiting discovery path request for %s on behalf of %s",
+			PrettyHash(destinationHash), interfaceName(attached))
+		return
+	}
+
 	for _, ifc := range Interfaces {
 		if ifc == nil || ifc == attached {
 			continue
 		}
 		requestPathOnInterface(destinationHash, ifc, tagBytes, true)
 	}
+}
+
+func answerWaitingDiscoveryPathRequest(packet *Packet, now time.Time) {
+	if packet == nil || TransportIdentity == nil {
+		return
+	}
+
+	entry := popDiscoveryPathRequest(packet.DestinationHash, now)
+	if entry == nil || entry.RequestingInterface == nil {
+		return
+	}
+
+	Logf(LogDebug, "Got matching announce, answering waiting discovery path request for %s on %s",
+		PrettyHash(packet.DestinationHash), interfaceName(entry.RequestingInterface))
+
+	dest := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		hash:      copyBytes(packet.DestinationHash),
+		hexhash:   PrettyHexRep(packet.DestinationHash),
+	}
+
+	response := NewPacket(
+		dest,
+		copyBytes(packet.Data),
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(PacketPATH_RESPONSE),
+		WithTransportType(TransportDirect),
+		WithHeaderType(HeaderType2),
+		WithTransportID(copyBytes(TransportIdentity.Hash)),
+		WithContextFlag(packet.ContextFlag),
+		WithAttachedInterface(entry.RequestingInterface),
+		WithoutReceipt(),
+	)
+	if response == nil {
+		return
+	}
+
+	response.Hops = packet.Hops
+	response.DestinationHash = copyBytes(packet.DestinationHash)
+	response.DestinationType = byte(DestinationSINGLE)
+	_ = response.Send()
 }
 
 func forwardPathRequestToLocalClients(raw []byte) {
@@ -3182,6 +3996,18 @@ func maxInt(a, b int) int {
 	return b
 }
 
+func shouldDiscoverPathsFor(ifc *Interface) bool {
+	if ifc == nil || !TransportEnabled() {
+		return false
+	}
+	switch ifc.Mode {
+	case InterfaceModeAccessPoint, InterfaceModeGateway, InterfaceModeRoaming:
+		return true
+	default:
+		return false
+	}
+}
+
 // linkIDFromLinkRequestPacket computes the link ID in the same way as Python
 // Link.link_id_from_lr_packet(), ensuring that link-table routing works for
 // LRPROOF and subsequent link packets across transport hops.
@@ -3347,6 +4173,8 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 	if len(LocalClientInterfaces) > 0 {
 		forwardAnnounceToLocalClients(p)
 	}
+
+	answerWaitingDiscoveryPathRequest(p, now)
 
 	retransmitAllowed := TransportEnabled() || fromLocal
 	if !retransmitAllowed {
@@ -3951,18 +4779,6 @@ func ExpirePath(hash []byte) bool {
 	return true
 }
 
-// MarkPathUnresponsive mirrors Python Transport.mark_path_unresponsive().
-func MarkPathUnresponsive(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok || !HasPath(hash) {
-		return false
-	}
-	pathStatesMu.Lock()
-	pathStates[key] = TransportStateUnresponsive
-	pathStatesMu.Unlock()
-	return true
-}
-
 // MarkPathResponsive mirrors Python Transport.mark_path_responsive().
 func MarkPathResponsive(hash []byte) bool {
 	key, ok := makeHashKey(hash)
@@ -3971,18 +4787,6 @@ func MarkPathResponsive(hash []byte) bool {
 	}
 	pathStatesMu.Lock()
 	pathStates[key] = TransportStateResponsive
-	pathStatesMu.Unlock()
-	return true
-}
-
-// MarkPathUnknownState mirrors Python Transport.mark_path_unknown_state().
-func MarkPathUnknownState(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok || !HasPath(hash) {
-		return false
-	}
-	pathStatesMu.Lock()
-	pathStates[key] = TransportStateUnknown
 	pathStatesMu.Unlock()
 	return true
 }
@@ -4154,6 +4958,69 @@ func TransportExtraLinkProofTimeout(ifc *Interface) time.Duration {
 	return time.Duration(seconds * float64(time.Second))
 }
 
+// AwaitPath mirrors Python Transport.await_path().
+// It requests a path if needed and blocks until the path is available or the
+// timeout expires. When timeout is <= 0, the Python default timeout is used.
+func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Interface) bool {
+	if HasPath(destinationHash) {
+		return true
+	}
+
+	if timeout <= 0 {
+		timeout = time.Duration(TransportPathRequestTimeout * float64(time.Second))
+	}
+
+	if onInterface != nil {
+		requestPathOnInterface(destinationHash, onInterface, nil, false)
+		if key, ok := makeHashKey(destinationHash); ok {
+			pathRequestMu.Lock()
+			lastPathRequest[key] = time.Now()
+			pathRequestMu.Unlock()
+		}
+	} else {
+		requestPathOnInterface(destinationHash, nil, nil, false)
+		if key, ok := makeHashKey(destinationHash); ok {
+			pathRequestMu.Lock()
+			lastPathRequest[key] = time.Now()
+			pathRequestMu.Unlock()
+		}
+	}
+
+	deadline := time.Now().Add(timeout)
+	for !HasPath(destinationHash) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return HasPath(destinationHash)
+}
+
+// RequestPathOnInterface mirrors Python Transport.request_path().
+// It exposes the same public transport surface while preserving the existing
+// Go rate-limiting on duplicate path requests.
+func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
+	key, ok := makeHashKey(hash)
+	if !ok {
+		return false
+	}
+	if HasPath(hash) && !PathIsUnresponsive(hash) {
+		return false
+	}
+
+	now := time.Now()
+	pathRequestMu.Lock()
+	last := lastPathRequest[key]
+	if now.Sub(last) < pathRequestMinInterval {
+		pathRequestMu.Unlock()
+		return false
+	}
+	lastPathRequest[key] = now
+	pathRequestMu.Unlock()
+
+	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
+	requestPathOnInterface(hash, onInterface, tag, recursive)
+	return true
+}
+
 func RequestPath(hash []byte, blocked *Interface) {
 	key, ok := makeHashKey(hash)
 	if !ok {
@@ -4307,6 +5174,10 @@ func SharedConnectionDisappeared() {
 	tunnels = make(map[string]*tunnelEntry)
 	tunnelsMu.Unlock()
 
+	discoveryPathRequestsMu.Lock()
+	discoveryPathRequests = make(map[hashKey]*discoveryPathRequest)
+	discoveryPathRequestsMu.Unlock()
+
 	linkTable = make(map[hashKey]*linkEntry)
 	configureControlDestinations()
 }
@@ -4437,41 +5308,6 @@ func ShouldCache(p *Packet) bool {
 	return p.Type == PacketANNOUNCE
 }
 
-// CleanCache mirrors Python Transport.clean_cache()/clean_announce_cache().
-func CleanCache() {
-	now := time.Now()
-	_ = cleanAnnounceCache(now)
-	_ = cleanPacketCache(now)
-}
-
-// GetCachedPacket mirrors Python Transport.get_cached_packet().
-// packetType is currently only used for "announce" to enable disk-backed lookups.
-func GetCachedPacket(packetHash []byte, packetType string) *Packet {
-	if len(packetHash) == 0 {
-		return nil
-	}
-	var raw []byte
-	if strings.EqualFold(packetType, "announce") || packetType == "" {
-		raw = getCachedAnnounceRaw(packetHash)
-	}
-	if len(raw) == 0 {
-		packetCacheMu.RLock()
-		entry := packetCache[string(packetHash)]
-		packetCacheMu.RUnlock()
-		if entry != nil && len(entry.Raw) > 0 {
-			raw = append([]byte(nil), entry.Raw...)
-		}
-	}
-	if len(raw) == 0 {
-		return nil
-	}
-	p := NewPacket(nil, raw)
-	if p == nil || !p.Unpack() {
-		return nil
-	}
-	return p
-}
-
 func CacheRequest(hash []byte, link *Link) {
 	if deliverCachedPacket(hash) {
 		return
@@ -4590,23 +5426,6 @@ func isForLocalClient(p *Packet) bool {
 	// Python: for_local_client if destination_hash in path_table and hops == 0.
 	entry := getPathEntry(p.DestinationHash)
 	return entry != nil && entry.Hops == 0
-}
-
-func isForLocalClientLink(p *Packet) bool {
-	if p == nil || p.Type == PacketAnnounce || len(LocalClientInterfaces) == 0 {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-	linkMu.Lock()
-	entry := linkTable[key]
-	linkMu.Unlock()
-	if entry == nil {
-		return false
-	}
-	return IsLocalClientInterface(entry.ReceivedInterface) || IsLocalClientInterface(entry.NextHopInterface)
 }
 
 func isProofForLocal(p *Packet) bool {

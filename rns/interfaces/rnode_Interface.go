@@ -480,10 +480,9 @@ type RNodeInterface struct {
 	rxb atomic.Uint64
 	txb atomic.Uint64
 
-	detached     atomic.Bool
-	reconnecting atomic.Bool
-	hwErrorsMu   sync.Mutex
-	hwErrors     []HardwareError
+	detached   atomic.Bool
+	hwErrorsMu sync.Mutex
+	hwErrors   []HardwareError
 
 	// queues
 	qMu   sync.Mutex
@@ -1575,8 +1574,3 @@ func (r *RNodeInterface) appendHWError(code byte, desc string) {
 		At:          time.Now(),
 	})
 }
-
-// helper: wrap func as io.Reader
-type readerFunc func(p []byte) (int, error)
-
-func (f readerFunc) Read(p []byte) (int, error) { return f(p) }

@@ -746,12 +746,6 @@ func PrettyTime(sec float64, verbose, compact bool) string {
 		seconds = math.Round(sec*100) / 100
 	}
 
-	type part struct {
-		val int
-		lbl string
-		s   string
-	}
-
 	components := []string{}
 	shown := 0
 

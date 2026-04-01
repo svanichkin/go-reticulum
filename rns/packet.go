@@ -430,7 +430,7 @@ func (p *Packet) Pack() error {
 		}
 
 		if p.HeaderType == HeaderType2 {
-			if p.TransportID == nil || len(p.TransportID) == 0 {
+			if len(p.TransportID) == 0 {
 				return errors.New("header type 2 packet must have transportID")
 			}
 			if len(p.TransportID) != truncatedHashBytes {

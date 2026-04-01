@@ -375,14 +375,6 @@ func (c *Channel) RemoveMessageHandler(cb MessageCallbackType) {
 	}
 }
 
-func (c *Channel) shutdown() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.messageCallbacks = nil
-	c.clearRingsLocked()
-}
-
 func (c *Channel) clearRingsLocked() {
 	for _, env := range c.txRing {
 		if env.packet != nil {

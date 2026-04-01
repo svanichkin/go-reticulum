@@ -61,7 +61,6 @@ type BackbonePeer struct {
 	iface     *Interface
 	conn      net.Conn
 	sendOnce  sync.Once
-	sendMu    sync.Mutex
 	txMu      sync.Mutex
 	txCond    *sync.Cond
 	txQueue   []backboneTxFrame
@@ -253,64 +252,6 @@ func unixListenPath(listen string) (string, bool) {
 		return s, true
 	}
 	return "", false
-}
-
-func selectAddressForDevice(dev string, preferIPv6 bool) (string, error) {
-	if dev == "" {
-		return "", errors.New("missing device")
-	}
-	ifi, err := net.InterfaceByName(dev)
-	if err != nil {
-		return "", err
-	}
-	addrs, err := ifi.Addrs()
-	if err != nil {
-		return "", err
-	}
-	var v4, v6, v6ll string
-	for _, a := range addrs {
-		ipNet, ok := a.(*net.IPNet)
-		if !ok || ipNet.IP == nil {
-			continue
-		}
-		ip := ipNet.IP
-		if ip.To4() != nil {
-			if v4 == "" {
-				v4 = ip.String()
-			}
-			continue
-		}
-		ipStr := ip.String()
-		if strings.HasPrefix(strings.ToLower(ipStr), "fe80:") {
-			if v6ll == "" {
-				v6ll = ipStr + "%" + dev
-			}
-		} else if v6 == "" {
-			v6 = ipStr
-		}
-	}
-	if preferIPv6 {
-		if v6 != "" {
-			return v6, nil
-		}
-		if v6ll != "" {
-			return v6ll, nil
-		}
-		if v4 != "" {
-			return v4, nil
-		}
-	} else {
-		if v4 != "" {
-			return v4, nil
-		}
-		if v6 != "" {
-			return v6, nil
-		}
-		if v6ll != "" {
-			return v6ll, nil
-		}
-	}
-	return "", fmt.Errorf("no suitable address on device %s", dev)
 }
 
 func (d *BackboneInterfaceDriver) Close() {
@@ -509,7 +450,7 @@ func (p *BackbonePeer) writeLoop() {
 		p.txCond.Signal()
 		p.txMu.Unlock()
 
-		if p == nil || p.closed.Load() || p.conn == nil || p.iface == nil {
+		if p.closed.Load() || p.conn == nil || p.iface == nil {
 			return
 		}
 		frame := tx.frame
@@ -1059,20 +1000,6 @@ var backboneDial = func(dialer *net.Dialer, network, address string) (net.Conn, 
 		dialer = &net.Dialer{}
 	}
 	return dialer.Dial(network, address)
-}
-
-func tuneTCP(conn net.Conn, i2p bool) {
-	if tc, ok := conn.(*net.TCPConn); ok {
-		_ = tc.SetKeepAlive(true)
-		_ = tc.SetNoDelay(true)
-		// Best-effort approximation of Python's keepalive probe-after value.
-		probeAfter := 5 * time.Second
-		if i2p {
-			probeAfter = 10 * time.Second
-		}
-		_ = tc.SetKeepAlivePeriod(probeAfter)
-	}
-	_ = setTCPTimeoutsBestEffort(conn, i2p)
 }
 
 // tuneTCPBackbone matches Python BackboneInterface/BackboneClientInterface TCP settings:

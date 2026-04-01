@@ -2,5 +2,6 @@
 
 package ble
 
-func bluezIsDeviceBonded(_ string) (bool, error) { return true, nil }
+var _ = bluezIsDeviceBonded
 
+func bluezIsDeviceBonded(_ string) (bool, error) { return true, nil }

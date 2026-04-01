@@ -149,7 +149,21 @@ func packAny(w *bytes.Buffer, v any) error {
 	default:
 		rv := reflect.ValueOf(v)
 		switch rv.Kind() {
-		case reflect.Slice, reflect.Array:
+		case reflect.Slice:
+			n := rv.Len()
+			arr := make([]any, 0, n)
+			for i := 0; i < n; i++ {
+				arr = append(arr, rv.Index(i).Interface())
+			}
+			return packArray(w, arr)
+		case reflect.Array:
+			if rv.Type().Elem().Kind() == reflect.Uint8 {
+				b := make([]byte, rv.Len())
+				for i := 0; i < rv.Len(); i++ {
+					b[i] = byte(rv.Index(i).Uint())
+				}
+				return packBytes(w, b)
+			}
 			n := rv.Len()
 			arr := make([]any, 0, n)
 			for i := 0; i < n; i++ {

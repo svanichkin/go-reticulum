@@ -183,7 +183,7 @@ func programSetup(
 
 	reticulum, err = rns.NewReticulum(configdir, &logLevel, nil, nil, requireShared, nil)
 	if err != nil {
-		return exitError{code: 1, err: fmt.Errorf("No shared RNS instance available to get status from")}
+		return exitError{code: 1, err: fmt.Errorf("no shared RNS instance available to get status from")}
 	}
 
 	var (
@@ -194,24 +194,24 @@ func programSetup(
 	if remote != "" {
 		// --- remote mode ---
 		if managementIdentity == "" {
-			return exitError{code: 20, err: fmt.Errorf("Remote management requires an identity file. Use -i to specify the path to a management identity.")}
+			return exitError{code: 20, err: fmt.Errorf("remote management requires an identity file; use -i to specify the path to a management identity")}
 		}
 
 		destLen := (rns.ReticulumTruncatedHashLength / 8) * 2
 		if len(remote) != destLen {
-			return exitError{code: 20, err: fmt.Errorf("Destination length is invalid, must be %d hexadecimal characters (%d bytes).", destLen, destLen/2)}
+			return exitError{code: 20, err: fmt.Errorf("destination length is invalid, must be %d hexadecimal characters (%d bytes)", destLen, destLen/2)}
 		}
 
 		identityHash, err := hex.DecodeString(remote)
 		if err != nil {
-			return exitError{code: 20, err: fmt.Errorf("Invalid destination entered. Check your input.")}
+			return exitError{code: 20, err: fmt.Errorf("invalid destination entered; check your input")}
 		}
 		remotePretty = rns.PrettyHex(identityHash)
 
 		destHash := rns.HashFromNameAndIdentity("rnstransport.remote.management", identityHash)
 		id, err := rns.IdentityFromFile(expandUser(managementIdentity))
 		if err != nil || id == nil {
-			return exitError{code: 20, err: fmt.Errorf("Could not load management identity from %s", managementIdentity)}
+			return exitError{code: 20, err: fmt.Errorf("could not load management identity from %s", managementIdentity)}
 		}
 
 		s, lc, err := getRemoteStatus(destHash, lstats, id, jsonOut, remoteTimeout)
@@ -234,13 +234,13 @@ func programSetup(
 
 	if stats == nil {
 		if remote == "" {
-			return exitError{code: 2, err: fmt.Errorf("Could not get RNS status")}
+			return exitError{code: 2, err: fmt.Errorf("could not get RNS status")}
 		}
 		target := strings.TrimSpace(remotePretty)
 		if target == "" {
 			target = "remote transport instance"
 		}
-		return exitError{code: 2, err: fmt.Errorf("Could not get RNS status from remote transport instance %s", target)}
+		return exitError{code: 2, err: fmt.Errorf("could not get RNS status from remote transport instance %s", target)}
 	}
 
 	if jsonOut {
@@ -277,13 +277,13 @@ func programSetup(
 				strings.HasPrefix(name, "WeaveInterfacePeer[") ||
 				strings.HasPrefix(name, "I2PInterfacePeer[Connected peer") ||
 				(strings.HasPrefix(name, "I2PInterface[") &&
-					boolField(ifstat, "i2p_connectable") == false) {
+					!boolField(ifstat, "i2p_connectable")) {
 				continue
 			}
 		}
 
 		if strings.HasPrefix(name, "I2PInterface[") &&
-			boolField(ifstat, "i2p_connectable") == false {
+			!boolField(ifstat, "i2p_connectable") {
 			continue
 		}
 

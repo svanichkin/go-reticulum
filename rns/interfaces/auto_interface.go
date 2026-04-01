@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -373,7 +374,7 @@ func listenDiscoveryPacket(mcastAddr string, linkScope bool, ifname string, port
 
 	// Windows cannot bind to multicast host or with interface specifier.
 	if vendor.IsWindows() {
-		return lc.ListenPacket(nil, "udp6", fmt.Sprintf("[::]:%d", port))
+		return lc.ListenPacket(context.TODO(), "udp6", fmt.Sprintf("[::]:%d", port))
 	}
 
 	host := mcastAddr
@@ -382,7 +383,7 @@ func listenDiscoveryPacket(mcastAddr string, linkScope bool, ifname string, port
 		zone = ifname
 	}
 	addr := (&net.UDPAddr{IP: net.ParseIP(host), Zone: zone, Port: port}).String()
-	return lc.ListenPacket(nil, "udp6", addr)
+	return lc.ListenPacket(context.TODO(), "udp6", addr)
 }
 
 func (st *autoState) stop() {
@@ -1007,15 +1008,15 @@ func joinIPv6Multicast(pc net.PacketConn, group string, ifIndex int) error {
 			sockErr = errors.New("invalid multicast group")
 			return
 		}
-			var mreq syscall.IPv6Mreq
-			copy(mreq.Multiaddr[:], ip.To16())
-			mreq.Interface = uint32(ifIndex)
-			sockErr = setSockoptIPv6MreqFD(fd, syscall.IPPROTO_IPV6, syscall.IPV6_JOIN_GROUP, &mreq)
-		})
-		if err != nil {
-			return err
-		}
-		return sockErr
+		var mreq syscall.IPv6Mreq
+		copy(mreq.Multiaddr[:], ip.To16())
+		mreq.Interface = uint32(ifIndex)
+		sockErr = setSockoptIPv6MreqFD(fd, syscall.IPPROTO_IPV6, syscall.IPV6_JOIN_GROUP, &mreq)
+	})
+	if err != nil {
+		return err
+	}
+	return sockErr
 }
 
 func equal32(a, b []byte) bool {

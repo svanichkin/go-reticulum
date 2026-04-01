@@ -439,8 +439,7 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 	var announceData []byte
 
 	if pathResponse {
-		key := string(tag) // matches Python behaviour where tag may be None; we map nil/empty to ""
-		if entry, ok := d.pathResponses[key]; ok {
+		if entry, ok := d.pathResponses[string(tag)]; ok {
 			Log("Using cached announce data for answering path request with tag "+PrettyHexRep(tag), LOG_EXTREME)
 			announceData = entry.Data
 		}
@@ -555,14 +554,12 @@ func (d *Destination) RegisterRequestHandler(
 		return errors.New("invalid request policy")
 	}
 	pathHash := TruncatedHash([]byte(path))
-	key := string(pathHash)
-
 	var auto interface{} = true
 	if len(autoCompress) > 0 {
 		auto = autoCompress[0]
 	}
 
-	d.requestHandlers[key] = &RequestHandler{
+	d.requestHandlers[string(pathHash)] = &RequestHandler{
 		Path:         path,
 		ResponseGen:  responseGen,
 		AllowPolicy:  allow,
@@ -583,8 +580,7 @@ func (d *Destination) DeregisterRequestHandler(path string) bool {
 }
 
 func (d *Destination) DispatchRequest(path string, data any, requestID []byte, linkID []byte, remoteIdentity *Identity, requestedAt time.Time) (any, bool) {
-	key := string(TruncatedHash([]byte(path)))
-	handler, ok := d.requestHandlers[key]
+	handler, ok := d.requestHandlers[string(TruncatedHash([]byte(path)))]
 	if !ok {
 		return nil, false
 	}

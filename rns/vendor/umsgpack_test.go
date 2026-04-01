@@ -49,6 +49,27 @@ func TestUMsgpack_Packb_BinLengthEncodings(t *testing.T) {
 	}
 }
 
+func TestUMsgpack_Packb_ByteArrayEncodesAsBin(t *testing.T) {
+	t.Parallel()
+
+	in := [3]byte{0xAA, 0xBB, 0xCC}
+	b, err := Packb(in)
+	if err != nil {
+		t.Fatalf("Packb: %v", err)
+	}
+	if len(b) == 0 || b[0] != codeBin8 {
+		t.Fatalf("expected BIN8 (0xC4) prefix, got %02x", firstByte(b))
+	}
+
+	var out []byte
+	if err := Unpackb(b, &out); err != nil {
+		t.Fatalf("Unpackb: %v", err)
+	}
+	if !bytes.Equal(out, in[:]) {
+		t.Fatalf("unexpected bytes: %x", out)
+	}
+}
+
 func TestUMsgpack_RoundTrip_StructAssignment(t *testing.T) {
 	t.Parallel()
 

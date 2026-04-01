@@ -23,7 +23,7 @@ var rnsdVersion = rns.GetVersion()
 
 type countFlag int
 
-func (c *countFlag) String() string { return fmt.Sprint(int(*c)) }
+func (c *countFlag) String() string   { return fmt.Sprint(int(*c)) }
 func (c *countFlag) IsBoolFlag() bool { return true }
 func (c *countFlag) Set(string) error {
 	*c++
@@ -270,26 +270,6 @@ func runGoInteractive(ret *rns.Reticulum) {
 			fmt.Println(v.Interface())
 		}
 	}
-}
-
-func printInterfaceStatsSummary(ret *rns.Reticulum) {
-	stats := ret.GetInterfaceStats()
-	if len(stats) == 0 {
-		fmt.Println("No interface statistics available.")
-		return
-	}
-
-	count := toInt(stats["interface_count"])
-	totalRX := toUint64(stats["total_rxb"])
-	totalTX := toUint64(stats["total_txb"])
-	curRXbps := toFloat(stats["total_rx_bps"])
-	curTXbps := toFloat(stats["total_tx_bps"])
-
-	fmt.Printf("Interfaces online: %d\n", count)
-	fmt.Printf("Total RX bytes   : %d\n", totalRX)
-	fmt.Printf("Total TX bytes   : %d\n", totalTX)
-	fmt.Printf("Current RX rate  : %.2f B/s\n", curRXbps)
-	fmt.Printf("Current TX rate  : %.2f B/s\n", curTXbps)
 }
 
 func toInt(v any) int {

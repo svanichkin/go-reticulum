@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -187,6 +188,27 @@ type Interface struct {
 	IFACNetnameVal string
 	IFACNetkeyVal  string
 
+	Discoverable              bool
+	DiscoveryAnnounceInterval time.Duration
+	LastDiscoveryAnnounce     time.Time
+	DiscoveryStampValue       *int
+	DiscoveryName             string
+	DiscoveryEncrypt          bool
+	DiscoveryPublishIFAC      bool
+	DiscoveryLatitude         *float64
+	DiscoveryLongitude        *float64
+	DiscoveryHeight           *float64
+	DiscoveryReachableOn      string
+	DiscoveryPort             *int
+	DiscoveryFrequency        *int
+	DiscoveryBandwidth        *int
+	DiscoveryChannel          *int
+	DiscoveryModulation       string
+	AutoconnectHash           []byte
+	AutoconnectSource         string
+	AutoconnectDown           time.Time
+	BootstrapOnly             bool
+
 	RXB uint64
 	TXB uint64
 
@@ -225,7 +247,6 @@ type Interface struct {
 	announceAllowedAt time.Time
 	announceQueue     []announceQueueEntry
 	announceRunning   bool
-	announceTimer     *time.Timer
 
 	auto           *autoState
 	ax25           *AX25KISSDriver
@@ -425,6 +446,116 @@ func (i *Interface) ClientCount() *int {
 	return &c
 }
 
+func (i *Interface) SupportsDiscovery() bool {
+	if i == nil {
+		return false
+	}
+	switch i.Type {
+	case "BackboneInterface", "TCPServerInterface", "TCPClientInterface", "RNodeInterface", "WeaveInterface", "I2PInterface", "KISSInterface":
+		return true
+	default:
+		return false
+	}
+}
+
+func (i *Interface) DiscoveryNameValue() string {
+	if i == nil {
+		return ""
+	}
+	if strings.TrimSpace(i.DiscoveryName) != "" {
+		return i.DiscoveryName
+	}
+	if strings.TrimSpace(i.Name) != "" {
+		return i.Name
+	}
+	return i.String()
+}
+
+func (i *Interface) DiscoveryReachableOnValue() string {
+	if i == nil {
+		return ""
+	}
+	if strings.TrimSpace(i.DiscoveryReachableOn) != "" {
+		return strings.TrimSpace(i.DiscoveryReachableOn)
+	}
+	if i.backboneClient != nil {
+		return strings.TrimSpace(i.backboneClient.cfg.TargetHost)
+	}
+	if i.tcpClient != nil && i.tcpClient.Initiator {
+		return strings.TrimSpace(i.tcpClient.TargetHost)
+	}
+	if i.tcpServer != nil {
+		host, _, err := net.SplitHostPort(i.tcpServer.ListenAddr)
+		if err == nil {
+			return strings.Trim(strings.TrimSpace(host), "[]")
+		}
+	}
+	return ""
+}
+
+func (i *Interface) DiscoveryPortValue() *int {
+	if i == nil {
+		return nil
+	}
+	if i.DiscoveryPort != nil && *i.DiscoveryPort > 0 {
+		v := *i.DiscoveryPort
+		return &v
+	}
+	if i.backboneClient != nil && i.backboneClient.cfg.TargetPort > 0 {
+		v := i.backboneClient.cfg.TargetPort
+		return &v
+	}
+	if i.tcpClient != nil && i.tcpClient.Initiator && i.tcpClient.TargetPort > 0 {
+		v := i.tcpClient.TargetPort
+		return &v
+	}
+	if i.tcpServer != nil {
+		_, port, err := net.SplitHostPort(i.tcpServer.ListenAddr)
+		if err == nil {
+			if p, err := strconv.Atoi(port); err == nil && p > 0 {
+				return &p
+			}
+		}
+	}
+	return nil
+}
+
+func (i *Interface) DiscoveryKISSFraming() bool {
+	if i == nil {
+		return false
+	}
+	if i.tcpClient != nil {
+		return i.tcpClient.KISSFraming
+	}
+	if i.tcpServer != nil {
+		return i.tcpServer.KISSFraming
+	}
+	if i.i2pClient != nil {
+		return i.i2pClient.cfg.KISSFraming
+	}
+	return strings.EqualFold(i.Type, "KISSInterface")
+}
+
+func (i *Interface) DiscoveryRNodeRadioParams() (frequency, bandwidth int, sf, cr int, ok bool) {
+	if i == nil {
+		return 0, 0, 0, 0, false
+	}
+	if strings.EqualFold(i.Type, "RNodeInterface") && i.rnodeSingle != nil {
+		return int(i.rnodeSingle.Frequency), int(i.rnodeSingle.Bandwidth), int(i.rnodeSingle.SF), int(i.rnodeSingle.CR), true
+	}
+	if strings.EqualFold(i.Type, "RNodeMultiInterface") && i.rnodeSub != nil {
+		return int(i.rnodeSub.frequency), int(i.rnodeSub.bandwidth), int(i.rnodeSub.sf), int(i.rnodeSub.cr), true
+	}
+	return 0, 0, 0, 0, false
+}
+
+func (i *Interface) DiscoveryWeaveParams() (frequency, bandwidth, channel *int, modulation string) {
+	if i == nil {
+		return nil, nil, nil, ""
+	}
+	return i.DiscoveryFrequency, i.DiscoveryBandwidth, i.DiscoveryChannel, strings.TrimSpace(i.DiscoveryModulation)
+}
+
 func (i *Interface) I2PConnectable() *bool {
 	if i == nil || !strings.EqualFold(i.Type, "I2PInterface") || i.i2pClient == nil {
 		return nil
@@ -443,6 +574,40 @@ func (i *Interface) I2PB32() *string {
 		}
 		withSuffix := s + ".b32.i2p"
 		return &withSuffix
+	}
+	return nil
+}
+
+func (i *Interface) DiscoveryTargetHost() *string {
+	if i == nil {
+		return nil
+	}
+	if i.backboneClient != nil && strings.TrimSpace(i.backboneClient.cfg.TargetHost) != "" {
+		v := strings.TrimSpace(i.backboneClient.cfg.TargetHost)
+		return &v
+	}
+	if i.tcpClient != nil && i.tcpClient.Initiator && strings.TrimSpace(i.tcpClient.TargetHost) != "" {
+		v := strings.TrimSpace(i.tcpClient.TargetHost)
+		return &v
+	}
+	if b32 := i.I2PB32(); b32 != nil && strings.TrimSpace(*b32) != "" {
+		v := strings.TrimSpace(*b32)
+		return &v
+	}
+	return nil
+}
+
+func (i *Interface) DiscoveryTargetPort() *int {
+	if i == nil {
+		return nil
+	}
+	if i.backboneClient != nil && i.backboneClient.cfg.TargetPort > 0 {
+		v := i.backboneClient.cfg.TargetPort
+		return &v
+	}
+	if i.tcpClient != nil && i.tcpClient.Initiator && i.tcpClient.TargetPort > 0 {
+		v := i.tcpClient.TargetPort
+		return &v
 	}
 	return nil
 }

@@ -652,7 +652,7 @@ func (d *I2PClientDriver) ensureServerTunnel(localPort int) error {
 		return err
 	}
 	if err := waitTunnelStatus(
-		fmt.Sprintf("%s", d.iface),
+		d.iface.String(),
 		func() bool { return tun.Status.SetupRan },
 		func() bool { return tun.Status.SetupFailed },
 		func() error { return tun.Status.Err },
@@ -851,7 +851,7 @@ func (p *I2PPeer) connectViaClientTunnel() error {
 		return err
 	}
 	if err := waitTunnelStatus(
-		fmt.Sprintf("%s", p.iface.Name),
+		p.iface.Name,
 		func() bool { return tun.Status.SetupRan },
 		func() bool { return tun.Status.SetupFailed },
 		func() error { return tun.Status.Err },

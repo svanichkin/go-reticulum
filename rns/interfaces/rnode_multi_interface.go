@@ -23,12 +23,6 @@ const (
 	rnodeMultiRequiredFWVerMin = 74
 
 	rnodeMultiCallsignMaxLen = 32
-
-	rnodeMultiFBPixelWidth    = 64
-	rnodeMultiFBBitsPerPixel  = 1
-	rnodeMultiFBPixelsPerByte = 8 / rnodeMultiFBBitsPerPixel
-	rnodeMultiFBBytesPerLine  = rnodeMultiFBPixelWidth / rnodeMultiFBPixelsPerByte
-	rnodeMultiFBMaxLines      = 64
 )
 
 // RNode multi uses the same type IDs as Python.
@@ -557,70 +551,11 @@ func (d *RNodeMultiDriver) leave() error {
 	return d.writeBytes([]byte{FEND, CMD_LEAVE, 0xFF, FEND})
 }
 
-func (d *RNodeMultiDriver) enableExternalFramebuffer() {
-	if !d.display.Load() {
-		return
-	}
-	_ = d.writeBytes([]byte{FEND, CMD_FB_EXT, 0x01, FEND})
-}
-
 func (d *RNodeMultiDriver) disableExternalFramebuffer() {
 	if !d.display.Load() {
 		return
 	}
 	_ = d.writeBytes([]byte{FEND, CMD_FB_EXT, 0x00, FEND})
-}
-
-func (d *RNodeMultiDriver) writeFramebufferLine(line byte, lineData []byte) error {
-	if d == nil {
-		return errors.New("nil driver")
-	}
-	if !d.display.Load() {
-		return errors.New("device has no display")
-	}
-	if len(lineData) != rnodeMultiFBBytesPerLine {
-		return fmt.Errorf("framebuffer line must be %d bytes", rnodeMultiFBBytesPerLine)
-	}
-	data := append([]byte{line}, lineData...)
-	escaped := kissEscape(data)
-	frame := append([]byte{FEND, CMD_FB_WRITE}, escaped...)
-	frame = append(frame, FEND)
-	return d.writeBytes(frame)
-}
-
-func (d *RNodeMultiDriver) displayImage(imageData []byte) error {
-	if d == nil {
-		return errors.New("nil driver")
-	}
-	if !d.display.Load() {
-		return errors.New("device has no display")
-	}
-	if len(imageData)%rnodeMultiFBBytesPerLine != 0 {
-		return fmt.Errorf("image data length must be a multiple of %d", rnodeMultiFBBytesPerLine)
-	}
-	lines := len(imageData) / rnodeMultiFBBytesPerLine
-	if lines > rnodeMultiFBMaxLines {
-		return fmt.Errorf("image has too many lines (%d > %d)", lines, rnodeMultiFBMaxLines)
-	}
-	for line := 0; line < lines; line++ {
-		start := line * rnodeMultiFBBytesPerLine
-		end := start + rnodeMultiFBBytesPerLine
-		if err := d.writeFramebufferLine(byte(line), imageData[start:end]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d *RNodeMultiDriver) hardReset() error {
-	if d == nil {
-		return errors.New("nil driver")
-	}
-	if err := d.writeBytes([]byte{FEND, CMD_RESET, 0xF8, FEND}); err != nil {
-		return err
-	}
-	time.Sleep(2250 * time.Millisecond)
-	return nil
 }
 
 func (d *RNodeMultiDriver) validateFirmware() {
@@ -642,10 +577,6 @@ func (d *RNodeMultiDriver) validateFirmware() {
 		return
 	}
 	panic(fmt.Errorf("rnode firmware too old: %d.%d", maj, min))
-}
-
-func (d *RNodeMultiDriver) sendSelInt(index byte) error {
-	return d.writeBytes([]byte{FEND, cmdSelInt, index, FEND})
 }
 
 func (d *RNodeMultiDriver) setU32(cmd byte, v uint32, idx byte) error {
@@ -679,11 +610,6 @@ func (d *RNodeMultiDriver) setAirtime(cmd byte, percent float64, idx byte) error
 	data := kissEscape([]byte{byte(at >> 8), byte(at)})
 	frame := append([]byte{FEND, cmdSelInt, idx, FEND, FEND, cmd}, data...)
 	frame = append(frame, FEND)
-	return d.writeBytes(frame)
-}
-
-func (d *RNodeMultiDriver) sendData(idx byte, payload []byte) error {
-	frame, _ := makeSelDataFrame(idx, payload)
 	return d.writeBytes(frame)
 }
 
@@ -938,7 +864,7 @@ func (d *RNodeMultiDriver) readLoop() {
 	var dataBuf bytes.Buffer
 	var cmdBuf bytes.Buffer
 
-	lastReadMS := time.Now().UnixMilli()
+	var lastReadMS int64
 
 	for {
 		select {

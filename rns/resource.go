@@ -1627,8 +1627,7 @@ func (r *Resource) Request(requestData []byte) {
 	}
 
 	for i := 0; i+MapHashLen <= len(requestedHashes); i += MapHashLen {
-		key := string(requestedHashes[i : i+MapHashLen])
-		partPkt := r.outgoingPartByMapHash[key]
+		partPkt := r.outgoingPartByMapHash[string(requestedHashes[i:i+MapHashLen])]
 		if partPkt == nil {
 			continue
 		}
@@ -1924,7 +1923,7 @@ func (r *Resource) String() string {
 }
 
 func NewResourceAdvertisementFromResource(r *Resource) ResourceAdvertisement {
-		// flags
+	// flags
 	var f byte
 	if r.encr {
 		f |= 0x01

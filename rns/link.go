@@ -848,10 +848,6 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		pending.requestTimedOut()
 		return
 	}
-	requestID := bytesFromAny(unpacked[0])
-	if len(requestID) == 0 {
-		requestID = reqID
-	}
 	response := unpacked[1]
 	pending.responseReceived(response, nil, res.TotalSize())
 }
@@ -907,8 +903,10 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	if desc, ok := linkModeDescriptions[link.Mode]; ok {
 		Log(fmt.Sprintf("Incoming link request with mode %s", desc), LOG_DEBUG)
 	}
-	link.attachedInterface = packet.ReceivingInterface
-	link.destination = packet.Destination
+	if packet != nil {
+		link.attachedInterface = packet.ReceivingInterface
+		link.destination = packet.Destination
+	}
 
 	// Python: establishment_timeout = PER_HOP*max(1, packet.hops) + KEEPALIVE
 	hops := 1
@@ -2128,36 +2126,6 @@ func (l *Link) sendTeardownPacket() {
 	}
 	_ = p.Send()
 	l.noteOutbound(PacketCtxLinkClose, len(l.LinkID))
-}
-
-func (l *Link) sendChannelPacket(raw []byte) *Packet {
-	l.mu.Lock()
-	dest := l.destination
-	status := l.Status
-	l.mu.Unlock()
-
-	if dest == nil {
-		Log("Channel send attempted on link without destination", LOG_WARNING)
-		return nil
-	}
-
-	l.noteOutbound(PacketCtxChannel, len(raw))
-	packet := NewPacket(
-		dest,
-		raw,
-		WithPacketContext(PacketCtxChannel),
-	)
-	packet.Link = l
-	if status != LinkActive {
-		Log("Sending channel data on non-active link", LOG_DEBUG)
-	}
-
-	if receipt := packet.Send(); receipt != nil {
-		packet.Receipt = receipt
-	} else if packet.CreateReceipt && packet.Receipt == nil {
-		packet.Receipt = NewPacketReceipt(packet)
-	}
-	return packet
 }
 
 // ==== helper functions ====

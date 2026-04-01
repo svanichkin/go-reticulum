@@ -59,10 +59,7 @@ func packetAddr(cfg LocalConfig) (network, addr string) {
 
 func StartLocalInterfaceServer(cfg LocalConfig, onNewClient func(*Interface)) (net.Listener, error) {
 	network, addr := packetAddr(cfg)
-	displayAddr := addr
-	if strings.HasPrefix(displayAddr, "\x00") {
-		displayAddr = strings.TrimPrefix(displayAddr, "\x00")
-	}
+	displayAddr := strings.TrimPrefix(addr, "\x00")
 	var ln net.Listener
 	var err error
 	if network == "unix" && strings.HasPrefix(addr, "\x00") {

@@ -221,43 +221,6 @@ func localFirmwarePathFromURL(raw string) (string, bool) {
 	return "", false
 }
 
-func latestFirmwareVersion() (string, error) {
-	// Uses GitHub's redirect from /releases/latest -> /releases/tag/<version>
-	client := &http.Client{
-		Timeout: 15 * time.Second,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	req, err := http.NewRequest("GET", "https://github.com/markqvist/RNode_Firmware/releases/latest", nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	loc := resp.Header.Get("Location")
-	if loc == "" {
-		return "", fmt.Errorf("could not resolve latest release (no Location header, status %d)", resp.StatusCode)
-	}
-	u, err := url.Parse(loc)
-	if err != nil {
-		return "", err
-	}
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) == 0 {
-		return "", fmt.Errorf("unexpected latest release redirect %q", loc)
-	}
-	version := parts[len(parts)-1]
-	version = strings.TrimPrefix(version, "v")
-	if version == "" {
-		return "", fmt.Errorf("unexpected latest release version in %q", loc)
-	}
-	return version, nil
-}
-
 func fetchReleaseInfo(urlStr string) (firmwareReleaseInfo, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get(urlStr)
@@ -390,12 +353,12 @@ func ensureOnlineFirmwarePrepared(paths storagePaths, node *RNode, fwURL, fwVers
 		variant, ok := info[filename]
 		if !ok {
 			// Python parity: "not" => 199 (no valid version for board).
-			return PreparedFirmware{}, exitError{Code: 199, Err: errors.New("No valid version found for this board, exiting.")}
+			return PreparedFirmware{}, exitError{Code: 199, Err: errors.New("no valid version found for this board, exiting")}
 		}
 		version = strings.TrimSpace(variant.Version)
 		expectedHash = strings.TrimSpace(variant.Hash)
 		if version == "" || strings.EqualFold(version, "not") {
-			return PreparedFirmware{}, exitError{Code: 199, Err: errors.New("No valid version found for this board, exiting.")}
+			return PreparedFirmware{}, exitError{Code: 199, Err: errors.New("no valid version found for this board, exiting")}
 		}
 	}
 	if version == "" && strings.TrimSpace(fwURL) == "" {
@@ -451,10 +414,10 @@ func ensureOnlineFirmwarePrepared(paths storagePaths, node *RNode, fwURL, fwVers
 				return PreparedFirmware{}, exitError{Code: 95, Err: err}
 			}
 			if !strings.EqualFold(fileHash, expectedHash) {
-				return PreparedFirmware{}, exitError{Code: 96, Err: fmt.Errorf("Firmware hash %s but should be %s, possibly due to download corruption.\nFirmware corrupt. Try clearing the local firmware cache with: rnodeconf --clear-cache", fileHash, expectedHash)}
+				return PreparedFirmware{}, exitError{Code: 96, Err: fmt.Errorf("firmware hash %s but should be %s, possibly due to download corruption\nfirmware corrupt; try clearing the local firmware cache with: rnodeconf --clear-cache", fileHash, expectedHash)}
 			}
 		} else if !noCheck {
-			return PreparedFirmware{}, exitError{Code: 97, Err: fmt.Errorf("No release hash found for %s. The firmware integrity could not be verified.", filename)}
+			return PreparedFirmware{}, exitError{Code: 97, Err: fmt.Errorf("no release hash found for %s; the firmware integrity could not be verified", filename)}
 		}
 	}
 
@@ -620,7 +583,7 @@ func ensureDeviceSignerKey(paths storagePaths) (*rns.Identity, error) {
 	if fileExists(paths.DeviceKeyPath) {
 		id, err := rns.IdentityFromFile(paths.DeviceKeyPath)
 		if err != nil {
-			return nil, exitError{Code: 82, Err: fmt.Errorf("Could not load device signing key from %s: %w", paths.DeviceKeyPath, err)}
+			return nil, exitError{Code: 82, Err: fmt.Errorf("could not load device signing key from %s: %w", paths.DeviceKeyPath, err)}
 		}
 		return id, nil
 	}
@@ -628,10 +591,10 @@ func ensureDeviceSignerKey(paths storagePaths) (*rns.Identity, error) {
 	fmt.Println("Generating a new device signing key...")
 	id, err := rns.NewIdentity()
 	if err != nil {
-		return nil, exitError{Code: 81, Err: fmt.Errorf("Could not create new device signing key: %w", err)}
+		return nil, exitError{Code: 81, Err: fmt.Errorf("could not create new device signing key: %w", err)}
 	}
 	if err := id.Save(paths.DeviceKeyPath); err != nil {
-		return nil, exitError{Code: 81, Err: fmt.Errorf("Could not create new device signing key at %s: %w", paths.DeviceKeyPath, err)}
+		return nil, exitError{Code: 81, Err: fmt.Errorf("could not create new device signing key at %s: %w", paths.DeviceKeyPath, err)}
 	}
 	fmt.Printf("Device signing key written to %s\n", paths.DeviceKeyPath)
 	return id, nil
@@ -1518,7 +1481,7 @@ func main() {
 				prepared.Extracted = true
 			}
 		}
-		if (autoinstallFlag || updateFlag || flashFlag) && prepared.LocalPath == "" && prepared.Extracted == false {
+		if (autoinstallFlag || updateFlag || flashFlag) && prepared.LocalPath == "" && !prepared.Extracted {
 			// In case we have extracted firmware already on disk, but useExtracted wasn't set.
 			if err := verifyExtractedFirmware(paths); err == nil {
 				prepared.Extracted = true
@@ -1944,7 +1907,7 @@ func runExtraction(node *RNode, portPath string, baudFlash int, paths storagePat
 		return errors.New("no answer from device")
 	}
 	if node.Platform != ROM_PLATFORM_ESP32 {
-		return exitError{Code: 170, Err: errors.New("Firmware extraction is currently only supported on ESP32-based RNodes.")}
+		return exitError{Code: 170, Err: errors.New("firmware extraction is currently only supported on ESP32-based RNodes")}
 	}
 
 	// Simulation shortcut (no external tool execution).
@@ -2016,11 +1979,11 @@ func runFlash(node *RNode, portPath string, baudFlash int, paths storagePaths, f
 			return exitError{Code: 1, Err: errors.New("simulated flash failure")}
 		case "missing_avrdude":
 			// Python parity: missing flasher tool prints guidance and exits via graceful_exit() (default 0).
-			return exitError{Code: 0, Err: errors.New("You do not currently have the \"avrdude\" program installed on your system.\nUnfortunately, that means we can't proceed, since it is needed to flash your\nboard. Please install \"avrdude\" and try again.")}
+			return exitError{Code: 0, Err: errors.New("you do not currently have the \"avrdude\" program installed on your system\nunfortunately, that means we can't proceed, since it is needed to flash your\nboard. Please install \"avrdude\" and try again")}
 		case "missing_nrfutil":
-			return exitError{Code: 0, Err: errors.New("You do not currently have the \"adafruit-nrfutil\" program installed on your system.\nUnfortunately, that means we can't proceed, since it is needed to flash your\nboard.\n\n  pip3 install --user adafruit-nrfutil\n\nPlease install \"adafruit-nrfutil\" and try again.")}
+			return exitError{Code: 0, Err: errors.New("you do not currently have the \"adafruit-nrfutil\" program installed on your system\nunfortunately, that means we can't proceed, since it is needed to flash your\nboard.\n\n  pip3 install --user adafruit-nrfutil\n\nPlease install \"adafruit-nrfutil\" and try again")}
 		case "flasher_error_baud":
-			return exitError{Code: 0, Err: errors.New("Error from flasher (1) while writing.\nSome boards have trouble flashing at high speeds, and you can\ntry flashing with a lower baud rate, as in this example:\nrnodeconf --autoinstall --baud-flash 115200")}
+			return exitError{Code: 0, Err: errors.New("error from flasher (1) while writing\nsome boards have trouble flashing at high speeds, and you can\ntry flashing with a lower baud rate, as in this example:\nrnodeconf --autoinstall --baud-flash 115200")}
 		default:
 			fmt.Println("Done flashing")
 			return nil
@@ -2092,7 +2055,7 @@ func runFlash(node *RNode, portPath string, baudFlash int, paths storagePaths, f
 		avrdude, err := exec.LookPath("avrdude")
 		if err != nil {
 			// Python parity: prints guidance and exits via graceful_exit() default (0).
-			return exitError{Code: 0, Err: errors.New("You do not currently have the \"avrdude\" program installed on your system.\nUnfortunately, that means we can't proceed, since it is needed to flash your\nboard. Please install \"avrdude\" and try again.")}
+			return exitError{Code: 0, Err: errors.New("you do not currently have the \"avrdude\" program installed on your system\nunfortunately, that means we can't proceed, since it is needed to flash your\nboard. Please install \"avrdude\" and try again")}
 		}
 		args := []string{avrdude}
 		// Parity with Python `get_flasher_call`
@@ -2110,7 +2073,7 @@ func runFlash(node *RNode, portPath string, baudFlash int, paths storagePaths, f
 		if err := cmd.Run(); err != nil {
 			if ee, ok := err.(*exec.ExitError); ok {
 				code := ee.ExitCode()
-				return exitError{Code: 0, Err: fmt.Errorf("Error from flasher (%d) while writing.\nSome boards have trouble flashing at high speeds, and you can\ntry flashing with a lower baud rate, as in this example:\nrnodeconf --autoinstall --baud-flash 115200", code)}
+				return exitError{Code: 0, Err: fmt.Errorf("error from flasher (%d) while writing\nsome boards have trouble flashing at high speeds, and you can\ntry flashing with a lower baud rate, as in this example:\nrnodeconf --autoinstall --baud-flash 115200", code)}
 			}
 			return exitError{Code: 1, Err: err}
 		}
@@ -2123,7 +2086,7 @@ func runFlash(node *RNode, portPath string, baudFlash int, paths storagePaths, f
 		nrfutil, err := exec.LookPath("adafruit-nrfutil")
 		if err != nil {
 			// Python parity: prints guidance and exits via graceful_exit() default (0).
-			return exitError{Code: 0, Err: errors.New("You do not currently have the \"adafruit-nrfutil\" program installed on your system.\nUnfortunately, that means we can't proceed, since it is needed to flash your\nboard. You can install it via your package manager, for example:\n\n  pip3 install --user adafruit-nrfutil\n\nPlease install \"adafruit-nrfutil\" and try again.")}
+			return exitError{Code: 0, Err: errors.New("you do not currently have the \"adafruit-nrfutil\" program installed on your system\nunfortunately, that means we can't proceed, since it is needed to flash your\nboard. You can install it via your package manager, for example:\n\n  pip3 install --user adafruit-nrfutil\n\nPlease install \"adafruit-nrfutil\" and try again")}
 		}
 		cmd := exec.Command(nrfutil, "dfu", "serial", "--package", fw.LocalPath, "-p", portPath, "-b", "115200", "-t", "1200")
 		cmd.Stdout = os.Stdout

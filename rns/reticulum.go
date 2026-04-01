@@ -21,7 +21,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -72,15 +71,21 @@ var (
 	MTU = DefaultMTU
 	MDU = MTU - HEADER_MAXSIZE - IFAC_MIN_SIZE
 
-	instance     *Reticulum
-	instanceOnce sync.Once
+	instance *Reticulum
 
 	// Global flags, like in the Python class.
-	transportEnabled        = false
-	linkMTUDiscovery        = LINK_MTU_DISCOVERY
-	remoteManagementEnabled = false
-	useImplicitProof        = true
-	allowProbes             = false
+	transportEnabled                = false
+	linkMTUDiscovery                = LINK_MTU_DISCOVERY
+	remoteManagementEnabled         = false
+	useImplicitProof                = true
+	allowProbes                     = false
+	discoveryEnabled                = false
+	discoverInterfacesMode          = false
+	requiredDiscoveryValue          = DefaultDiscoveryRequiredValue
+	interfaceDiscoverySources       [][]byte
+	autoconnectDiscoveredInterfaces int
+	publishBlackholeEnabled         bool
+	blackholeSources                [][]byte
 )
 
 func init() {
@@ -145,9 +150,6 @@ type Reticulum struct {
 	RequireShared               bool
 	IsConnectedToSharedInstance bool
 	IsStandaloneInstance        bool
-
-	// LocalInterface packet IPC address (unix path or tcp addr).
-	localPktAddr string
 
 	PanicOnInterfaceError bool
 
@@ -226,6 +228,24 @@ func (r *Reticulum) ReloadInterface(name string) error {
 		return fmt.Errorf("interface %q is disabled", name)
 	}
 	return nil
+}
+
+func (r *Reticulum) DiscoveredInterfaces() []map[string]any {
+	if r == nil {
+		return nil
+	}
+	discovery, err := newInterfaceDiscoveryWithStorage(r.StoragePath, RequiredDiscoveryValue(), nil, false)
+	if err != nil {
+		return nil
+	}
+	return discovery.ListDiscoveredInterfaces(false, false)
+}
+
+func DiscoveredInterfaces() []map[string]any {
+	if Owner == nil {
+		return nil
+	}
+	return Owner.DiscoveredInterfaces()
 }
 
 type tcpLogAdapter struct{}
@@ -655,6 +675,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	ensureDir(filepath.Join(r.CachePath, "announces"))
 	ensureDir(r.ResourcePath)
 	ensureDir(r.IdentityPath)
+	ensureDir(filepath.Join(r.StoragePath, "blackhole"))
 	ensureDir(r.InterfacePath)
 
 	// Provide persisted Weave Identity semantics to interfaces package
@@ -777,6 +798,15 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 			return nil, err
 		}
 		Log("System interfaces are ready", LogVerbose)
+		if InterfaceDiscoveryEnabled() {
+			EnableDiscovery()
+		}
+		if DiscoverInterfacesEnabled() {
+			DiscoverInterfaces()
+		}
+		if len(BlackholeSources()) > 0 {
+			EnableBlackholeUpdater()
+		}
 	}
 
 	// signals and exit handler
@@ -967,6 +997,31 @@ func (r *Reticulum) applyConfig() error {
 		if v, _ := sec.AsBool("enable_transport"); v {
 			transportEnabled = true
 		}
+		if path, ok := sec.Get("network_identity"); ok && strings.TrimSpace(path) != "" && !HasNetworkIdentity() {
+			identityPath := filepath.Clean(os.ExpandEnv(path))
+			if strings.HasPrefix(identityPath, "~") {
+				identityPath = filepath.Join(r.UserDir, strings.TrimPrefix(identityPath, "~"))
+			}
+			ensureDir(filepath.Dir(identityPath))
+			var networkIdentity *Identity
+			if fileExists(identityPath) {
+				id, err := IdentityFromFile(identityPath)
+				if err != nil {
+					return fmt.Errorf("could not set network identity from %s: %w", path, err)
+				}
+				networkIdentity = id
+			} else {
+				id, err := NewIdentity()
+				if err != nil {
+					return fmt.Errorf("could not create network identity for %s: %w", path, err)
+				}
+				if err := id.Save(identityPath); err != nil {
+					return fmt.Errorf("could not persist network identity to %s: %w", identityPath, err)
+				}
+				networkIdentity = id
+			}
+			SetNetworkIdentity(networkIdentity)
+		}
 		if v, _ := sec.AsBool("link_mtu_discovery"); v {
 			linkMTUDiscovery = true
 		}
@@ -1003,6 +1058,47 @@ func (r *Reticulum) applyConfig() error {
 		if v, err := sec.AsBool("use_implicit_proof"); err == nil {
 			useImplicitProof = v
 		}
+		if v, err := sec.AsBool("discover_interfaces"); err == nil {
+			discoverInterfacesMode = v
+		}
+		if v, err := sec.AsInt("required_discovery_value"); err == nil && v > 0 {
+			requiredDiscoveryValue = v
+			discoveryRequiredValue = v
+		}
+		if l := sec.AsList("interface_discovery_sources"); len(l) > 0 {
+			interfaceDiscoverySources = interfaceDiscoverySources[:0]
+			for _, hexhash := range l {
+				destLen := (TRUNCATED_HASHLENGTH / 8) * 2
+				if len(hexhash) != destLen {
+					return fmt.Errorf("identity hash length for interface discovery source %s is invalid, must be %d hexadecimal characters (%d bytes)", hexhash, destLen, destLen/2)
+				}
+				b, err := hex.DecodeString(hexhash)
+				if err != nil {
+					return fmt.Errorf("invalid identity hash for interface discovery source: %s", hexhash)
+				}
+				interfaceDiscoverySources = append(interfaceDiscoverySources, b)
+			}
+		}
+		if v, err := sec.AsInt("autoconnect_discovered_interfaces"); err == nil && v > 0 {
+			autoconnectDiscoveredInterfaces = v
+		}
+		if v, err := sec.AsBool("publish_blackhole"); err == nil {
+			publishBlackholeEnabled = v
+		}
+		if l := sec.AsList("blackhole_sources"); len(l) > 0 {
+			blackholeSources = blackholeSources[:0]
+			for _, hexhash := range l {
+				destLen := (TRUNCATED_HASHLENGTH / 8) * 2
+				if len(hexhash) != destLen {
+					return fmt.Errorf("identity hash length for blackhole source %s is invalid, must be %d hexadecimal characters (%d bytes)", hexhash, destLen, destLen/2)
+				}
+				b, err := hex.DecodeString(hexhash)
+				if err != nil {
+					return fmt.Errorf("invalid identity hash for remote blackhole source: %s", hexhash)
+				}
+				blackholeSources = append(blackholeSources, b)
+			}
+		}
 	}
 
 	if Compiled() {
@@ -1021,6 +1117,98 @@ func (r *Reticulum) createDefaultConfig() error {
 	r.Config = cfg
 	ensureDir(r.ConfigDir)
 	return cfg.Save(r.ConfigPath)
+}
+
+type interfaceDiscoveryConfig struct {
+	discoverable     bool
+	announceInterval time.Duration
+	stampValue       *int
+	name             string
+	encrypt          bool
+	reachableOn      string
+	publishIFAC      bool
+	latitude         *float64
+	longitude        *float64
+	height           *float64
+	frequency        *int
+	bandwidth        *int
+	channel          *int
+	modulation       string
+}
+
+func parseInterfaceDiscoveryConfig(name, ifType string, kv map[string]string, mode *int) interfaceDiscoveryConfig {
+	cfg := interfaceDiscoveryConfig{}
+	if !parseTruthy(getFirst(kv, "discoverable"), false) {
+		return cfg
+	}
+
+	cfg.discoverable = true
+	discoveryEnabled = true
+	cfg.announceInterval = 6 * time.Hour
+	if v, ok := parseInt(getFirst(kv, "announce_interval")); ok {
+		cfg.announceInterval = time.Duration(v) * time.Minute
+		if cfg.announceInterval < 5*time.Minute {
+			cfg.announceInterval = 5 * time.Minute
+		}
+	}
+	if v, ok := parseInt(getFirst(kv, "discovery_stamp_value")); ok && v > 0 {
+		cfg.stampValue = &v
+	}
+	cfg.name = strings.TrimSpace(getFirst(kv, "discovery_name"))
+	cfg.encrypt = parseTruthy(getFirst(kv, "discovery_encrypt"), false)
+	cfg.reachableOn = strings.TrimSpace(getFirst(kv, "reachable_on"))
+	cfg.publishIFAC = parseTruthy(getFirst(kv, "publish_ifac"), false)
+	if v, ok := parseFloat(getFirst(kv, "latitude")); ok {
+		cfg.latitude = &v
+	}
+	if v, ok := parseFloat(getFirst(kv, "longitude")); ok {
+		cfg.longitude = &v
+	}
+	if v, ok := parseFloat(getFirst(kv, "height")); ok {
+		cfg.height = &v
+	}
+	if v, ok := parseInt(getFirst(kv, "discovery_frequency")); ok {
+		cfg.frequency = &v
+	}
+	if v, ok := parseInt(getFirst(kv, "discovery_bandwidth")); ok {
+		cfg.bandwidth = &v
+	}
+	if v, ok := parseInt(getFirst(kv, "discovery_channel")); ok {
+		cfg.channel = &v
+	}
+	cfg.modulation = strings.TrimSpace(getFirst(kv, "discovery_modulation"))
+
+	if mode != nil && *mode != InterfaceModeGateway && *mode != InterfaceModeAccessPoint {
+		if strings.EqualFold(ifType, "RNodeInterface") || strings.EqualFold(ifType, "RNodeMultiInterface") {
+			*mode = InterfaceModeAccessPoint
+			Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to AP mode.", name)
+		} else {
+			*mode = InterfaceModeGateway
+			Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to gateway mode.", name)
+		}
+	}
+
+	return cfg
+}
+
+func applyInterfaceDiscoveryConfig(ifc *Interface, cfg interfaceDiscoveryConfig) {
+	if ifc == nil || !cfg.discoverable {
+		return
+	}
+	ifc.Discoverable = true
+	ifc.DiscoveryAnnounceInterval = cfg.announceInterval
+	ifc.DiscoveryPublishIFAC = cfg.publishIFAC
+	ifc.DiscoveryReachableOn = cfg.reachableOn
+	ifc.DiscoveryName = cfg.name
+	ifc.DiscoveryEncrypt = cfg.encrypt
+	ifc.DiscoveryStampValue = cfg.stampValue
+	ifc.DiscoveryLatitude = cfg.latitude
+	ifc.DiscoveryLongitude = cfg.longitude
+	ifc.DiscoveryHeight = cfg.height
+	ifc.DiscoveryFrequency = cfg.frequency
+	ifc.DiscoveryBandwidth = cfg.bandwidth
+	ifc.DiscoveryChannel = cfg.channel
+	ifc.DiscoveryModulation = cfg.modulation
 }
 
 // ---------------- local interface + jobs ----------------
@@ -1404,6 +1592,8 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			continue
 		}
 
+		discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
+
 		base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
 		if err != nil {
 			msg := fmt.Sprintf("The interface %q could not be created. Check your configuration file for errors!", name)
@@ -1729,6 +1919,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = parent
 		}
 
+		applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
 		r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
 		broughtUp++
 	}
@@ -1905,6 +2096,8 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		Logf(LogError, "Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath)
 		return false, nil
 	}
+
+	discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
 
 	base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
 	if err != nil {
@@ -2223,6 +2416,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = parent
 	}
 
+	applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
 	r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
 	return true, nil
 }
@@ -2369,88 +2563,6 @@ func parseINIFallbackInterfaces(cfg *configobj.Config) map[string]map[string]str
 		out[strings.TrimPrefix(name, "interfaces.")] = m
 	}
 	return out
-}
-
-func parseConfigObjInterfaces(path string) (map[string]map[string]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(string(data), "\n")
-
-	inInterfaces := false
-	currentName := ""
-	currentSub := ""
-	out := map[string]map[string]string{}
-
-	flush := func() {
-		currentName = strings.TrimSpace(currentName)
-		if currentName == "" {
-			return
-		}
-		if _, ok := out[currentName]; !ok {
-			out[currentName] = map[string]string{}
-		}
-	}
-
-	for _, raw := range lines {
-		line := strings.TrimSpace(raw)
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
-		}
-
-		// Section header: [interfaces]
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") && !strings.HasPrefix(line, "[[") {
-			section := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "["), "]"))
-			inInterfaces = strings.EqualFold(section, "interfaces")
-			currentName = ""
-			currentSub = ""
-			continue
-		}
-
-		if !inInterfaces {
-			continue
-		}
-
-		// Subsection header: [[Name]]
-		if strings.HasPrefix(line, "[[") && strings.HasSuffix(line, "]]") {
-			// Sub-subsection header: [[[Name]]]
-			if strings.HasPrefix(line, "[[[") && strings.HasSuffix(line, "]]]") {
-				sub := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "[[["), "]]]"))
-				currentSub = sub
-				flush()
-				continue
-			}
-			name := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "[["), "]]"))
-			currentName = name
-			currentSub = ""
-			flush()
-			continue
-		}
-
-		if currentName == "" {
-			// Ignore keys at the [interfaces] level for now.
-			continue
-		}
-
-		key, val, ok := splitKeyValue(line)
-		if !ok {
-			continue
-		}
-		if _, ok := out[currentName]; !ok {
-			out[currentName] = map[string]string{}
-		}
-		lkey := strings.ToLower(key)
-		if currentSub != "" {
-			lkey = "sub." + strings.ToLower(currentSub) + "." + lkey
-		}
-		out[currentName][lkey] = val
-	}
-
-	return out, nil
 }
 
 type interfaceConfigEntry struct {
@@ -3440,6 +3552,46 @@ func RemoteManagementEnabled() bool {
 
 func ProbeDestinationEnabled() bool {
 	return allowProbes
+}
+
+func RequiredDiscoveryValue() int {
+	return requiredDiscoveryValue
+}
+
+func InterfaceDiscoveryEnabled() bool {
+	return discoveryEnabled
+}
+
+func DiscoverInterfacesEnabled() bool {
+	return discoverInterfacesMode
+}
+
+func InterfaceDiscoverySources() [][]byte {
+	out := make([][]byte, 0, len(interfaceDiscoverySources))
+	for _, src := range interfaceDiscoverySources {
+		out = append(out, append([]byte(nil), src...))
+	}
+	return out
+}
+
+func PublishBlackholeEnabled() bool {
+	return publishBlackholeEnabled
+}
+
+func BlackholeSources() [][]byte {
+	out := make([][]byte, 0, len(blackholeSources))
+	for _, src := range blackholeSources {
+		out = append(out, append([]byte(nil), src...))
+	}
+	return out
+}
+
+func ShouldAutoconnectDiscoveredInterfaces() bool {
+	return autoconnectDiscoveredInterfaces > 0
+}
+
+func MaxAutoconnectedInterfaces() int {
+	return autoconnectDiscoveredInterfaces
 }
 
 // defaultConfigLines is a direct copy of __default_rns_config__.

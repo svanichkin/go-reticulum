@@ -125,3 +125,38 @@ func TestReticulumApplyConfig_RemoteManagementAllowed_AddsHash(t *testing.T) {
 		t.Fatalf("expected hash to be in remote management ACL")
 	}
 }
+
+func TestReticulumApplyConfig_BlackholeSettings(t *testing.T) {
+	prevPublish := publishBlackholeEnabled
+	prevSources := BlackholeSources()
+	t.Cleanup(func() {
+		publishBlackholeEnabled = prevPublish
+		blackholeSources = prevSources
+	})
+
+	source := make([]byte, TRUNCATED_HASHLENGTH/8)
+	for i := range source {
+		source[i] = byte(0xA0 + i)
+	}
+
+	cfg, err := configobj.LoadReader(strings.NewReader(strings.Join([]string{
+		"[reticulum]",
+		"publish_blackhole = yes",
+		"blackhole_sources = " + hex.EncodeToString(source),
+	}, "\n")))
+	if err != nil {
+		t.Fatalf("LoadReader: %v", err)
+	}
+
+	r := &Reticulum{Config: cfg}
+	if err := r.applyConfig(); err != nil {
+		t.Fatalf("applyConfig: %v", err)
+	}
+	if !PublishBlackholeEnabled() {
+		t.Fatalf("expected publish_blackhole enabled")
+	}
+	sources := BlackholeSources()
+	if len(sources) != 1 || hex.EncodeToString(sources[0]) != hex.EncodeToString(source) {
+		t.Fatalf("blackhole sources=%x, want %x", sources, source)
+	}
+}
