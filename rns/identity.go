@@ -552,15 +552,16 @@ func readKnownDestinationsFromDisk(path string) (map[string]*knownDestinationEnt
 }
 
 func encodeKnownDestinations(entries map[string]*knownDestinationEntry) ([]byte, error) {
-	// Note: Go cannot use []byte as a map key, so we store destination hashes as
-	// strings (raw bytes) when persisting. decodeKnownDestinations accepts both
-	// Python's bytes-keyed format and this Go string-keyed format.
-	payload := make(map[string][]any, len(entries))
+	// Persist with fixed-size byte-array keys so msgpack encodes them as binary,
+	// matching Python's bytes-keyed storage format.
+	payload := make(map[[truncatedHashBytes]byte][]any, len(entries))
 	for key, entry := range entries {
-		if len(key) != ReticulumTruncatedHashLength/8 {
+		if len(key) != truncatedHashBytes {
 			continue
 		}
-		payload[key] = []any{
+		var keyBytes [truncatedHashBytes]byte
+		copy(keyBytes[:], []byte(key))
+		payload[keyBytes] = []any{
 			entry.SeenAt,
 			entry.PacketHash,
 			entry.PublicKey,
@@ -718,6 +719,7 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	if packet == nil || packet.PacketType != PacketTypeAnnounce {
 		return false
 	}
+	ensureKnownDestinationsLoaded()
 
 	data := packet.Data
 	keySize := identityPubKeyLen
@@ -773,6 +775,10 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	announced := &Identity{curve: ecdh.X25519()}
 	if err := announced.LoadPublicKey(publicKey); err != nil {
 		Logf(LogDebug, "Received invalid announce for %s: %v", PrettyHexRep(packet.DestinationHash), err)
+		return false
+	}
+	if isBlackholedIdentity(announced.Hash) {
+		Logf(LogExtreme, "Invalidated and dropped announce from blackholed identity %s", PrettyHexRep(announced.Hash))
 		return false
 	}
 
@@ -928,7 +934,8 @@ func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 
 	peerPub, err := id.curve.NewPublicKey(peerPubBytes)
 	if err != nil {
-		return nil, nil, err
+		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		return nil, nil, nil
 	}
 
 	for _, ratchet := range ratchets {
@@ -958,10 +965,15 @@ func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 
 	shared, err := id.prv.ECDH(peerPub)
 	if err != nil {
-		return nil, nil, err
+		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		return nil, nil, nil
 	}
 	pt, err := id.decryptWithShared(shared, ciphertext)
-	return pt, nil, err
+	if err != nil {
+		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		return nil, nil, nil
+	}
+	return pt, nil, nil
 }
 
 // Sign mirrors sign().
