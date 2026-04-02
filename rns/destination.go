@@ -111,6 +111,21 @@ type pathResponseEntry struct {
 	Data      []byte
 }
 
+type DestinationStateError struct {
+	Message string
+}
+
+func (e *DestinationStateError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func panicDestinationState(message string) {
+	panic(&DestinationStateError{Message: message})
+}
+
 // ---- static helpers (like @staticmethod in Python) ----
 
 // ExpandName = Destination.expand_name(...)
@@ -303,7 +318,7 @@ func (d *Destination) SetProofRequestedCallback(cb func(*Packet) bool) {
 
 func (d *Destination) SetProofStrategy(strategy int) error {
 	if !containsInt(strategy, []int{DestinationPROVE_NONE, DestinationPROVE_APP, DestinationPROVE_ALL}) {
-		return errors.New("unknown proof strategy")
+		panicDestinationState("Unsupported proof strategy")
 	}
 	d.proofStrategy = strategy
 	return nil
@@ -374,6 +389,7 @@ func (d *Destination) persistRatchets() error {
 		TraceException(err)
 		d.ratchets = nil
 		d.ratchetsPath = ""
+		Log("Could not write ratchet file contents for "+d.String()+". The contained exception was: "+err.Error(), LOG_ERROR)
 		return errors.New("could not write ratchet file contents for " + d.String() + ": " + err.Error())
 	}
 
@@ -384,6 +400,7 @@ func (d *Destination) persistRatchets() error {
 		TraceException(err)
 		d.ratchets = nil
 		d.ratchetsPath = ""
+		Log("Could not write ratchet file contents for "+d.String()+". The contained exception was: "+err.Error(), LOG_ERROR)
 		return errors.New("could not move ratchet temp file for " + d.String() + ": " + err.Error())
 	}
 
@@ -705,6 +722,10 @@ func (d *Destination) reloadRatchets(path string) error {
 			d.ratchets = nil
 			d.ratchetsPath = ""
 			TraceException(err2)
+			Log("The ratchet file located at "+path+" could not be loaded. This could indicate that the ratchet file has become corrupt.", LOG_CRITICAL)
+			Log("You can attempt to manually recover the ratchet file, or simply remove it to have Reticulum recreate it on the next use.", LOG_CRITICAL)
+			Log("If re-initialize this ratchet file, make sure to send an announce for the relevant destination as soon as possible,", LOG_CRITICAL)
+			Log("so that the new ratchet information is synchronized to the network.", LOG_CRITICAL)
 			return errors.New("could not read ratchet file contents for " + d.String() + ": " + err2.Error())
 		}
 		Log("Ratchet reload retry succeeded", LOG_DEBUG)
@@ -796,8 +817,7 @@ func (d *Destination) Encrypt(plaintext []byte) []byte {
 			}
 			return ct
 		}
-		Log("No private key held by GROUP destination. Did you create or load one?", LOG_ERROR)
-		return nil
+		panicDestinationState("No private key held by GROUP destination. Did you create or load one?")
 	}
 	return nil
 }
@@ -850,8 +870,7 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 			}
 			return pt
 		}
-		Log("No private key held by GROUP destination. Did you create or load one?", LOG_ERROR)
-		return nil
+		panicDestinationState("No private key held by GROUP destination. Did you create or load one?")
 	}
 	return nil
 }
