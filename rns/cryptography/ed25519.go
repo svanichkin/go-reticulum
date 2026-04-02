@@ -3,9 +3,30 @@ package cryptography
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"errors"
 	"io"
 )
+
+type Ed25519ValueError struct {
+	Message string
+}
+
+func (e *Ed25519ValueError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+type Ed25519SignatureError struct {
+	Message string
+}
+
+func (e *Ed25519SignatureError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
 
 // ------------------------------------------------------------
 // Ed25519PrivateKey (equivalent of Python Ed25519PrivateKey)
@@ -18,7 +39,7 @@ type Ed25519PrivateKey struct {
 
 func NewEd25519PrivateKey(seed []byte) (*Ed25519PrivateKey, error) {
 	if len(seed) != ed25519.SeedSize {
-		return nil, errors.New("seed must be 32 bytes")
+		return nil, &Ed25519ValueError{Message: "seed must be 32 bytes"}
 	}
 	sk := ed25519.NewKeyFromSeed(seed)
 	return &Ed25519PrivateKey{
@@ -59,7 +80,7 @@ type Ed25519PublicKey struct {
 
 func NewEd25519PublicKey(raw []byte) (*Ed25519PublicKey, error) {
 	if len(raw) != ed25519.PublicKeySize {
-		return nil, errors.New("public key must be 32 bytes")
+		return nil, &Ed25519ValueError{Message: "public key must be 32 bytes"}
 	}
 	cp := append([]byte(nil), raw...)
 	return &Ed25519PublicKey{vk: cp}, nil
@@ -72,7 +93,7 @@ func (k *Ed25519PublicKey) PublicBytes() []byte {
 
 func (k *Ed25519PublicKey) Verify(signature, message []byte) error {
 	if !ed25519.Verify(k.vk, message, signature) {
-		return errors.New("invalid signature")
+		return &Ed25519SignatureError{Message: "invalid signature"}
 	}
 	return nil
 }
