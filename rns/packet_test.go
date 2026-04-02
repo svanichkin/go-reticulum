@@ -92,3 +92,73 @@ func TestPacket_Header2_TransportID_NotInHash(t *testing.T) {
 	}
 }
 
+func TestPacket_Send_PanicsWhenAlreadySent(t *testing.T) {
+	t.Parallel()
+
+	dst, err := NewDestination(nil, DestinationOUT, DestinationPLAIN, "test", "packet", "sendpanic")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	p := NewPacket(dst, []byte("data"))
+	p.Sent = true
+
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatalf("expected panic")
+		}
+		stateErr, ok := rec.(*PacketStateError)
+		if !ok {
+			t.Fatalf("unexpected panic type %T", rec)
+		}
+		if stateErr.Error() != "Packet was already sent" {
+			t.Fatalf("unexpected panic message %q", stateErr.Error())
+		}
+	}()
+
+	_ = p.Send()
+}
+
+func TestPacket_Resend_PanicsWhenNotSentYet(t *testing.T) {
+	t.Parallel()
+
+	dst, err := NewDestination(nil, DestinationOUT, DestinationPLAIN, "test", "packet", "resendpanic")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	p := NewPacket(dst, []byte("data"))
+
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatalf("expected panic")
+		}
+		stateErr, ok := rec.(*PacketStateError)
+		if !ok {
+			t.Fatalf("unexpected panic type %T", rec)
+		}
+		if stateErr.Error() != "Packet was not sent yet" {
+			t.Fatalf("unexpected panic message %q", stateErr.Error())
+		}
+	}()
+
+	_ = p.Resend()
+}
+
+func TestNewRawPacket_MirrorsPackedConstructor(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte{1, 2, 3, 4}
+	p := NewRawPacket(raw)
+	if p == nil {
+		t.Fatalf("expected packet")
+	}
+	if !p.Packed || !p.FromPacked || p.CreateReceipt {
+		t.Fatalf("unexpected raw packet state: packed=%v fromPacked=%v createReceipt=%v", p.Packed, p.FromPacked, p.CreateReceipt)
+	}
+	if !bytes.Equal(p.Raw, raw) || !bytes.Equal(p.Data, raw) {
+		t.Fatalf("raw/data mismatch")
+	}
+}

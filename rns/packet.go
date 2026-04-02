@@ -271,6 +271,21 @@ type Packet struct {
 	MapHash         []byte
 }
 
+type PacketStateError struct {
+	Message string
+}
+
+func (e *PacketStateError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func panicPacketState(message string) {
+	panic(&PacketStateError{Message: message})
+}
+
 // NewPacket constructs a packet destined for either a Destination or Link.
 // When target is nil, the packet represents already-packed raw data.
 func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
@@ -346,6 +361,11 @@ func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 	}
 
 	return packet
+}
+
+// NewRawPacket mirrors Python Packet(None, raw) construction for already-packed bytes.
+func NewRawPacket(raw []byte) *Packet {
+	return NewPacket(nil, raw)
 }
 
 func (p *Packet) getPackedFlags() byte {
@@ -530,8 +550,7 @@ func (p *Packet) Unpack() bool {
 // Send mirrors send().
 func (p *Packet) Send() *PacketReceipt {
 	if p.Sent {
-		Log("Attempt to resend an already sent packet", LogError)
-		return nil
+		panicPacketState("Packet was already sent")
 	}
 	if p.Destination == nil && p.Link == nil {
 		Log("Cannot send packet without destination", LogError)
@@ -574,8 +593,7 @@ func (p *Packet) Send() *PacketReceipt {
 // Resend mirrors resend().
 func (p *Packet) Resend() *PacketReceipt {
 	if !p.Sent {
-		Log("Attempt to resend a packet that was not sent yet", LogError)
-		return nil
+		panicPacketState("Packet was not sent yet")
 	}
 	if err := p.Pack(); err != nil {
 		Logf(LogError, "Could not repack packet before resend: %v", err)
