@@ -22,7 +22,7 @@ func TestReticulumApplyConfig_DiscoverySettings(t *testing.T) {
 
 	NetworkIdentity = nil
 	discoverInterfacesMode = false
-	requiredDiscoveryValue = DefaultDiscoveryRequiredValue
+	requiredDiscoveryValue = nil
 	discoveryRequiredValue = DefaultDiscoveryRequiredValue
 	interfaceDiscoverySources = nil
 	autoconnectDiscoveredInterfaces = 0
@@ -72,8 +72,8 @@ func TestReticulumApplyConfig_DiscoverySettings(t *testing.T) {
 	if !DiscoverInterfacesEnabled() {
 		t.Fatalf("expected discover_interfaces to be enabled")
 	}
-	if RequiredDiscoveryValue() != 19 {
-		t.Fatalf("required discovery value=%d, want 19", RequiredDiscoveryValue())
+	if RequiredDiscoveryValue() == nil || *RequiredDiscoveryValue() != 19 {
+		t.Fatalf("required discovery value=%v, want 19", RequiredDiscoveryValue())
 	}
 	if discoveryRequiredValue != 19 {
 		t.Fatalf("transport discoveryRequiredValue=%d, want 19", discoveryRequiredValue)
@@ -87,6 +87,24 @@ func TestReticulumApplyConfig_DiscoverySettings(t *testing.T) {
 	}
 	if MaxAutoconnectedInterfaces() != 2 {
 		t.Fatalf("max autoconnected interfaces=%d, want 2", MaxAutoconnectedInterfaces())
+	}
+}
+
+func TestRequiredDiscoveryValue_DefaultsNilUntilConfigured(t *testing.T) {
+	prevRequiredDiscoveryValue := requiredDiscoveryValue
+	prevTransportDiscoveryRequiredValue := discoveryRequiredValue
+	requiredDiscoveryValue = nil
+	discoveryRequiredValue = DefaultDiscoveryRequiredValue
+	t.Cleanup(func() {
+		requiredDiscoveryValue = prevRequiredDiscoveryValue
+		discoveryRequiredValue = prevTransportDiscoveryRequiredValue
+	})
+
+	if got := RequiredDiscoveryValue(); got != nil {
+		t.Fatalf("RequiredDiscoveryValue()=%v, want nil", got)
+	}
+	if got := effectiveRequiredDiscoveryValue(); got != DefaultDiscoveryRequiredValue {
+		t.Fatalf("effectiveRequiredDiscoveryValue()=%d, want %d", got, DefaultDiscoveryRequiredValue)
 	}
 }
 
@@ -200,6 +218,61 @@ func TestBringUpSystemInterfaces_AppliesDiscoveryConfig(t *testing.T) {
 	}
 	if ifc.DiscoveryModulation != "lora" {
 		t.Fatalf("modulation=%q, want lora", ifc.DiscoveryModulation)
+	}
+}
+
+func TestBringUpSystemInterfaces_TracksBootstrapOnlyConfig(t *testing.T) {
+	prevInterfaces := Interfaces
+	Interfaces = nil
+	t.Cleanup(func() {
+		for _, ifc := range Interfaces {
+			if ifc != nil {
+				ifc.Detach()
+			}
+		}
+		Interfaces = prevInterfaces
+	})
+
+	cfgDir := t.TempDir()
+	cfgPath := filepath.Join(cfgDir, "config")
+	cfg := strings.Join([]string{
+		"[interfaces]",
+		"  [[BootstrapWeave]]",
+		"    enabled = True",
+		"    type = WeaveInterface",
+		"    port = fake",
+		"    bootstrap_only = True",
+	}, "\n")
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("WriteFile(config): %v", err)
+	}
+	parsed, err := configobj.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("configobj.Load: %v", err)
+	}
+
+	r := &Reticulum{
+		Config:                parsed,
+		ConfigPath:            cfgPath,
+		PanicOnInterfaceError: false,
+	}
+	if err := r.bringUpSystemInterfaces(); err != nil {
+		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	}
+	if len(Interfaces) != 1 {
+		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
+	}
+	if !Interfaces[0].BootstrapOnly {
+		t.Fatal("expected interface BootstrapOnly=true")
+	}
+	if len(r.BootstrapConfigs) != 1 {
+		t.Fatalf("bootstrap configs=%d, want 1", len(r.BootstrapConfigs))
+	}
+	if got := r.BootstrapConfigs[0].Name; got != "BootstrapWeave" {
+		t.Fatalf("bootstrap config name=%q, want BootstrapWeave", got)
+	}
+	if got := strings.ToLower(strings.TrimSpace(r.BootstrapConfigs[0].KV["bootstrap_only"])); got != "true" {
+		t.Fatalf("bootstrap config bootstrap_only=%q, want true", got)
 	}
 }
 

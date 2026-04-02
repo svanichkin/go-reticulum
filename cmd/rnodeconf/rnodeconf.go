@@ -2290,14 +2290,6 @@ func printNodeInfo(n *RNode) {
 	}
 }
 
-func printCfgSector(n *RNode) {
-	if len(n.CfgSector) == 0 {
-		fmt.Println("No config sector data received")
-		return
-	}
-	fmt.Printf("Config sector (%d bytes):\n%s\n", len(n.CfgSector), hex.Dump(n.CfgSector))
-}
-
 // ================== Device config output (Python parity) ==================
 
 const (

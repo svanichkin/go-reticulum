@@ -905,6 +905,29 @@ func (d *InterfaceDiscovery) monitorOnce(now time.Time) bool {
 	maxAuto := MaxAutoconnectedInterfaces()
 	freeSlots := maxInt(0, maxAuto-d.autoconnectCount())
 	reservedSlots := maxAuto / 4
+
+	if online >= maxAuto {
+		for _, ifc := range Interfaces {
+			if ifc == nil || !ifc.BootstrapOnly {
+				continue
+			}
+			alreadyDetached := false
+			for _, gone := range detached {
+				if gone == ifc {
+					alreadyDetached = true
+					break
+				}
+			}
+			if !alreadyDetached {
+				detached = append(detached, ifc)
+			}
+		}
+	}
+
+	if online == 0 && Owner != nil && Owner.bootstrapInterfaceCount() == 0 {
+		Owner.reenableBootstrapInterfaces()
+	}
+
 	if initialAuto && freeSlots > reservedSlots {
 		candidates := d.ListDiscoveredInterfaces(true, true)
 		if len(candidates) > 0 {

@@ -6,12 +6,32 @@ import (
 )
 
 func TestGetInterfaceStats_UsesClientCountAndFullParentHash(t *testing.T) {
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevNetworkIdentity := NetworkIdentity
 	prevInterfaces := Interfaces
+
+	transportEnabled = true
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	networkID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(network): %v", err)
+	}
+	TransportIdentity = transportID
+	NetworkIdentity = networkID
 	Interfaces = nil
-	t.Cleanup(func() { Interfaces = prevInterfaces })
+	t.Cleanup(func() {
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		NetworkIdentity = prevNetworkIdentity
+		Interfaces = prevInterfaces
+	})
 
 	parent := &Interface{Name: "ParentInterface", Type: "UDPInterface"}
-	child := &Interface{Name: "ChildInterface", Type: "UDPInterface", Parent: parent}
+	child := &Interface{Name: "ChildInterface", Type: "UDPInterface", Parent: parent, AutoconnectSource: "abcd"}
 
 	shared := &Interface{Name: "Shared Instance[default]", Type: "LocalInterface"}
 	shared.SetClientCountFunc(func() int { return 3 })
@@ -69,5 +89,17 @@ func TestGetInterfaceStats_UsesClientCountAndFullParentHash(t *testing.T) {
 	}
 	if want := parent.GetHash(); !bytes.Equal(parentHash, want) {
 		t.Fatalf("unexpected parent_interface_hash")
+	}
+
+	if got, _ := childEntry["autoconnect_source"].(string); got != "abcd" {
+		t.Fatalf("expected autoconnect_source=abcd, got %q", got)
+	}
+
+	networkHash, ok := stats["network_id"].([]byte)
+	if !ok {
+		t.Fatalf("expected network_id=[]byte, got %T", stats["network_id"])
+	}
+	if !bytes.Equal(networkHash, networkID.Hash) {
+		t.Fatalf("unexpected network_id")
 	}
 }

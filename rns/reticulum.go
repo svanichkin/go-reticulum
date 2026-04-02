@@ -81,7 +81,7 @@ var (
 	allowProbes                     = false
 	discoveryEnabled                = false
 	discoverInterfacesMode          = false
-	requiredDiscoveryValue          = DefaultDiscoveryRequiredValue
+	requiredDiscoveryValue          *int
 	interfaceDiscoverySources       [][]byte
 	autoconnectDiscoveredInterfaces int
 	publishBlackholeEnabled         bool
@@ -159,6 +159,8 @@ type Reticulum struct {
 
 	ifacSalt []byte
 
+	BootstrapConfigs []interfaceConfigEntry
+
 	// RPC listener + address (TCP/Unix).
 	rpcAddr    string
 	rpcNetwork string      // "tcp" / "unix"
@@ -234,7 +236,7 @@ func (r *Reticulum) DiscoveredInterfaces() []map[string]any {
 	if r == nil {
 		return nil
 	}
-	discovery, err := newInterfaceDiscoveryWithStorage(r.StoragePath, RequiredDiscoveryValue(), nil, false)
+	discovery, err := newInterfaceDiscoveryWithStorage(r.StoragePath, effectiveRequiredDiscoveryValue(), nil, false)
 	if err != nil {
 		return nil
 	}
@@ -246,6 +248,143 @@ func DiscoveredInterfaces() []map[string]any {
 		return nil
 	}
 	return Owner.DiscoveredInterfaces()
+}
+
+func cloneInterfaceConfigMap(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+func (r *Reticulum) rememberBootstrapConfig(name string, kv map[string]string) {
+	if r == nil || strings.TrimSpace(name) == "" || kv == nil {
+		return
+	}
+	for _, entry := range r.BootstrapConfigs {
+		if strings.EqualFold(strings.TrimSpace(entry.Name), strings.TrimSpace(name)) {
+			return
+		}
+	}
+	r.BootstrapConfigs = append(r.BootstrapConfigs, interfaceConfigEntry{
+		Name: strings.TrimSpace(name),
+		KV:   cloneInterfaceConfigMap(kv),
+	})
+}
+
+func (r *Reticulum) bootstrapInterfaceCount() int {
+	count := 0
+	for _, ifc := range Interfaces {
+		if ifc != nil && ifc.BootstrapOnly {
+			count++
+		}
+	}
+	return count
+}
+
+func (r *Reticulum) reenableBootstrapInterfaces() {
+	if r == nil {
+		return
+	}
+	for _, entry := range r.BootstrapConfigs {
+		name := strings.TrimSpace(entry.Name)
+		if name == "" {
+			continue
+		}
+		if findInterfaceByName(name) != nil {
+			continue
+		}
+		_, err := r.startInterfaceFromConfig(name, cloneInterfaceConfigMap(entry.KV))
+		if err != nil {
+			Logf(LogError, "Could not re-enable bootstrap interface %s: %v", name, err)
+		}
+	}
+}
+
+func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
+	if r == nil {
+		return nil
+	}
+	if r.IsConnectedToSharedInstance {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance for blackhole list: "+err.Error(), LogError)
+			return nil
+		}
+		defer client.Close()
+		if err := client.Send(map[string]any{"get": "blackholed_identities"}); err != nil {
+			Log("RPC request for blackhole list failed: "+err.Error(), LogError)
+			return nil
+		}
+		var resp map[hashKey]map[string]any
+		if err := client.Recv(&resp); err != nil {
+			Log("RPC response for blackhole list failed: "+err.Error(), LogError)
+			return nil
+		}
+		return resp
+	}
+	return BlackholedIdentities()
+}
+
+func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bool {
+	if len(identityHash) != truncatedHashBytes {
+		return false
+	}
+	if r != nil && r.IsConnectedToSharedInstance {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance to blackhole identity: "+err.Error(), LogError)
+			return false
+		}
+		defer client.Close()
+		req := map[string]any{"blackhole_identity": identityHash}
+		if until != nil && !until.IsZero() {
+			req["until"] = float64(until.Unix())
+		}
+		if reason != nil {
+			req["reason"] = *reason
+		}
+		if err := client.Send(req); err != nil {
+			Log("RPC request to blackhole identity failed: "+err.Error(), LogError)
+			return false
+		}
+		var resp bool
+		if err := client.Recv(&resp); err != nil {
+			Log("RPC response for blackhole identity failed: "+err.Error(), LogError)
+			return false
+		}
+		return resp
+	}
+	return BlackholeIdentity(identityHash, until, reason)
+}
+
+func (r *Reticulum) UnblackholeIdentity(identityHash []byte) bool {
+	if len(identityHash) != truncatedHashBytes {
+		return false
+	}
+	if r != nil && r.IsConnectedToSharedInstance {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance to lift blackhole: "+err.Error(), LogError)
+			return false
+		}
+		defer client.Close()
+		if err := client.Send(map[string]any{"unblackhole_identity": identityHash}); err != nil {
+			Log("RPC request to lift blackhole failed: "+err.Error(), LogError)
+			return false
+		}
+		var resp bool
+		if err := client.Recv(&resp); err != nil {
+			Log("RPC response for lift blackhole failed: "+err.Error(), LogError)
+			return false
+		}
+		return resp
+	}
+	return UnblackholeIdentity(identityHash)
 }
 
 type tcpLogAdapter struct{}
@@ -838,6 +977,35 @@ func fileExists(path string) bool {
 	return err == nil && !st.IsDir()
 }
 
+// broadcastForInterface returns an IPv4 broadcast address for the named interface.
+// Used for UDPInterface convenience config, similar to Python behavior.
+func broadcastForInterface(name string) (net.IP, error) {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return nil, err
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range addrs {
+		ipnet, ok := a.(*net.IPNet)
+		if !ok || ipnet.IP == nil || ipnet.Mask == nil {
+			continue
+		}
+		ip4 := ipnet.IP.To4()
+		if ip4 == nil {
+			continue
+		}
+		bcast := make(net.IP, 4)
+		for i := 0; i < 4; i++ {
+			bcast[i] = ip4[i] | ^ipnet.Mask[i]
+		}
+		return bcast, nil
+	}
+	return nil, errors.New("no IPv4 address found on interface")
+}
+
 // ---------------- exit / signals ----------------
 
 var (
@@ -1062,8 +1230,10 @@ func (r *Reticulum) applyConfig() error {
 			discoverInterfacesMode = v
 		}
 		if v, err := sec.AsInt("required_discovery_value"); err == nil && v > 0 {
-			requiredDiscoveryValue = v
+			requiredDiscoveryValue = &v
 			discoveryRequiredValue = v
+		} else if _, ok := sec.Get("required_discovery_value"); ok {
+			requiredDiscoveryValue = nil
 		}
 		if l := sec.AsList("interface_discovery_sources"); len(l) > 0 {
 			interfaceDiscoverySources = interfaceDiscoverySources[:0]
@@ -1494,6 +1664,8 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			announceRatePenalty = &zero
 		}
 
+		bootstrapOnly := parseTruthy(getFirst(kv, "bootstrap_only"), false)
+
 		ingressControl := parseTruthy(getFirst(kv, "ingress_control"), true)
 		var icMaxHeld *int
 		if v, ok := parseInt(getFirst(kv, "ic_max_held_announces")); ok {
@@ -1567,25 +1739,39 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			}
 		}
 
+		var externalIfc *Interface
 		knownType := false
 		switch strings.ToLower(ifType) {
 		case "ax25kissinterface", "autointerface", "udpinterface", "tcpclientinterface", "tcpserverinterface", "serialinterface", "kissinterface", "rnodeinterface", "rnodemultiinterface", "i2pinterface", "weaveinterface", "backboneinterface", "backboneclientinterface", "pipeinterface":
 			knownType = true
 		}
 		if !knownType {
+			if loaded, handled, err := loadExternalInterfacePlugin(r.InterfacePath, ifType, name, kv); handled {
+				if err != nil {
+					Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+					continue
+				}
+				externalIfc = loaded
+				knownType = externalIfc != nil
+			}
+		}
+		if !knownType {
+			if loaded, handled, err := loadExternalInterfacePython(r.InterfacePath, ifType, name, kv); handled {
+				if err != nil {
+					Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+					continue
+				}
+				externalIfc = loaded
+				knownType = externalIfc != nil
+			}
+		}
+		if !knownType {
 			// Python parity: if no internal interface matched, try interfacepath.
 			if strings.TrimSpace(r.InterfacePath) != "" {
-				py := filepath.Join(r.InterfacePath, ifType+".py")
 				goSrc := filepath.Join(r.InterfacePath, ifType+".go")
-				if fileExists(py) {
-					msg := fmt.Sprintf("External interface initialisation failed for %s / %s (external Python interfaces are not supported in Go port)", ifType, name)
-					Log(msg, LogError)
-					return errors.New(msg)
-				}
 				if fileExists(goSrc) {
-					msg := fmt.Sprintf("External interface %q found at %s but external Go interfaces are not supported yet", ifType, goSrc)
-					Log(msg, LogError)
-					return errors.New(msg)
+					Logf(LogError, "External interface %q found at %s but source-based Go interfaces are not supported, build a .so plugin instead", ifType, goSrc)
+					continue
 				}
 			}
 			Logf(LogError, "Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath)
@@ -1594,32 +1780,36 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 
 		discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
 
-		base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
-		if err != nil {
-			msg := fmt.Sprintf("The interface %q could not be created. Check your configuration file for errors!", name)
-			Log(msg, LogError)
-			Log("The contained exception was: "+err.Error(), LogError)
-			return err
-		}
-		if base == nil {
-			return fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
+		var ifc *Interface
+		if externalIfc != nil {
+			ifc = externalIfc
+		} else {
+			base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
+			if err != nil {
+				msg := fmt.Sprintf("The interface %q could not be created. Check your configuration file for errors!", name)
+				Log(msg, LogError)
+				Log("The contained exception was: "+err.Error(), LogError)
+				return err
+			}
+			if base == nil {
+				return fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
+			}
+			ifc = base
 		}
 
 		// Python parity: default outgoing is enabled, but can be disabled via `outgoing = False`.
-		base.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
-		base.IngressControl = ingressControl
-		base.ICMaxHeldAnnounces = icMaxHeld
-		base.ICBurstHold = icBurstHold
-		base.ICBurstFreqNew = icBurstFreqNew
-		base.ICBurstFreq = icBurstFreq
-		base.ICNewTime = icNewTime
-		base.ICBurstPenalty = icBurstPenalty
-		base.ICHeldReleaseInterval = icHeldRelease
-		base.SetAnnounceRateConfig(announceRateTarget, announceRateGrace, announceRatePenalty)
+		ifc.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
+		ifc.IngressControl = ingressControl
+		ifc.ICMaxHeldAnnounces = icMaxHeld
+		ifc.ICBurstHold = icBurstHold
+		ifc.ICBurstFreqNew = icBurstFreqNew
+		ifc.ICBurstFreq = icBurstFreq
+		ifc.ICNewTime = icNewTime
+		ifc.ICBurstPenalty = icBurstPenalty
+		ifc.ICHeldReleaseInterval = icHeldRelease
+		ifc.SetAnnounceRateConfig(announceRateTarget, announceRateGrace, announceRatePenalty)
 
-		ifc := base
-
-		if strings.EqualFold(ifType, "UDPInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "UDPInterface") {
 			// Python: IN=True, BITRATE_GUESS=10Mbps, DEFAULT_IFAC_SIZE=16, HW_MTU=1064
 			ifc.IN = true
 			if ifc.Bitrate == 0 {
@@ -1667,7 +1857,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			}
 		}
 
-		if strings.EqualFold(ifType, "AutoInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "AutoInterface") {
 			desiredOut := ifc.OUT
 			if err := ifc.ConfigureAutoInterface(kv); err != nil {
 				return fmt.Errorf("Interface %q AutoInterface config error: %w", name, err)
@@ -1678,7 +1868,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			}
 		}
 
-		if strings.EqualFold(ifType, "AX25KISSInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "AX25KISSInterface") {
 			axIf, err := ifaces.NewAX25KISSInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q AX25KISS config error: %w", name, err)
@@ -1687,7 +1877,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = axIf
 		}
 
-		if strings.EqualFold(ifType, "KISSInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "KISSInterface") {
 			kIf, err := ifaces.NewKISSInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q KISS config error: %w", name, err)
@@ -1696,7 +1886,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = kIf
 		}
 
-		if strings.EqualFold(ifType, "BackboneInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "BackboneInterface") {
 			bbIf, err := ifaces.NewBackboneInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q Backbone config error: %w", name, err)
@@ -1705,7 +1895,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = bbIf
 		}
 
-		if strings.EqualFold(ifType, "BackboneClientInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "BackboneClientInterface") {
 			bcIf, err := ifaces.NewBackboneClientInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q Backbone client config error: %w", name, err)
@@ -1714,7 +1904,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = bcIf
 		}
 
-		if strings.EqualFold(ifType, "WeaveInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "WeaveInterface") {
 			wIf, err := ifaces.NewWeaveInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q Weave config error: %w", name, err)
@@ -1725,7 +1915,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = wIf
 		}
 
-		if strings.EqualFold(ifType, "I2PInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "I2PInterface") {
 			// Python injects Reticulum.storagepath into I2PInterface config.
 			if strings.TrimSpace(getFirst(kv, "storagepath")) == "" && strings.TrimSpace(r.StoragePath) != "" {
 				kv["storagepath"] = r.StoragePath
@@ -1738,7 +1928,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = i2pIf
 		}
 
-		if strings.EqualFold(ifType, "PipeInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "PipeInterface") {
 			pIf, err := ifaces.NewPipeInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q Pipe config error: %w", name, err)
@@ -1747,7 +1937,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = pIf
 		}
 
-		if strings.EqualFold(ifType, "SerialInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "SerialInterface") {
 			sIf, err := ifaces.NewSerialInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q Serial config error: %w", name, err)
@@ -1756,7 +1946,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = sIf
 		}
 
-		if strings.EqualFold(ifType, "RNodeMultiInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "RNodeMultiInterface") {
 			rnmIf, err := ifaces.NewRNodeMultiInterface(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q RNodeMulti config error: %w", name, err)
@@ -1765,7 +1955,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = rnmIf
 		}
 
-		if strings.EqualFold(ifType, "RNodeInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "RNodeInterface") {
 			rnIf, err := ifaces.NewRNodeInterfaceFromConfig(strings.TrimSpace(name), kv)
 			if err != nil {
 				return fmt.Errorf("Interface %q RNode config error: %w", name, err)
@@ -1774,7 +1964,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = rnIf
 		}
 
-		if strings.EqualFold(ifType, "TCPClientInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "TCPClientInterface") {
 			host := getFirst(kv, "target_host", "remote")
 			port, _ := parseInt(getFirst(kv, "target_port", "port"))
 			kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
@@ -1821,7 +2011,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			ifc = tcpIf
 		}
 
-		if strings.EqualFold(ifType, "TCPServerInterface") {
+		if externalIfc == nil && strings.EqualFold(ifType, "TCPServerInterface") {
 			listenIP := getFirst(kv, "listen_ip", "listen_on", "bind_ip")
 			listenPort, _ := parseInt(getFirst(kv, "listen_port", "port"))
 			device := getFirst(kv, "device")
@@ -1920,7 +2110,11 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 		}
 
 		applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
+		ifc.BootstrapOnly = bootstrapOnly
 		r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
+		if bootstrapOnly {
+			r.rememberBootstrapConfig(name, kv)
+		}
 		broughtUp++
 	}
 
@@ -2005,6 +2199,8 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		announceRatePenalty = &zero
 	}
 
+	bootstrapOnly := parseTruthy(getFirst(kv, "bootstrap_only"), false)
+
 	ingressControl := parseTruthy(getFirst(kv, "ingress_control"), true)
 	var icMaxHeld *int
 	if v, ok := parseInt(getFirst(kv, "ic_max_held_announces")); ok {
@@ -2069,7 +2265,26 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		}
 	}
 
-	if !strings.EqualFold(ifType, "UDPInterface") &&
+	var externalIfc *Interface
+	if loaded, handled, err := loadExternalInterfacePlugin(r.InterfacePath, ifType, name, kv); handled {
+		if err != nil {
+			Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+			return false, nil
+		}
+		externalIfc = loaded
+	}
+	if externalIfc == nil {
+		if loaded, handled, err := loadExternalInterfacePython(r.InterfacePath, ifType, name, kv); handled {
+			if err != nil {
+				Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+				return false, nil
+			}
+			externalIfc = loaded
+		}
+	}
+
+	if externalIfc == nil &&
+		!strings.EqualFold(ifType, "UDPInterface") &&
 		!strings.EqualFold(ifType, "TCPClientInterface") &&
 		!strings.EqualFold(ifType, "TCPServerInterface") &&
 		!strings.EqualFold(ifType, "AutoInterface") &&
@@ -2084,13 +2299,10 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		!strings.EqualFold(ifType, "RNodeInterface") &&
 		!strings.EqualFold(ifType, "RNodeMultiInterface") {
 		if strings.TrimSpace(r.InterfacePath) != "" {
-			pyPath := filepath.Join(r.InterfacePath, ifType+".py")
 			goPath := filepath.Join(r.InterfacePath, ifType+".go")
-			if _, err := os.Stat(pyPath); err == nil {
-				return false, fmt.Errorf("external Python interfaces are not supported: found %q", pyPath)
-			}
 			if _, err := os.Stat(goPath); err == nil {
-				return false, fmt.Errorf("external Go interfaces are not supported yet: found %q", goPath)
+				Logf(LogError, "External interface %q found at %s but source-based Go interfaces are not supported, build a .so plugin instead", ifType, goPath)
+				return false, nil
 			}
 		}
 		Logf(LogError, "Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath)
@@ -2099,28 +2311,32 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 
 	discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
 
-	base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
-	if err != nil {
-		return false, err
+	var ifc *Interface
+	if externalIfc != nil {
+		ifc = externalIfc
+	} else {
+		base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
+		if err != nil {
+			return false, err
+		}
+		if base == nil {
+			return false, fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
+		}
+		ifc = base
 	}
-	if base == nil {
-		return false, fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
-	}
 
-	base.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
-	base.IngressControl = ingressControl
-	base.ICMaxHeldAnnounces = icMaxHeld
-	base.ICBurstHold = icBurstHold
-	base.ICBurstFreqNew = icBurstFreqNew
-	base.ICBurstFreq = icBurstFreq
-	base.ICNewTime = icNewTime
-	base.ICBurstPenalty = icBurstPenalty
-	base.ICHeldReleaseInterval = icHeldRelease
-	base.SetAnnounceRateConfig(announceRateTarget, announceRateGrace, announceRatePenalty)
+	ifc.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
+	ifc.IngressControl = ingressControl
+	ifc.ICMaxHeldAnnounces = icMaxHeld
+	ifc.ICBurstHold = icBurstHold
+	ifc.ICBurstFreqNew = icBurstFreqNew
+	ifc.ICBurstFreq = icBurstFreq
+	ifc.ICNewTime = icNewTime
+	ifc.ICBurstPenalty = icBurstPenalty
+	ifc.ICHeldReleaseInterval = icHeldRelease
+	ifc.SetAnnounceRateConfig(announceRateTarget, announceRateGrace, announceRatePenalty)
 
-	ifc := base
-
-	if strings.EqualFold(ifType, "UDPInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "UDPInterface") {
 		ifc.IN = true
 		if ifc.Bitrate == 0 {
 			ifc.Bitrate = 10 * 1000 * 1000
@@ -2167,7 +2383,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		}
 	}
 
-	if strings.EqualFold(ifType, "AutoInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "AutoInterface") {
 		desiredOut := ifc.OUT
 		if err := ifc.ConfigureAutoInterface(kv); err != nil {
 			return false, fmt.Errorf("Interface %q AutoInterface config error: %w", name, err)
@@ -2178,7 +2394,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		}
 	}
 
-	if strings.EqualFold(ifType, "AX25KISSInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "AX25KISSInterface") {
 		axIf, err := ifaces.NewAX25KISSInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q AX25KISS config error: %w", name, err)
@@ -2187,7 +2403,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = axIf
 	}
 
-	if strings.EqualFold(ifType, "KISSInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "KISSInterface") {
 		kIf, err := ifaces.NewKISSInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q KISS config error: %w", name, err)
@@ -2196,7 +2412,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = kIf
 	}
 
-	if strings.EqualFold(ifType, "BackboneInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "BackboneInterface") {
 		bbIf, err := ifaces.NewBackboneInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Backbone config error: %w", name, err)
@@ -2205,7 +2421,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = bbIf
 	}
 
-	if strings.EqualFold(ifType, "BackboneClientInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "BackboneClientInterface") {
 		bcIf, err := ifaces.NewBackboneClientInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Backbone client config error: %w", name, err)
@@ -2214,7 +2430,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = bcIf
 	}
 
-	if strings.EqualFold(ifType, "WeaveInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "WeaveInterface") {
 		wIf, err := ifaces.NewWeaveInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Weave config error: %w", name, err)
@@ -2224,7 +2440,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = wIf
 	}
 
-	if strings.EqualFold(ifType, "I2PInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "I2PInterface") {
 		if strings.TrimSpace(getFirst(kv, "storagepath")) == "" && strings.TrimSpace(r.StoragePath) != "" {
 			kv["storagepath"] = r.StoragePath
 		}
@@ -2236,7 +2452,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = i2pIf
 	}
 
-	if strings.EqualFold(ifType, "PipeInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "PipeInterface") {
 		pIf, err := ifaces.NewPipeInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Pipe config error: %w", name, err)
@@ -2245,7 +2461,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = pIf
 	}
 
-	if strings.EqualFold(ifType, "SerialInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "SerialInterface") {
 		sIf, err := ifaces.NewSerialInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Serial config error: %w", name, err)
@@ -2254,7 +2470,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = sIf
 	}
 
-	if strings.EqualFold(ifType, "RNodeMultiInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "RNodeMultiInterface") {
 		rnmIf, err := ifaces.NewRNodeMultiInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q RNodeMulti config error: %w", name, err)
@@ -2263,7 +2479,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = rnmIf
 	}
 
-	if strings.EqualFold(ifType, "RNodeInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "RNodeInterface") {
 		rnIf, err := ifaces.NewRNodeInterfaceFromConfig(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q RNode config error: %w", name, err)
@@ -2272,7 +2488,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = rnIf
 	}
 
-	if strings.EqualFold(ifType, "TCPClientInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "TCPClientInterface") {
 		host := getFirst(kv, "target_host", "remote")
 		port, _ := parseInt(getFirst(kv, "target_port", "port"))
 		kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
@@ -2319,7 +2535,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		ifc = tcpIf
 	}
 
-	if strings.EqualFold(ifType, "TCPServerInterface") {
+	if externalIfc == nil && strings.EqualFold(ifType, "TCPServerInterface") {
 		listenIP := getFirst(kv, "listen_ip", "listen_on", "bind_ip")
 		listenPort, _ := parseInt(getFirst(kv, "listen_port", "port"))
 		device := getFirst(kv, "device")
@@ -2417,7 +2633,11 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 	}
 
 	applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
+	ifc.BootstrapOnly = bootstrapOnly
 	r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
+	if bootstrapOnly {
+		r.rememberBootstrapConfig(name, kv)
+	}
 	return true, nil
 }
 
@@ -2960,6 +3180,8 @@ func (r *Reticulum) handleRPC(conn RPCConn) {
 		switch get {
 		case "interface_stats":
 			_ = conn.Send(r.GetInterfaceStats())
+		case "blackholed_identities":
+			_ = conn.Send(r.GetBlackholedIdentities())
 		case "path_table":
 			mh, _ := call["max_hops"].(int)
 			_ = conn.Send(r.GetPathTable(mh))
@@ -3013,6 +3235,16 @@ func (r *Reticulum) handleRPC(conn RPCConn) {
 			_ = conn.Send(r.DropAnnounceQueues())
 		}
 	}
+	if raw, ok := call["blackhole_identity"]; ok {
+		identityHash := rpcBytes(raw)
+		until := rpcUnixTime(call["until"])
+		reason := rpcString(call["reason"])
+		_ = conn.Send(r.BlackholeIdentity(identityHash, until, reason))
+	}
+	if raw, ok := call["unblackhole_identity"]; ok {
+		identityHash := rpcBytes(raw)
+		_ = conn.Send(r.UnblackholeIdentity(identityHash))
+	}
 }
 
 func rpcBytes(value any) []byte {
@@ -3038,6 +3270,61 @@ func rpcSendError(conn RPCConn, err error) {
 		return
 	}
 	_ = conn.Send(err.Error())
+}
+
+func rpcUnixTime(value any) *time.Time {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case time.Time:
+		t := v
+		return &t
+	case *time.Time:
+		if v == nil {
+			return nil
+		}
+		t := *v
+		return &t
+	case float64:
+		t := time.Unix(int64(v), 0)
+		return &t
+	case float32:
+		t := time.Unix(int64(v), 0)
+		return &t
+	case int:
+		t := time.Unix(int64(v), 0)
+		return &t
+	case int64:
+		t := time.Unix(v, 0)
+		return &t
+	case int32:
+		t := time.Unix(int64(v), 0)
+		return &t
+	case uint64:
+		t := time.Unix(int64(v), 0)
+		return &t
+	case uint32:
+		t := time.Unix(int64(v), 0)
+		return &t
+	default:
+		return nil
+	}
+}
+
+func rpcString(value any) *string {
+	switch v := value.(type) {
+	case string:
+		s := v
+		return &s
+	case *string:
+		if v == nil {
+			return nil
+		}
+		s := *v
+		return &s
+	default:
+		return nil
+	}
 }
 
 func (r *Reticulum) getRPCClient() (RPCConn, error) {
@@ -3134,6 +3421,7 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 			"held_announces":              ifc.HeldAnnouncesCount(),
 			"status":                      ifc.Online,
 			"mode":                        ifc.Mode,
+			"autoconnect_source":          nil,
 		}
 		if cc := ifc.ClientCount(); cc != nil {
 			entry["clients"] = *cc
@@ -3208,6 +3496,9 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 		if v := ifc.RNodeBatteryPercent(); v != nil {
 			entry["battery_percent"] = *v
 		}
+		if strings.TrimSpace(ifc.AutoconnectSource) != "" {
+			entry["autoconnect_source"] = ifc.AutoconnectSource
+		}
 		entry["announce_queue"] = ifc.AnnounceQueueCount()
 
 		switch {
@@ -3227,9 +3518,15 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 	stats["txs"] = SpeedTX
 	if TransportEnabled() && TransportIdentity != nil {
 		stats["transport_id"] = TransportIdentity.Hash
+		if NetworkIdentity != nil {
+			stats["network_id"] = NetworkIdentity.Hash
+		} else {
+			stats["network_id"] = nil
+		}
 		stats["transport_uptime"] = time.Since(StartTime).Seconds()
 	} else {
 		stats["transport_id"] = nil
+		stats["network_id"] = nil
 		stats["transport_uptime"] = nil
 	}
 	if ProbeDestinationEnabled() && ProbeDestination != nil {
@@ -3554,8 +3851,15 @@ func ProbeDestinationEnabled() bool {
 	return allowProbes
 }
 
-func RequiredDiscoveryValue() int {
+func RequiredDiscoveryValue() *int {
 	return requiredDiscoveryValue
+}
+
+func effectiveRequiredDiscoveryValue() int {
+	if requiredDiscoveryValue != nil && *requiredDiscoveryValue > 0 {
+		return *requiredDiscoveryValue
+	}
+	return DefaultDiscoveryRequiredValue
 }
 
 func InterfaceDiscoveryEnabled() bool {

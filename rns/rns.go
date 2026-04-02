@@ -10,7 +10,6 @@ import (
 	"os"
 	"reflect"
 	"runtime"
-	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,9 +20,9 @@ import (
 	platformutils "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
-// Library version (set manually or generate at build time).
-var Version = "1.0.5"
-var compiledFlag = true
+// Library version mirrors python/RNS/_version.py.
+var Version = "1.1.4"
+var compiledFlag = false
 
 const (
 	defaultLogTimeFormat     = "2006-01-02 15:04:05"
@@ -98,6 +97,7 @@ var (
 
 	profilerRegistry = make(map[string]*Profiler)
 	profilerTags     = make(map[string]*profilerTagEntry)
+	profilerOrder    []string
 	profilerHasRun   bool
 
 	phyParamsSnapshot = PhyLayerParams{}
@@ -487,7 +487,25 @@ func TraceException(e any) {
 		return
 	}
 	Log(fmt.Sprintf("An unhandled %T exception occurred: %v", e, e), LogError)
-	Log(string(debug.Stack()), LogError)
+	trace := formattedExceptionTrace(e)
+	if strings.TrimSpace(trace) != "" {
+		Log(trace, LogError)
+	}
+}
+
+func formattedExceptionTrace(e any) string {
+	if e == nil {
+		return ""
+	}
+
+	// pkg/errors and similar wrappers often expose stack-aware formatting
+	// through %+v. Prefer that output before falling back to the current stack.
+	normal := fmt.Sprint(e)
+	verbose := fmt.Sprintf("%+v", e)
+	if strings.TrimSpace(verbose) != "" && verbose != normal {
+		return verbose
+	}
+	return ""
 }
 
 // ---------- hex representation ----------
@@ -1173,10 +1191,6 @@ func GetProfiler(tag string, superTag ...string) *Profiler {
 	profilerMu.Lock()
 	defer profilerMu.Unlock()
 
-	if tag == "" {
-		tag = "<unnamed>"
-	}
-
 	if prof, ok := profilerRegistry[tag]; ok {
 		return prof
 	}
@@ -1198,6 +1212,7 @@ func GetProfiler(tag string, superTag ...string) *Profiler {
 	}
 
 	profilerRegistry[tag] = prof
+	profilerOrder = append(profilerOrder, tag)
 	return prof
 }
 
@@ -1339,7 +1354,7 @@ func ProfilerResults() {
 	}
 
 	fmt.Print("\nProfiler results:\n\n")
-	rootNames := sortedProfilerNames(results, "")
+	rootNames := orderedProfilerNames(results, "")
 	for _, name := range rootNames {
 		printProfilerResultsRecursive(results[name], results, 0)
 	}
@@ -1419,22 +1434,25 @@ func printProfilerResultsRecursive(res profilerResult, results map[string]profil
 	}
 	fmt.Printf("%s  Total    : %s\n\n", indent, PrettyShortTime(res.Total.Seconds(), false, false))
 
-	children := sortedProfilerNames(results, res.Name)
+	children := orderedProfilerNames(results, res.Name)
 	for _, name := range children {
 		printProfilerResultsRecursive(results[name], results, level+1)
 	}
 }
 
-func sortedProfilerNames(results map[string]profilerResult, parent string) []string {
+func orderedProfilerNames(results map[string]profilerResult, parent string) []string {
 	var names []string
-	for name, res := range results {
+	for _, name := range profilerOrder {
+		res, ok := results[name]
+		if !ok {
+			continue
+		}
 		if parent == "" && res.Super == "" {
 			names = append(names, name)
 		} else if res.Super == parent {
 			names = append(names, name)
 		}
 	}
-	sort.Strings(names)
 	return names
 }
 

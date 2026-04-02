@@ -248,23 +248,25 @@ type Interface struct {
 	announceQueue     []announceQueueEntry
 	announceRunning   bool
 
-	auto           *autoState
-	ax25           *AX25KISSDriver
-	kiss           *KISSDriver
-	backboneServer *BackboneInterfaceDriver
-	backboneClient *BackboneClientDriver
-	backbonePeer   *BackbonePeer
-	i2pClient      *I2PClientDriver
-	i2pPeer        *I2PPeer
-	pipe           *PipeDriver
-	weave          *WeaveInterfaceDriver
-	serial         *SerialDriver
-	rnodeMulti     *RNodeMultiDriver
-	rnodeSub       *RNodeSubDriver
-	rnodeSingle    *RNodeInterface
-	tcpClient      *TCPClientInterface
-	tcpServer      *TCPServerInterface
-	clientCount    func() int
+	auto              *autoState
+	ax25              *AX25KISSDriver
+	kiss              *KISSDriver
+	backboneServer    *BackboneInterfaceDriver
+	backboneClient    *BackboneClientDriver
+	backbonePeer      *BackbonePeer
+	i2pClient         *I2PClientDriver
+	i2pPeer           *I2PPeer
+	pipe              *PipeDriver
+	weave             *WeaveInterfaceDriver
+	serial            *SerialDriver
+	rnodeMulti        *RNodeMultiDriver
+	rnodeSub          *RNodeSubDriver
+	rnodeSingle       *RNodeInterface
+	tcpClient         *TCPClientInterface
+	tcpServer         *TCPServerInterface
+	clientCount       func() int
+	processOutgoingFn func([]byte) error
+	detachFn          func()
 }
 
 func (i *Interface) SetTCPClient(ci *TCPClientInterface) {
@@ -349,6 +351,20 @@ func (i *Interface) FinalInit() {
 	}
 }
 
+func (i *Interface) SetProcessOutgoingFunc(fn func([]byte) error) {
+	if i == nil {
+		return
+	}
+	i.processOutgoingFn = fn
+}
+
+func (i *Interface) SetDetachFunc(fn func()) {
+	if i == nil {
+		return
+	}
+	i.detachFn = fn
+}
+
 func (i *Interface) Detach() {
 	if i != nil {
 		i.Online = false
@@ -407,6 +423,9 @@ func (i *Interface) Detach() {
 		}
 		if i.tcpServer != nil {
 			i.tcpServer.Detach()
+		}
+		if i.detachFn != nil {
+			i.detachFn()
 		}
 	}
 }
@@ -1019,6 +1038,12 @@ func removeInterface(ifc *Interface) {
 
 func (i *Interface) ProcessOutgoing(data []byte) {
 	if i == nil || len(data) == 0 {
+		return
+	}
+	if i.processOutgoingFn != nil {
+		if err := i.processOutgoingFn(data); err != nil && DiagLogf != nil {
+			DiagLogf(LogError, "external send error on %s: %v", i, err)
+		}
 		return
 	}
 	if strings.EqualFold(i.Type, "LocalInterface") {

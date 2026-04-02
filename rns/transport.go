@@ -1413,6 +1413,25 @@ func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bo
 	return true
 }
 
+func UnblackholeIdentity(identityHash []byte) bool {
+	key, ok := makeHashKey(identityHash)
+	if !ok {
+		return false
+	}
+
+	blackholeMu.Lock()
+	if _, exists := blackholedIdentities[key]; !exists {
+		blackholeMu.Unlock()
+		return false
+	}
+	delete(blackholedIdentities, key)
+	blackholeMu.Unlock()
+
+	_ = persistBlackhole()
+	Logf(LogInfo, "Lifted blackhole for identity %s", PrettyHexRep(identityHash))
+	return true
+}
+
 func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, _ *Identity, _ time.Time) any {
 	return blackholeListSnapshot()
 }

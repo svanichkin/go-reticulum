@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -178,5 +179,111 @@ func TestInterfaceDiscovery_MonitorOnce_DetachesExpiredAutoconnect(t *testing.T)
 	defer discovery.mu.Unlock()
 	if len(discovery.monitored) != 0 {
 		t.Fatalf("monitored interfaces=%d, want 0", len(discovery.monitored))
+	}
+}
+
+func TestInterfaceDiscovery_MonitorOnce_TearsDownBootstrapOnlyAtTarget(t *testing.T) {
+	prevOwner := Owner
+	prevInterfaces := Interfaces
+	prevAutoconnect := autoconnectDiscoveredInterfaces
+
+	Owner = &Reticulum{}
+	Interfaces = nil
+	autoconnectDiscoveredInterfaces = 1
+	t.Cleanup(func() {
+		Owner = prevOwner
+		Interfaces = prevInterfaces
+		autoconnectDiscoveredInterfaces = prevAutoconnect
+	})
+
+	autoIfc := &Interface{
+		Name:            "auto0",
+		Type:            "BackboneClientInterface",
+		AutoconnectHash: []byte{0x01},
+		Online:          true,
+	}
+	bootstrapIfc := &Interface{
+		Name:          "bootstrap0",
+		Type:          "WeaveInterface",
+		BootstrapOnly: true,
+		Online:        true,
+	}
+	Interfaces = []*Interface{autoIfc, bootstrapIfc}
+
+	discovery := &InterfaceDiscovery{
+		monitored:    []*Interface{autoIfc},
+		monitoring:   true,
+		detachAfter:  12 * time.Second,
+		monitorEvery: 5 * time.Second,
+	}
+
+	running := discovery.monitorOnce(time.Now())
+	if !running {
+		t.Fatal("monitorOnce() = false, want true while autoconnected interface remains monitored")
+	}
+	if len(Interfaces) != 1 || Interfaces[0] != autoIfc {
+		t.Fatalf("interfaces after bootstrap teardown=%#v, want only autoconnected interface", Interfaces)
+	}
+}
+
+func TestInterfaceDiscovery_MonitorOnce_ReenablesBootstrapOnlyWhenNoAutoConnectedRemain(t *testing.T) {
+	prevOwner := Owner
+	prevInterfaces := Interfaces
+
+	cfgDir := t.TempDir()
+	cfgPath := filepath.Join(cfgDir, "config")
+	cfg := strings.Join([]string{
+		"[interfaces]",
+		"  [[BootstrapWeave]]",
+		"    enabled = True",
+		"    type = WeaveInterface",
+		"    port = fake",
+		"    bootstrap_only = True",
+	}, "\n")
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("WriteFile(config): %v", err)
+	}
+
+	Owner = &Reticulum{
+		ConfigPath: cfgPath,
+		BootstrapConfigs: []interfaceConfigEntry{{
+			Name: "BootstrapWeave",
+			KV: map[string]string{
+				"enabled":        "True",
+				"type":           "WeaveInterface",
+				"port":           "fake",
+				"bootstrap_only": "True",
+			},
+		}},
+	}
+	Interfaces = nil
+	t.Cleanup(func() {
+		for _, ifc := range Interfaces {
+			if ifc != nil {
+				ifc.Detach()
+			}
+		}
+		Owner = prevOwner
+		Interfaces = prevInterfaces
+	})
+
+	discovery := &InterfaceDiscovery{
+		monitoring:   true,
+		detachAfter:  12 * time.Second,
+		monitorEvery: 5 * time.Second,
+	}
+
+	running := discovery.monitorOnce(time.Now())
+	if running {
+		t.Fatal("monitorOnce() = true, want false with no monitored autoconnects")
+	}
+	if len(Interfaces) != 1 {
+		t.Fatalf("interfaces=%d, want 1 bootstrap interface re-enabled", len(Interfaces))
+	}
+	if !Interfaces[0].BootstrapOnly {
+		t.Fatal("expected re-enabled interface BootstrapOnly=true")
+	}
+	if Interfaces[0].Name != "BootstrapWeave" {
+		t.Fatalf("interface name=%q, want BootstrapWeave", Interfaces[0].Name)
 	}
 }

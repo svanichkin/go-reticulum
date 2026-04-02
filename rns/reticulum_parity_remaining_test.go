@@ -62,13 +62,14 @@ func TestBringUpSystemInterfaces_ModeAndBitrateAliases(t *testing.T) {
 	}
 }
 
-func TestBringUpSystemInterfaces_ExternalInterfacePyUnsupported(t *testing.T) {
+func TestBringUpSystemInterfaces_ExternalInterfacePyInitFailureIsSkipped(t *testing.T) {
 	cfgDir := t.TempDir()
 	ifDir := filepath.Join(cfgDir, "interfaces")
 	if err := os.MkdirAll(ifDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(ifDir, "FooInterface.py"), []byte("# placeholder"), 0o600); err != nil {
+	module := "raise RuntimeError('boom')\n"
+	if err := os.WriteFile(filepath.Join(ifDir, "FooInterface.py"), []byte(module), 0o600); err != nil {
 		t.Fatalf("WriteFile(interface): %v", err)
 	}
 
@@ -91,9 +92,12 @@ func TestBringUpSystemInterfaces_ExternalInterfacePyUnsupported(t *testing.T) {
 		Config:                parsed,
 		ConfigPath:            cfgPath,
 		InterfacePath:         ifDir,
-		PanicOnInterfaceError: true,
+		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err == nil {
-		t.Fatalf("expected error for unsupported external Python interface")
+	if err := r.bringUpSystemInterfaces(); err != nil {
+		t.Fatalf("bringUpSystemInterfaces(): %v", err)
+	}
+	if len(Interfaces) != 0 {
+		t.Fatalf("expected failed external Python interface to be skipped, got %d interfaces", len(Interfaces))
 	}
 }
