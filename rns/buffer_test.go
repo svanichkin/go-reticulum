@@ -217,3 +217,68 @@ func TestRawChannelReader_ReadyCallback_BufferedSize(t *testing.T) {
 		t.Fatalf("unexpected ready sizes: %v", got)
 	}
 }
+
+func TestStreamDataMessage_PackWithoutStreamIDFails(t *testing.T) {
+	t.Parallel()
+
+	msg := &StreamDataMessage{Data: []byte("abc")}
+	if _, err := msg.Pack(); err == nil || err.Error() != "stream_id" {
+		t.Fatalf("Pack() err=%v, want stream_id", err)
+	}
+}
+
+func TestRawChannelReader_RemoveReadyCallback_PanicsLikeValueError(t *testing.T) {
+	oa := newLoopOutlet("a", 65535)
+	ch := NewChannel(oa)
+	reader := NewRawChannelReader(1, ch)
+	defer reader.Close()
+
+	cb := func(int) {}
+
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatal("expected panic")
+		}
+		ve, ok := rec.(*BufferValueError)
+		if !ok {
+			t.Fatalf("panic type=%T, want *BufferValueError", rec)
+		}
+		if ve.Message != "list.remove(x): x not in list" {
+			t.Fatalf("panic message=%q", ve.Message)
+		}
+	}()
+
+	reader.RemoveReadyCallback(cb)
+}
+
+func TestRawChannelWriter_CloseWaitDuration_MatchesPythonFallback(t *testing.T) {
+	t.Parallel()
+
+	oa := newLoopOutlet("a", 65535)
+	ch := NewChannel(oa)
+	writer := NewRawChannelWriter(1, ch)
+	if got := writer.closeWaitDuration(); got != 15*time.Second {
+		t.Fatalf("closeWaitDuration()=%v, want 15s", got)
+	}
+}
+
+func TestBufferAliases_CreateHelpersReturnAliasTypes(t *testing.T) {
+	t.Parallel()
+
+	oa := newLoopOutlet("a", 65535)
+	ch := NewChannel(oa)
+
+	reader := CreateReader(1, ch, nil)
+	if reader == nil {
+		t.Fatal("CreateReader returned nil")
+	}
+	writer := CreateWriter(1, ch)
+	if writer == nil {
+		t.Fatal("CreateWriter returned nil")
+	}
+	rw := CreateBidirectionalBuffer(1, 1, ch, nil)
+	if rw == nil {
+		t.Fatal("CreateBidirectionalBuffer returned nil")
+	}
+}

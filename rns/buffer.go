@@ -17,6 +17,7 @@ import (
 
 type StreamDataMessage struct {
 	StreamID   uint16
+	streamIDSet bool
 	Compressed bool
 	Data       []byte
 	EOF        bool
@@ -46,7 +47,8 @@ func NewStreamDataMessage(streamID int, data []byte, eof bool, compressed bool) 
 	}
 
 	m := &StreamDataMessage{
-		StreamID:   uint16(streamID),
+		StreamID:    uint16(streamID),
+		streamIDSet: true,
 		Compressed: compressed,
 		Data:       data,
 		EOF:        eof,
@@ -56,6 +58,9 @@ func NewStreamDataMessage(streamID int, data []byte, eof bool, compressed bool) 
 
 // Pack mirrors Python pack(self) -> bytes.
 func (m *StreamDataMessage) Pack() ([]byte, error) {
+	if m == nil || !m.streamIDSet {
+		return nil, errors.New("stream_id")
+	}
 	// header_val = (0x3fff & stream_id) | (0x8000 if eof else 0) | (0x4000 if compressed else 0)
 	headerVal := (0x3fff & int(m.StreamID))
 	if m.EOF {
@@ -81,6 +86,7 @@ func (m *StreamDataMessage) Unpack(raw []byte) error {
 	m.EOF = (0x8000 & header) > 0
 	m.Compressed = (0x4000 & header) > 0
 	m.StreamID = header & 0x3fff
+	m.streamIDSet = true
 	m.Data = raw[2:]
 
 	if m.Compressed {
@@ -96,6 +102,17 @@ func (m *StreamDataMessage) Unpack(raw []byte) error {
 // ==== RawChannelReader =======================================================
 
 type ReadyCallback func(readyBytes int)
+
+type BufferValueError struct {
+	Message string
+}
+
+func (e *BufferValueError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
 
 // ErrWouldBlock matches Python RawIOBase.readinto() returning None when no data is available yet.
 // It is used by RawChannelReader.ReadInto for non-blocking reads.
@@ -153,7 +170,7 @@ func (r *RawChannelReader) RemoveReadyCallback(cb ReadyCallback) {
 
 	// Python list.remove raises if the callback was not present.
 	if !found {
-		panic("ready callback not registered")
+		panic(&BufferValueError{Message: "list.remove(x): x not in list"})
 	}
 }
 
@@ -486,25 +503,7 @@ func (w *RawChannelWriter) sendEmptyChunk() error {
 }
 
 func (w *RawChannelWriter) Close() error {
-	var timeout time.Time
-
-	func() {
-		defer func() {
-			if rec := recover(); rec != nil {
-				timeout = time.Now().Add(15 * time.Second)
-			}
-		}()
-
-		linkRTT := w.channel.Outlet().Rtt()
-		if linkRTT <= 0 {
-			linkRTT = 0.1
-		}
-		txLen := w.channel.TxQueueLen()
-		if txLen <= 0 {
-			txLen = 1
-		}
-		timeout = time.Now().Add(time.Duration(linkRTT*float64(txLen)) * time.Second)
-	}()
+	timeout := time.Now().Add(w.closeWaitDuration())
 
 	for time.Now().Before(timeout) && !w.channel.IsReadyToSend() {
 		time.Sleep(50 * time.Millisecond)
@@ -516,6 +515,21 @@ func (w *RawChannelWriter) Close() error {
 
 	_, err := w.Write([]byte{})
 	return err
+}
+
+func (w *RawChannelWriter) closeWaitDuration() time.Duration {
+	defer func() {
+		if recover() != nil {
+		}
+	}()
+
+	if w == nil || w.channel == nil {
+		return 15 * time.Second
+	}
+	if outlet, ok := w.channel.Outlet().(*LinkChannelOutlet); ok && outlet != nil && outlet.link != nil {
+		return time.Duration(outlet.link.RTT.Seconds()*float64(w.channel.TxQueueLen())) * time.Second
+	}
+	return 15 * time.Second
 }
 
 func (w *RawChannelWriter) waitUntilReady() error {
@@ -564,6 +578,8 @@ type ChannelBufferedReader struct {
 	raw *RawChannelReader
 	buf []byte
 }
+
+type BufferedReader = ChannelBufferedReader
 
 func (r *ChannelBufferedReader) Close() error {
 	if r == nil || r.raw == nil {
@@ -626,6 +642,8 @@ type ChannelBufferedWriter struct {
 	raw *RawChannelWriter
 	buf []byte
 }
+
+type BufferedWriter = ChannelBufferedWriter
 
 func (w *ChannelBufferedWriter) Close() error {
 	if w == nil {
@@ -740,6 +758,8 @@ type ChannelBufferedReadWriter struct {
 	writer *ChannelBufferedWriter
 }
 
+type BufferedRWPair = ChannelBufferedReadWriter
+
 func (rw *ChannelBufferedReadWriter) Close() error {
 	if rw == nil {
 		return nil
@@ -794,7 +814,7 @@ func (rw *ChannelBufferedReadWriter) RawWriter() *RawChannelWriter {
 }
 
 // CreateReader mirrors Buffer.create_reader(...).
-func CreateReader(streamID int, ch *Channel, readyCallback ReadyCallback) *ChannelBufferedReader {
+func CreateReader(streamID int, ch *Channel, readyCallback ReadyCallback) *BufferedReader {
 	reader := NewRawChannelReader(streamID, ch)
 	if readyCallback != nil {
 		reader.AddReadyCallback(readyCallback)
@@ -805,7 +825,7 @@ func CreateReader(streamID int, ch *Channel, readyCallback ReadyCallback) *Chann
 }
 
 // CreateWriter mirrors Buffer.create_writer(...).
-func CreateWriter(streamID int, ch *Channel) *ChannelBufferedWriter {
+func CreateWriter(streamID int, ch *Channel) *BufferedWriter {
 	writer := NewRawChannelWriter(streamID, ch)
 	return &ChannelBufferedWriter{
 		raw: writer,
@@ -832,11 +852,11 @@ var Buffer bufferAPI
 
 type bufferAPI struct{}
 
-func (bufferAPI) CreateReader(streamID int, ch *Channel, ready ReadyCallback) *ChannelBufferedReader {
+func (bufferAPI) CreateReader(streamID int, ch *Channel, ready ReadyCallback) *BufferedReader {
 	return CreateReader(streamID, ch, ready)
 }
 
-func (bufferAPI) CreateWriter(streamID int, ch *Channel) *ChannelBufferedWriter {
+func (bufferAPI) CreateWriter(streamID int, ch *Channel) *BufferedWriter {
 	return CreateWriter(streamID, ch)
 }
 
