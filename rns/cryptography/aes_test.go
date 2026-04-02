@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"testing"
 )
 
@@ -75,22 +76,51 @@ func TestAES_Errors(t *testing.T) {
 
 	if _, err := AES128CBCEncrypt(bytes.Repeat([]byte{0x33}, 16), key16[:15], iv); err == nil {
 		t.Fatalf("expected error for AES-128 key length")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid key length 120 for AES_128_CBC" {
+			t.Fatalf("unexpected AES-128 key error: %v", err)
+		}
 	}
 	if _, err := AES128CBCEncrypt(bytes.Repeat([]byte{0x33}, 16), key16, badIV); err == nil {
 		t.Fatalf("expected error for IV length")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid IV length: 15" {
+			t.Fatalf("unexpected IV error: %v", err)
+		}
 	}
 	if _, err := AES128CBCEncrypt(plainBad, key16, iv); err == nil {
 		t.Fatalf("expected error for non-block-multiple plaintext")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "data length must be a multiple of AES block size (16)" {
+			t.Fatalf("unexpected plaintext size error: %v", err)
+		}
 	}
 
 	if _, err := AES256CBCEncrypt(bytes.Repeat([]byte{0x33}, 16), key32[:31], iv); err == nil {
 		t.Fatalf("expected error for AES-256 key length")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid key length 248 for AES_256_CBC" {
+			t.Fatalf("unexpected AES-256 key error: %v", err)
+		}
 	}
 	if _, err := AES256CBCEncrypt(bytes.Repeat([]byte{0x33}, 16), key32, badIV); err == nil {
 		t.Fatalf("expected error for IV length")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid IV length: 15" {
+			t.Fatalf("unexpected AES-256 IV error: %v", err)
+		}
 	}
 	if _, err := AES256CBCEncrypt(plainBad, key32, iv); err == nil {
 		t.Fatalf("expected error for non-block-multiple plaintext")
+	} else {
+		var valueErr *AESValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "data length must be a multiple of AES block size (16)" {
+			t.Fatalf("unexpected AES-256 plaintext size error: %v", err)
+		}
 	}
 }
-
