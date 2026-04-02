@@ -86,7 +86,7 @@ func GenerateTokenKey(aesKeyBytes int) ([]byte, error) {
 // ===== Provider helpers =====
 
 func ProviderBackend() string {
-	return "stdlib crypto"
+	return "internal"
 }
 
 // ===== X25519 helpers =====
