@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+var platformGOOS = runtime.GOOS
+
 func GetPlatform() string {
 	// Like Python: detect Android via environment variables first.
 	if _, ok := os.LookupEnv("ANDROID_ARGUMENT"); ok {
@@ -16,7 +18,7 @@ func GetPlatform() string {
 	}
 
 	// Then fall back to runtime.GOOS: "linux", "darwin", "windows", ...
-	return runtime.GOOS
+	return platformGOOS
 }
 
 func IsLinux() bool {
@@ -40,20 +42,17 @@ func UseEpoll() bool {
 }
 
 func UseAFUnix() bool {
-	// We use filesystem UNIX domain sockets where available to avoid binding TCP ports
-	// (useful in constrained/sandboxed environments) and to match upstream behaviour.
-	return IsLinux() || IsAndroid() || IsDarwin()
+	return IsLinux() || IsAndroid()
 }
 
 // PlatformChecks: Python checked interpreter versions on Windows.
-// In Go this is mostly unnecessary, but keep a hook just in case.
+// In Go the minimum runtime/toolchain floor is enforced by go.mod and build
+// tooling, so the Python runtime-version guard has no separate equivalent.
 func PlatformChecks() {
-	if IsWindows() {
-		// If needed, check Go runtime or environment here; currently a no-op.
-	}
 }
 
-// CryptographyOldAPI is not meaningful in Go; kept as a future stub.
+// CryptographyOldAPI has no Go equivalent because Reticulum's Go port does not
+// depend on Python's external cryptography package/version surface.
 func CryptographyOldAPI() bool {
 	return false
 }
