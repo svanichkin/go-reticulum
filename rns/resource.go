@@ -162,7 +162,7 @@ type Resource struct {
 
 	metadata     []byte
 	metadataSize int
-	metadataMap  map[string]any
+	metadataObj  any
 	dataFile     *os.File
 
 	status byte
@@ -1260,9 +1260,9 @@ func (r *Resource) handleIncomingCompletion() {
 
 	if r.hasMetadata {
 		if data, err := os.ReadFile(r.metaStoragePath); err == nil {
-			var meta map[string]any
+			var meta any
 			if err := umsgpack.Unpackb(data, &meta); err == nil {
-				r.metadataMap = meta
+				r.metadataObj = meta
 			} else {
 				Log(fmt.Sprintf("Error decoding resource metadata: %v", err), LOG_ERROR)
 			}
@@ -1284,6 +1284,9 @@ func (r *Resource) handleIncomingCompletion() {
 	if r.dataFile != nil {
 		_ = r.dataFile.Close()
 		r.dataFile = nil
+	}
+	if r.storagePath != "" {
+		_ = os.Remove(r.storagePath)
 	}
 }
 
@@ -1622,9 +1625,6 @@ func (r *Resource) Request(requestData []byte) {
 	}
 
 	requestedHashes := requestData[pad+hashLen:]
-	if len(requestedHashes) == 0 {
-		return
-	}
 
 	for i := 0; i+MapHashLen <= len(requestedHashes); i += MapHashLen {
 		partPkt := r.outgoingPartByMapHash[string(requestedHashes[i:i+MapHashLen])]
@@ -1899,15 +1899,8 @@ func (r *Resource) Status() byte             { return r.status }
 func (r *Resource) Hash() []byte             { return r.GetHash() }
 func (r *Resource) Link() *Link              { return r.link }
 
-func (r *Resource) Metadata() map[string]any {
-	if r.metadataMap == nil {
-		return nil
-	}
-	meta := make(map[string]any, len(r.metadataMap))
-	for k, v := range r.metadataMap {
-		meta[k] = v
-	}
-	return meta
+func (r *Resource) Metadata() any {
+	return r.metadataObj
 }
 
 func (r *Resource) DataFile() string {

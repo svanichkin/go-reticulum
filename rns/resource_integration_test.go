@@ -55,6 +55,8 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 		var (
 			peerMu        sync.Mutex
 			lastIncoming  *Resource
+			lastData      []byte
+			lastMeta      any
 			incomingCount int
 			started       *Resource
 		)
@@ -64,8 +66,18 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			peerMu.Unlock()
 		})
 		peer.SetResourceConcludedCallback(func(res *Resource) {
+			var cp []byte
+			var meta any
+			if res != nil && res.Status() == ResourceComplete {
+				if data, err := os.ReadFile(res.DataFile()); err == nil {
+					cp = append([]byte(nil), data...)
+				}
+				meta = res.Metadata()
+			}
 			peerMu.Lock()
 			lastIncoming = res
+			lastData = cp
+			lastMeta = meta
 			incomingCount++
 			peerMu.Unlock()
 		})
@@ -77,6 +89,8 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			peerMu.Lock()
 			started = nil
 			lastIncoming = nil
+			lastData = nil
+			lastMeta = nil
 			peerMu.Unlock()
 
 			data := make([]byte, size)
@@ -246,10 +260,10 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			if pr == nil || pr.Status() != ResourceComplete {
 				t.Fatalf("peer did not complete incoming resource (size=%d meta=%v)", size, withMeta)
 			}
-			got, err := os.ReadFile(pr.DataFile())
-			if err != nil {
-				t.Fatalf("read peer data file: %v", err)
-			}
+			peerMu.Lock()
+			got := append([]byte(nil), lastData...)
+			gotMeta := lastMeta
+			peerMu.Unlock()
 			if len(got) != len(data) {
 				t.Fatalf("peer data length mismatch: got %d want %d", len(got), len(data))
 			}
@@ -260,8 +274,8 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			}
 
 			if withMeta {
-				m := pr.Metadata()
-				if m == nil {
+				m, ok := gotMeta.(map[string]any)
+				if !ok || m == nil {
 					t.Fatalf("expected metadata map on peer")
 				}
 				if m["text"] == nil {

@@ -24,7 +24,7 @@ type RequestReceipt struct {
 	response             any
 	responseSize         int
 	responseTransferSize int
-	responseMetadata     map[string]any
+	responseMetadata     any
 	responseConcludedAt  time.Time
 	startedAt            time.Time
 	sentAt               time.Time
@@ -163,17 +163,10 @@ func (rr *RequestReceipt) Concluded() bool {
 	return rr.status == ReceiptReady || rr.status == ReceiptFailed
 }
 
-func (rr *RequestReceipt) Metadata() map[string]any {
+func (rr *RequestReceipt) Metadata() any {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
-	if rr.responseMetadata == nil {
-		return nil
-	}
-	meta := make(map[string]any, len(rr.responseMetadata))
-	for k, v := range rr.responseMetadata {
-		meta[k] = v
-	}
-	return meta
+	return rr.responseMetadata
 }
 
 func (rr *RequestReceipt) markDelivered() {
@@ -244,7 +237,7 @@ func (rr *RequestReceipt) responseResourceProgress(res *Resource) {
 	}
 }
 
-func (rr *RequestReceipt) responseReceived(resp any, metadata map[string]any, transferSize int) {
+func (rr *RequestReceipt) responseReceived(resp any, metadata any, transferSize int) {
 	rr.mu.Lock()
 	if rr.status == ReceiptFailed {
 		rr.mu.Unlock()
@@ -252,7 +245,7 @@ func (rr *RequestReceipt) responseReceived(resp any, metadata map[string]any, tr
 	}
 	rr.response = resp
 	if metadata != nil {
-		rr.responseMetadata = cloneMetadata(metadata)
+		rr.responseMetadata = metadata
 	}
 	if rr.responseConcludedAt.IsZero() {
 		rr.responseConcludedAt = time.Now()
@@ -311,15 +304,4 @@ func (rr *RequestReceipt) safeCallback(cb func(*RequestReceipt)) {
 		}
 	}()
 	cb(rr)
-}
-
-func cloneMetadata(meta map[string]any) map[string]any {
-	if meta == nil {
-		return nil
-	}
-	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
-	return out
 }

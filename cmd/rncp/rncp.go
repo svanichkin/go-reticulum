@@ -437,8 +437,8 @@ func receiveResourceConcluded(res *rns.Resource) {
 	}
 	fmt.Println(res.String(), "completed")
 
-	meta := res.Metadata()
-	if meta == nil {
+	meta, ok := res.Metadata().(map[string]any)
+	if !ok || meta == nil {
 		fmt.Println("Invalid data received, ignoring resource")
 		return
 	}
@@ -868,8 +868,8 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 			return
 		}
 
-		meta := res.Metadata()
-		if meta == nil {
+		meta, ok := res.Metadata().(map[string]any)
+		if !ok || meta == nil {
 			fmt.Println("Invalid data received, ignoring resource")
 			return
 		}
