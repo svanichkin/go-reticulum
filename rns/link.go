@@ -431,6 +431,112 @@ func (l *Link) RemoteIdentity() *Identity {
 	return l.remoteIdentity
 }
 
+func (l *Link) GetRemoteIdentity() *Identity {
+	return l.RemoteIdentity()
+}
+
+func (l *Link) NoInboundFor() float64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	activatedAt := l.activatedAt
+	lastInbound := l.lastInbound
+	l.mu.Unlock()
+	if activatedAt.After(lastInbound) {
+		lastInbound = activatedAt
+	}
+	if lastInbound.IsZero() {
+		return 0
+	}
+	return time.Since(lastInbound).Seconds()
+}
+
+func (l *Link) NoOutboundFor() float64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	lastOutbound := l.lastOutbound
+	l.mu.Unlock()
+	if lastOutbound.IsZero() {
+		return 0
+	}
+	return time.Since(lastOutbound).Seconds()
+}
+
+func (l *Link) NoDataFor() float64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	lastData := l.lastData
+	l.mu.Unlock()
+	if lastData.IsZero() {
+		return 0
+	}
+	return time.Since(lastData).Seconds()
+}
+
+func (l *Link) InactiveFor() float64 {
+	inbound := l.NoInboundFor()
+	outbound := l.NoOutboundFor()
+	if inbound == 0 {
+		return outbound
+	}
+	if outbound == 0 {
+		return inbound
+	}
+	if inbound < outbound {
+		return inbound
+	}
+	return outbound
+}
+
+func (l *Link) GetEstablishmentRate() *float64 {
+	if l == nil || l.EstablishmentRate <= 0 {
+		return nil
+	}
+	v := l.EstablishmentRate * 8
+	return &v
+}
+
+func (l *Link) GetMTU() *int {
+	if l == nil || l.Status != LinkActive {
+		return nil
+	}
+	v := l.MTU
+	return &v
+}
+
+func (l *Link) GetMDU() *int {
+	if l == nil || l.Status != LinkActive {
+		return nil
+	}
+	v := l.MDU
+	return &v
+}
+
+func (l *Link) GetExpectedRate() *float64 {
+	if l == nil || l.Status != LinkActive {
+		return nil
+	}
+	v := l.ExpectedRate
+	return &v
+}
+
+func (l *Link) GetMode() int {
+	if l == nil {
+		return 0
+	}
+	return l.Mode
+}
+
+func RequestReceiptFrom(result any) *RequestReceipt {
+	rr, _ := result.(*RequestReceipt)
+	return rr
+}
+
 func (l *Link) Request(
 	path string,
 	data any,
@@ -438,10 +544,10 @@ func (l *Link) Request(
 	failedCb func(*RequestReceipt),
 	progressCb func(*RequestReceipt),
 	timeout float64,
-) *RequestReceipt {
+) any {
 	if path == "" {
 		Log("Request path cannot be empty", LOG_WARNING)
-		return nil
+		return false
 	}
 
 	if timeout <= 0 {
@@ -453,7 +559,7 @@ func (l *Link) Request(
 	packedRequest, err := umsgpack.Packb(unpacked)
 	if err != nil {
 		Log(fmt.Sprintf("Could not pack request payload for %s: %v", path, err), LOG_ERROR)
-		return nil
+		return false
 	}
 
 	if len(packedRequest) <= l.MDU {
@@ -464,13 +570,13 @@ func (l *Link) Request(
 		)
 		if packet == nil {
 			Log("Failed to build request packet", LOG_ERROR)
-			return nil
+			return false
 		}
 		packetReceipt := packet.Send()
 		if packetReceipt == nil {
 			if !packet.Sent {
 				Log("Request packet could not be sent", LOG_WARNING)
-				return nil
+				return false
 			}
 			if packet.Receipt != nil {
 				packetReceipt = packet.Receipt
@@ -515,11 +621,11 @@ func (l *Link) Request(
 	)
 	if err != nil {
 		Log(fmt.Sprintf("Could not send request as resource: %v", err), LOG_ERROR)
-		return nil
+		return false
 	}
 	if res == nil {
 		Log("NewResource returned nil for request", LOG_ERROR)
-		return nil
+		return false
 	}
 	return newRequestReceipt(
 		l,
@@ -1668,6 +1774,8 @@ func (l *Link) teardownWithOptions(reason int, sendClose bool) {
 	}
 	l.TeardownReason = reason
 	l.Status = LinkClosed
+	incomingResources := append([]*Resource(nil), l.incomingResources...)
+	outgoingResources := append([]*Resource(nil), l.outgoingResources...)
 	if l.channel != nil {
 		l.channel.Close()
 		l.channel = nil
@@ -1685,6 +1793,17 @@ func (l *Link) teardownWithOptions(reason int, sendClose bool) {
 	cb := l.callbacks.LinkClosed
 	owner := l.owner
 	l.mu.Unlock()
+
+	for _, resource := range incomingResources {
+		if resource != nil {
+			resource.Cancel()
+		}
+	}
+	for _, resource := range outgoingResources {
+		if resource != nil {
+			resource.Cancel()
+		}
+	}
 
 	if cb != nil {
 		go func() {

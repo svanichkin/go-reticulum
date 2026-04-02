@@ -565,14 +565,14 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 		}
 
 		done := make(chan *RequestReceipt, 1)
-		rr := l.Request(
+		rr := RequestReceiptFrom(l.Request(
 			"/big",
 			map[string]any{"ping": "pong"},
 			func(r *RequestReceipt) { done <- r },
 			func(r *RequestReceipt) { done <- r },
 			nil,
 			5,
-		)
+		))
 		if rr == nil {
 			t.Fatalf("Request returned nil")
 		}

@@ -761,7 +761,14 @@ func execute(
 	rtt := link.RTT.Seconds()
 	rexecTimeout := timeout + rtt*4 + remoteExecGrace
 
-	receipt := link.Request("command", reqData, remoteExecutionDone, remoteExecutionDone, remoteExecutionProgress, rexecTimeout)
+	receipt := rns.RequestReceiptFrom(link.Request("command", reqData, remoteExecutionDone, remoteExecutionDone, remoteExecutionProgress, rexecTimeout))
+	if receipt == nil {
+		fmt.Println("Could not request remote execution")
+		if interactive {
+			return 0
+		}
+		os.Exit(244)
+	}
 
 	spin(
 		func() bool {

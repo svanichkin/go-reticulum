@@ -412,7 +412,14 @@ func obtainPathTable(destHash []byte, maxHops int, noOutput bool) ([]map[string]
 		fmt.Print("Sending request... ")
 	}
 	requestData := []any{"table", destHash, reqMax}
-	receipt := remoteLink.Request("/path", requestData, nil, nil, nil, 0)
+	receipt := rns.RequestReceiptFrom(remoteLink.Request("/path", requestData, nil, nil, nil, 0))
+	if receipt == nil {
+		if !noOutput {
+			fmt.Print("\r                                                          \r")
+			fmt.Println("The remote request could not be started.")
+		}
+		return nil, exitError{code: 10, msg: ""}
+	}
 	for !receipt.Concluded() {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -437,7 +444,14 @@ func obtainRateTable(destHash []byte, noOutput bool) ([]map[string]any, error) {
 		fmt.Print("\r                                                          \r")
 		fmt.Print("Sending request... ")
 	}
-	receipt := remoteLink.Request("/path", []any{"rates", destHash}, nil, nil, nil, 0)
+	receipt := rns.RequestReceiptFrom(remoteLink.Request("/path", []any{"rates", destHash}, nil, nil, nil, 0))
+	if receipt == nil {
+		if !noOutput {
+			fmt.Print("\r                                                          \r")
+			fmt.Println("The remote request could not be started.")
+		}
+		return nil, exitError{code: 10, msg: ""}
+	}
 	for !receipt.Concluded() {
 		time.Sleep(100 * time.Millisecond)
 	}

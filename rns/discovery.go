@@ -1138,7 +1138,7 @@ func fetchRemoteBlackholeList(sourceHash []byte, timeout time.Duration) (any, er
 	}
 	defer established.Teardown()
 
-	rr := established.Request("/list", nil, nil, nil, nil, timeout.Seconds())
+	rr := RequestReceiptFrom(established.Request("/list", nil, nil, nil, nil, timeout.Seconds()))
 	if rr == nil {
 		return nil, errors.New("blackhole list request could not be started")
 	}

@@ -646,7 +646,15 @@ func getRemoteStatus(destHash []byte, includeLstats bool, identity *rns.Identity
 			os.Stdout.Sync()
 		}
 		l.Identify(identity)
-		receipt := l.Request("/status", []any{includeLstats}, nil, nil, nil, timeout)
+		receipt := rns.RequestReceiptFrom(l.Request("/status", []any{includeLstats}, nil, nil, nil, timeout))
+		if receipt == nil {
+			done <- struct {
+				stats     map[string]any
+				linkCount *int
+				err       error
+			}{nil, nil, nil}
+			return
+		}
 		for !receipt.Concluded() {
 			time.Sleep(100 * time.Millisecond)
 		}
