@@ -1,12 +1,15 @@
 package rns
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -15,6 +18,7 @@ import (
 	"time"
 
 	ifaces "github.com/svanichkin/go-reticulum/rns/interfaces"
+	platformutils "github.com/svanichkin/go-reticulum/rns/vendor"
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
@@ -66,11 +70,13 @@ type DiscoveryStamper interface {
 // discovery announce generation/validation requires a compatible implementation.
 var DiscoveryStampProvider DiscoveryStamper
 var discoveryAutoconnectInterfaceFactory = defaultDiscoveryAutoconnectInterfaceFactory
+var discoveryPanic = Panic
 
 type InterfaceAnnouncer struct {
-	shouldRun bool
-	mu        sync.Mutex
-	dest      *Destination
+	shouldRun  bool
+	mu         sync.Mutex
+	dest       *Destination
+	stampCache map[string][]byte
 }
 
 type InterfaceAnnounceHandler struct {
@@ -122,6 +128,9 @@ func init() {
 }
 
 func NewInterfaceAnnouncer() *InterfaceAnnouncer {
+	if !requireDiscoveryStampProvider() {
+		return &InterfaceAnnouncer{stampCache: make(map[string][]byte)}
+	}
 	var identity *Identity
 	if HasNetworkIdentity() {
 		identity = NetworkIdentity
@@ -129,14 +138,14 @@ func NewInterfaceAnnouncer() *InterfaceAnnouncer {
 		identity = TransportIdentity
 	}
 	if identity == nil {
-		return &InterfaceAnnouncer{}
+		return &InterfaceAnnouncer{stampCache: make(map[string][]byte)}
 	}
 	dest, err := NewDestination(identity, DestinationIN, DestinationSINGLE, TransportAppName, "discovery", "interface")
 	if err != nil {
 		Logf(LogError, "Could not create discovery destination: %v", err)
-		return &InterfaceAnnouncer{}
+		return &InterfaceAnnouncer{stampCache: make(map[string][]byte)}
 	}
-	return &InterfaceAnnouncer{dest: dest}
+	return &InterfaceAnnouncer{dest: dest, stampCache: make(map[string][]byte)}
 }
 
 func (a *InterfaceAnnouncer) Start() {
@@ -239,7 +248,10 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 
 	switch ifType {
 	case "BackboneInterface", "TCPServerInterface":
-		reachableOn := sanitizeDiscoveryString(ifc.DiscoveryReachableOnValue())
+		reachableOn, err := resolveDiscoveryReachableOn(ifc, sanitizeDiscoveryString(ifc.DiscoveryReachableOnValue()))
+		if err != nil {
+			return nil, err
+		}
 		if !isDiscoveryAddress(reachableOn) {
 			return nil, fmt.Errorf("invalid reachable_on %q for %s", reachableOn, ifc.Name)
 		}
@@ -301,7 +313,7 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 		}
 	}
 
-	packed, err := umsgpack.Packb(info)
+	packed, err := packDiscoveryInfo(info)
 	if err != nil {
 		return nil, err
 	}
@@ -310,9 +322,24 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 	if ifc.DiscoveryStampValue != nil && *ifc.DiscoveryStampValue > 0 {
 		stampCost = *ifc.DiscoveryStampValue
 	}
-	stamp, _, err := DiscoveryStampProvider.GenerateStamp(infoHash, stampCost, discoveryWorkblockRounds)
-	if err != nil {
-		return nil, err
+	stampKey := string(packed)
+	var stamp []byte
+	a.mu.Lock()
+	if cached, ok := a.stampCache[stampKey]; ok && len(cached) > 0 {
+		stamp = append([]byte(nil), cached...)
+	}
+	a.mu.Unlock()
+	if len(stamp) == 0 {
+		stamp, _, err = DiscoveryStampProvider.GenerateStamp(infoHash, stampCost, discoveryWorkblockRounds)
+		if err != nil {
+			return nil, err
+		}
+		a.mu.Lock()
+		if a.stampCache == nil {
+			a.stampCache = make(map[string][]byte)
+		}
+		a.stampCache[stampKey] = append([]byte(nil), stamp...)
+		a.mu.Unlock()
 	}
 	payload := append(append([]byte(nil), packed...), stamp...)
 	if ifc.DiscoveryEncrypt {
@@ -329,6 +356,9 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 }
 
 func NewInterfaceAnnounceHandler(requiredValue int, callback func(map[string]any)) *InterfaceAnnounceHandler {
+	if !requireDiscoveryStampProvider() {
+		return &InterfaceAnnounceHandler{requiredValue: requiredValue, callback: callback}
+	}
 	if requiredValue <= 0 {
 		requiredValue = discoveryStampDefaultValue
 	}
@@ -341,6 +371,10 @@ func (h *InterfaceAnnounceHandler) AspectFilter() string {
 
 func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, announcedIdentity *Identity, appData []byte) {
 	if h == nil || announcedIdentity == nil || len(appData) <= 1 || DiscoveryStampProvider == nil {
+		return
+	}
+	if !discoverySourceAllowed(announcedIdentity.Hash) {
+		Logf(LogDebug, "Interface discovered from non-authorized network identity %s, ignoring", PrettyHexRep(announcedIdentity.Hash))
 		return
 	}
 
@@ -634,6 +668,19 @@ func discoveryAllowedSource(networkID string) bool {
 	return false
 }
 
+func discoverySourceAllowed(identityHash []byte) bool {
+	sources := InterfaceDiscoverySources()
+	if len(sources) == 0 {
+		return true
+	}
+	for _, src := range sources {
+		if bytesEqual(src, identityHash) {
+			return true
+		}
+	}
+	return false
+}
+
 func discoveryConfigEntry(info map[string]any) string {
 	if len(info) == 0 {
 		return ""
@@ -663,8 +710,14 @@ func discoveryConfigEntry(info map[string]any) string {
 		if strings.TrimSpace(reachableOn) == "" || port <= 0 {
 			return ""
 		}
-		return fmt.Sprintf("[[%s]]\n  type = BackboneInterface\n  enabled = yes\n  remote = %s\n  target_port = %d%s%s%s",
-			name, reachableOn, port, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
+		connectionType := "BackboneInterface"
+		remoteKey := "remote"
+		if platformutils.IsWindows() {
+			connectionType = "TCPClientInterface"
+			remoteKey = "target_host"
+		}
+		return fmt.Sprintf("[[%s]]\n  type = %s\n  enabled = yes\n  %s = %s\n  target_port = %d%s%s%s",
+			name, connectionType, remoteKey, reachableOn, port, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
 	case "I2PInterface":
 		reachableOn, _ := info["reachable_on"].(string)
 		if strings.TrimSpace(reachableOn) == "" {
@@ -770,6 +823,12 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 	}
 	interfaceType, _ := info["type"].(string)
 	if interfaceType != "BackboneInterface" && interfaceType != "TCPServerInterface" {
+		return
+	}
+	if platformutils.IsWindows() {
+		Log("Your operating system does not support the Backbone interface type, and must degrade to using TCPClientInterface instead", LogWarning)
+		Log("Auto-connecting discovered TCPClient interfaces is not yet implemented, aborting auto-connect", LogWarning)
+		Log("You can obtain the configuration entry and add this interface manually instead using rnstatus -D", LogWarning)
 		return
 	}
 	if d.interfaceExists(info) {
@@ -1176,6 +1235,133 @@ func discoveryRawGet(raw map[any]any, want int) any {
 	return nil
 }
 
+func packDiscoveryInfo(info map[any]any) ([]byte, error) {
+	if len(info) == 0 {
+		return umsgpack.Packb(map[any]any{})
+	}
+
+	keys := orderedDiscoveryInfoKeys(info)
+	var buf bytes.Buffer
+	if err := writeDiscoveryMapHeader(&buf, len(keys)); err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		value, ok := discoveryRawLookup(info, key)
+		if !ok {
+			continue
+		}
+		packedKey, err := umsgpack.Packb(key)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(packedKey); err != nil {
+			return nil, err
+		}
+		packedValue, err := umsgpack.Packb(value)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(packedValue); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func orderedDiscoveryInfoKeys(info map[any]any) []int {
+	keys := []int{
+		discoveryFieldInterfaceType,
+		discoveryFieldTransport,
+		discoveryFieldTransportID,
+		discoveryFieldName,
+		discoveryFieldLatitude,
+		discoveryFieldLongitude,
+		discoveryFieldHeight,
+	}
+
+	ifType := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(info, discoveryFieldInterfaceType)))
+	switch ifType {
+	case "BackboneInterface", "TCPServerInterface":
+		keys = append(keys, discoveryFieldReachableOn, discoveryFieldPort)
+	case "I2PInterface":
+		keys = append(keys, discoveryFieldReachableOn)
+	case "RNodeInterface", "RNodeMultiInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldSpreading, discoveryFieldCodingRate)
+	case "WeaveInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldChannel, discoveryFieldModulation)
+	case "KISSInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldModulation)
+	}
+
+	if _, ok := discoveryRawLookup(info, discoveryFieldIFACNetname); ok {
+		keys = append(keys, discoveryFieldIFACNetname)
+	}
+	if _, ok := discoveryRawLookup(info, discoveryFieldIFACNetkey); ok {
+		keys = append(keys, discoveryFieldIFACNetkey)
+	}
+
+	filtered := make([]int, 0, len(keys))
+	seen := make(map[int]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		if _, ok := discoveryRawLookup(info, key); !ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		filtered = append(filtered, key)
+	}
+	return filtered
+}
+
+func discoveryRawLookup(raw map[any]any, want int) (any, bool) {
+	for k, v := range raw {
+		switch x := k.(type) {
+		case int:
+			if x == want {
+				return v, true
+			}
+		case int64:
+			if int(x) == want {
+				return v, true
+			}
+		case uint64:
+			if int(x) == want {
+				return v, true
+			}
+		case uint8:
+			if int(x) == want {
+				return v, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func writeDiscoveryMapHeader(buf *bytes.Buffer, n int) error {
+	switch {
+	case n <= 15:
+		return buf.WriteByte(byte(0x80 | n))
+	case n <= 0xFFFF:
+		if err := buf.WriteByte(0xDE); err != nil {
+			return err
+		}
+		var raw [2]byte
+		binary.BigEndian.PutUint16(raw[:], uint16(n))
+		_, err := buf.Write(raw[:])
+		return err
+	default:
+		if err := buf.WriteByte(0xDF); err != nil {
+			return err
+		}
+		var raw [4]byte
+		binary.BigEndian.PutUint32(raw[:], uint32(n))
+		_, err := buf.Write(raw[:])
+		return err
+	}
+}
+
 func sanitizeDiscoveryString(in string) string {
 	s := strings.ReplaceAll(in, "\n", "")
 	s = strings.ReplaceAll(s, "\r", "")
@@ -1217,6 +1403,63 @@ func isDiscoveryAddress(v string) bool {
 		}
 	}
 	return true
+}
+
+func resolveDiscoveryReachableOn(ifc *Interface, reachableOn string) (string, error) {
+	reachableOn = sanitizeDiscoveryString(reachableOn)
+	if platformutils.IsWindows() {
+		return reachableOn, nil
+	}
+	execPath, ok := expandDiscoveryExecutablePath(reachableOn)
+	if !ok {
+		return reachableOn, nil
+	}
+	out, err := exec.Command(execPath).Output()
+	if err != nil {
+		return "", fmt.Errorf("error while getting reachable_on from executable at %s: %w", ifc.DiscoveryReachableOnValue(), err)
+	}
+	resolved := sanitizeDiscoveryString(string(out))
+	if !isDiscoveryAddress(resolved) {
+		return "", fmt.Errorf("valid IP address or hostname was not found in external script output %q", resolved)
+	}
+	return resolved, nil
+}
+
+func expandDiscoveryExecutablePath(v string) (string, bool) {
+	if strings.TrimSpace(v) == "" {
+		return "", false
+	}
+	expanded := v
+	if strings.HasPrefix(expanded, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			switch {
+			case expanded == "~":
+				expanded = home
+			case strings.HasPrefix(expanded, "~/"):
+				expanded = filepath.Join(home, strings.TrimPrefix(expanded, "~/"))
+			}
+		}
+	}
+	info, err := os.Stat(expanded)
+	if err != nil || info.IsDir() {
+		return "", false
+	}
+	if info.Mode()&0o111 == 0 {
+		return "", false
+	}
+	return expanded, true
+}
+
+func requireDiscoveryStampProvider() bool {
+	if DiscoveryStampProvider != nil {
+		return true
+	}
+	Log("Using on-network interface discovery requires the LXMF module to be installed.", LogCritical)
+	Log("You can install it with the command: pip install lxmf", LogCritical)
+	if discoveryPanic != nil {
+		discoveryPanic()
+	}
+	return false
 }
 
 func discoveryHopsTo(destinationHash []byte) int {
