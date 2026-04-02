@@ -110,7 +110,7 @@ func runServer(configDir *string) {
 		})
 
 		ch := link.Channel()
-		_ = ch.RegisterMessageType(&StringMessage{})
+		ch.RegisterMessageType(&StringMessage{})
 		ch.AddMessageHandler(func(m rns.MessageBase) bool {
 			sm, ok := m.(*StringMessage)
 			if !ok {
@@ -118,7 +118,7 @@ func runServer(configDir *string) {
 			}
 			rns.Log("Received data on the link: "+sm.Data+" (message created at "+sm.Timestamp.String()+")", rns.LogInfo)
 			reply := &StringMessage{Data: "I received \"" + sm.Data + "\" over the link"}
-			_, _ = link.Channel().Send(reply)
+			_ = link.Channel().Send(reply)
 			return true
 		})
 	})
@@ -181,7 +181,7 @@ func runClient(destinationHex string, configDir *string) {
 	var channel *rns.Channel
 	link.SetLinkEstablishedCallback(func(l *rns.Link) {
 		channel = l.Channel()
-		_ = channel.RegisterMessageType(&StringMessage{})
+		channel.RegisterMessageType(&StringMessage{})
 		channel.AddMessageHandler(func(m rns.MessageBase) bool {
 			sm, ok := m.(*StringMessage)
 			if !ok {
@@ -236,6 +236,6 @@ func runClient(destinationHex string, configDir *string) {
 			rns.Log(fmt.Sprintf("Cannot send this packet, the data size of %d bytes exceeds the link packet MDU of %d bytes", len(packed), channel.Mdu()), rns.LogError)
 			continue
 		}
-		_, _ = channel.Send(msg)
+		_ = channel.Send(msg)
 	}
 }

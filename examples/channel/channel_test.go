@@ -100,10 +100,10 @@ func TestChannelExample_StringMessage_RoundTrip(t *testing.T) {
 	outA.connect(chB)
 	outB.connect(chA)
 
-	if err := chA.RegisterMessageType(&StringMessage{}); err != nil {
+	if err := chA.TryRegisterMessageType(&StringMessage{}); err != nil {
 		t.Fatalf("RegisterMessageType a: %v", err)
 	}
-	if err := chB.RegisterMessageType(&StringMessage{}); err != nil {
+	if err := chB.TryRegisterMessageType(&StringMessage{}); err != nil {
 		t.Fatalf("RegisterMessageType b: %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestChannelExample_StringMessage_RoundTrip(t *testing.T) {
 			return false
 		}
 		reply := &StringMessage{Data: "I received \"" + sm.Data + "\" over the link"}
-		_, _ = chB.Send(reply)
+		_ = chB.Send(reply)
 		return true
 	})
 	chA.AddMessageHandler(func(m rns.MessageBase) bool {
@@ -126,7 +126,7 @@ func TestChannelExample_StringMessage_RoundTrip(t *testing.T) {
 		return true
 	})
 
-	_, err := chA.Send(&StringMessage{Data: "hello", Timestamp: time.Now()})
+	_, err := chA.TrySend(&StringMessage{Data: "hello", Timestamp: time.Now()})
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}

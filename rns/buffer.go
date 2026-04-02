@@ -456,7 +456,7 @@ func (w *RawChannelWriter) processChunk(data []byte) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	if _, err := w.channel.Send(msg); err != nil {
+	if _, err := w.channel.TrySend(msg); err != nil {
 		if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
 			return 0, 0, errLinkNotReady
 		}
@@ -472,7 +472,7 @@ func (w *RawChannelWriter) sendEmptyChunk() error {
 		return err
 	}
 	for {
-		if _, err := w.channel.Send(msg); err != nil {
+		if _, err := w.channel.TrySend(msg); err != nil {
 			if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
 				if waitErr := w.waitUntilReady(); waitErr != nil {
 					return waitErr

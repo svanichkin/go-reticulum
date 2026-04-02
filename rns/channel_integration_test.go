@@ -16,10 +16,10 @@ func TestChannelIntegration_EndToEndDeliveryAndOrdering(t *testing.T) {
 	oa.peer.Store(cb)
 	ob.peer.Store(ca)
 
-	if err := ca.RegisterMessageType(&messageTest{}); err != nil {
+	if err := ca.TryRegisterMessageType(&messageTest{}); err != nil {
 		t.Fatalf("RegisterMessageType a: %v", err)
 	}
-	if err := cb.RegisterMessageType(&messageTest{}); err != nil {
+	if err := cb.TryRegisterMessageType(&messageTest{}); err != nil {
 		t.Fatalf("RegisterMessageType b: %v", err)
 	}
 
@@ -36,13 +36,13 @@ func TestChannelIntegration_EndToEndDeliveryAndOrdering(t *testing.T) {
 	})
 
 	// Send 3 messages in order.
-	if _, err := ca.Send(&messageTest{ID: "1", Data: "a"}); err != nil {
+	if _, err := ca.TrySend(&messageTest{ID: "1", Data: "a"}); err != nil {
 		t.Fatalf("send1: %v", err)
 	}
-	if _, err := ca.Send(&messageTest{ID: "2", Data: "b"}); err != nil {
+	if _, err := ca.TrySend(&messageTest{ID: "2", Data: "b"}); err != nil {
 		t.Fatalf("send2: %v", err)
 	}
-	if _, err := ca.Send(&messageTest{ID: "3", Data: "c"}); err != nil {
+	if _, err := ca.TrySend(&messageTest{ID: "3", Data: "c"}); err != nil {
 		t.Fatalf("send3: %v", err)
 	}
 
@@ -69,23 +69,22 @@ func TestChannelIntegration_IsReadyToSend_WindowBlocks(t *testing.T) {
 	o := &stuckOutlet{name: "stuck", mdu: 65535, rtt: 0.05}
 	ch := NewChannel(o)
 
-	if err := ch.RegisterMessageType(&messageTest{}); err != nil {
+	if err := ch.TryRegisterMessageType(&messageTest{}); err != nil {
 		t.Fatalf("RegisterMessageType: %v", err)
 	}
 
 	// Default window is 2 on non-slow RTT, so first two sends should succeed.
-	if _, err := ch.Send(&messageTest{ID: "1", Data: "a"}); err != nil {
+	if _, err := ch.TrySend(&messageTest{ID: "1", Data: "a"}); err != nil {
 		t.Fatalf("send1: %v", err)
 	}
-	if _, err := ch.Send(&messageTest{ID: "2", Data: "b"}); err != nil {
+	if _, err := ch.TrySend(&messageTest{ID: "2", Data: "b"}); err != nil {
 		t.Fatalf("send2: %v", err)
 	}
 
 	if ch.IsReadyToSend() {
 		t.Fatalf("expected not ready after filling window")
 	}
-	if _, err := ch.Send(&messageTest{ID: "3", Data: "c"}); err == nil {
+	if _, err := ch.TrySend(&messageTest{ID: "3", Data: "c"}); err == nil {
 		t.Fatalf("expected ME_LINK_NOT_READY on third send")
 	}
 }
-

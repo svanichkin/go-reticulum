@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"encoding/binary"
 	"sync"
 	"testing"
 	"time"
@@ -187,6 +188,17 @@ func (m *messageTest) Unpack(raw []byte) error {
 	return nil
 }
 
+type zeroMsgTypeMessage struct {
+	Data string
+}
+
+func (m *zeroMsgTypeMessage) MsgType() uint16 { return 0 }
+func (m *zeroMsgTypeMessage) Pack() ([]byte, error) { return []byte(m.Data), nil }
+func (m *zeroMsgTypeMessage) Unpack(raw []byte) error {
+	m.Data = string(raw)
+	return nil
+}
+
 func TestChannel_SendOneRetry(t *testing.T) {
 	maybeParallel(t)
 	rtt := 0.01
@@ -200,7 +212,7 @@ func TestChannel_SendOneRetry(t *testing.T) {
 		t.Fatalf("expected no packets")
 	}
 
-	env, err := ch.Send(msg)
+	env, err := ch.TrySend(msg)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -299,10 +311,10 @@ func TestChannel_PacketKey_UsesPacketIDNotPointer(t *testing.T) {
 	ch := NewChannel(outlet)
 	defer ch.Close()
 
-	if err := ch.RegisterMessageType(&messageTest{}); err != nil {
+	if err := ch.TryRegisterMessageType(&messageTest{}); err != nil {
 		t.Fatalf("RegisterMessageType: %v", err)
 	}
-	env, err := ch.Send(&messageTest{ID: "id", Data: "data"})
+	env, err := ch.TrySend(&messageTest{ID: "id", Data: "data"})
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -329,7 +341,7 @@ func TestChannel_SendTimeout(t *testing.T) {
 	outlet.defaultTimeout = ch.getPacketTimeoutTime(1)
 
 	msg := &messageTest{ID: "id", Data: "test"}
-	env, err := ch.Send(msg)
+	env, err := ch.TrySend(msg)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -353,4 +365,50 @@ func TestChannel_SendTimeout(t *testing.T) {
 	if outlet.timeoutCallbacks == 0 {
 		t.Fatalf("expected at least one outlet timeout callback")
 	}
+}
+
+func TestChannel_RegisterMessageType_AllowsZeroMsgType(t *testing.T) {
+	t.Parallel()
+
+	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: true, linkID: nextTestPacketID()}
+	ch := NewChannel(outlet)
+	defer ch.Close()
+
+	if err := ch.TryRegisterMessageType(func() MessageBase { return &zeroMsgTypeMessage{} }); err != nil {
+		t.Fatalf("TryRegisterMessageType: %v", err)
+	}
+	env, err := ch.TrySend(&zeroMsgTypeMessage{Data: "zero"})
+	if err != nil {
+		t.Fatalf("TrySend: %v", err)
+	}
+	if env == nil || len(env.raw) < 2 {
+		t.Fatalf("expected packed envelope")
+	}
+	if got := binary.BigEndian.Uint16(env.raw[:2]); got != 0 {
+		t.Fatalf("msgtype=%d, want 0", got)
+	}
+}
+
+func TestChannel_Send_PanicsWithChannelException(t *testing.T) {
+	t.Parallel()
+
+	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: false, linkID: nextTestPacketID()}
+	ch := NewChannel(outlet)
+	defer ch.Close()
+
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatal("expected panic")
+		}
+		cex, ok := rec.(*ChannelException)
+		if !ok {
+			t.Fatalf("panic type=%T, want *ChannelException", rec)
+		}
+		if cex.Type != ME_LINK_NOT_READY {
+			t.Fatalf("panic type code=%v, want %v", cex.Type, ME_LINK_NOT_READY)
+		}
+	}()
+
+	_ = ch.Send(&messageTest{ID: "x", Data: "y"})
 }

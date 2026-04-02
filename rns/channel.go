@@ -132,12 +132,6 @@ func (e *Envelope) Pack() ([]byte, error) {
 		return nil, errors.New("envelope has no message")
 	}
 	mt := e.message.MsgType()
-	if mt == 0 {
-		return nil, &ChannelException{
-			Type: ME_NO_MSG_TYPE,
-			Msg:  "message has no MSGTYPE",
-		}
-	}
 	data, err := e.message.Pack()
 	if err != nil {
 		return nil, err
@@ -274,13 +268,19 @@ func (c *Channel) Close() {
 
 // RegisterMessageType is the public registration method.
 
-func (c *Channel) RegisterMessageType(msg MessageBase) error {
+func (c *Channel) RegisterMessageType(msg any) {
+	if err := c.TryRegisterMessageType(msg); err != nil {
+		panic(err)
+	}
+}
+
+func (c *Channel) TryRegisterMessageType(msg any) error {
 	return c._register_message_type(msg, false)
 }
 
 // _register_message_type is internal.
 
-func (c *Channel) _register_message_type(msg MessageBase, isSystemType bool) error {
+func (c *Channel) _register_message_type(msg any, isSystemType bool) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -288,13 +288,12 @@ func (c *Channel) _register_message_type(msg MessageBase, isSystemType bool) err
 		return &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "nil message_class"}
 	}
 
-	mt := msg.MsgType()
-	if mt == 0 {
-		return &ChannelException{
-			Type: ME_INVALID_MSG_TYPE,
-			Msg:  "message has invalid MSGTYPE",
-		}
+	factory, sample, err := channelFactoryFrom(msg)
+	if err != nil {
+		return err
 	}
+
+	mt := sample.MsgType()
 	if mt >= 0xf000 && !isSystemType {
 		return &ChannelException{
 			Type: ME_INVALID_MSG_TYPE,
@@ -302,49 +301,64 @@ func (c *Channel) _register_message_type(msg MessageBase, isSystemType bool) err
 		}
 	}
 
-	// build a factory via reflect on the message type
-	t := reflect.TypeOf(msg)
-	if t.Kind() != reflect.Ptr {
-		return &ChannelException{
-			Type: ME_INVALID_MSG_TYPE,
-			Msg:  "message must be pointer type",
-		}
-	}
-	elem := t.Elem()
-	msgIface := reflect.TypeOf((*MessageBase)(nil)).Elem()
-	ptrType := reflect.PointerTo(elem)
-	if !ptrType.Implements(msgIface) {
-		return &ChannelException{
-			Type: ME_INVALID_MSG_TYPE,
-			Msg:  "message does not implement MessageBase",
-		}
-	}
-
-	factory := func() MessageBase {
-		v := reflect.New(elem)
-		return v.Interface().(MessageBase) // safe due to Implements check above
-	}
-
-	// test constructor (like Python)
-	var ctorPanic any
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				ctorPanic = r
-			}
-		}()
-		_ = factory()
-	}()
-	if ctorPanic != nil {
-		return &ChannelException{
-			Type: ME_INVALID_MSG_TYPE,
-			Msg:  fmt.Sprintf("message constructor panicked: %v", ctorPanic),
-		}
-	}
-
-	// Python implementation simply overwrites existing registrations.
 	c.messageFactories[mt] = factory
 	return nil
+}
+
+func channelFactoryFrom(msg any) (func() MessageBase, MessageBase, error) {
+	msgIface := reflect.TypeOf((*MessageBase)(nil)).Elem()
+
+	switch v := msg.(type) {
+	case MessageBase:
+		t := reflect.TypeOf(v)
+		if t.Kind() != reflect.Ptr {
+			return nil, nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message must be pointer type"}
+		}
+		elem := t.Elem()
+		ptrType := reflect.PointerTo(elem)
+		if !ptrType.Implements(msgIface) {
+			return nil, nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message does not implement MessageBase"}
+		}
+		factory := func() MessageBase {
+			return reflect.New(elem).Interface().(MessageBase)
+		}
+		sample, err := channelFactorySample(factory)
+		return factory, sample, err
+	default:
+		rv := reflect.ValueOf(msg)
+		rt := rv.Type()
+		if rt.Kind() != reflect.Func || rt.NumIn() != 0 || rt.NumOut() != 1 {
+			return nil, nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message_class must be MessageBase or zero-arg constructor"}
+		}
+		if !rt.Out(0).Implements(msgIface) {
+			return nil, nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message constructor does not return MessageBase"}
+		}
+		factory := func() MessageBase {
+			out := rv.Call(nil)
+			if len(out) != 1 || !out[0].IsValid() || out[0].IsNil() {
+				panic("message constructor returned nil")
+			}
+			return out[0].Interface().(MessageBase)
+		}
+		sample, err := channelFactorySample(factory)
+		return factory, sample, err
+	}
+}
+
+func channelFactorySample(factory func() MessageBase) (sample MessageBase, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = &ChannelException{
+				Type: ME_INVALID_MSG_TYPE,
+				Msg:  fmt.Sprintf("message constructor panicked: %v", r),
+			}
+		}
+	}()
+	sample = factory()
+	if sample == nil {
+		return nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message constructor returned nil"}
+	}
+	return sample, nil
 }
 
 // AddMessageHandler
@@ -716,7 +730,15 @@ func (c *Channel) packetTimeout(packet any) {
 
 // ====== Send =================================================================
 
-func (c *Channel) Send(message MessageBase) (*Envelope, error) {
+func (c *Channel) Send(message MessageBase) *Envelope {
+	env, err := c.TrySend(message)
+	if err != nil {
+		panic(err)
+	}
+	return env
+}
+
+func (c *Channel) TrySend(message MessageBase) (*Envelope, error) {
 	c.lock.Lock()
 	if c.closed {
 		c.lock.Unlock()
@@ -861,7 +883,7 @@ func (o *LinkChannelOutlet) Rtt() float64 {
 }
 
 func (o *LinkChannelOutlet) IsUsable() bool {
-	return o.link != nil
+	return true
 }
 
 func (o *LinkChannelOutlet) GetPacketState(packet any) MessageState {
