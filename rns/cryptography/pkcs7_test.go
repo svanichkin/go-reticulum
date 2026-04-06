@@ -2,6 +2,7 @@ package cryptography
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -36,46 +37,74 @@ func TestPKCS7Pad_BlockSizeValidation(t *testing.T) {
 
 	if _, err := PKCS7Pad([]byte("x"), 256); err == nil {
 		t.Fatalf("expected error for bs=256")
+	} else {
+		var valueErr *PKCS7ValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid block size 256" {
+			t.Fatalf("unexpected pad block size error: %v", err)
+		}
 	}
 	if _, err := PKCS7Unpad([]byte(""), 256); err == nil {
 		t.Fatalf("expected error for bs=256")
+	} else {
+		var valueErr *PKCS7ValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "invalid block size 256" {
+			t.Fatalf("unexpected unpad block size error: %v", err)
+		}
 	}
 }
 
 func TestPKCS7Unpad_Errors(t *testing.T) {
 	maybeParallel(t)
 
-	// Empty / non-multiple length
 	if _, err := PKCS7Unpad(nil, 16); err == nil {
 		t.Fatalf("expected error for nil input")
+	} else {
+		var valueErr *PKCS7ValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "cannot unpad empty data" {
+			t.Fatalf("unexpected empty input error: %v", err)
+		}
 	}
 	if _, err := PKCS7Unpad([]byte{}, 16); err == nil {
 		t.Fatalf("expected error for empty input")
-	}
-	if _, err := PKCS7Unpad([]byte("123"), 16); err == nil {
-		t.Fatalf("expected error for non-multiple length")
-	}
-
-	// Bad padLen 0
-	bad0 := bytes.Repeat([]byte{0}, 16)
-	bad0[15] = 0
-	if _, err := PKCS7Unpad(bad0, 16); err == nil {
-		t.Fatalf("expected error for padLen=0")
+	} else {
+		var valueErr *PKCS7ValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "cannot unpad empty data" {
+			t.Fatalf("unexpected empty slice error: %v", err)
+		}
 	}
 
-	// Bad padLen > bs
 	badBig := bytes.Repeat([]byte{0}, 16)
 	badBig[15] = 17
 	if _, err := PKCS7Unpad(badBig, 16); err == nil {
 		t.Fatalf("expected error for padLen>bs")
+	} else {
+		var valueErr *PKCS7ValueError
+		if !errors.As(err, &valueErr) || valueErr.Error() != "cannot unpad, invalid padding length of 17 bytes" {
+			t.Fatalf("unexpected padLen error: %v", err)
+		}
 	}
+}
 
-	// Bad padding bytes
+func TestPKCS7Unpad_PythonStyleLeniency(t *testing.T) {
+	maybeParallel(t)
+
 	badBytes := bytes.Repeat([]byte{0}, 16)
 	badBytes[15] = 2
 	badBytes[14] = 3
-	if _, err := PKCS7Unpad(badBytes, 16); err == nil {
-		t.Fatalf("expected error for invalid padding bytes")
+	out, err := PKCS7Unpad(badBytes, 16)
+	if err != nil {
+		t.Fatalf("unexpected error for python-style lenient unpad: %v", err)
+	}
+	if len(out) != 14 {
+		t.Fatalf("unexpected len after lenient unpad: %d", len(out))
+	}
+
+	out, err = PKCS7Unpad([]byte{0x41, 0x42, 0x01}, 16)
+	if err != nil {
+		t.Fatalf("unexpected error for non-multiple length: %v", err)
+	}
+	if !bytes.Equal(out, []byte{0x41, 0x42}) {
+		t.Fatalf("unexpected non-multiple unpad result: %x", out)
 	}
 }
 
@@ -101,4 +130,3 @@ func itoa(n int) string {
 	}
 	return string(b[i:])
 }
-

@@ -1,11 +1,21 @@
 package cryptography
 
 import (
-	"errors"
 	"fmt"
 )
 
 const PKCS7BlockSize = 16
+
+type PKCS7ValueError struct {
+	Message string
+}
+
+func (e *PKCS7ValueError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
 
 // PKCS7Pad mirrors PKCS7.pad(data, bs=BLOCKSIZE).
 func PKCS7Pad(data []byte, bs int) ([]byte, error) {
@@ -13,7 +23,7 @@ func PKCS7Pad(data []byte, bs int) ([]byte, error) {
 		bs = PKCS7BlockSize
 	}
 	if bs >= 256 {
-		return nil, fmt.Errorf("pkcs7: invalid block size %d", bs)
+		return nil, &PKCS7ValueError{Message: fmt.Sprintf("invalid block size %d", bs)}
 	}
 	padLen := bs - (len(data) % bs)
 	if padLen == 0 {
@@ -33,19 +43,17 @@ func PKCS7Unpad(data []byte, bs int) ([]byte, error) {
 		bs = PKCS7BlockSize
 	}
 	if bs <= 0 || bs >= 256 {
-		return nil, fmt.Errorf("pkcs7: invalid block size %d", bs)
+		return nil, &PKCS7ValueError{Message: fmt.Sprintf("invalid block size %d", bs)}
 	}
-	if len(data) == 0 || len(data)%bs != 0 {
-		return nil, errors.New("pkcs7: invalid padded data length")
+	if len(data) == 0 {
+		return nil, &PKCS7ValueError{Message: "cannot unpad empty data"}
 	}
 	padLen := int(data[len(data)-1])
-	if padLen == 0 || padLen > bs || padLen > len(data) {
-		return nil, errors.New("pkcs7: invalid padding")
+	if padLen > bs {
+		return nil, &PKCS7ValueError{Message: fmt.Sprintf("cannot unpad, invalid padding length of %d bytes", padLen)}
 	}
-	for i := len(data) - padLen; i < len(data); i++ {
-		if data[i] != byte(padLen) {
-			return nil, errors.New("pkcs7: invalid padding bytes")
-		}
+	if padLen < 0 || padLen > len(data) {
+		return nil, &PKCS7ValueError{Message: fmt.Sprintf("cannot unpad, invalid padding length of %d bytes", padLen)}
 	}
 	return data[:len(data)-padLen], nil
 }

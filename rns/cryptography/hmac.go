@@ -2,6 +2,7 @@ package cryptography
 
 import (
 	"crypto/sha256"
+	"errors"
 	"hash"
 )
 
@@ -23,7 +24,14 @@ type HMAC struct {
 	blockSize  int    // effective block_size
 	digestSize int    // digest size
 	digestmod  func() hash.Hash
-	data       []byte // all message chunks received via Update
+	data       []byte // retained for copy/digest fallback when hash state can't be cloned
+	inner      hash.Hash
+	outer      hash.Hash
+}
+
+type binaryCloner interface {
+	MarshalBinary() ([]byte, error)
+	UnmarshalBinary([]byte) error
 }
 
 // NewHMAC mirrors new(key, msg=None, digestmod=sha256).
@@ -60,6 +68,18 @@ func NewHMAC(key, msg []byte, digestmod func() hash.Hash) *HMAC {
 		data:       nil,
 	}
 
+	kInner := make([]byte, len(key))
+	kOuter := make([]byte, len(key))
+	for i, b := range key {
+		kInner[i] = trans36[b]
+		kOuter[i] = trans5C[b]
+	}
+
+	h.inner = digestmod()
+	h.outer = digestmod()
+	h.inner.Write(kInner)
+	h.outer.Write(kOuter)
+
 	if msg != nil {
 		h.Update(msg)
 	}
@@ -69,6 +89,7 @@ func NewHMAC(key, msg []byte, digestmod func() hash.Hash) *HMAC {
 // Update mirrors update(msg).
 func (h *HMAC) Update(msg []byte) {
 	h.data = append(h.data, msg...)
+	h.inner.Write(msg)
 }
 
 // Copy mirrors copy(), returning a fully independent copy.
@@ -79,32 +100,75 @@ func (h *HMAC) Copy() *HMAC {
 	dc := make([]byte, len(h.data))
 	copy(dc, h.data)
 
-	return &HMAC{
+	out := &HMAC{
 		key:        kc,
 		blockSize:  h.blockSize,
 		digestSize: h.digestSize,
 		digestmod:  h.digestmod,
 		data:       dc,
 	}
+	if inner, err := cloneHash(h.inner, h.digestmod); err == nil {
+		out.inner = inner
+	}
+	if outer, err := cloneHash(h.outer, h.digestmod); err == nil {
+		out.outer = outer
+	}
+	if out.inner == nil || out.outer == nil {
+		out.rebuildState()
+	}
+	return out
 }
 
-// compute() is the internal HMAC computation, like digest() in the Python version.
-func (h *HMAC) compute() []byte {
-	// key ⊕ 0x36 and key ⊕ 0x5c via translate tables
+func cloneHash(src hash.Hash, newHash func() hash.Hash) (hash.Hash, error) {
+	cloner, ok := src.(binaryCloner)
+	if !ok {
+		return nil, errors.New("hash state is not cloneable")
+	}
+	state, err := cloner.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	dst := newHash()
+	unmarshaler, ok := dst.(binaryCloner)
+	if !ok {
+		return nil, errors.New("hash state is not restoreable")
+	}
+	if err := unmarshaler.UnmarshalBinary(state); err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
+func (h *HMAC) rebuildState() {
 	kInner := make([]byte, len(h.key))
 	kOuter := make([]byte, len(h.key))
 	for i, b := range h.key {
 		kInner[i] = trans36[b]
 		kOuter[i] = trans5C[b]
 	}
+	h.inner = h.digestmod()
+	h.outer = h.digestmod()
+	h.inner.Write(kInner)
+	h.outer.Write(kOuter)
+	h.inner.Write(h.data)
+}
 
-	inner := h.digestmod()
-	inner.Write(kInner)
-	inner.Write(h.data)
+// compute() is the internal HMAC computation, like digest() in the Python version.
+func (h *HMAC) compute() []byte {
+	if h.inner == nil || h.outer == nil {
+		h.rebuildState()
+	}
+	inner, err := cloneHash(h.inner, h.digestmod)
+	if err != nil {
+		h.rebuildState()
+		inner, _ = cloneHash(h.inner, h.digestmod)
+	}
 	innerSum := inner.Sum(nil)
-
-	outer := h.digestmod()
-	outer.Write(kOuter)
+	outer, err := cloneHash(h.outer, h.digestmod)
+	if err != nil {
+		h.rebuildState()
+		outer, _ = cloneHash(h.outer, h.digestmod)
+	}
 	outer.Write(innerSum)
 	return outer.Sum(nil)
 }

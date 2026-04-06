@@ -24,6 +24,19 @@ func TestProxies_Ed25519_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestProxies_Ed25519_PrivateBytesUseSeedFormat(t *testing.T) {
+	maybeParallel(t)
+
+	seed := bytes.Repeat([]byte{0x42}, 32)
+	priv, err := (Ed25519PrivateKeyProxy{}).FromPrivateBytes(seed)
+	if err != nil {
+		t.Fatalf("FromPrivateBytes: %v", err)
+	}
+	if !bytes.Equal(priv.PrivateBytes(), seed) {
+		t.Fatalf("PrivateBytes did not return original seed")
+	}
+}
+
 func TestProxies_X25519_ExchangeSymmetry(t *testing.T) {
 	maybeParallel(t)
 
@@ -67,4 +80,3 @@ func TestProxies_LengthErrors(t *testing.T) {
 		t.Fatalf("expected x25519 pub length error")
 	}
 }
-

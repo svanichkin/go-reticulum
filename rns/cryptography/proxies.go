@@ -97,18 +97,18 @@ func (Ed25519PrivateKeyProxy) Generate() (*Ed25519PrivateKeyProxy, error) {
 
 // FromPrivateBytes mirrors from_private_bytes().
 func (Ed25519PrivateKeyProxy) FromPrivateBytes(b []byte) (*Ed25519PrivateKeyProxy, error) {
-	if len(b) != ed25519.PrivateKeySize {
+	if len(b) != ed25519.SeedSize {
 		return nil, ErrInvalidEd25519PrivLen
 	}
-	priv := ed25519.PrivateKey(make([]byte, len(b)))
-	copy(priv, b)
+	priv := ed25519.NewKeyFromSeed(b)
 	return &Ed25519PrivateKeyProxy{k: priv}, nil
 }
 
 // PrivateBytes mirrors private_bytes().
 func (p *Ed25519PrivateKeyProxy) PrivateBytes() []byte {
-	out := make([]byte, len(p.k))
-	copy(out, p.k)
+	seed := p.k.Seed()
+	out := make([]byte, len(seed))
+	copy(out, seed)
 	return out
 }
 

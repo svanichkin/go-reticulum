@@ -4,8 +4,30 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"hash"
 	"testing"
 )
+
+type tinyHash struct {
+	buf []byte
+}
+
+func (h *tinyHash) Write(p []byte) (int, error) {
+	h.buf = append(h.buf, p...)
+	return len(p), nil
+}
+
+func (h *tinyHash) Sum(b []byte) []byte {
+	out := make([]byte, 4)
+	copy(out, h.buf)
+	return append(b, out...)
+}
+
+func (h *tinyHash) Reset()         { h.buf = nil }
+func (h *tinyHash) Size() int      { return 4 }
+func (h *tinyHash) BlockSize() int { return 8 }
+
+func newTinyHash() hash.Hash { return &tinyHash{} }
 
 func TestHMAC_MatchesStdlib_SHA256(t *testing.T) {
 	maybeParallel(t)
@@ -48,3 +70,58 @@ func TestHMAC_CopyIsIndependent(t *testing.T) {
 	}
 }
 
+func TestHMAC_DigestDoesNotMutateState(t *testing.T) {
+	maybeParallel(t)
+
+	h := NewHMAC([]byte("key"), []byte("a"), sha256.New)
+	first := h.Digest()
+	second := h.Digest()
+	if !bytes.Equal(first, second) {
+		t.Fatalf("Digest changed state")
+	}
+
+	h.Update([]byte("b"))
+	got := h.Digest()
+
+	std := hmac.New(sha256.New, []byte("key"))
+	std.Write([]byte("ab"))
+	want := std.Sum(nil)
+	if !bytes.Equal(got, want) {
+		t.Fatalf("digest after update mismatch")
+	}
+}
+
+func TestHMAC_BlockSizeFallbackTo64(t *testing.T) {
+	maybeParallel(t)
+
+	h := NewHMAC([]byte("key"), nil, newTinyHash)
+	if h.blockSize != 64 {
+		t.Fatalf("blockSize=%d, want 64", h.blockSize)
+	}
+}
+
+func TestHMAC_IncrementalUpdatesMatchOneShot(t *testing.T) {
+	maybeParallel(t)
+
+	parts := [][]byte{[]byte("reti"), []byte("cul"), []byte("um")}
+	inc := New([]byte("key"), nil, sha256.New)
+	for _, part := range parts {
+		inc.Update(part)
+	}
+	oneShot := DigestFast([]byte("key"), bytes.Join(parts, nil), sha256.New)
+	if !bytes.Equal(inc.Digest(), oneShot) {
+		t.Fatalf("incremental digest mismatch")
+	}
+}
+
+func TestHMAC_NewAliasAndHexDigest(t *testing.T) {
+	maybeParallel(t)
+
+	h := New([]byte("key"), []byte("msg"), sha256.New)
+	if h == nil {
+		t.Fatalf("New returned nil")
+	}
+	if len(h.HexDigest()) != h.digestSize*2 {
+		t.Fatalf("unexpected hexdigest length: %d", len(h.HexDigest()))
+	}
+}

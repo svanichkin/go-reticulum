@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 )
@@ -19,6 +18,28 @@ const (
 	key256Size = 64 // 32+32
 )
 
+type TokenTypeError struct {
+	Message string
+}
+
+func (e *TokenTypeError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+type TokenValueError struct {
+	Message string
+}
+
+func (e *TokenValueError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
 // GenerateKey mirrors Token.generate_key(mode=AES_256_CBC by default).
 // aesKeyBytes = 16 -> AES-128 (final key 32 bytes)
 // aesKeyBytes = 32 -> AES-256 (final key 64 bytes)
@@ -30,7 +51,7 @@ func GenerateKey(aesKeyBytes int) ([]byte, error) {
 	case 32:
 		total = key256Size
 	default:
-		return nil, fmt.Errorf("invalid AES key size: %d", aesKeyBytes)
+		return nil, &TokenTypeError{Message: fmt.Sprintf("invalid token mode: %d", aesKeyBytes)}
 	}
 
 	k := make([]byte, total)
@@ -49,7 +70,7 @@ type Token struct {
 // NewToken mirrors __init__(key, mode=AES).
 func NewToken(key []byte) (*Token, error) {
 	if key == nil {
-		return nil, errors.New("token key cannot be nil")
+		return nil, &TokenValueError{Message: "Token key cannot be None"}
 	}
 
 	switch len(key) {
@@ -66,14 +87,14 @@ func NewToken(key []byte) (*Token, error) {
 			aesKeySize:    32,
 		}, nil
 	default:
-		return nil, fmt.Errorf("token key must be 128 or 256 bits, not %d", len(key)*8)
+		return nil, &TokenValueError{Message: fmt.Sprintf("Token key must be 128 or 256 bits, not %d", len(key)*8)}
 	}
 }
 
 // verifyHMAC mirrors verify_hmac().
-func (t *Token) verifyHMAC(tok []byte) bool {
+func (t *Token) verifyHMAC(tok []byte) (bool, error) {
 	if len(tok) <= hmacSize {
-		return false
+		return false, &TokenValueError{Message: fmt.Sprintf("Cannot verify HMAC on token of only %d bytes", len(tok))}
 	}
 
 	data := tok[:len(tok)-hmacSize]
@@ -83,13 +104,13 @@ func (t *Token) verifyHMAC(tok []byte) bool {
 	_, _ = mac.Write(data)
 	exp := mac.Sum(nil)[:hmacSize]
 
-	return hmac.Equal(rec, exp)
+	return hmac.Equal(rec, exp), nil
 }
 
 // Encrypt mirrors encrypt().
 func (t *Token) Encrypt(data []byte) ([]byte, error) {
 	if data == nil {
-		return nil, errors.New("plaintext cannot be nil")
+		return nil, &TokenTypeError{Message: "Token plaintext input must be bytes"}
 	}
 
 	iv := make([]byte, blockSize)
@@ -123,20 +144,21 @@ func (t *Token) Encrypt(data []byte) ([]byte, error) {
 // Decrypt mirrors decrypt().
 func (t *Token) Decrypt(tok []byte) ([]byte, error) {
 	if tok == nil {
-		return nil, errors.New("token cannot be nil")
+		return nil, &TokenTypeError{Message: "Token must be bytes"}
 	}
-	if len(tok) < blockSize+hmacSize {
-		return nil, fmt.Errorf("token too short: %d bytes", len(tok))
+	valid, err := t.verifyHMAC(tok)
+	if err != nil {
+		return nil, err
 	}
-	if !t.verifyHMAC(tok) {
-		return nil, errors.New("token HMAC was invalid")
+	if !valid {
+		return nil, &TokenValueError{Message: "Token HMAC was invalid"}
 	}
 
 	iv := tok[:blockSize]
 	ciphertext := tok[blockSize : len(tok)-hmacSize]
 
 	if len(ciphertext)%blockSize != 0 {
-		return nil, fmt.Errorf("ciphertext length not multiple of block size")
+		return nil, &TokenValueError{Message: "Could not decrypt token: ciphertext length not multiple of block size"}
 	}
 
 	block, err := aes.NewCipher(t.encryptionKey)
@@ -150,7 +172,7 @@ func (t *Token) Decrypt(tok []byte) ([]byte, error) {
 
 	plaintext, err := PKCS7Unpad(plaintextPadded, blockSize)
 	if err != nil {
-		return nil, fmt.Errorf("could not decrypt token: %w", err)
+		return nil, &TokenValueError{Message: fmt.Sprintf("Could not decrypt token: %v", err)}
 	}
 
 	return plaintext, nil

@@ -2,6 +2,7 @@ package cryptography
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 )
 
@@ -78,3 +79,44 @@ func TestX25519_Errors(t *testing.T) {
 	}
 }
 
+func TestX25519_KnownVector_RFC7748(t *testing.T) {
+	maybeParallel(t)
+
+	alicePriv, _ := hex.DecodeString("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+	alicePubWant, _ := hex.DecodeString("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
+	bobPriv, _ := hex.DecodeString("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+	bobPubWant, _ := hex.DecodeString("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
+	sharedWant, _ := hex.DecodeString("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742")
+
+	a, err := FromPrivateBytes(alicePriv)
+	if err != nil {
+		t.Fatalf("FromPrivateBytes(alice): %v", err)
+	}
+	ap, err := a.PublicKey()
+	if err != nil {
+		t.Fatalf("PublicKey(alice): %v", err)
+	}
+	if !bytes.Equal(ap.PublicBytes(), alicePubWant) {
+		t.Fatalf("alice public mismatch: got %x want %x", ap.PublicBytes(), alicePubWant)
+	}
+
+	b, err := FromPrivateBytes(bobPriv)
+	if err != nil {
+		t.Fatalf("FromPrivateBytes(bob): %v", err)
+	}
+	bp, err := b.PublicKey()
+	if err != nil {
+		t.Fatalf("PublicKey(bob): %v", err)
+	}
+	if !bytes.Equal(bp.PublicBytes(), bobPubWant) {
+		t.Fatalf("bob public mismatch: got %x want %x", bp.PublicBytes(), bobPubWant)
+	}
+
+	shared, err := a.Exchange(bp.PublicBytes())
+	if err != nil {
+		t.Fatalf("Exchange(bytes): %v", err)
+	}
+	if !bytes.Equal(shared, sharedWant) {
+		t.Fatalf("shared mismatch: got %x want %x", shared, sharedWant)
+	}
+}
