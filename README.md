@@ -2,7 +2,7 @@
 
 Go port (parity-focused) of the [original Reticulum project](https://github.com/markqvist/Reticulum).
 
-This repository is maintained as a practical parity port: behaviour and public utilities are compared against the Python Reticulum reference, and remaining differences are tracked in `PARITY_*.md`. A significant part of the work was/is done with AI assistance (Codex/LLMs) for reading the reference implementation, creating parity TODOs, writing tests, and porting examples/CLI tooling.
+This repository is maintained as a practical parity port. The current parity target is Python Reticulum `1.1.4`, and the Go implementation is aligned against that version across the core library, bundled CLI utilities, examples, and parity/integration checks currently tracked in this repository. A significant part of the work was/is done with AI assistance (Codex/LLMs) for reading the reference implementation, creating parity TODOs, writing tests, and porting examples/CLI tooling.
 
 The port is developed by a single maintainer with assistance from ChatGPT 5.1/5.2. Even though the project is covered with unit tests, integration tests, and smoke checks, unstable areas may still exist; if you run into one, please open an issue or contact the maintainer.
 
@@ -102,7 +102,8 @@ go run ./examples/link --help
 
 ## Parity & docs
 
-- `PARITY_*.md` files contain the remaining parity TODOs vs Python Reticulum (no unrelated wishlists).
+- Current parity target: Python Reticulum `1.1.4`.
+- `PARITY_*.md` files track any remaining or newly discovered parity drift vs the Python reference (no unrelated wishlists).
 - Ideally, each parity item is closed by a code change plus a test/verification step.
 - Note: the Python Reticulum supports “external interfaces” by loading `<Type>.py` modules from `interfacepath`. The Go port does not execute/load those Python modules; if such a file exists, startup will error to avoid silently running with a placeholder interface.
 
