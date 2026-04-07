@@ -23,8 +23,14 @@ func TestParseTarget(t *testing.T) {
 	if name, addr := ParseTarget(""); name != "" || addr != "" {
 		t.Fatalf("expected empty, got name=%q addr=%q", name, addr)
 	}
+	if name, addr := ParseTarget("   "); name != "" || addr != "" {
+		t.Fatalf("expected trimmed empty, got name=%q addr=%q", name, addr)
+	}
 	if name, addr := ParseTarget("name:RNode ABC"); name != "RNode ABC" || addr != "" {
 		t.Fatalf("unexpected parse: name=%q addr=%q", name, addr)
+	}
+	if name, addr := ParseTarget("NaMe: RNode ABC "); name != "RNode ABC" || addr != "" {
+		t.Fatalf("unexpected case-insensitive parse: name=%q addr=%q", name, addr)
 	}
 	if name, addr := ParseTarget("AA:BB:CC:DD:EE:FF"); name != "" || addr != "AA:BB:CC:DD:EE:FF" {
 		t.Fatalf("unexpected parse: name=%q addr=%q", name, addr)
@@ -33,4 +39,3 @@ func TestParseTarget(t *testing.T) {
 		t.Fatalf("unexpected parse: name=%q addr=%q", name, addr)
 	}
 }
-
