@@ -42,3 +42,27 @@ func TestLocal_packetAddr_TCPFallback(t *testing.T) {
 		t.Fatalf("unexpected tcp fallback: %s %q", network, addr)
 	}
 }
+
+func TestLocal_localClientDisplayName_TCP(t *testing.T) {
+	t.Parallel()
+
+	got := localClientDisplayName(LocalConfig{LocalInterfacePort: 4242})
+	if got != "LocalInterface[4242]" {
+		t.Fatalf("unexpected display name %q", got)
+	}
+}
+
+func TestLocal_localClientDisplayName_Unix(t *testing.T) {
+	t.Parallel()
+
+	got := localClientDisplayName(LocalConfig{UseAFUnix: true, LocalSocketPath: "default"})
+	if runtime.GOOS == "linux" {
+		if got != "LocalInterface[rns/default]" {
+			t.Fatalf("unexpected display name %q", got)
+		}
+		return
+	}
+	if !strings.HasPrefix(got, "LocalInterface[") {
+		t.Fatalf("unexpected display name %q", got)
+	}
+}

@@ -30,3 +30,15 @@ func TestSerial_parseSerialConfig_MissingPort(t *testing.T) {
 	}
 }
 
+func TestSerialInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{
+		Name: "tty0",
+		Type: "SerialInterface",
+	}
+
+	if got := iface.String(); got != "SerialInterface[tty0]" {
+		t.Fatalf("unexpected string form %q", got)
+	}
+}

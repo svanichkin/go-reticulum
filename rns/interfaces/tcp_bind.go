@@ -16,30 +16,44 @@ func tcpAddressForHost(host string, port int, preferIPv6 bool) (string, error) {
 		return "", fmt.Errorf("invalid port: %d", port)
 	}
 
+	// Preserve literal inputs like Python get_address_for_host(), but still
+	// honour family preference.
+	if ip := net.ParseIP(host); ip != nil {
+		if preferIPv6 && ip.To4() != nil {
+			return "", fmt.Errorf("no suitable addresses for host %q", host)
+		}
+		if !preferIPv6 && ip.To4() == nil {
+			return "", fmt.Errorf("no suitable addresses for host %q", host)
+		}
+		return net.JoinHostPort(host, strconv.Itoa(port)), nil
+	}
+	if ipAddr, err := net.ResolveIPAddr("ip", host); err == nil && ipAddr != nil && ipAddr.IP != nil {
+		return net.JoinHostPort(host, strconv.Itoa(port)), nil
+	}
+
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		// Keep original host, it may already be a literal or include a scope.
-		return net.JoinHostPort(host, strconv.Itoa(port)), nil
+		return "", err
 	}
 	if len(ips) == 0 {
 		return "", fmt.Errorf("no addresses for host %q", host)
 	}
 
-	var chosen net.IP
+	var found bool
 	for _, ip := range ips {
 		if preferIPv6 && ip.To4() == nil {
-			chosen = ip
+			found = true
 			break
 		}
 		if !preferIPv6 && ip.To4() != nil {
-			chosen = ip
+			found = true
 			break
 		}
 	}
-	if chosen == nil {
-		chosen = ips[0]
+	if !found {
+		return "", fmt.Errorf("no suitable addresses for host %q", host)
 	}
-	return net.JoinHostPort(chosen.String(), strconv.Itoa(port)), nil
+	return net.JoinHostPort(host, strconv.Itoa(port)), nil
 }
 
 func tcpAddressForInterface(ifName string, port int, preferIPv6 bool) (string, error) {
@@ -71,7 +85,7 @@ func tcpAddressForInterface(ifName string, port int, preferIPv6 bool) (string, e
 			continue
 		}
 		ip := ipNet.IP
-		if ip == nil || ip.IsUnspecified() || ip.IsLoopback() {
+		if ip == nil || ip.IsUnspecified() {
 			continue
 		}
 		if preferIPv6 && ip.To4() == nil {
@@ -100,4 +114,3 @@ func tcpAddressForInterface(ifName string, port int, preferIPv6 bool) (string, e
 	}
 	return net.JoinHostPort(chosenIP.String(), strconv.Itoa(port)), nil
 }
-

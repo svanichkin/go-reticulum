@@ -27,6 +27,10 @@ func (o rnodeOwnerAdapter) Inbound(data []byte, _ *RNodeInterface) {
 	}
 }
 
+var rnodeTransportFromPort = NewRNodeInterfaceFromPort
+var rnodeStartInterface = func(rn *RNodeInterface, ctx context.Context) error { return rn.Start(ctx) }
+var rnodeStartReconnectLoop = func(rn *RNodeInterface) { go rn.reconnectLoop() }
+
 // NewRNodeInterfaceFromConfig builds and starts a single RNodeInterface driver from a config map,
 // mirroring Python's RNodeInterface(Interface.get_config_obj(...)).
 func NewRNodeInterfaceFromConfig(name string, kv map[string]string) (*Interface, error) {
@@ -90,7 +94,7 @@ func NewRNodeInterfaceFromConfig(name string, kv map[string]string) (*Interface,
 		return nil, errors.New("no port specified for RNode interface")
 	}
 
-	rn, err := NewRNodeInterfaceFromPort(rnodeOwnerAdapter{ifc: iface}, rnodeLogAdapter{}, iface.Name, port)
+	rn, err := rnodeTransportFromPort(rnodeOwnerAdapter{ifc: iface}, rnodeLogAdapter{}, iface.Name, port)
 	if err != nil {
 		return nil, err
 	}
@@ -137,9 +141,19 @@ func NewRNodeInterfaceFromConfig(name string, kv map[string]string) (*Interface,
 
 	iface.rnodeSingle = rn
 
-	if err := rn.Start(context.Background()); err != nil {
+	if !rn.ValidateConfig() {
 		iface.rnodeSingle = nil
-		return nil, err
+		return nil, errors.New("invalid configuration")
+	}
+
+	if err := rnodeStartInterface(rn, context.Background()); err != nil {
+		if DiagLogf != nil {
+			DiagLogf(LogError, "Could not open serial port for interface %s", iface.String())
+			DiagLogf(LogError, "The contained exception was: %v", err)
+			DiagLogf(LogError, "Reticulum will attempt to bring up this interface periodically")
+		}
+		rnodeStartReconnectLoop(rn)
+		return iface, nil
 	}
 
 	// Best-effort bitrate estimate for stats/mtu tuning.

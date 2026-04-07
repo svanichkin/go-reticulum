@@ -325,6 +325,50 @@ func (i *Interface) String() string {
 			return fmt.Sprintf("UDPInterface[%s/%s]", i.Name, fwd.String())
 		}
 	}
+	if strings.EqualFold(i.Type, "SerialInterface") && i.Name != "" {
+		return fmt.Sprintf("SerialInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "RNodeInterface") && i.Name != "" {
+		return fmt.Sprintf("RNodeInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "RNodeMultiInterface") && i.Name != "" {
+		return fmt.Sprintf("RNodeMultiInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "PipeInterface") && i.Name != "" {
+		return fmt.Sprintf("PipeInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "KISSInterface") && i.Name != "" {
+		return fmt.Sprintf("KISSInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "I2PInterface") && i.Name != "" {
+		return fmt.Sprintf("I2PInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "I2PInterfacePeer") && i.Name != "" {
+		return fmt.Sprintf("I2PInterfacePeer[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "AutoInterface") && i.Name != "" {
+		return fmt.Sprintf("AutoInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "AX25KISSInterface") && i.Name != "" {
+		return fmt.Sprintf("AX25KISSInterface[%s]", i.Name)
+	}
+	if strings.EqualFold(i.Type, "BackboneInterface") && i.backboneServer != nil {
+		ipStr := i.backboneServer.cfg.Listen
+		if ipStr == "" {
+			ipStr = i.Name
+		}
+		if strings.Contains(ipStr, ":") && !strings.HasPrefix(ipStr, "[") {
+			ipStr = "[" + ipStr + "]"
+		}
+		return fmt.Sprintf("BackboneInterface[%s/%s:%d]", i.Name, ipStr, i.backboneServer.cfg.Port)
+	}
+	if strings.EqualFold(i.Type, "BackboneClientInterface") && i.backboneClient != nil {
+		ipStr := i.backboneClient.cfg.TargetHost
+		if strings.Contains(ipStr, ":") && !strings.HasPrefix(ipStr, "[") {
+			ipStr = "[" + ipStr + "]"
+		}
+		return fmt.Sprintf("BackboneInterface[%s/%s:%d]", i.Name, ipStr, i.backboneClient.cfg.TargetPort)
+	}
 	if i.Name != "" {
 		return i.Name
 	}

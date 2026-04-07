@@ -364,3 +364,33 @@ func TestBackboneClient_Reconnect_CallsTunnelSynthesizer(t *testing.T) {
 		t.Fatalf("expected 1 TunnelSynthesizer call, got %d", called.Load())
 	}
 }
+
+func TestBackboneInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	server := &Interface{Name: "bb0", Type: "BackboneInterface"}
+	server.backboneServer = &BackboneInterfaceDriver{
+		iface: server,
+		cfg: backboneServerConfig{
+			Name:   "bb0",
+			Listen: "127.0.0.1",
+			Port:   4242,
+		},
+	}
+	if got := server.String(); got != "BackboneInterface[bb0/127.0.0.1:4242]" {
+		t.Fatalf("unexpected server string %q", got)
+	}
+
+	client := &Interface{Name: "bb1", Type: "BackboneClientInterface"}
+	client.backboneClient = &BackboneClientDriver{
+		iface: client,
+		cfg: backboneClientConfig{
+			Name:       "bb1",
+			TargetHost: "::1",
+			TargetPort: 4243,
+		},
+	}
+	if got := client.String(); got != "BackboneInterface[bb1/[::1]:4243]" {
+		t.Fatalf("unexpected client string %q", got)
+	}
+}

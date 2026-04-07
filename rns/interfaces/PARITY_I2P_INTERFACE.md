@@ -1,7 +1,2 @@
-# I2PInterface parity TODO
+# PARITY: i2p_interface.go
 
-Only items still outstanding vs `python/RNS/Interfaces/I2PInterface.py` (everything else is already ported and/or covered by unit/integration tests).
-
-## TODO (remaining parity gaps)
-
-None 🎉

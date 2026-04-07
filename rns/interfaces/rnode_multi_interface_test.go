@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 	"time"
 )
@@ -129,5 +130,60 @@ func TestRNodeMulti_Beacon_FirstTxGating(t *testing.T) {
 	d.firstTxAt.Store(time.Now().Add(-6 * time.Second).UnixNano())
 	if !d.shouldSendBeacon(time.Now()) {
 		t.Fatalf("expected shouldSendBeacon after interval")
+	}
+}
+
+func TestRNodeMultiInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{
+		Name: "rm",
+		Type: "RNodeMultiInterface",
+	}
+
+	if got := iface.String(); got != "RNodeMultiInterface[rm]" {
+		t.Fatalf("unexpected string form %q", got)
+	}
+}
+
+func TestNewRNodeMultiInterface_InitialOpenFailureStartsReconnectLoop(t *testing.T) {
+	prevStart := rnodeMultiStartDriver
+	prevReconnect := rnodeMultiStartReconnectLoop
+	t.Cleanup(func() {
+		rnodeMultiStartDriver = prevStart
+		rnodeMultiStartReconnectLoop = prevReconnect
+	})
+
+	calledReconnect := make(chan struct{}, 1)
+	rnodeMultiStartDriver = func(_ *RNodeMultiDriver) error {
+		return errors.New("open failed")
+	}
+	rnodeMultiStartReconnectLoop = func(_ *RNodeMultiDriver) {
+		select {
+		case calledReconnect <- struct{}{}:
+		default:
+		}
+	}
+
+	iface, err := NewRNodeMultiInterface("rm", map[string]string{
+		"port":                    "/dev/ttyUSB0",
+		"sub.a.vport":             "0",
+		"sub.a.frequency":         "868000000",
+		"sub.a.bandwidth":         "125000",
+		"sub.a.txpower":           "10",
+		"sub.a.spreadingfactor":   "7",
+		"sub.a.codingrate":        "5",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if iface == nil || iface.rnodeMulti == nil {
+		t.Fatalf("expected retained multi driver")
+	}
+
+	select {
+	case <-calledReconnect:
+	default:
+		t.Fatalf("expected reconnect loop to be started")
 	}
 }

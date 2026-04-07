@@ -66,3 +66,16 @@ func TestPipe_parsePipeConfig(t *testing.T) {
 		t.Fatalf("unexpected respawn delay %v", cfg.RespawnDelay)
 	}
 }
+
+func TestPipeInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{
+		Name: "p0",
+		Type: "PipeInterface",
+	}
+
+	if got := iface.String(); got != "PipeInterface[p0]" {
+		t.Fatalf("unexpected string form %q", got)
+	}
+}

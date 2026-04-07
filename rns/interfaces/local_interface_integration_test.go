@@ -98,6 +98,9 @@ func TestLocalIntegration_ClientToServer_FramesAndInbound(t *testing.T) {
 		t.Fatalf("ConnectLocalInterfaceClient: %v", err)
 	}
 	t.Cleanup(func() { client.Detach() })
+	if !strings.HasPrefix(client.Name, "LocalInterface[") {
+		t.Fatalf("expected python-style local client name, got %q", client.Name)
+	}
 
 	select {
 	case srv := <-spawned:

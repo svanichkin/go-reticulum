@@ -34,3 +34,15 @@ func TestUDP_ConfigureUDP_InvalidListenPort(t *testing.T) {
 		t.Fatalf("expected nil forward addr when forward port is 0")
 	}
 }
+
+func TestUDP_String_MatchesPythonStyle(t *testing.T) {
+	t.Parallel()
+
+	ifc := &Interface{Name: "u0"}
+	if err := ifc.ConfigureUDP("127.0.0.1", 4242, "127.0.0.1", 4242); err != nil {
+		t.Fatalf("ConfigureUDP: %v", err)
+	}
+	if got, want := ifc.String(), "UDPInterface[u0/127.0.0.1:4242]"; got != want {
+		t.Fatalf("String()=%q, want %q", got, want)
+	}
+}

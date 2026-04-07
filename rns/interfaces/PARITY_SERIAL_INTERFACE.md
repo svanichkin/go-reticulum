@@ -1,7 +1,2 @@
-# SerialInterface parity TODO
+# PARITY: serial_interface.go
 
-Only items still outstanding vs `python/RNS/Interfaces/SerialInterface.py` (everything else is already ported and/or covered by unit/integration tests).
-
-## TODO (remaining parity gaps)
-
-None 🎉

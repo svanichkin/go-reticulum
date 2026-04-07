@@ -28,3 +28,17 @@ func TestI2P_KISSEscape_NoRawFEND_FESC(t *testing.T) {
 		t.Fatalf("unexpected raw FEND in output: %x", out)
 	}
 }
+
+func TestI2PInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{Name: "i2p0", Type: "I2PInterface"}
+	if got := iface.String(); got != "I2PInterface[i2p0]" {
+		t.Fatalf("unexpected interface string %q", got)
+	}
+
+	peer := &Interface{Name: "peer0", Type: "I2PInterfacePeer"}
+	if got := peer.String(); got != "I2PInterfacePeer[peer0]" {
+		t.Fatalf("unexpected peer string %q", got)
+	}
+}

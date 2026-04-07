@@ -1,8 +1,1 @@
-# WeaveInterface parity TODO
-
-Only items still outstanding vs `python/RNS/Interfaces/WeaveInterface.py` (everything else is already ported and/or covered by unit/integration tests).
-
-## TODO (remaining parity gaps)
-
-None 🎉
-
+# PARITY: WeaveInterface (python/RNS/Interfaces/WeaveInterface.py ↔ rns/interfaces/weave_interface.go)

@@ -49,6 +49,9 @@ func (i *Interface) ConfigureUDP(listenIP string, listenPort int, forwardIP stri
 	if i == nil {
 		return nil
 	}
+	if strings.TrimSpace(i.Type) == "" {
+		i.Type = "UDPInterface"
+	}
 
 	// Python parity: allow forward-only interfaces (no bind/listen).
 	if listenPort > 0 {

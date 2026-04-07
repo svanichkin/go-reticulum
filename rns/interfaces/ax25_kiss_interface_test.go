@@ -57,3 +57,16 @@ func TestAX25_parseAX25KISSConfig_MissingPort(t *testing.T) {
 		t.Fatalf("expected error when port is missing")
 	}
 }
+
+func TestAX25KISSInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{
+		Name: "ax0",
+		Type: "AX25KISSInterface",
+	}
+
+	if got := iface.String(); got != "AX25KISSInterface[ax0]" {
+		t.Fatalf("unexpected string form %q", got)
+	}
+}

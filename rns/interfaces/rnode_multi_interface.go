@@ -179,6 +179,9 @@ type RNodeMultiDriver struct {
 	rInterferenceAtUnixSec atomic.Int64
 }
 
+var rnodeMultiStartDriver = func(d *RNodeMultiDriver) error { return d.start() }
+var rnodeMultiStartReconnectLoop = func(d *RNodeMultiDriver) { go d.reconnectLoop() }
+
 func NewRNodeMultiInterface(name string, kv map[string]string) (*Interface, error) {
 	cfg, err := parseRNodeMultiConfig(strings.TrimSpace(name), kv)
 	if err != nil {
@@ -204,8 +207,14 @@ func NewRNodeMultiInterface(name string, kv map[string]string) (*Interface, erro
 	}
 	parent.rnodeMulti = driver
 
-	if err := driver.start(); err != nil {
-		return parent, err
+	if err := rnodeMultiStartDriver(driver); err != nil {
+		if DiagLogf != nil {
+			DiagLogf(LogError, "Could not open serial port for interface %s", parent)
+			DiagLogf(LogError, "The contained exception was: %v", err)
+			DiagLogf(LogError, "Reticulum will attempt to bring up this interface periodically")
+		}
+		rnodeMultiStartReconnectLoop(driver)
+		return parent, nil
 	}
 	return parent, nil
 }

@@ -183,3 +183,39 @@ func TestRNode_FlowControl_READY_FlushesQueue(t *testing.T) {
 	}
 	t.Fatalf("expected queued frame to be flushed after READY")
 }
+
+func TestRNode_ConfigureDevice_StartsReadLoopAfterSleep(t *testing.T) {
+	prevStartReadLoop := rnodeStartReadLoop
+	t.Cleanup(func() { rnodeStartReadLoop = prevStartReadLoop })
+
+	tr := &scriptedTransport{open: true}
+	r := NewRNodeInterface(&rnodeTestOwner{}, nil, "r0", tr)
+	r.Frequency = 915000000
+	r.Bandwidth = 125000
+	r.TXPower = 2
+	r.SF = 7
+	r.CR = 5
+
+	started := make(chan struct{}, 1)
+	rnodeStartReadLoop = func(_ *RNodeInterface) {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_ = r.ConfigureDevice()
+		close(done)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2500 * time.Millisecond):
+		t.Fatalf("expected read loop to start from ConfigureDevice")
+	}
+
+	_ = r.Stop()
+	<-done
+}

@@ -103,6 +103,12 @@ const (
 	TCPActivityKeepalive = TCPActivityTimeout - 2.5
 )
 
+var rnodeStartReadLoop func(r *RNodeInterface)
+
+func init() {
+	rnodeStartReadLoop = func(r *RNodeInterface) { go r.readLoop() }
+}
+
 const (
 	ErrorInitRadio     = 0x01
 	ErrorTXFailed      = 0x02
@@ -565,7 +571,6 @@ func (r *RNodeInterface) Start(ctx context.Context) error {
 	if st, ok := r.tr.(*SerialTransport); ok {
 		st.SetReadTimeout(80 * time.Millisecond)
 	}
-	go r.readLoop()
 	_ = r.ConfigureDevice()
 	return nil
 }
@@ -607,6 +612,7 @@ func (r *RNodeInterface) ConfigureDevice() error {
 	// Python: reset_radio_state(); sleep(2.0); start readLoop; detect; wait; initRadio; validateRadioState; online=True
 	r.ResetRadioState()
 	time.Sleep(2 * time.Second)
+	rnodeStartReadLoop(r)
 
 	if err := r.Detect(); err != nil {
 		return err
@@ -1539,7 +1545,6 @@ func (r *RNodeInterface) reconnectLoop() {
 
 		r.online.Store(true)
 		r.ready.Store(false)
-		go r.readLoop()
 		_ = r.ConfigureDevice()
 
 		if r.Log != nil {

@@ -63,3 +63,16 @@ func TestKISS_parseKISSConfig_MissingPort(t *testing.T) {
 		t.Fatalf("expected error when port is missing")
 	}
 }
+
+func TestKISSInterface_StringMatchesPython(t *testing.T) {
+	t.Parallel()
+
+	iface := &Interface{
+		Name: "k0",
+		Type: "KISSInterface",
+	}
+
+	if got := iface.String(); got != "KISSInterface[k0]" {
+		t.Fatalf("unexpected string form %q", got)
+	}
+}

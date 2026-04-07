@@ -57,6 +57,17 @@ func packetAddr(cfg LocalConfig) (network, addr string) {
 	return "unix", filepath.Join(os.TempDir(), "rns_"+socketName+"_local.sock")
 }
 
+func localClientDisplayName(cfg LocalConfig) string {
+	network, addr := packetAddr(cfg)
+	if network == "unix" {
+		return fmt.Sprintf("LocalInterface[%s]", strings.TrimPrefix(addr, "\x00"))
+	}
+	if _, port, err := net.SplitHostPort(addr); err == nil && port != "" {
+		return fmt.Sprintf("LocalInterface[%s]", port)
+	}
+	return fmt.Sprintf("LocalInterface[%s]", addr)
+}
+
 func StartLocalInterfaceServer(cfg LocalConfig, onNewClient func(*Interface)) (net.Listener, error) {
 	network, addr := packetAddr(cfg)
 	displayAddr := strings.TrimPrefix(addr, "\x00")
@@ -140,6 +151,7 @@ func ConnectLocalInterfaceClient(cfg LocalConfig, ifc *Interface) error {
 	if ifc == nil {
 		return errors.New("nil interface")
 	}
+	ifc.Name = localClientDisplayName(cfg)
 	ifc.IN = true
 	// Python Reticulum sets OUT=True for the LocalClientInterface used to connect to
 	// the local shared instance.
