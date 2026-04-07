@@ -54,6 +54,28 @@ func TestSetLogTimeFormat_ResetsOnEmpty(t *testing.T) {
 	}
 }
 
+func TestLogOutputSuppressed_DropsStdoutButKeepsCallback(t *testing.T) {
+	prevLevel := LogLevel()
+	prevDest := LogDest()
+	SetLogLevel(LogDebug)
+	SetLogOutputSuppressed(true)
+	t.Cleanup(func() {
+		SetLogOutputSuppressed(false)
+		SetLogDest(prevDest)
+		SetLogLevel(prevLevel)
+		SetLogDestCallback(nil)
+	})
+
+	called := false
+	SetLogDestCallback(func(_ int, msg string) {
+		called = strings.Contains(msg, "callback-visible")
+	})
+	Log("callback-visible", LogInfo)
+	if !called {
+		t.Fatal("expected callback logging to remain active while output is suppressed")
+	}
+}
+
 func TestTimestampStr_AndPreciseTimestampStr(t *testing.T) {
 	maybeParallel(t)
 

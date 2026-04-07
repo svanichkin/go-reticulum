@@ -45,8 +45,8 @@ func TestPerformRPCHandshake_NetPipe_InvalidKey(t *testing.T) {
 		serverErr <- performRPCHandshake(c2, serverKey, true)
 	}()
 
-	if err := performRPCHandshake(c1, clientKey, false); err != nil {
-		t.Fatalf("client handshake: %v", err)
+	if err := performRPCHandshake(c1, clientKey, false); err == nil {
+		t.Fatalf("expected client to reject invalid key")
 	}
 	if err := <-serverErr; err == nil {
 		t.Fatalf("expected server to reject invalid key")

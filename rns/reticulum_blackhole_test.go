@@ -87,7 +87,7 @@ func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 	if err := umsgpack.Unpackb(raw, &persisted); err != nil {
 		t.Fatalf("Unpackb(local blackhole): %v", err)
 	}
-	if _, exists := persisted[string(victim.Hash)]; exists {
+	if _, exists := persistedBlackholeLookup(persisted, victim.Hash); exists {
 		t.Fatal("expected persisted local blackhole list to drop removed identity")
 	}
 }

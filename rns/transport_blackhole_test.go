@@ -10,6 +10,16 @@ import (
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
+func persistedBlackholeLookup(m map[any]any, key []byte) (any, bool) {
+	if v, ok := m[string(key)]; ok {
+		return v, true
+	}
+	if v, ok := m[umsgpack.BinaryKey(string(key))]; ok {
+		return v, true
+	}
+	return nil, false
+}
+
 func stashKnownDestinationsForBlackholeTest() func() {
 	knownDestinationsLoadMu.Lock()
 	prevEntries := knownDestinations.entries
@@ -82,7 +92,7 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	if err := umsgpack.Unpackb(raw, &persisted); err != nil {
 		t.Fatalf("Unpackb(local blackhole): %v", err)
 	}
-	entryAny, ok := persisted[string(remoteID.Hash)]
+	entryAny, ok := persistedBlackholeLookup(persisted, remoteID.Hash)
 	if !ok {
 		t.Fatalf("persisted blackhole missing identity key")
 	}
@@ -225,10 +235,10 @@ func TestCullBlackholedIdentities_RemovesExpiredAndPersists(t *testing.T) {
 	if err := umsgpack.Unpackb(raw, &persisted); err != nil {
 		t.Fatalf("Unpackb(local blackhole): %v", err)
 	}
-	if _, exists := persisted[string(expiredID)]; exists {
+	if _, exists := persistedBlackholeLookup(persisted, expiredID); exists {
 		t.Fatal("expected expired entry to be removed from persisted local list")
 	}
-	if _, exists := persisted[string(activeID)]; !exists {
+	if _, exists := persistedBlackholeLookup(persisted, activeID); !exists {
 		t.Fatal("expected active entry to remain in persisted local list")
 	}
 }

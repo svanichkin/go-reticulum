@@ -79,6 +79,7 @@ var (
 	logDest               LogDestination = LogStdout
 	logFilePath           string
 	logCallback           func(level int, line string)
+	logSuppressOutput     bool
 	logTimeFmt            = defaultLogTimeFormat
 	logTimeFmtPrec        = defaultLogTimeFormatPrec
 	logTimePrecTrimMillis bool
@@ -107,6 +108,9 @@ var (
 )
 
 func init() {
+	if strings.HasSuffix(os.Args[0], ".test") && os.Getenv("RNS_TEST_LOGS") != "1" {
+		logSuppressOutput = true
+	}
 	mtuMu.Lock()
 	recalcMTUDerivedLocked()
 	mtuMu.Unlock()
@@ -228,6 +232,15 @@ func SetCompactLogFormat(on bool) {
 	logMu.Lock()
 	defer logMu.Unlock()
 	compactLogFmt = on
+}
+
+// SetLogOutputSuppressed controls whether non-callback log destinations should
+// emit output. It is primarily used to keep go test output quiet while still
+// allowing explicit callback-based log assertions in tests.
+func SetLogOutputSuppressed(on bool) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	logSuppressOutput = on
 }
 
 // SetLogTimeFormat allows customising the timestamp prefix used in logs,
@@ -400,6 +413,7 @@ func logInternal(msg any, level int, precise, overrideDest bool) {
 	overrideAlways := alwaysOverrideDest
 	path := logFilePath
 	cb := logCallback
+	suppressOutput := logSuppressOutput
 	logMu.Unlock()
 
 	text := fmt.Sprint(msg)
@@ -419,9 +433,15 @@ func logInternal(msg any, level int, precise, overrideDest bool) {
 
 	switch {
 	case toStdout:
+		if suppressOutput && cb == nil && !overrideDest && !overrideAlways {
+			return
+		}
 		fmt.Println(logLine)
 
 	case dest == LogFile && path != "":
+		if suppressOutput && cb == nil {
+			return
+		}
 		if err := appendLogFile(path, logLine); err != nil {
 			logMu.Lock()
 			alwaysOverrideDest = true
@@ -486,10 +506,10 @@ func TraceException(e any) {
 	if e == nil {
 		return
 	}
-	Log(fmt.Sprintf("An unhandled %T exception occurred: %v", e, e), LogError)
+	LogOverride(fmt.Sprintf("An unhandled %T exception occurred: %v", e, e), LogError)
 	trace := formattedExceptionTrace(e)
 	if strings.TrimSpace(trace) != "" {
-		Log(trace, LogError)
+		LogOverride(trace, LogError)
 	}
 }
 

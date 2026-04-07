@@ -1058,6 +1058,8 @@ func blackholeKeyFromValue(value any) (hashKey, bool) {
 	switch v := value.(type) {
 	case string:
 		return makeHashKey([]byte(v))
+	case umsgpack.BinaryKey:
+		return makeHashKey([]byte(string(v)))
 	case []byte:
 		return makeHashKey(v)
 	default:
@@ -1163,7 +1165,11 @@ func persistBlackholeSource(sourceIdentityHash []byte, entries map[hashKey]map[s
 	if path == "" {
 		return nil
 	}
-	packed, err := umsgpack.Packb(entries)
+	payload := make(map[any]any, len(entries))
+	for key, entry := range entries {
+		payload[umsgpack.BinaryKey(string(key[:]))] = entry
+	}
+	packed, err := umsgpack.Packb(payload)
 	if err != nil {
 		Logf(LogError, "Error while persisting blackhole list: %v", err)
 		return err
@@ -1234,7 +1240,11 @@ func persistBlackhole() error {
 	}
 	blackholeMu.RUnlock()
 
-	packed, err := umsgpack.Packb(localBlackhole)
+	payload := make(map[any]any, len(localBlackhole))
+	for key, entry := range localBlackhole {
+		payload[umsgpack.BinaryKey(string(key[:]))] = entry
+	}
+	packed, err := umsgpack.Packb(payload)
 	if err != nil {
 		Logf(LogError, "Error while persisting blackhole list: %v", err)
 		return err

@@ -584,6 +584,8 @@ func decodeKnownDestinations(data []byte) (map[string]*knownDestinationEntry, er
 		switch kt := k.(type) {
 		case []byte:
 			keyBytes = kt
+		case umsgpack.BinaryKey:
+			keyBytes = []byte(string(kt))
 		case string:
 			keyBytes = []byte(kt)
 		default:

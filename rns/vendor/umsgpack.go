@@ -296,6 +296,11 @@ func packAny(w *bytes.Buffer, v any, opts options) error {
 			return packOldSpecRaw(w, []byte(x))
 		}
 		return packString(w, x)
+	case BinaryKey:
+		if opts.compatibility {
+			return packOldSpecRaw(w, []byte(string(x)))
+		}
+		return packBytes(w, []byte(string(x)))
 	case []byte:
 		if opts.compatibility {
 			return packOldSpecRaw(w, x)
