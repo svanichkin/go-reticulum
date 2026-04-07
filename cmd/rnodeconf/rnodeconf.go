@@ -745,14 +745,14 @@ func promptSelectSerialPort() (string, error) {
 		return "", errors.New("no serial ports detected")
 	}
 	if len(ports) == 1 {
-		fmt.Printf("Detected serial port: %s\n", ports[0])
+		fmt.Printf("Detected serial port: %s\n", serialPortDisplayLabel(ports[0]))
 		fmt.Printf("Ok, using device on %s\n", ports[0])
 		return ports[0], nil
 	}
 
 	fmt.Println("Detected serial ports:")
 	for i, p := range ports {
-		fmt.Printf("  [%d] %s\n", i+1, p)
+		fmt.Printf("  [%d] %s\n", i+1, serialPortDisplayLabel(p))
 	}
 	fmt.Print("\nEnter the number of the serial port your device is connected to:\n? ")
 	idx, err := promptInt("")

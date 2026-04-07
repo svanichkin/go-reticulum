@@ -148,6 +148,23 @@ func TestParseModelCode(t *testing.T) {
 	}
 }
 
+func TestSerialPortDisplayLabel(t *testing.T) {
+	t.Run("by-id includes basename label", func(t *testing.T) {
+		in := "/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART-if00-port0"
+		want := in + " (usb-Silicon_Labs_CP2102N_USB_to_UART-if00-port0)"
+		if got := serialPortDisplayLabel(in); got != want {
+			t.Fatalf("got %q want %q", got, want)
+		}
+	})
+
+	t.Run("plain path unchanged", func(t *testing.T) {
+		in := "/dev/ttyUSB0"
+		if got := serialPortDisplayLabel(in); got != in {
+			t.Fatalf("got %q want %q", got, in)
+		}
+	})
+}
+
 func TestStoreTrustedKey(t *testing.T) {
 	k, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {

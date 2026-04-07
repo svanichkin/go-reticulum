@@ -108,7 +108,6 @@ func main() {
 	}
 
 	if exampleConf {
-		// Python prints the string via print(), which always appends a newline.
 		fmt.Println(exampleRNSConfig)
 		return
 	}

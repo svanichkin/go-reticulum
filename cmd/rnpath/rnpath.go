@@ -311,11 +311,11 @@ func connectRemote(destHash []byte, auth *rns.Identity, timeout float64, noOutpu
 func parseDestHex(s string) ([]byte, error) {
 	destLen := (rns.ReticulumTruncatedHashLength / 8) * 2
 	if len(s) != destLen {
-		return nil, fmt.Errorf("destination length is invalid, must be %d hexadecimal characters (%d bytes)", destLen, destLen/2)
+		return nil, fmt.Errorf("Destination length is invalid, must be %d hexadecimal characters (%d bytes).", destLen, destLen/2)
 	}
 	b, err := hex.DecodeString(s)
 	if err != nil {
-		return nil, fmt.Errorf("invalid destination entered; check your input")
+		return nil, fmt.Errorf("Invalid destination entered. Check your input.")
 	}
 	return b, nil
 }

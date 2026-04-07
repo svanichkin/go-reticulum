@@ -1,10 +1,5 @@
-# rnir parity TODO
+# PARITY: rnir.go
 
-Only items still outstanding vs `python/RNS/Utilities/rnir.py` (everything else is already ported and/or covered by unit/integration tests).
+## Findings
 
-## TODO (remaining parity gaps)
-
-- Decide on `--service` parity: Go exposes `--service` (log to file + create `logfile` marker), but Python CLI does not expose service mode (only `program_setup(..., service=False)` exists). Either document as Go-only extension or hide/align behaviour.
-- Align failure handling: Python `program_setup()` exits `0` after starting Reticulum; Go returns an error and exits `1` with “Could not start Reticulum…”. If strict parity is desired, match exit codes/messages on startup failures.
-- Match help/usage output: Python `argparse` default formatting differs from Go `flag` output (minor UX parity).
-
+- `--exampleconfig` is blocked by a bug in the local Python reference at [python/RNS/Utilities/rnir.py](/Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Utilities/rnir.py): it references `__example_rns_config__`, but that symbol is not defined, so Python currently exits with `NameError` before any Go/Python parity comparison is meaningful for that flag.

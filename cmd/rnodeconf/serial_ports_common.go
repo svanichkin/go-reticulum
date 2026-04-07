@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 func globSerialPatterns(patterns []string) []string {
@@ -22,3 +25,16 @@ func globSerialPatterns(patterns []string) []string {
 	return ports
 }
 
+func serialPortDisplayLabel(port string) string {
+	port = strings.TrimSpace(port)
+	if port == "" {
+		return ""
+	}
+	if strings.Contains(port, "/serial/by-id/") {
+		base := path.Base(port)
+		if base != "" && base != "." && base != "/" {
+			return fmt.Sprintf("%s (%s)", port, base)
+		}
+	}
+	return port
+}

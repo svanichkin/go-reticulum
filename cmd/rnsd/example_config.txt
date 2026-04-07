@@ -71,6 +71,55 @@ instance_name = default
 # remote_management_allowed = 9fb6d773498fb3feda407ed8ef2c3229, 2d882c5586e548d79b5af27bca1776dc
 
 
+# For easier management, discovery and configuration of
+# networks with many individual transport instances,
+# you can specify a network identity to be used across
+# a set of instances. If sending interface discovery
+# announces, these will all be signed by the specified
+# network identity, and other nodes discovering your
+# interfaces will be able to identify that they belong
+# to the same network, even though they exist on different
+# transport nodes.
+
+# network_identity = ~/.reticulum/storage/identity/network
+
+
+# You can configure whether Reticulum should discover
+# available interfaces from other Transport Instances over
+# the network. If this option is enabled, Reticulum will
+# collect interface information discovered from the network.
+
+# discover_interfaces = No
+
+
+# If you only want to discover interfaces from specific
+# networks, you can provide a list of network identities
+# from which to discover interfaces. If this option is not
+# provided, interfaces will be discovered from all transport
+# instances on all connected networks.
+
+# interface_discovery_sources = 78616ff7c4b8d3886d67d494b440f333, cb127015e13aa6ea1e0a606cdc9123d0
+
+
+# It is possible to automatically bring up and connect new
+# interfaces discovered over the network. This option is
+# disabled by default, but allows you to specify a maximum
+# number of discovered interfaces to automatically connect.
+# Additionally, if this option is enabled, Reticulum will
+# also try to autoconnect available auto-discovered inter-
+# faces on startup, up to the maximum number specified.
+
+# autoconnect_discovered_interfaces = 0
+
+
+# To prevent interface discovery spamming, a valid crypto-
+# graphic stamp is required per announced interface. You
+# can configure the minimum required value to accept as
+# valid for discovered interfaces.
+
+# required_discovery_value = 14
+
+
 # You can configure Reticulum to panic and forcibly close
 # if an unrecoverable interface error occurs, such as the
 # hardware device for an interface disappearing. This is
@@ -89,6 +138,26 @@ instance_name = default
 # Optional, and disabled by default.
 
 # respond_to_probes = No
+
+
+# You can publish your local list of blackholed identities
+# for other transport instances to use for automatic,
+# network-wide blackhole management.
+
+# publish_blackhole = No
+
+# List of remote transport identities from which to auto-
+# matically source lists of blackholed identities.
+#
+# If you're connecting to a large external network, you
+# can use one or more external blackhole list to block
+# spammy and excessive announces onto your network. This
+# funtionality is especially useful if you're hosting public
+# entrypoints or gateways. The list source below provides a
+# functional example, but better, more timely maintained
+# lists probably exist in the community.
+
+# blackhole_sources = 521c87a83afb8f29e4455e77930b973b
 
 
 [logging]

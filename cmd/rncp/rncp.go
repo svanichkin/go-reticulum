@@ -1152,11 +1152,11 @@ func loadAllowedIdentities(allowed multiString) error {
 
 	for _, a := range allowed {
 		if len(a) != destLen {
-			return fmt.Errorf("allowed destination length is invalid, must be %d hexadecimal characters (%d bytes)", destLen, destLen/2)
+			return fmt.Errorf("Allowed destination length is invalid, must be %d hexadecimal characters (%d bytes).", destLen, destLen/2)
 		}
 		b, err := hexDecode(a)
 		if err != nil {
-			return fmt.Errorf("invalid destination entered; check your input")
+			return fmt.Errorf("Invalid destination entered. Check your input.")
 		}
 		allowedIdentityHashes = append(allowedIdentityHashes, b)
 	}
@@ -1166,11 +1166,11 @@ func loadAllowedIdentities(allowed multiString) error {
 func parseDest(dest string) ([]byte, error) {
 	destLen := (rns.ReticulumTruncatedHashLength / 8) * 2
 	if len(dest) != destLen {
-		return nil, fmt.Errorf("allowed destination length is invalid, must be %d hexadecimal characters (%d bytes)", destLen, destLen/2)
+		return nil, fmt.Errorf("Allowed destination length is invalid, must be %d hexadecimal characters (%d bytes).", destLen, destLen/2)
 	}
 	b, err := hexDecode(dest)
 	if err != nil {
-		return nil, fmt.Errorf("invalid destination entered; check your input")
+		return nil, fmt.Errorf("Invalid destination entered. Check your input.")
 	}
 	return b, nil
 }
