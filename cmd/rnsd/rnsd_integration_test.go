@@ -1085,3 +1085,68 @@ func TestRNSDIntegration_InterfaceDriverPipeVisibleInStatus(t *testing.T) {
 		t.Fatalf("expected PipeDriver status=true, got %#v", ifc["status"])
 	}
 }
+
+func TestRNSDIntegration_InterfaceDriverAutoVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-auto",
+		"",
+		"[interfaces]",
+		"  [[AutoDriver]]",
+		"    type = AutoInterface",
+		"    enabled = yes",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 12*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "AutoDriver")
+	if typ, _ := ifc["type"].(string); typ != "AutoInterface" {
+		t.Fatalf("expected type=AutoInterface, got %#v", ifc["type"])
+	}
+}
+
+func TestRNSDIntegration_InterfaceDriverWeaveVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-weave",
+		"",
+		"[interfaces]",
+		"  [[WeaveDriver]]",
+		"    type = WeaveInterface",
+		"    enabled = yes",
+		"    port = /dev/null",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "WeaveDriver")
+	if typ, _ := ifc["type"].(string); typ != "WeaveInterface" {
+		t.Fatalf("expected type=WeaveInterface, got %#v", ifc["type"])
+	}
+}
