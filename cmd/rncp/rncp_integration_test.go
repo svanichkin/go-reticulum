@@ -313,6 +313,39 @@ func TestRNCPIntegration_HelpAndVersion(t *testing.T) {
 	}
 }
 
+func TestRNCPIntegration_MissingArgsShowsUsageExit0(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	out, err := runRNCP(t, ctx, bin, root, root)
+	if err != nil {
+		t.Fatalf("expected usage exit 0, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Usage:") || !strings.Contains(out, "rncp --fetch [options] file destination") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_InvalidTimeoutFlagExit2(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	out, err := runRNCP(t, ctx, bin, root, root, "--w", "not-a-float")
+	if err == nil {
+		t.Fatalf("expected invalid timeout failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 {
+		t.Fatalf("expected exit 2, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "invalid value") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
 func TestRNCPIntegration_PrintIdentity(t *testing.T) {
 	root := t.TempDir()
 	bin := buildRNCP(t, root)

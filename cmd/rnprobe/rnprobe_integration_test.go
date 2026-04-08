@@ -140,6 +140,36 @@ func TestRNProbeIntegration_HelpAndVersion(t *testing.T) {
 	}
 }
 
+func TestRNProbeIntegration_MissingArgsShowsUsageExit0(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--help=false")
+	if res.ExitCode != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Usage:") || !strings.Contains(res.Output, "<full_name> <destination_hash>") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNProbeIntegration_InvalidTimeoutFlagExit2(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--timeout", "not-a-float")
+	if res.ExitCode != 2 {
+		t.Fatalf("expected exit 2, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "invalid value") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
 func TestRNProbeIntegration_EmptyFullNameExit0(t *testing.T) {
 	root := t.TempDir()
 	bin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")

@@ -1150,3 +1150,337 @@ func TestRNSDIntegration_InterfaceDriverWeaveVisibleInStatus(t *testing.T) {
 		t.Fatalf("expected type=WeaveInterface, got %#v", ifc["type"])
 	}
 }
+
+func TestRNSDIntegration_ValidationInvalidRPCKeyFallsBackWithLog(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = invalid-rpc-key",
+		"rpc_key = not-hex-at-all",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+	if !strings.Contains(out.String(), "Invalid shared instance RPC key") {
+		t.Fatalf("expected invalid rpc_key warning in output:\n%s", out.String())
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidInterfaceTypeExits1(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"",
+		"[interfaces]",
+		"  [[Broken]]",
+		"    enabled = yes",
+		"    type = NotARealInterface",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, rnsdBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "unsupported interface type") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidModeFallsBackToFull(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = invalid-mode",
+		"",
+		"[interfaces]",
+		"  [[BadModeUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    mode = definitely-not-a-mode",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "BadModeUDP")
+	if mode, _ := ifc["mode"].(float64); int(mode) != rns.InterfaceModeFull {
+		t.Fatalf("expected fallback mode=%d, got %#v", rns.InterfaceModeFull, ifc["mode"])
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidBitrateFallsBackToDefault(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = invalid-bitrate",
+		"",
+		"[interfaces]",
+		"  [[BadBitrateUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    bitrate = 1",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "BadBitrateUDP")
+	if bitrate, _ := ifc["bitrate"].(float64); int(bitrate) <= 1 {
+		t.Fatalf("expected default bitrate fallback, got %#v", ifc["bitrate"])
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidAnnounceSettingsIgnored(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = invalid-announce",
+		"",
+		"[interfaces]",
+		"  [[BadAnnounceUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    announce_cap = 999",
+		"    announce_rate_target = -1",
+		"    announce_rate_grace = -2",
+		"    announce_rate_penalty = -3",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "BadAnnounceUDP")
+	if _, ok := ifc["announce_queue"]; !ok {
+		t.Fatalf("expected announce fields to remain available after invalid config: %#v", ifc)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidUDPListenPortExits1(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"",
+		"[interfaces]",
+		"  [[BrokenUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 99999",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, rnsdBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "invalid listen port") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidTCPClientTargetPortExits1(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"",
+		"[interfaces]",
+		"  [[BrokenTCPClient]]",
+		"    type = TCPClientInterface",
+		"    enabled = yes",
+		"    target_host = 127.0.0.1",
+		"    target_port = 99999",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, rnsdBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "invalid target port") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidTCPServerConfigExits1(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"",
+		"[interfaces]",
+		"  [[BrokenTCPServer]]",
+		"    type = TCPServerInterface",
+		"    enabled = yes",
+		"    listen_port = 4242",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, rnsdBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "missing listen_ip/device") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_ValidationPipeMissingCommandExits1(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"",
+		"[interfaces]",
+		"  [[BrokenPipe]]",
+		"    type = PipeInterface",
+		"    enabled = yes",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, rnsdBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "no command specified for PipeInterface") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidSharedInstanceTypeFallsBackToDefault(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = invalid-shared-instance-type",
+		"shared_instance_type = definitely-not-valid",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+	if !strings.Contains(strings.TrimSpace(got), "{") {
+		t.Fatalf("expected rnstatus json output after shared_instance_type fallback, got:\n%s", got)
+	}
+}
+
+func TestRNSDIntegration_ValidationInvalidSharedInstancePortsFallbackToDefaults(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = not-a-number",
+		"instance_control_port = also-not-a-number",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	if strings.Contains(out.String(), "operation not permitted") {
+		t.Skipf("environment does not allow loopback tcp shared instance:\n%s", out.String())
+	}
+	if !strings.Contains(strings.TrimSpace(got), "{") {
+		t.Fatalf("expected rnstatus json output after shared instance port fallback, got:\n%s", got)
+	}
+}

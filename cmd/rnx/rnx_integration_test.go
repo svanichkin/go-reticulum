@@ -123,6 +123,54 @@ func TestRNXIntegration_HelpAndVersion(t *testing.T) {
 	}
 }
 
+func TestRNXIntegration_MissingArgsShowsUsageExit0(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root})
+	if res.ExitCode != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Usage:") || !strings.Contains(res.Output, "-destination") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_InteractiveWithoutDestinationShowsUsageExit0(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--interactive")
+	if res.ExitCode != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Usage:") || !strings.Contains(res.Output, "-destination") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_InvalidTimeoutFlagExit2(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--w", "not-a-float")
+	if res.ExitCode != 2 {
+		t.Fatalf("expected exit 2, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "invalid value") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
 func TestRNXIntegration_UnknownFlagExit2(t *testing.T) {
 	root := t.TempDir()
 	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
