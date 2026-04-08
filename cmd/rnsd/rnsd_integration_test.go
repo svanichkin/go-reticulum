@@ -79,6 +79,23 @@ func startRNSDService(t *testing.T, ctx context.Context, bin, cfg, workDir strin
 	return c, &out
 }
 
+func stopRNSDService(t *testing.T, c *exec.Cmd) {
+	t.Helper()
+	if c == nil || c.Process == nil {
+		return
+	}
+	_ = c.Process.Signal(syscall.SIGTERM)
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+	select {
+	case <-time.After(5 * time.Second):
+		_ = c.Process.Kill()
+		<-done
+		t.Fatalf("rnsd did not stop within timeout")
+	case <-done:
+	}
+}
+
 func waitForRNStatusSuccessRNSD(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
 	t.Helper()
 
@@ -1482,5 +1499,350 @@ func TestRNSDIntegration_ValidationInvalidSharedInstancePortsFallbackToDefaults(
 	}
 	if !strings.Contains(strings.TrimSpace(got), "{") {
 		t.Fatalf("expected rnstatus json output after shared instance port fallback, got:\n%s", got)
+	}
+}
+
+func TestRNSDIntegration_Persistence_NetworkIdentitySurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	networkIdentityPath := filepath.Join(cfg, "transport.id")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = True",
+		"share_instance = Yes",
+		"instance_name = persist-netid",
+		"network_identity = " + networkIdentityPath,
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	firstStats := decodeRNStatusJSONRNSD(t, firstJSON)
+	firstTransportID, _ := firstStats["transport_id"].(string)
+	firstNetworkID, _ := firstStats["network_id"].(string)
+	if firstTransportID == "" || firstNetworkID == "" {
+		t.Fatalf("expected non-empty transport/network ids on first start:\n%s", firstJSON)
+	}
+
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)
+	secondTransportID, _ := secondStats["transport_id"].(string)
+	secondNetworkID, _ := secondStats["network_id"].(string)
+
+	if secondTransportID != firstTransportID {
+		t.Fatalf("transport_id changed across restart: first=%s second=%s", firstTransportID, secondTransportID)
+	}
+	if secondNetworkID != firstNetworkID {
+		t.Fatalf("network_id changed across restart: first=%s second=%s", firstNetworkID, secondNetworkID)
+	}
+}
+
+func TestRNSDIntegration_Persistence_SharedInstanceUnixReusesInstanceNameAfterRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = persist-unix-instance",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+
+	if strings.Contains(secondOut.String(), "connected to another shared local instance") {
+		t.Fatalf("second start unexpectedly connected to another shared instance:\n%s", secondOut.String())
+	}
+}
+
+func TestRNSDIntegration_Persistence_SharedInstanceTCPReusesPortsAfterRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	packetPort := freeTCPPortRNSD(t)
+	controlPort := freeTCPPortRNSD(t)
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = " + strconv.Itoa(packetPort),
+		"instance_control_port = " + strconv.Itoa(controlPort),
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	if strings.Contains(firstOut.String(), "operation not permitted") {
+		t.Skipf("environment does not allow loopback tcp shared instance:\n%s", firstOut.String())
+	}
+	if !strings.Contains(strings.TrimSpace(firstJSON), "{") {
+		t.Fatalf("expected rnstatus json on first tcp start:\n%s", firstJSON)
+	}
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	if strings.Contains(secondOut.String(), "operation not permitted") {
+		t.Skipf("environment does not allow loopback tcp shared instance on restart:\n%s", secondOut.String())
+	}
+	if !strings.Contains(strings.TrimSpace(secondJSON), "{") {
+		t.Fatalf("expected rnstatus json on second tcp start:\n%s", secondJSON)
+	}
+}
+
+func TestRNSDIntegration_Persistence_UDPInterfaceConfigSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = persist-udp",
+		"",
+		"[interfaces]",
+		"  [[PersistUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    mode = gateway",
+		"    bitrate = 23456",
+		"    ifac_size = 24",
+		"    networkname = persistnet",
+		"    passphrase = persistpass",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	firstStats := decodeRNStatusJSONRNSD(t, firstJSON)
+	firstIfc := findInterfaceByShortNameRNSD(t, firstStats, "PersistUDP")
+	if bitrate, _ := firstIfc["bitrate"].(float64); int(bitrate) != 23456 {
+		t.Fatalf("expected first bitrate=23456, got %#v", firstIfc["bitrate"])
+	}
+	if size, _ := firstIfc["ifac_size"].(float64); int(size) != 24 {
+		t.Fatalf("expected first ifac_size=24, got %#v", firstIfc["ifac_size"])
+	}
+	if netname, _ := firstIfc["ifac_netname"].(string); netname != "persistnet" {
+		t.Fatalf("expected first ifac_netname=persistnet, got %#v", firstIfc["ifac_netname"])
+	}
+	if mode, _ := firstIfc["mode"].(float64); int(mode) != rns.InterfaceModeGateway {
+		t.Fatalf("expected first mode=%d, got %#v", rns.InterfaceModeGateway, firstIfc["mode"])
+	}
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)
+	secondIfc := findInterfaceByShortNameRNSD(t, secondStats, "PersistUDP")
+	if bitrate, _ := secondIfc["bitrate"].(float64); int(bitrate) != 23456 {
+		t.Fatalf("expected second bitrate=23456, got %#v", secondIfc["bitrate"])
+	}
+	if size, _ := secondIfc["ifac_size"].(float64); int(size) != 24 {
+		t.Fatalf("expected second ifac_size=24, got %#v", secondIfc["ifac_size"])
+	}
+	if netname, _ := secondIfc["ifac_netname"].(string); netname != "persistnet" {
+		t.Fatalf("expected second ifac_netname=persistnet, got %#v", secondIfc["ifac_netname"])
+	}
+	if mode, _ := secondIfc["mode"].(float64); int(mode) != rns.InterfaceModeGateway {
+		t.Fatalf("expected second mode=%d, got %#v", rns.InterfaceModeGateway, secondIfc["mode"])
+	}
+}
+
+func TestRNSDIntegration_Persistence_PipeInterfaceSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = persist-pipe",
+		"",
+		"[interfaces]",
+		"  [[PersistPipe]]",
+		"    type = PipeInterface",
+		"    enabled = yes",
+		"    command = /bin/cat",
+		"    respawn_delay = 0.1",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	firstStats := decodeRNStatusJSONRNSD(t, firstJSON)
+	firstIfc := findInterfaceByShortNameRNSD(t, firstStats, "PersistPipe")
+	if typ, _ := firstIfc["type"].(string); typ != "PipeInterface" {
+		t.Fatalf("expected first type=PipeInterface, got %#v", firstIfc["type"])
+	}
+	if status, _ := firstIfc["status"].(bool); !status {
+		t.Fatalf("expected first pipe status=true, got %#v", firstIfc["status"])
+	}
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)
+	secondIfc := findInterfaceByShortNameRNSD(t, secondStats, "PersistPipe")
+	if typ, _ := secondIfc["type"].(string); typ != "PipeInterface" {
+		t.Fatalf("expected second type=PipeInterface, got %#v", secondIfc["type"])
+	}
+	if status, _ := secondIfc["status"].(bool); !status {
+		t.Fatalf("expected second pipe status=true, got %#v", secondIfc["status"])
+	}
+}
+
+func TestRNSDIntegration_Persistence_TCPServerInterfaceSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = persist-tcpserver",
+		"",
+		"[interfaces]",
+		"  [[PersistTCPServer]]",
+		"    type = TCPServerInterface",
+		"    enabled = yes",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	firstStats := decodeRNStatusJSONRNSD(t, firstJSON)
+	firstIfc := findInterfaceByShortNameRNSD(t, firstStats, "PersistTCPServer")
+	if typ, _ := firstIfc["type"].(string); typ != "TCPServerInterface" {
+		t.Fatalf("expected first type=TCPServerInterface, got %#v", firstIfc["type"])
+	}
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)
+	secondIfc := findInterfaceByShortNameRNSD(t, secondStats, "PersistTCPServer")
+	if typ, _ := secondIfc["type"].(string); typ != "TCPServerInterface" {
+		t.Fatalf("expected second type=TCPServerInterface, got %#v", secondIfc["type"])
+	}
+}
+
+func TestRNSDIntegration_Persistence_TCPClientInterfaceSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+
+	dummyLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen dummy tcp server: %v", err)
+	}
+	defer dummyLn.Close()
+	go func() {
+		for {
+			conn, err := dummyLn.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	targetPort := dummyLn.Addr().(*net.TCPAddr).Port
+
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = persist-tcpclient",
+		"",
+		"[interfaces]",
+		"  [[PersistTCPClient]]",
+		"    type = TCPClientInterface",
+		"    enabled = yes",
+		"    target_host = 127.0.0.1",
+		"    target_port = " + strconv.Itoa(targetPort),
+		"    connect_timeout = 0.1",
+		"    reconnect_wait = 0.1",
+		"    max_reconnect_tries = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	firstCmd, firstOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	firstJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, firstOut.String()+firstJSON, 0)
+	firstStats := decodeRNStatusJSONRNSD(t, firstJSON)
+	firstIfc := findInterfaceByShortNameRNSD(t, firstStats, "PersistTCPClient")
+	if typ, _ := firstIfc["type"].(string); typ != "TCPClientInterface" {
+		t.Fatalf("expected first type=TCPClientInterface, got %#v", firstIfc["type"])
+	}
+	stopRNSDService(t, firstCmd)
+
+	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	defer stopRNSDService(t, secondCmd)
+	secondJSON := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
+	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)
+	secondIfc := findInterfaceByShortNameRNSD(t, secondStats, "PersistTCPClient")
+	if typ, _ := secondIfc["type"].(string); typ != "TCPClientInterface" {
+		t.Fatalf("expected second type=TCPClientInterface, got %#v", secondIfc["type"])
 	}
 }
