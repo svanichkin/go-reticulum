@@ -843,7 +843,11 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 				}
 				decrypted, ratchetID, err = d.identity.DecryptWithRatchetID(ciphertext, d.ratchets, d.enforceRatchets)
 				if err != nil || decrypted == nil {
-					Log("Decryption still failing after ratchet reload. "+err.Error(), LOG_ERROR)
+					if err != nil {
+						Log("Decryption still failing after ratchet reload. "+err.Error(), LOG_ERROR)
+					} else {
+						Log("Decryption still failing after ratchet reload.", LOG_ERROR)
+					}
 					return nil
 				}
 				Log("Decryption succeeded after ratchet reload", LOG_NOTICE)
