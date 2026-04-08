@@ -110,6 +110,25 @@ func decodeRNStatusJSONRNSD(t *testing.T, out string) map[string]any {
 	return data
 }
 
+func findInterfaceByShortNameRNSD(t *testing.T, stats map[string]any, shortName string) map[string]any {
+	t.Helper()
+	raw, ok := stats["interfaces"].([]any)
+	if !ok {
+		t.Fatalf("interfaces missing or wrong type: %T", stats["interfaces"])
+	}
+	for _, entry := range raw {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m["short_name"].(string); got == shortName {
+			return m
+		}
+	}
+	t.Fatalf("interface %q not found in rnstatus output: %#v", shortName, stats["interfaces"])
+	return nil
+}
+
 func TestRNSDIntegration_ExampleConfig(t *testing.T) {
 	root := t.TempDir()
 	bin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
@@ -671,5 +690,398 @@ func TestRNSDIntegration_CoreRemoteManagementDeniedIdentityFails(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "could not get RNS status") {
 		t.Fatalf("unexpected denied remote management output:\n%s", res.Output)
+	}
+}
+
+func TestRNSDIntegration_InterfaceCommonEnabledGatingVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-common-enabled",
+		"",
+		"[interfaces]",
+		"  [[DisabledUDP]]",
+		"    type = UDPInterface",
+		"    enabled = no",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"  [[EnabledUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	enabled := findInterfaceByShortNameRNSD(t, stats, "EnabledUDP")
+	if _, ok := enabled["short_name"].(string); !ok {
+		t.Fatalf("expected EnabledUDP interface entry in rnstatus output")
+	}
+
+	raw := stats["interfaces"].([]any)
+	for _, entry := range raw {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m["short_name"].(string); got == "DisabledUDP" {
+			t.Fatalf("disabled interface unexpectedly present in rnstatus output: %#v", m)
+		}
+	}
+}
+
+func TestRNSDIntegration_InterfaceCommonModeBitrateIFACAndNetnameVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-common-visible",
+		"",
+		"[interfaces]",
+		"  [[VisibleUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    mode = gateway",
+		"    bitrate = 12345",
+		"    ifac_size = 24",
+		"    networkname = testnet",
+		"    passphrase = testpass",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "VisibleUDP")
+
+	if status, _ := ifc["status"].(bool); !status {
+		t.Fatalf("expected VisibleUDP status=true, got %#v", ifc["status"])
+	}
+	if bitrate, _ := ifc["bitrate"].(float64); int(bitrate) != 12345 {
+		t.Fatalf("expected bitrate=12345, got %#v", ifc["bitrate"])
+	}
+	if size, _ := ifc["ifac_size"].(float64); int(size) != 24 {
+		t.Fatalf("expected ifac_size=24, got %#v", ifc["ifac_size"])
+	}
+	if netname, _ := ifc["ifac_netname"].(string); netname != "testnet" {
+		t.Fatalf("expected ifac_netname=testnet, got %#v", ifc["ifac_netname"])
+	}
+	if mode, _ := ifc["mode"].(float64); int(mode) != rns.InterfaceModeGateway {
+		t.Fatalf("expected mode=%d, got %#v", rns.InterfaceModeGateway, ifc["mode"])
+	}
+}
+
+func TestRNSDIntegration_InterfaceCommonAnnounceSettingsAcceptedAtStartup(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-common-announce",
+		"",
+		"[interfaces]",
+		"  [[AnnounceUDP]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    announce_cap = 50",
+		"    announce_rate_target = 10",
+		"    announce_rate_grace = 2",
+		"    announce_rate_penalty = 5",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "AnnounceUDP")
+	if _, ok := ifc["announce_queue"]; !ok {
+		t.Fatalf("expected announce_queue field in rnstatus output: %#v", ifc)
+	}
+	if _, ok := ifc["held_announces"]; !ok {
+		t.Fatalf("expected held_announces field in rnstatus output: %#v", ifc)
+	}
+}
+
+func TestRNSDIntegration_InterfaceCommonAliasKeysAcceptedAtStartup(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-common-aliases",
+		"",
+		"[interfaces]",
+		"  [[AliasDisabled]]",
+		"    type = UDPInterface",
+		"    interface_enabled = no",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"  [[AliasVisible]]",
+		"    type = UDPInterface",
+		"    interface_enabled = yes",
+		"    selected_interface_mode = gateway",
+		"    configured_bitrate = 23456",
+		"    ifac_size = 12",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"  [[AliasVisibleTwo]]",
+		"    type = UDPInterface",
+		"    interface_enabled = yes",
+		"    interface_mode = gateway",
+		"    configured_bitrate = 34567",
+		"    ifac_size = 14",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	visibleOne := findInterfaceByShortNameRNSD(t, stats, "AliasVisible")
+	if mode, _ := visibleOne["mode"].(float64); int(mode) != rns.InterfaceModeGateway {
+		t.Fatalf("expected AliasVisible mode=%d, got %#v", rns.InterfaceModeGateway, visibleOne["mode"])
+	}
+	if bitrate, _ := visibleOne["bitrate"].(float64); int(bitrate) != 23456 {
+		t.Fatalf("expected AliasVisible bitrate=23456, got %#v", visibleOne["bitrate"])
+	}
+	if size, _ := visibleOne["ifac_size"].(float64); int(size) != 12 {
+		t.Fatalf("expected AliasVisible ifac_size=12, got %#v", visibleOne["ifac_size"])
+	}
+
+	visibleTwo := findInterfaceByShortNameRNSD(t, stats, "AliasVisibleTwo")
+	if mode, _ := visibleTwo["mode"].(float64); int(mode) != rns.InterfaceModeGateway {
+		t.Fatalf("expected AliasVisibleTwo mode=%d, got %#v", rns.InterfaceModeGateway, visibleTwo["mode"])
+	}
+	if bitrate, _ := visibleTwo["bitrate"].(float64); int(bitrate) != 34567 {
+		t.Fatalf("expected AliasVisibleTwo bitrate=34567, got %#v", visibleTwo["bitrate"])
+	}
+	if size, _ := visibleTwo["ifac_size"].(float64); int(size) != 14 {
+		t.Fatalf("expected AliasVisibleTwo ifac_size=14, got %#v", visibleTwo["ifac_size"])
+	}
+
+	raw := stats["interfaces"].([]any)
+	for _, entry := range raw {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m["short_name"].(string); got == "AliasDisabled" {
+			t.Fatalf("disabled alias interface unexpectedly present in rnstatus output: %#v", m)
+		}
+	}
+}
+
+func TestRNSDIntegration_InterfaceDriverUDPVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-udp",
+		"",
+		"[interfaces]",
+		"  [[UDPDriver]]",
+		"    type = UDPInterface",
+		"    enabled = yes",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"    forward_ip = 127.0.0.1",
+		"    forward_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "UDPDriver")
+	if typ, _ := ifc["type"].(string); typ != "UDPInterface" {
+		t.Fatalf("expected type=UDPInterface, got %#v", ifc["type"])
+	}
+}
+
+func TestRNSDIntegration_InterfaceDriverTCPServerVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-tcpserver",
+		"",
+		"[interfaces]",
+		"  [[TCPServerDriver]]",
+		"    type = TCPServerInterface",
+		"    enabled = yes",
+		"    listen_ip = 127.0.0.1",
+		"    listen_port = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "TCPServerDriver")
+	if typ, _ := ifc["type"].(string); typ != "TCPServerInterface" {
+		t.Fatalf("expected type=TCPServerInterface, got %#v", ifc["type"])
+	}
+}
+
+func TestRNSDIntegration_InterfaceDriverTCPClientVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+
+	dummyLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen dummy tcp server: %v", err)
+	}
+	defer dummyLn.Close()
+	go func() {
+		conn, err := dummyLn.Accept()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}()
+	targetPort := dummyLn.Addr().(*net.TCPAddr).Port
+
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-tcpclient",
+		"",
+		"[interfaces]",
+		"  [[TCPClientDriver]]",
+		"    type = TCPClientInterface",
+		"    enabled = yes",
+		"    target_host = 127.0.0.1",
+		"    target_port = " + strconv.Itoa(targetPort),
+		"    connect_timeout = 0.1",
+		"    reconnect_wait = 0.1",
+		"    max_reconnect_tries = 0",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "TCPClientDriver")
+	if typ, _ := ifc["type"].(string); typ != "TCPClientInterface" {
+		t.Fatalf("expected type=TCPClientInterface, got %#v", ifc["type"])
+	}
+}
+
+func TestRNSDIntegration_InterfaceDriverPipeVisibleInStatus(t *testing.T) {
+	root := t.TempDir()
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNSD(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = if-driver-pipe",
+		"",
+		"[interfaces]",
+		"  [[PipeDriver]]",
+		"    type = PipeInterface",
+		"    enabled = yes",
+		"    command = /bin/cat",
+		"    respawn_delay = 0.1",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, out := startRNSDService(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNSD(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNSD(t, got)
+	ifc := findInterfaceByShortNameRNSD(t, stats, "PipeDriver")
+	if typ, _ := ifc["type"].(string); typ != "PipeInterface" {
+		t.Fatalf("expected type=PipeInterface, got %#v", ifc["type"])
+	}
+	if status, _ := ifc["status"].(bool); !status {
+		t.Fatalf("expected PipeDriver status=true, got %#v", ifc["status"])
 	}
 }
