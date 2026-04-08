@@ -4,115 +4,187 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/svanichkin/go-reticulum/internal/cmdtest"
 )
 
-func repoRootRNX(t *testing.T) string {
+func writeMinimalReticulumConfigRNX(t *testing.T, configDir string) {
 	t.Helper()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	dir := wd
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatalf("could not find repo root from %s", wd)
-		}
-		dir = parent
-	}
+	cmdtest.WriteReticulumConfig(t, configDir, strings.Join([]string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = No",
+		"",
+	}, "\n"))
 }
 
-func buildRNX(t *testing.T, binDir string) string {
+func skipIfReticulumUnavailableRNX(t *testing.T, out string, exitCode int) {
 	t.Helper()
-	name := "rnx"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
+	if exitCode == 1 && (strings.Contains(out, "listen error:") || strings.Contains(out, "operation not permitted")) {
+		t.Skipf("environment does not allow Reticulum startup; skipping rnx integration test\n%s", out)
 	}
-	out := filepath.Join(binDir, name)
-	gocache := filepath.Join(binDir, ".gocache")
-	gotmp := filepath.Join(binDir, ".gotmp")
-	_ = os.MkdirAll(gocache, 0o755)
-	_ = os.MkdirAll(gotmp, 0o755)
-	cmd := exec.Command("go", "build", "-o", out, "./cmd/rnx")
-	cmd.Dir = repoRootRNX(t)
-	cmd.Env = append(os.Environ(),
-		"GOCACHE="+gocache,
-		"GOTMPDIR="+gotmp,
-	)
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("build rnx: %v", err)
+	if exitCode == 241 && (strings.Contains(out, "Could not initialise Reticulum") || strings.Contains(out, "operation not permitted")) {
+		t.Skipf("environment does not allow Reticulum startup; skipping rnx integration test\n%s", out)
 	}
-	return out
-}
-
-func runRNX(t *testing.T, ctx context.Context, bin, configDir, workDir string, args ...string) (string, int) {
-	t.Helper()
-	c := exec.CommandContext(ctx, bin, args...)
-	c.Dir = workDir
-	home := filepath.Join(configDir, ".home")
-	_ = os.MkdirAll(home, 0o755)
-	c.Env = append(os.Environ(),
-		"HOME="+home,
-		"USERPROFILE="+home,
-	)
-	out, err := c.CombinedOutput()
-	if err == nil {
-		return string(out), 0
-	}
-	if ee, ok := err.(*exec.ExitError); ok {
-		return string(out), ee.ExitCode()
-	}
-	t.Fatalf("run rnx: %v\n%s", err, string(out))
-	return "", -1
 }
 
 func TestRNXIntegration_HelpAndVersion(t *testing.T) {
 	root := t.TempDir()
-	bin := buildRNX(t, root)
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	out, code := runRNX(t, ctx, bin, root, root, "--help")
-	if code != 0 {
-		t.Fatalf("help exit=%d\n%s", code, out)
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--help")
+	if res.ExitCode != 0 {
+		t.Fatalf("help exit=%d\n%s", res.ExitCode, res.Output)
 	}
-	if !strings.Contains(out, "Reticulum Remote Execution Utility") {
-		t.Fatalf("unexpected help output:\n%s", out)
+	if !strings.Contains(res.Output, "Reticulum Remote Execution Utility") {
+		t.Fatalf("unexpected help output:\n%s", res.Output)
 	}
 
-	out, code = runRNX(t, ctx, bin, root, root, "--version")
-	if code != 0 {
-		t.Fatalf("version exit=%d\n%s", code, out)
+	res = cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--version")
+	if res.ExitCode != 0 {
+		t.Fatalf("version exit=%d\n%s", res.ExitCode, res.Output)
 	}
-	if !strings.HasPrefix(out, "rnx ") {
-		t.Fatalf("unexpected version output: %q", out)
+	if !strings.HasPrefix(res.Output, "rnx ") {
+		t.Fatalf("unexpected version output: %q", res.Output)
 	}
 }
 
 func TestRNXIntegration_UnknownFlagExit2(t *testing.T) {
 	root := t.TempDir()
-	bin := buildRNX(t, root)
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	out, code := runRNX(t, ctx, bin, root, root, "--nope")
-	if code != 2 {
-		t.Fatalf("expected exit 2, got %d\n%s", code, out)
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: root, WorkDir: root}, "--nope")
+	if res.ExitCode != 2 {
+		t.Fatalf("expected exit 2, got %d\n%s", res.ExitCode, res.Output)
 	}
-	if !strings.Contains(out, "unrecognized arguments") {
-		t.Fatalf("unexpected output:\n%s", out)
+	if !strings.Contains(res.Output, "unrecognized arguments") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
 	}
 }
 
+func TestRNXIntegration_PrintIdentity(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "--print-identity")
+	skipIfReticulumUnavailableRNX(t, res.Output, res.ExitCode)
+	if res.ExitCode != 0 {
+		t.Fatalf("print-identity exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Identity     :") || !strings.Contains(res.Output, "Listening on :") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_ListenInvalidAllowedIdentityExit1(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "--listen", "-a", "abcd")
+	skipIfReticulumUnavailableRNX(t, res.Output, res.ExitCode)
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Allowed destination length is invalid") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_InvalidDestinationExit241(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "abcd", "echo hi")
+	if res.ExitCode != 241 {
+		t.Fatalf("expected exit 241, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Allowed destination length is invalid") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_PathNotFoundExit242(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root},
+		"--config", cfg, "--w", "0.2", strings.Repeat("0", 32), "echo hi")
+	skipIfReticulumUnavailableRNX(t, res.Output, res.ExitCode)
+	if res.ExitCode != 242 {
+		t.Fatalf("expected exit 242, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Path not found") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_InteractiveQuit(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{
+		ConfigDir: cfg,
+		WorkDir:   root,
+		Stdin:     strings.NewReader("quit\n"),
+	}, "--config", cfg, "--interactive", strings.Repeat("0", 32))
+	if res.ExitCode != 0 {
+		t.Fatalf("interactive quit exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "> ") {
+		t.Fatalf("expected prompt in output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_CountFlagsExpandWithPrintIdentity(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNX(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "-vvv", "-qq", "--print-identity")
+	skipIfReticulumUnavailableRNX(t, res.Output, res.ExitCode)
+	if res.ExitCode != 0 {
+		t.Fatalf("count-flags print-identity exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Identity     :") || !strings.Contains(res.Output, "Listening on :") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}

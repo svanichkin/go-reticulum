@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -206,6 +206,216 @@ func stopProcess(t *testing.T, c *exec.Cmd, buf *lockedBuffer) {
 		_ = <-done
 		t.Fatalf("listener did not exit; output:\n%s", buf.String())
 	case <-done:
+	}
+}
+
+func skipIfReticulumUnavailableRNCP(t *testing.T, out string, err error) {
+	t.Helper()
+	if strings.Contains(out, "Could not start Reticulum") ||
+		strings.Contains(out, "operation not permitted") ||
+		strings.Contains(out, "No interfaces could process") {
+		t.Skipf("environment does not allow Reticulum startup; skipping rncp integration test\nerr=%v\n%s", err, out)
+	}
+}
+
+func TestRNCPIntegration_HelpAndVersion(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	out, err := runRNCP(t, ctx, bin, root, root, "--help")
+	if err != nil {
+		t.Fatalf("help failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Reticulum File Transfer Utility") && !strings.Contains(out, "Usage:") {
+		t.Fatalf("unexpected help output:\n%s", out)
+	}
+
+	out, err = runRNCP(t, ctx, bin, root, root, "--version")
+	if err != nil {
+		t.Fatalf("version failed: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "rncp ") {
+		t.Fatalf("unexpected version output: %q", out)
+	}
+}
+
+func TestRNCPIntegration_PrintIdentity(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, "--print-identity")
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err != nil {
+		t.Fatalf("print-identity failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Identity     :") || !strings.Contains(out, "Listening on :") {
+		t.Fatalf("unexpected print-identity output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_PrintIdentityCorruptIdentityExit2(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	identityPath := filepath.Join(root, "bad.id")
+	if err := os.WriteFile(identityPath, []byte("bad-identity"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, "--identity", identityPath, "--print-identity")
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected corrupt identity error, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 {
+		t.Fatalf("expected exit 2, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "identity error") && !strings.Contains(out, "Could not load identity for rncp") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_ListenMissingSaveDirExit3(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, "--listen", "--save", filepath.Join(root, "missing"))
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected save-dir failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("expected exit 3, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Output directory not found") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_FetchMissingSaveDirExit3(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root,
+		"--config", configDir,
+		"--fetch",
+		"--save", filepath.Join(root, "missing"),
+		"file.txt",
+		strings.Repeat("0", 32),
+	)
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected fetch save-dir failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("expected exit 3, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Output directory not found") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_ListenInvalidAllowedIdentityExit1(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, "--listen", "-a", "abcd")
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected invalid allowed identity failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 {
+		t.Fatalf("expected exit 1, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Allowed destination length is invalid") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_SendFileNotFoundExit1(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, filepath.Join(root, "missing.txt"), strings.Repeat("0", 32))
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected missing file failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 {
+		t.Fatalf("expected exit 1, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "file not found") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_SendInvalidDestinationExit1(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	srcPath := filepath.Join(root, "hello.txt")
+	if err := os.WriteFile(srcPath, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, srcPath, "abcd")
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err == nil {
+		t.Fatalf("expected invalid destination failure, got success\n%s", out)
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 {
+		t.Fatalf("expected exit 1, got %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Allowed destination length is invalid") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNCPIntegration_CountFlagsExpand(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNCP(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	configDir := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfig(t, configDir)
+
+	out, err := runRNCP(t, ctx, bin, configDir, root, "--config", configDir, "-vvv", "-qq", "--print-identity")
+	skipIfReticulumUnavailableRNCP(t, out, err)
+	if err != nil {
+		t.Fatalf("count-flags print-identity failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Identity     :") || !strings.Contains(out, "Listening on :") {
+		t.Fatalf("unexpected output:\n%s", out)
 	}
 }
 

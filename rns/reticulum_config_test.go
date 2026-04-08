@@ -54,6 +54,50 @@ func TestReticulumApplyConfig_RPCKey_InvalidHex(t *testing.T) {
 	}
 }
 
+func TestReticulumApplyConfig_LinkMTUDiscovery(t *testing.T) {
+	maybeParallel(t)
+
+	prev := linkMTUDiscovery
+	t.Cleanup(func() { linkMTUDiscovery = prev })
+	linkMTUDiscovery = false
+
+	cfg, err := configobj.LoadReader(strings.NewReader(strings.Join([]string{
+		"[reticulum]",
+		"link_mtu_discovery = yes",
+	}, "\n")))
+	if err != nil {
+		t.Fatalf("LoadReader: %v", err)
+	}
+
+	r := &Reticulum{Config: cfg}
+	if err := r.applyConfig(); err != nil {
+		t.Fatalf("applyConfig: %v", err)
+	}
+	if !LinkMTUDiscovery() {
+		t.Fatalf("expected link MTU discovery enabled")
+	}
+}
+
+func TestReticulumApplyConfig_PanicOnInterfaceError(t *testing.T) {
+	maybeParallel(t)
+
+	cfg, err := configobj.LoadReader(strings.NewReader(strings.Join([]string{
+		"[reticulum]",
+		"panic_on_interface_error = yes",
+	}, "\n")))
+	if err != nil {
+		t.Fatalf("LoadReader: %v", err)
+	}
+
+	r := &Reticulum{Config: cfg}
+	if err := r.applyConfig(); err != nil {
+		t.Fatalf("applyConfig: %v", err)
+	}
+	if !r.PanicOnInterfaceError {
+		t.Fatalf("expected PanicOnInterfaceError=true")
+	}
+}
+
 func TestReticulumApplyConfig_RespondToProbes(t *testing.T) {
 	maybeParallel(t)
 
