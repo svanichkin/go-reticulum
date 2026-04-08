@@ -7,14 +7,18 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/svanichkin/go-reticulum/internal/cmdtest"
 	rns "github.com/svanichkin/go-reticulum/rns"
 )
 
@@ -153,6 +157,72 @@ func rememberPublicDestinationRNID(t *testing.T, configDir string, destinationHa
 	if err := rns.IdentitySaveKnownDestinations(); err != nil {
 		t.Fatalf("save known destinations: %v", err)
 	}
+}
+
+func writeReticulumConfigSharedRNID(t *testing.T, configDir string, lines []string) {
+	t.Helper()
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir configdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config"), []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+}
+
+func freeTCPPortRNID(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen ephemeral tcp port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+func startRNSDServiceRNID(t *testing.T, ctx context.Context, bin, cfg, workDir string) (*exec.Cmd, *bytes.Buffer) {
+	t.Helper()
+	c := exec.CommandContext(ctx, bin, "--config", cfg, "--service")
+	c.Dir = workDir
+	home := filepath.Join(cfg, ".home")
+	_ = os.MkdirAll(home, 0o755)
+	c.Env = append(os.Environ(),
+		"HOME="+home,
+		"USERPROFILE="+home,
+	)
+	var out bytes.Buffer
+	c.Stdout = &out
+	c.Stderr = &out
+	if err := c.Start(); err != nil {
+		t.Fatalf("start rnsd: %v", err)
+	}
+	t.Cleanup(func() {
+		if c.Process != nil {
+			_ = c.Process.Signal(syscall.SIGTERM)
+		}
+		_ = c.Wait()
+	})
+	return c, &out
+}
+
+func waitForRNStatusSuccessRNID(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		res := cmdtest.Run(t, ctx, rnstatusBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: workDir}, "--config", cfg, "--json")
+		cancel()
+		if res.ExitCode == 0 {
+			return res.Output
+		}
+		if !strings.Contains(res.Output, "no shared RNS instance available") &&
+			!strings.Contains(res.Output, "could not get RNS status") &&
+			!strings.Contains(res.Output, "operation not permitted") {
+			t.Fatalf("unexpected rnstatus failure while waiting for rnsd:\n%s", res.Output)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("rnstatus did not succeed within %s", timeout)
+	return ""
 }
 
 func TestRNIDIntegration_EncryptDecrypt_SignValidate(t *testing.T) {
@@ -915,6 +985,136 @@ func TestRNIDIntegration_AnnouncePublicOnlyIdentityExit33(t *testing.T) {
 		"--announce", "app.aspect",
 	)
 	skipIfReticulumUnavailable(t, out, code)
+	if code != 33 {
+		t.Fatalf("expected exit 33, got %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Cannot announce this destination, since the private key is not held") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNIDIntegration_SharedInstanceHashSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnidBin := buildRNID(t, root)
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigSharedRNID(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnid-shared-hash",
+		"",
+	})
+
+	identityPath := filepath.Join(root, "id")
+	out, code := runRNID(t, ctx, rnidBin, cfg, root, "--config", cfg, "--generate", identityPath)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("generate exit=%d\n%s", code, out)
+	}
+
+	_, serviceOut := startRNSDServiceRNID(t, ctx, rnsdBin, cfg, root)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, cfg, root, 10*time.Second)
+
+	out, code = runRNID(t, ctx, rnidBin, cfg, root,
+		"--config", cfg,
+		"--identity", identityPath,
+		"--hash", "app.aspect",
+	)
+	skipIfReticulumUnavailable(t, serviceOut.String()+out, code)
+	if code != 0 {
+		t.Fatalf("hash exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "The app.aspect destination for this Identity is") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNIDIntegration_SharedInstanceTCPAnnounceSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnidBin := buildRNID(t, root)
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	cfg := filepath.Join(root, "cfg")
+	packetPort := freeTCPPortRNID(t)
+	controlPort := freeTCPPortRNID(t)
+	writeReticulumConfigSharedRNID(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = " + strconv.Itoa(packetPort),
+		"instance_control_port = " + strconv.Itoa(controlPort),
+		"",
+	})
+
+	identityPath := filepath.Join(root, "id")
+	out, code := runRNID(t, ctx, rnidBin, cfg, root, "--config", cfg, "--generate", identityPath)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("generate exit=%d\n%s", code, out)
+	}
+
+	_, serviceOut := startRNSDServiceRNID(t, ctx, rnsdBin, cfg, root)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, cfg, root, 10*time.Second)
+
+	out, code = runRNID(t, ctx, rnidBin, cfg, root,
+		"--config", cfg,
+		"--identity", identityPath,
+		"--announce", "app.aspect",
+	)
+	skipIfReticulumUnavailable(t, serviceOut.String()+out, code)
+	if code != 0 {
+		t.Fatalf("announce exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Created destination") || !strings.Contains(out, "Announcing destination") {
+		t.Fatalf("unexpected output:\n%s", out)
+	}
+}
+
+func TestRNIDIntegration_SharedInstancePublicOnlyAnnounceExit33(t *testing.T) {
+	root := t.TempDir()
+	rnidBin := buildRNID(t, root)
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigSharedRNID(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnid-shared-public-only",
+		"",
+	})
+
+	id, err := rns.NewIdentity()
+	if err != nil {
+		t.Fatalf("new identity: %v", err)
+	}
+	dst, err := rns.NewDestination(id, rns.DestinationIN, rns.DestinationSINGLE, "app", "aspect")
+	if err != nil {
+		t.Fatalf("new destination: %v", err)
+	}
+	rememberPublicDestinationRNID(t, cfg, dst.Hash(), id.GetPublicKey())
+
+	_, serviceOut := startRNSDServiceRNID(t, ctx, rnsdBin, cfg, root)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, cfg, root, 10*time.Second)
+
+	out, code := runRNID(t, ctx, rnidBin, cfg, root,
+		"--config", cfg,
+		"--identity", hex.EncodeToString(dst.Hash()),
+		"--announce", "app.aspect",
+	)
+	skipIfReticulumUnavailable(t, serviceOut.String()+out, code)
 	if code != 33 {
 		t.Fatalf("expected exit 33, got %d\n%s", code, out)
 	}

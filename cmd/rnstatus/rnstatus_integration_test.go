@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -29,6 +31,16 @@ func skipIfReticulumUnavailableRNStatus(t *testing.T, out string, exitCode int) 
 	if exitCode == 1 && (strings.Contains(out, "Error starting rnsd") || strings.Contains(out, "operation not permitted")) {
 		t.Skipf("environment does not allow Reticulum startup; skipping rnstatus integration test\n%s", out)
 	}
+}
+
+func freeTCPPortRNStatus(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen ephemeral tcp port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 func startRNSDServiceRNStatus(t *testing.T, ctx context.Context, bin, cfg, workDir string) (*exec.Cmd, *bytes.Buffer) {
@@ -174,6 +186,74 @@ func TestRNStatusIntegration_CoreSharedInstanceJSONSuccess(t *testing.T) {
 	stats := decodeRNStatusJSONRNStatus(t, got)
 	if _, ok := stats["interfaces"]; !ok {
 		t.Fatalf("expected interfaces in rnstatus output:\n%s", got)
+	}
+}
+
+func TestRNStatusIntegration_SharedInstanceTCPJSONSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	packetPort := freeTCPPortRNStatus(t)
+	controlPort := freeTCPPortRNStatus(t)
+	writeReticulumConfigRNStatus(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = " + strconv.Itoa(packetPort),
+		"instance_control_port = " + strconv.Itoa(controlPort),
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNStatus(t, ctx, rnsdBin, cfg, root)
+	got := waitForRNStatusSuccessRNStatus(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNStatus(t, out.String()+got, 0)
+
+	stats := decodeRNStatusJSONRNStatus(t, got)
+	if _, ok := stats["interfaces"]; !ok {
+		t.Fatalf("expected interfaces in rnstatus output:\n%s", got)
+	}
+}
+
+func TestRNStatusIntegration_SharedInstanceDifferentNamesIsolation(t *testing.T) {
+	root := t.TempDir()
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfgA := filepath.Join(root, "cfg-a")
+	cfgB := filepath.Join(root, "cfg-b")
+	writeReticulumConfigRNStatus(t, cfgA, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnstatus-a",
+		"",
+	})
+	writeReticulumConfigRNStatus(t, cfgB, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnstatus-b",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	_, outA := startRNSDServiceRNStatus(t, ctx, rnsdBin, cfgA, root)
+	_, outB := startRNSDServiceRNStatus(t, ctx, rnsdBin, cfgB, root)
+	gotA := waitForRNStatusSuccessRNStatus(t, rnstatusBin, cfgA, root, 10*time.Second)
+	gotB := waitForRNStatusSuccessRNStatus(t, rnstatusBin, cfgB, root, 10*time.Second)
+	skipIfReticulumUnavailableRNStatus(t, outA.String()+outB.String()+gotA+gotB, 0)
+
+	if strings.Contains(outA.String(), "connected to another shared local instance") {
+		t.Fatalf("instance A connected to another instance unexpectedly:\n%s", outA.String())
+	}
+	if strings.Contains(outB.String(), "connected to another shared local instance") {
+		t.Fatalf("instance B connected to another instance unexpectedly:\n%s", outB.String())
 	}
 }
 

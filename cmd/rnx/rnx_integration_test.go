@@ -3,9 +3,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"net"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -30,6 +36,67 @@ func skipIfReticulumUnavailableRNX(t *testing.T, out string, exitCode int) {
 	if exitCode == 241 && (strings.Contains(out, "Could not initialise Reticulum") || strings.Contains(out, "operation not permitted")) {
 		t.Skipf("environment does not allow Reticulum startup; skipping rnx integration test\n%s", out)
 	}
+}
+
+func writeReticulumConfigRNX(t *testing.T, configDir string, lines []string) {
+	t.Helper()
+	cmdtest.WriteReticulumConfig(t, configDir, strings.Join(lines, "\n"))
+}
+
+func freeTCPPortRNX(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen ephemeral tcp port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+func startRNSDServiceRNX(t *testing.T, ctx context.Context, bin, cfg, workDir string) (*exec.Cmd, *bytes.Buffer) {
+	t.Helper()
+	c := exec.CommandContext(ctx, bin, "--config", cfg, "--service")
+	c.Dir = workDir
+	home := filepath.Join(cfg, ".home")
+	_ = os.MkdirAll(home, 0o755)
+	c.Env = append(os.Environ(),
+		"HOME="+home,
+		"USERPROFILE="+home,
+	)
+	var out bytes.Buffer
+	c.Stdout = &out
+	c.Stderr = &out
+	if err := c.Start(); err != nil {
+		t.Fatalf("start rnsd: %v", err)
+	}
+	t.Cleanup(func() {
+		if c.Process != nil {
+			_ = c.Process.Signal(syscall.SIGTERM)
+		}
+		_ = c.Wait()
+	})
+	return c, &out
+}
+
+func waitForRNStatusSuccessRNX(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		res := cmdtest.Run(t, ctx, rnstatusBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: workDir}, "--config", cfg, "--json")
+		cancel()
+		if res.ExitCode == 0 {
+			return res.Output
+		}
+		if !strings.Contains(res.Output, "no shared RNS instance available") &&
+			!strings.Contains(res.Output, "could not get RNS status") &&
+			!strings.Contains(res.Output, "operation not permitted") {
+			t.Fatalf("unexpected rnstatus failure while waiting for rnsd:\n%s", res.Output)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("rnstatus did not succeed within %s", timeout)
+	return ""
 }
 
 func TestRNXIntegration_HelpAndVersion(t *testing.T) {
@@ -85,6 +152,70 @@ func TestRNXIntegration_PrintIdentity(t *testing.T) {
 	skipIfReticulumUnavailableRNX(t, res.Output, res.ExitCode)
 	if res.ExitCode != 0 {
 		t.Fatalf("print-identity exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Identity     :") || !strings.Contains(res.Output, "Listening on :") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_SharedInstancePrintIdentity(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNX(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnx-shared-local",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNX(t, ctx, rnsdBin, cfg, root)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, cfg, root, 10*time.Second)
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "--print-identity")
+	skipIfReticulumUnavailableRNX(t, out.String()+res.Output, res.ExitCode)
+	if res.ExitCode != 0 {
+		t.Fatalf("shared-instance print-identity exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Identity     :") || !strings.Contains(res.Output, "Listening on :") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNXIntegration_SharedInstanceTCPPrintIdentity(t *testing.T) {
+	root := t.TempDir()
+	bin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	cfg := filepath.Join(root, "cfg")
+	packetPort := freeTCPPortRNX(t)
+	controlPort := freeTCPPortRNX(t)
+	writeReticulumConfigRNX(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = " + strconv.Itoa(packetPort),
+		"instance_control_port = " + strconv.Itoa(controlPort),
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNX(t, ctx, rnsdBin, cfg, root)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, cfg, root, 10*time.Second)
+
+	res := cmdtest.Run(t, ctx, bin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root}, "--config", cfg, "--print-identity")
+	skipIfReticulumUnavailableRNX(t, out.String()+res.Output, res.ExitCode)
+	if res.ExitCode != 0 {
+		t.Fatalf("shared-instance tcp print-identity exit=%d\n%s", res.ExitCode, res.Output)
 	}
 	if !strings.Contains(res.Output, "Identity     :") || !strings.Contains(res.Output, "Listening on :") {
 		t.Fatalf("unexpected output:\n%s", res.Output)

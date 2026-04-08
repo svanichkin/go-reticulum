@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -41,6 +43,16 @@ func skipIfReticulumUnavailableRNPath(t *testing.T, out string, exitCode int) {
 func writeReticulumConfigRNPath(t *testing.T, configDir string, lines []string) {
 	t.Helper()
 	cmdtest.WriteReticulumConfig(t, configDir, strings.Join(lines, "\n"))
+}
+
+func freeTCPPortRNPath(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen ephemeral tcp port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 func startRNSDServiceRNPath(t *testing.T, ctx context.Context, bin, cfg, workDir string) (*exec.Cmd, *bytes.Buffer) {
@@ -142,6 +154,109 @@ func TestRNPathIntegration_DropAnnouncesLocal(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "Dropping announce queues on all interfaces") {
 		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNPathIntegration_SharedInstanceTableJSONSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNPath(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnpath-shared-local",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNPath(t, ctx, rnsdBin, cfg, root)
+	localJSON := waitForRNStatusSuccessRNPath(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNPath(t, out.String()+localJSON, 0)
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root},
+		"--config", cfg, "--table", "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("expected shared-instance rnpath success, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if strings.TrimSpace(res.Output) != "[]" {
+		t.Fatalf("expected empty path table, got:\n%s", res.Output)
+	}
+}
+
+func TestRNPathIntegration_SharedInstanceDropAnnouncesSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	writeReticulumConfigRNPath(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"instance_name = rnpath-shared-drop",
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNPath(t, ctx, rnsdBin, cfg, root)
+	localJSON := waitForRNStatusSuccessRNPath(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNPath(t, out.String()+localJSON, 0)
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root},
+		"--config", cfg, "--drop-announces")
+	if res.ExitCode != 0 {
+		t.Fatalf("expected shared-instance rnpath drop-announces success, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Dropping announce queues on all interfaces") {
+		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNPathIntegration_SharedInstanceTCPTableJSONSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	cfg := filepath.Join(root, "cfg")
+	packetPort := freeTCPPortRNPath(t)
+	controlPort := freeTCPPortRNPath(t)
+	writeReticulumConfigRNPath(t, cfg, []string{
+		"[reticulum]",
+		"enable_transport = False",
+		"share_instance = Yes",
+		"shared_instance_type = tcp",
+		"shared_instance_port = " + strconv.Itoa(packetPort),
+		"instance_control_port = " + strconv.Itoa(controlPort),
+		"",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, out := startRNSDServiceRNPath(t, ctx, rnsdBin, cfg, root)
+	localJSON := waitForRNStatusSuccessRNPath(t, rnstatusBin, cfg, root, 10*time.Second)
+	skipIfReticulumUnavailableRNPath(t, out.String()+localJSON, 0)
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: root},
+		"--config", cfg, "--table", "--json")
+	if res.ExitCode != 0 {
+		t.Fatalf("expected shared-instance tcp rnpath success, got %d\n%s", res.ExitCode, res.Output)
+	}
+	if strings.TrimSpace(res.Output) != "[]" {
+		t.Fatalf("expected empty path table, got:\n%s", res.Output)
 	}
 }
 
