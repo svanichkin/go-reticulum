@@ -99,6 +99,46 @@ func waitForRNStatusSuccessRNProbe(t *testing.T, rnstatusBin, cfg, workDir strin
 	return ""
 }
 
+func writeTwoNodeTemplateConfigRNProbe(t *testing.T, dstDir, templatePath string, sharedPort, controlPort, listenPort, forwardPort int) {
+	t.Helper()
+	bodyBytes, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read template config: %v", err)
+	}
+	body := string(bodyBytes)
+	replacements := map[string]string{
+		"shared_instance_port = 37430":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37431": "instance_control_port = " + strconv.Itoa(controlPort),
+		"shared_instance_port = 37432":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37433": "instance_control_port = " + strconv.Itoa(controlPort),
+		"listen_port = 50000":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50001":          "forward_port = " + strconv.Itoa(forwardPort),
+		"listen_port = 50001":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50000":          "forward_port = " + strconv.Itoa(forwardPort),
+	}
+	for old, newVal := range replacements {
+		body = strings.ReplaceAll(body, old, newVal)
+	}
+	cmdtest.WriteReticulumConfig(t, dstDir, body)
+}
+
+func extractProbeHashFromRNStatusRNProbe(t *testing.T, out string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, "Probe responder at") || !strings.Contains(line, "active") {
+			continue
+		}
+		start := strings.Index(line, "<")
+		end := strings.Index(line, ">")
+		if start >= 0 && end > start {
+			return line[start+1 : end]
+		}
+	}
+	t.Fatalf("could not extract probe responder hash from rnstatus output:\n%s", out)
+	return ""
+}
+
 func TestRNProbeIntegration_InvalidArgsExit0(t *testing.T) {
 	root := t.TempDir()
 	bin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
@@ -290,5 +330,133 @@ func TestRNProbeIntegration_SharedInstanceTCPPathTimeoutExit1(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "Path request timed out") {
 		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNProbeIntegration_TwoNodeUDPSuccess(t *testing.T) {
+	root := t.TempDir()
+	rnprobeBin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+
+	basePort := freeTCPPortRNProbe(t)
+	sharedA := freeTCPPortRNProbe(t)
+	controlA := freeTCPPortRNProbe(t)
+	sharedB := freeTCPPortRNProbe(t)
+	controlB := freeTCPPortRNProbe(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNProbe(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1)
+	writeTwoNodeTemplateConfigRNProbe(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmdA, outA := startRNSDServiceRNProbe(t, ctx, rnsdBin, nodeADir, root)
+	defer func() {
+		if cmdA.Process != nil {
+			_ = cmdA.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdA.Wait()
+	}()
+	cmdB, outB := startRNSDServiceRNProbe(t, ctx, rnsdBin, nodeBDir, root)
+	defer func() {
+		if cmdB.Process != nil {
+			_ = cmdB.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdB.Wait()
+	}()
+
+	_ = waitForRNStatusSuccessRNProbe(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNProbe(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer statusCancel()
+	statusRes := cmdtest.Run(t, statusCtx, rnstatusBin, cmdtest.RunOptions{ConfigDir: nodeBDir, WorkDir: root},
+		"--config", nodeBDir, "-a")
+	if statusRes.ExitCode != 0 {
+		skipIfReticulumUnavailableRNProbe(t, outA.String()+outB.String()+statusRes.Output, statusRes.ExitCode)
+		t.Fatalf("rnstatus on node B failed: %d\n%s", statusRes.ExitCode, statusRes.Output)
+	}
+	probeHash := extractProbeHashFromRNStatusRNProbe(t, statusRes.Output)
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnprobeBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+		"--config", nodeADir, "-n", "3", "-w", "0.2", "-t", "15", "rnstransport.probe", probeHash)
+	skipIfReticulumUnavailableRNProbe(t, outA.String()+outB.String()+res.Output, res.ExitCode)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected rnprobe success, got %d\nnodeA:\n%s\nnodeB:\n%s\nrnprobe:\n%s", res.ExitCode, outA.String(), outB.String(), res.Output)
+	}
+	if !strings.Contains(res.Output, "packet loss 0") {
+		t.Fatalf("expected successful probe summary, got:\n%s", res.Output)
+	}
+}
+
+func TestRNProbeIntegration_TwoNodeUDPRepeatedProbes(t *testing.T) {
+	root := t.TempDir()
+	rnprobeBin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+
+	basePort := freeTCPPortRNProbe(t)
+	sharedA := freeTCPPortRNProbe(t)
+	controlA := freeTCPPortRNProbe(t)
+	sharedB := freeTCPPortRNProbe(t)
+	controlB := freeTCPPortRNProbe(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNProbe(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1)
+	writeTwoNodeTemplateConfigRNProbe(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+
+	cmdA, outA := startRNSDServiceRNProbe(t, ctx, rnsdBin, nodeADir, root)
+	defer func() {
+		if cmdA.Process != nil {
+			_ = cmdA.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdA.Wait()
+	}()
+	cmdB, outB := startRNSDServiceRNProbe(t, ctx, rnsdBin, nodeBDir, root)
+	defer func() {
+		if cmdB.Process != nil {
+			_ = cmdB.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdB.Wait()
+	}()
+
+	_ = waitForRNStatusSuccessRNProbe(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNProbe(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer statusCancel()
+	statusRes := cmdtest.Run(t, statusCtx, rnstatusBin, cmdtest.RunOptions{ConfigDir: nodeBDir, WorkDir: root},
+		"--config", nodeBDir, "-a")
+	if statusRes.ExitCode != 0 {
+		skipIfReticulumUnavailableRNProbe(t, outA.String()+outB.String()+statusRes.Output, statusRes.ExitCode)
+		t.Fatalf("rnstatus on node B failed: %d\n%s", statusRes.ExitCode, statusRes.Output)
+	}
+	probeHash := extractProbeHashFromRNStatusRNProbe(t, statusRes.Output)
+
+	for i := 0; i < 2; i++ {
+		runCtx, runCancel := context.WithTimeout(context.Background(), 25*time.Second)
+		res := cmdtest.Run(t, runCtx, rnprobeBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+			"--config", nodeADir, "-n", "2", "-w", "0.2", "-t", "15", "rnstransport.probe", probeHash)
+		runCancel()
+		skipIfReticulumUnavailableRNProbe(t, outA.String()+outB.String()+res.Output, res.ExitCode)
+		if res.ExitCode != 0 {
+			t.Fatalf("probe run %d failed: %d\nnodeA:\n%s\nnodeB:\n%s\nrnprobe:\n%s", i+1, res.ExitCode, outA.String(), outB.String(), res.Output)
+		}
+		if !strings.Contains(res.Output, "packet loss 0") {
+			t.Fatalf("expected successful probe summary on run %d, got:\n%s", i+1, res.Output)
+		}
 	}
 }

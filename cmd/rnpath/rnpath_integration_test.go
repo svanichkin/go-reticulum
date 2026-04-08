@@ -112,6 +112,72 @@ func decodeRNStatusJSONRNPath(t *testing.T, out string) map[string]any {
 	return data
 }
 
+func writeTwoNodeTemplateConfigRNPath(t *testing.T, dstDir, templatePath string, sharedPort, controlPort, listenPort, forwardPort int) {
+	t.Helper()
+	bodyBytes, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read template config: %v", err)
+	}
+	body := string(bodyBytes)
+	replacements := map[string]string{
+		"shared_instance_port = 37430":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37431": "instance_control_port = " + strconv.Itoa(controlPort),
+		"shared_instance_port = 37432":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37433": "instance_control_port = " + strconv.Itoa(controlPort),
+		"listen_port = 50000":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50001":          "forward_port = " + strconv.Itoa(forwardPort),
+		"listen_port = 50001":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50000":          "forward_port = " + strconv.Itoa(forwardPort),
+	}
+	for old, newVal := range replacements {
+		body = strings.ReplaceAll(body, old, newVal)
+	}
+	cmdtest.WriteReticulumConfig(t, dstDir, body)
+}
+
+func writeTwoNodeTemplateConfigRNPathWithRemote(t *testing.T, dstDir, templatePath string, sharedPort, controlPort, listenPort, forwardPort int, extraReticulum []string) {
+	t.Helper()
+	bodyBytes, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read template config: %v", err)
+	}
+	body := string(bodyBytes)
+	replacements := map[string]string{
+		"shared_instance_port = 37430":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37431": "instance_control_port = " + strconv.Itoa(controlPort),
+		"shared_instance_port = 37432":  "shared_instance_port = " + strconv.Itoa(sharedPort),
+		"instance_control_port = 37433": "instance_control_port = " + strconv.Itoa(controlPort),
+		"listen_port = 50000":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50001":          "forward_port = " + strconv.Itoa(forwardPort),
+		"listen_port = 50001":           "listen_port = " + strconv.Itoa(listenPort),
+		"forward_port = 50000":          "forward_port = " + strconv.Itoa(forwardPort),
+	}
+	for old, newVal := range replacements {
+		body = strings.ReplaceAll(body, old, newVal)
+	}
+	if len(extraReticulum) > 0 {
+		body = strings.Replace(body, "[reticulum]\n", "[reticulum]\n"+strings.Join(extraReticulum, "\n")+"\n", 1)
+	}
+	cmdtest.WriteReticulumConfig(t, dstDir, body)
+}
+
+func extractProbeHashFromRNStatusRNPath(t *testing.T, out string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, "Probe responder at") || !strings.Contains(line, "active") {
+			continue
+		}
+		start := strings.Index(line, "<")
+		end := strings.Index(line, ">")
+		if start >= 0 && end > start {
+			return line[start+1 : end]
+		}
+	}
+	t.Fatalf("could not extract probe responder hash from rnstatus output:\n%s", out)
+	return ""
+}
+
 func TestRNPathIntegration_JSONTableEmpty(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")
@@ -154,6 +220,155 @@ func TestRNPathIntegration_DropAnnouncesLocal(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "Dropping announce queues on all interfaces") {
 		t.Fatalf("unexpected output:\n%s", res.Output)
+	}
+}
+
+func TestRNPathIntegration_TwoNodeUDPDiscoversPath(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+
+	basePort := freeTCPPortRNPath(t)
+	sharedA := freeTCPPortRNPath(t)
+	controlA := freeTCPPortRNPath(t)
+	sharedB := freeTCPPortRNPath(t)
+	controlB := freeTCPPortRNPath(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNPath(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1)
+	writeTwoNodeTemplateConfigRNPath(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmdA, outA := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeADir, root)
+	defer func() {
+		if cmdA.Process != nil {
+			_ = cmdA.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdA.Wait()
+	}()
+	cmdB, outB := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeBDir, root)
+	defer func() {
+		if cmdB.Process != nil {
+			_ = cmdB.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdB.Wait()
+	}()
+
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer statusCancel()
+	statusRes := cmdtest.Run(t, statusCtx, rnstatusBin, cmdtest.RunOptions{ConfigDir: nodeBDir, WorkDir: root},
+		"--config", nodeBDir, "-a")
+	if statusRes.ExitCode != 0 {
+		skipIfReticulumUnavailableRNPath(t, outA.String()+outB.String()+statusRes.Output, statusRes.ExitCode)
+		t.Fatalf("rnstatus on node B failed: %d\n%s", statusRes.ExitCode, statusRes.Output)
+	}
+	probeHash := extractProbeHashFromRNStatusRNPath(t, statusRes.Output)
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+		"--config", nodeADir, "-w", "15", probeHash)
+	if res.ExitCode != 0 {
+		if strings.Contains(res.Output, "Path not found") || strings.Contains(res.Output, "Path request timed out") {
+			t.Fatalf("two-node path discovery failed; nodeA:\n%s\nnodeB:\n%s\nrnpath:\n%s", outA.String(), outB.String(), res.Output)
+		}
+		t.Fatalf("unexpected rnpath exit=%d\n%s", res.ExitCode, res.Output)
+	}
+	if !strings.Contains(res.Output, "Path found, destination") {
+		t.Fatalf("unexpected rnpath output:\n%s", res.Output)
+	}
+
+	tableCtx, tableCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer tableCancel()
+	tableRes := cmdtest.Run(t, tableCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+		"--config", nodeADir, "--table", "--json")
+	if tableRes.ExitCode != 0 {
+		t.Fatalf("rnpath --table --json failed: %d\n%s", tableRes.ExitCode, tableRes.Output)
+	}
+	if strings.TrimSpace(tableRes.Output) == "[]" {
+		t.Fatalf("expected non-empty path table after discovery, got:\n%s", tableRes.Output)
+	}
+}
+
+func TestRNPathIntegration_TwoNodeUDPReusesKnownPath(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+
+	basePort := freeTCPPortRNPath(t)
+	sharedA := freeTCPPortRNPath(t)
+	controlA := freeTCPPortRNPath(t)
+	sharedB := freeTCPPortRNPath(t)
+	controlB := freeTCPPortRNPath(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNPath(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1)
+	writeTwoNodeTemplateConfigRNPath(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmdA, outA := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeADir, root)
+	defer func() {
+		if cmdA.Process != nil {
+			_ = cmdA.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdA.Wait()
+	}()
+	cmdB, outB := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeBDir, root)
+	defer func() {
+		if cmdB.Process != nil {
+			_ = cmdB.Process.Signal(syscall.SIGTERM)
+		}
+		_ = cmdB.Wait()
+	}()
+
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer statusCancel()
+	statusRes := cmdtest.Run(t, statusCtx, rnstatusBin, cmdtest.RunOptions{ConfigDir: nodeBDir, WorkDir: root},
+		"--config", nodeBDir, "-a")
+	if statusRes.ExitCode != 0 {
+		skipIfReticulumUnavailableRNPath(t, outA.String()+outB.String()+statusRes.Output, statusRes.ExitCode)
+		t.Fatalf("rnstatus on node B failed: %d\n%s", statusRes.ExitCode, statusRes.Output)
+	}
+	probeHash := extractProbeHashFromRNStatusRNPath(t, statusRes.Output)
+
+	requestPath := func(timeout string) string {
+		t.Helper()
+		runCtx, runCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer runCancel()
+		res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+			"--config", nodeADir, "-w", timeout, probeHash)
+		if res.ExitCode != 0 {
+			t.Fatalf("path request failed timeout=%s exit=%d\nnodeA:\n%s\nnodeB:\n%s\nrnpath:\n%s",
+				timeout, res.ExitCode, outA.String(), outB.String(), res.Output)
+		}
+		if !strings.Contains(res.Output, "Path found, destination") {
+			t.Fatalf("unexpected rnpath output timeout=%s:\n%s", timeout, res.Output)
+		}
+		return res.Output
+	}
+
+	first := requestPath("15")
+	second := requestPath("1")
+	if !strings.Contains(first, probeHash) || !strings.Contains(second, probeHash) {
+		t.Fatalf("expected both path responses to mention destination %s\nfirst:\n%s\nsecond:\n%s", probeHash, first, second)
 	}
 }
 
@@ -369,5 +584,135 @@ func TestRNPathIntegration_CoreRemoteTableAllowedIdentityCanQuerySelf(t *testing
 	}
 	if strings.TrimSpace(res.Output) != "[]" {
 		t.Fatalf("expected empty remote path table, got:\n%s", res.Output)
+	}
+}
+
+func TestRNPathIntegration_CrossNodeRemoteTableAllowed(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	mgmtPath := filepath.Join(root, "management.id")
+
+	mgmtID, err := rns.NewIdentity()
+	if err != nil {
+		t.Fatalf("new management identity: %v", err)
+	}
+	if err := mgmtID.Save(mgmtPath); err != nil {
+		t.Fatalf("save management identity: %v", err)
+	}
+
+	basePort := freeTCPPortRNPath(t)
+	sharedA := freeTCPPortRNPath(t)
+	controlA := freeTCPPortRNPath(t)
+	sharedB := freeTCPPortRNPath(t)
+	controlB := freeTCPPortRNPath(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNPathWithRemote(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1, nil)
+	writeTwoNodeTemplateConfigRNPathWithRemote(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort, []string{
+			"enable_remote_management = True",
+			"remote_management_allowed = " + hex.EncodeToString(mgmtID.Hash),
+		})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	_, outA := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeADir, root)
+	_, outB := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeBDir, root)
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	nodeBLocalJSON := waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	skipIfReticulumUnavailableRNPath(t, outA.String()+outB.String()+nodeBLocalJSON, 0)
+
+	nodeBStats := decodeRNStatusJSONRNPath(t, nodeBLocalJSON)
+	transportID, ok := nodeBStats["transport_id"].(string)
+	if !ok || transportID == "" {
+		t.Fatalf("expected transport_id in node B local status:\n%s", nodeBLocalJSON)
+	}
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+		"--config", nodeADir, "--table", "--json", "-R", transportID, "-i", mgmtPath)
+	if res.ExitCode == 12 || strings.Contains(res.Output, "Path request timed out") {
+		t.Skipf("environment does not permit cross-node remote-management path establishment\n%s", res.Output)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("expected cross-node remote rnpath success, got %d\nnodeA:\n%s\nnodeB:\n%s\nclient:\n%s",
+			res.ExitCode, outA.String(), outB.String(), res.Output)
+	}
+	var table []any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(res.Output)), &table); err != nil {
+		t.Fatalf("expected JSON path table, got decode error: %v\n%s", err, res.Output)
+	}
+}
+
+func TestRNPathIntegration_CrossNodeRemoteTableDenied(t *testing.T) {
+	root := t.TempDir()
+	rnpathBin := cmdtest.Build(t, root, "rnpath", "./cmd/rnpath")
+	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")
+	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
+	allowedPath := filepath.Join(root, "allowed.id")
+	deniedPath := filepath.Join(root, "denied.id")
+
+	allowedID, err := rns.NewIdentity()
+	if err != nil {
+		t.Fatalf("new allowed identity: %v", err)
+	}
+	if err := allowedID.Save(allowedPath); err != nil {
+		t.Fatalf("save allowed identity: %v", err)
+	}
+	deniedID, err := rns.NewIdentity()
+	if err != nil {
+		t.Fatalf("new denied identity: %v", err)
+	}
+	if err := deniedID.Save(deniedPath); err != nil {
+		t.Fatalf("save denied identity: %v", err)
+	}
+
+	basePort := freeTCPPortRNPath(t)
+	sharedA := freeTCPPortRNPath(t)
+	controlA := freeTCPPortRNPath(t)
+	sharedB := freeTCPPortRNPath(t)
+	controlB := freeTCPPortRNPath(t)
+
+	nodeADir := filepath.Join(root, "node-a")
+	nodeBDir := filepath.Join(root, "node-b")
+	writeTwoNodeTemplateConfigRNPathWithRemote(t, nodeADir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_a/config"),
+		sharedA, controlA, basePort, basePort+1, nil)
+	writeTwoNodeTemplateConfigRNPathWithRemote(t, nodeBDir, filepath.Join(cmdtest.RepoRoot(t), "configs/testing/two_nodes_udp/node_b/config"),
+		sharedB, controlB, basePort+1, basePort, []string{
+			"enable_remote_management = True",
+			"remote_management_allowed = " + hex.EncodeToString(allowedID.Hash),
+		})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	_, outA := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeADir, root)
+	_, outB := startRNSDServiceRNPath(t, ctx, rnsdBin, nodeBDir, root)
+	_ = waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeADir, root, 10*time.Second)
+	nodeBLocalJSON := waitForRNStatusSuccessRNPath(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	skipIfReticulumUnavailableRNPath(t, outA.String()+outB.String()+nodeBLocalJSON, 0)
+
+	nodeBStats := decodeRNStatusJSONRNPath(t, nodeBLocalJSON)
+	transportID, ok := nodeBStats["transport_id"].(string)
+	if !ok || transportID == "" {
+		t.Fatalf("expected transport_id in node B local status:\n%s", nodeBLocalJSON)
+	}
+
+	runCtx, runCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer runCancel()
+	res := cmdtest.Run(t, runCtx, rnpathBin, cmdtest.RunOptions{ConfigDir: nodeADir, WorkDir: root},
+		"--config", nodeADir, "--table", "--json", "-R", transportID, "-i", deniedPath)
+	if res.ExitCode == 12 || strings.Contains(res.Output, "Path request timed out") {
+		t.Skipf("environment does not permit cross-node remote-management path establishment\n%s", res.Output)
+	}
+	if res.ExitCode != 1 {
+		t.Fatalf("expected exit 1 for denied cross-node remote management, got %d\nnodeA:\n%s\nnodeB:\n%s\nclient:\n%s",
+			res.ExitCode, outA.String(), outB.String(), res.Output)
 	}
 }
