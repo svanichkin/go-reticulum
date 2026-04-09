@@ -1542,6 +1542,10 @@ func (r *Reticulum) startLocalInterface() error {
 			Log("Connected to shared instance LocalInterface packet socket", LogNotice)
 		}
 
+		// Python parity: once we switch to shared-client mode, transport-managed
+		// destinations such as the local probe responder must be removed.
+		configureControlDestinations()
+
 		return nil
 	}
 

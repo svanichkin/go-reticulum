@@ -2217,6 +2217,9 @@ func ensureProbeDestination() {
 		return
 	}
 	if !ProbeDestinationEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
+		if ProbeDestination != nil {
+			TransportDeregisterDestination(ProbeDestination)
+		}
 		ProbeDestination = nil
 		return
 	}
@@ -3367,12 +3370,9 @@ func Outbound(p *Packet) bool {
 			hops := entry.Hops
 
 			connectedShared := Owner != nil && Owner.IsConnectedToSharedInstance
-			// When the path has more than one hop, inject the packet into transport
-			// by rewriting to HEADER_2 with the next-hop transport ID.
-			// When connected to a shared instance, we also rewrite single-hop
-			// packets to HEADER_2 because rnsd does not forward plain HEADER_1
-			// packets from local clients to remote destinations.
-			if hops > 1 || connectedShared {
+			// Inject multi-hop packets into transport by rewriting to HEADER_2 with
+			// the next-hop transport ID. Single-hop packets are transmitted directly.
+			if hops > 1 {
 				// add transport header (HEADER_2 + next hop id)
 				Logf(LogNotice, "Outbound: path-based HEADER_2 rewrite (hops=%d, shared=%v, nextHop=%x, dest=%x, ifc=%s)",
 					hops, connectedShared, entry.NextHop, p.DestinationHash, outIfc)
@@ -3682,8 +3682,10 @@ func Inbound(raw []byte, ifc *Interface) {
 		}
 	}
 
-	// Reverse table forwarding (Python: return proofs and replies).
-	if p.Type != PacketAnnounce && p.DestinationType == DestSingle {
+	// Reverse table forwarding (Python: return replies and non-proof packets).
+	// Proof packets are handled separately below so they can use one-shot
+	// reverse-table routing semantics and interface validation.
+	if p.Type != PacketAnnounce && p.Type != PacketProof && p.DestinationType == DestSingle {
 		if forwardViaReverseTable(p, ifc) {
 			return
 		}
@@ -3739,12 +3741,10 @@ func Inbound(raw []byte, ifc *Interface) {
 
 	// ---- basic delivery pipeline (Destination/Link/Proof) ----
 
-	// ProofDestination packets are addressed to truncated packet hashes and are not registered Destinations.
+	// ProofDestination packets are addressed to truncated packet hashes and are
+	// not registered Destinations. Python transports matching proofs first and
+	// only then tries to validate outstanding local receipts.
 	if p.Type == PacketProof && p.DestinationType == DestSingle {
-		if handleInboundProof(p) {
-			return
-		}
-		// If this proof is not for us, try to forward via reverse table (Python behaviour).
 		if forwardProofViaReverseTable(p, ifc) {
 			return
 		}
@@ -3754,6 +3754,9 @@ func Inbound(raw []byte, ifc *Interface) {
 					Transmit(cif, p.Raw)
 				}
 			}
+			return
+		}
+		if handleInboundProof(p) {
 			return
 		}
 	}
@@ -3884,7 +3887,6 @@ func forwardDesignatedTransportPacket(p *Packet, receivedOn *Interface) bool {
 	default:
 		return false
 	}
-
 	// LINKREQUEST: create link table entry, else create reverse table entry.
 	if p.PacketType == PacketTypeLinkRequest {
 		linkID := linkIDFromLinkRequestPacket(p)
@@ -3911,6 +3913,7 @@ func forwardDesignatedTransportPacket(p *Packet, receivedOn *Interface) bool {
 			reverseTableMu.Lock()
 			reverseTable[key] = &reverseEntry{ReceivedIf: receivedOn, OutboundIf: entry.RecvInterface, Timestamp: time.Now()}
 			reverseTableMu.Unlock()
+			Logf(LogDebug, "Transport reverse add key=%x recv=%v out=%v dest=%x hops=%d", key, receivedOn, entry.RecvInterface, p.DestinationHash, p.Hops)
 		}
 	}
 
@@ -4085,13 +4088,31 @@ func forwardProofViaReverseTable(p *Packet, receivedOn *Interface) bool {
 	// Proofs are one-shot routed in Python; pop the entry.
 	delete(reverseTable, key)
 	reverseTableMu.Unlock()
+	Logf(LogDebug, "Transport proof reverse key=%x recv=%v entry_recv=%v entry_out=%v", key, receivedOn, func() any {
+		if entry == nil {
+			return nil
+		}
+		return entry.ReceivedIf
+	}(), func() any {
+		if entry == nil {
+			return nil
+		}
+		return entry.OutboundIf
+	}())
 	if entry == nil || entry.ReceivedIf == nil {
 		return false
 	}
-	if receivedOn != nil && entry.ReceivedIf == receivedOn {
+	if entry.OutboundIf != nil && receivedOn != nil && entry.OutboundIf != receivedOn {
+		Logf(LogDebug, "Transport proof reverse wrong inbound key=%x recv=%v expected=%v", key, receivedOn, entry.OutboundIf)
 		return false
 	}
-	Transmit(entry.ReceivedIf, p.Raw)
+	if receivedOn != nil && entry.ReceivedIf == receivedOn {
+		Logf(LogDebug, "Transport proof reverse loop key=%x recv=%v", key, receivedOn)
+		return false
+	}
+	outRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
+	Logf(LogDebug, "Transport proof reverse forward key=%x to=%v", key, entry.ReceivedIf)
+	Transmit(entry.ReceivedIf, outRaw)
 	return true
 }
 
@@ -4133,7 +4154,8 @@ func forwardViaReverseTable(p *Packet, receivedOn *Interface) bool {
 		return false
 	}
 
-	Transmit(outbound, p.Raw)
+	outRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
+	Transmit(outbound, outRaw)
 	return true
 }
 
@@ -4165,9 +4187,12 @@ func handleInboundProof(p *Packet) bool {
 			continue
 		}
 		if bytes.Equal(rc.TruncatedHash, p.DestinationHash) {
+			Logf(LogDebug, "Transport inbound proof candidate rc=%x proofdst=%x", rc.TruncatedHash, p.DestinationHash)
 			if rc.ValidateProofPacket(p) {
+				Logf(LogDebug, "Transport inbound proof validated rc=%x", rc.TruncatedHash)
 				return true
 			}
+			Logf(LogDebug, "Transport inbound proof validation failed rc=%x", rc.TruncatedHash)
 		}
 	}
 	return false
