@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -97,7 +98,8 @@ type Resource struct {
 	isResponse       bool
 
 	link *Link
-	// Python parity: HASHMAP_MAX_LEN/COLLISION_GUARD_SIZE depend on link MDU.
+	// Python parity: HASHMAP_MAX_LEN/COLLISION_GUARD_SIZE are global and based
+	// on Link.MDU, not per-link negotiated MDU.
 	hashmapMaxLen     int
 	collisionGuardLen int
 
@@ -402,11 +404,11 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 	res.waitingForHMU = false
 	res.receivingPart = false
 
-	res.hashmapMaxLen = resourceHashmapCapacityForLink(res.link)
+	res.hashmapMaxLen = HashmapMaxLen
 	if res.hashmapMaxLen <= 0 {
 		return nil, fmt.Errorf("the configured MTU is too small to include any map hashes in resource advertisements")
 	}
-	res.collisionGuardLen = 2*ResourceWindowMax + res.hashmapMaxLen
+	res.collisionGuardLen = CollisionGuardSize
 
 	prevWin := advPkt.Link.GetLastResourceWindow()
 	prevEIFR := advPkt.Link.GetLastResourceEIFR()
@@ -554,8 +556,14 @@ func NewResource(
 			res.segmentIndex = 1
 			res.split = false
 			buf := make([]byte, inputSize)
-			_, err = file.Read(buf)
-			if err != nil && err.Error() != "EOF" {
+			n, errRead := io.ReadFull(file, buf)
+			if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
+				return nil, errRead
+			}
+			if n < len(buf) {
+				buf = buf[:n]
+			}
+			if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 				return nil, err
 			}
 			segmentData = buf
@@ -589,8 +597,8 @@ func NewResource(
 				return nil, err
 			}
 			buf := make([]byte, readSize)
-			n, errRead := file.Read(buf)
-			if errRead != nil && errRead.Error() != "EOF" {
+			n, errRead := io.ReadFull(file, buf)
+			if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 				return nil, errRead
 			}
 			segmentData = buf[:n]
@@ -624,11 +632,11 @@ func NewResource(
 		res.timeout = *timeout
 	}
 
-	res.hashmapMaxLen = resourceHashmapCapacityForLink(res.link)
+	res.hashmapMaxLen = HashmapMaxLen
 	if res.hashmapMaxLen <= 0 {
 		return nil, fmt.Errorf("the configured MTU is too small to include any map hashes in resource advertisements")
 	}
-	res.collisionGuardLen = 2*ResourceWindowMax + res.hashmapMaxLen
+	res.collisionGuardLen = CollisionGuardSize
 
 	if fullData != nil {
 		res.initiator = true
@@ -676,11 +684,12 @@ func NewResource(
 		streamPrefix := IdentityGetRandomHash()[:RandomHashSize]
 		res.randomHash = IdentityGetRandomHash()[:RandomHashSize]
 
-		// Resource hash and expected proof are computed over the decrypted payload
-		// (without stream prefix), plus randomHash.
-		hashInput := append(append([]byte(nil), toSend...), res.randomHash...)
+		// Python parity: resource hash and expected proof are computed over the
+		// segment payload before optional compression, but after metadata has
+		// been prepended for the first segment.
+		hashInput := append(append([]byte(nil), fullData...), res.randomHash...)
 		res.hash = FullHash(hashInput)
-		proofInput := append(append([]byte(nil), toSend...), res.hash...)
+		proofInput := append(append([]byte(nil), fullData...), res.hash...)
 		res.expectedProof = FullHash(proofInput)
 
 		payload := append(streamPrefix, toSend...)
@@ -1254,6 +1263,11 @@ func (r *Resource) Prove(data []byte) {
 }
 
 func (r *Resource) handleIncomingCompletion() {
+	Log(fmt.Sprintf("Incoming resource segment %d/%d complete for %s", r.segmentIndex, r.totalSegments, r), LOG_DEBUG)
+	if r.link != nil {
+		r.link.ResourceConcluded(r)
+	}
+
 	if r.segmentIndex != r.totalSegments {
 		Log(fmt.Sprintf("Resource segment %d of %d received, waiting for next segment to be announced", r.segmentIndex, r.totalSegments), LOG_DEBUG)
 		return
@@ -1330,13 +1344,16 @@ func (r *Resource) ValidateProof(proofData []byte) {
 
 	hashLen := sha256Bits / 8
 	if len(proofData) != hashLen*2 {
+		Log(fmt.Sprintf("Ignoring resource proof with invalid length %d for %s", len(proofData), r), LOG_WARNING)
 		return
 	}
 
 	if !bytes.Equal(proofData[hashLen:], r.expectedProof) {
+		Log(fmt.Sprintf("Ignoring resource proof with mismatched digest for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_WARNING)
 		return
 	}
 
+	Log(fmt.Sprintf("Validated resource proof for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_WARNING)
 	r.status = ResourceComplete
 	if r.link != nil {
 		r.link.ResourceConcluded(r)
@@ -1352,6 +1369,7 @@ func (r *Resource) ValidateProof(proofData []byte) {
 		for r.nextSegment == nil {
 			time.Sleep(50 * time.Millisecond)
 		}
+		Log(fmt.Sprintf("Advertising next resource segment %d/%d for %s", r.nextSegment.segmentIndex, r.nextSegment.totalSegments, r.nextSegment), LOG_WARNING)
 		r.releaseSenderState()
 		r.nextSegment.Advertise()
 	}
@@ -1635,6 +1653,7 @@ func (r *Resource) Request(requestData []byte) {
 
 		if !partPkt.Sent {
 			partPkt.Send()
+			r.sentParts++
 		} else {
 			partPkt.Resend()
 		}
@@ -1644,8 +1663,6 @@ func (r *Resource) Request(requestData []byte) {
 			r.Cancel()
 			return
 		}
-
-		r.sentParts++
 		r.lastActivity = time.Now()
 		r.lastPartSent = r.lastActivity
 	}
@@ -1751,6 +1768,7 @@ func (r *Resource) Cancel() {
 	if r.status >= ResourceComplete {
 		return
 	}
+	Log(fmt.Sprintf("Cancelling resource %s (segment %d/%d, status=%d, initiator=%t)", r, r.segmentIndex, r.totalSegments, r.status, r.initiator), LOG_WARNING)
 	r.status = ResourceFailed
 
 	if r.initiator {
@@ -1962,11 +1980,6 @@ func NewResourceAdvertisementFromResource(r *Resource) ResourceAdvertisement {
 
 func (a ResourceAdvertisement) Pack(segment int) []byte {
 	segLen := HashmapMaxLen
-	if a.Link != nil {
-		if v := resourceHashmapCapacityForLink(a.Link); v > 0 {
-			segLen = v
-		}
-	}
 
 	hashmapStart := segment * segLen
 	hashmapEnd := hashmapStart + segLen

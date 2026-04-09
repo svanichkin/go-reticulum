@@ -2223,12 +2223,15 @@ func (l *Link) handleResourceData(packet *Packet) {
 func (l *Link) handleResourceProof(packet *Packet) {
 	hashLen := sha256Bits / 8
 	if len(packet.Data) < hashLen {
+		Log(fmt.Sprintf("Ignoring short resource proof on %s (len=%d)", l, len(packet.Data)), LOG_WARNING)
 		return
 	}
 	res := l.findOutgoingResource(packet.Data[:hashLen])
 	if res == nil {
+		Log(fmt.Sprintf("Resource proof on %s did not match any outgoing resource", l), LOG_WARNING)
 		return
 	}
+	Log(fmt.Sprintf("Matched resource proof on %s to %s", l, res), LOG_WARNING)
 	res.ValidateProof(packet.Data)
 }
 

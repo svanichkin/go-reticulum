@@ -3767,6 +3767,18 @@ func Inbound(raw []byte, ifc *Interface) {
 			link.Receive(p)
 			return
 		}
+		// Python parity: RESOURCE_PRF packets are delivered to active links before
+		// generic destination routing. In shared-instance mode, the active link can
+		// live in a local client rather than in this transport process, so forward
+		// unmatched resource proofs to local clients.
+		if p.Type == PacketProof && p.Context == PacketCtxResourcePrf && !fromLocal && len(LocalClientInterfaces) > 0 {
+			for _, cif := range LocalClientInterfaces {
+				if cif != nil && cif != ifc {
+					Transmit(cif, p.Raw)
+				}
+			}
+			return
+		}
 		// Not a local link; allow routing logic below to handle it.
 	}
 

@@ -188,6 +188,51 @@ extract_dest_hash() {
     | head -n 1
 }
 
+identity_output_ok() {
+  local path="$1"
+  rg -q "(Identity[[:space:]]*:|Public Key[[:space:]]*:)" "$path"
+}
+
+request_identity() {
+  local out="$1"
+  local home_dir="$2"
+  local rnid_cmd="$3"
+  local cfg_flag="$4"
+  local config_dir="$5"
+  local dest_hash="$6"
+  local timeout_secs="${7:-15}"
+
+  run_capture "$out" env HOME="$home_dir" USERPROFILE="$home_dir" \
+    $rnid_cmd $cfg_flag "$config_dir" -i "$dest_hash" -R -t "$timeout_secs" -p -q
+}
+
+wait_for_recall() {
+  local timeout_secs="$1"
+  local out="$2"
+  local home_dir="$3"
+  local rnid_cmd="$4"
+  local cfg_flag="$5"
+  local config_dir="$6"
+  local dest_hash="$7"
+
+  local start
+  start="$(date +%s)"
+  while true; do
+    local code
+    code="$(run_capture "$out" env HOME="$home_dir" USERPROFILE="$home_dir" \
+      $rnid_cmd $cfg_flag "$config_dir" -i "$dest_hash" -p -q)"
+    if [[ "$code" == "0" ]] && identity_output_ok "$out"; then
+      return 0
+    fi
+    local now
+    now="$(date +%s)"
+    if [[ $((now - start)) -ge "$timeout_secs" ]]; then
+      return 1
+    fi
+    sleep 0.25
+  done
+}
+
 generate_python_identity() {
   local config_dir="$1"
   local home_dir="$2"
@@ -418,24 +463,142 @@ run_pair() {
 
   local request_out="$OUT_DIR/${label}.request.out"
   local request_code
-  request_code="$(run_capture "$request_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnid_cmd_a $cfg_flag_a "$node_a_dir" -i "$dest_hash" -R -t 15 -p -q)"
-
-  stop_proc "$pid_a"
-  stop_proc "$pid_b"
+  request_code="$(request_identity "$request_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$dest_hash" 15)"
 
   if [[ "$request_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
     echo "[cmp] $label: request failed; see $request_out"
     return 1
   fi
-  if ! rg -q "(Identity[[:space:]]*:|Public Key[[:space:]]*:)" "$request_out"; then
+  if ! identity_output_ok "$request_out"; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
     echo "[cmp] $label: request output missing recalled identity details; see $request_out"
+    return 1
+  fi
+
+  local hash_one_out="$OUT_DIR/${label}.hash.one.out"
+  local hash_one_code
+  hash_one_code="$(run_capture "$hash_one_out" env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$remote_identity" -H app.one)"
+  if [[ "$hash_one_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: hash app.one failed; see $hash_one_out"
+    return 1
+  fi
+  local hash_one
+  hash_one="$(extract_dest_hash "$hash_one_out")"
+  if [[ -z "$hash_one" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: could not parse app.one hash; see $hash_one_out"
+    return 1
+  fi
+
+  local hash_two_out="$OUT_DIR/${label}.hash.two.out"
+  local hash_two_code
+  hash_two_code="$(run_capture "$hash_two_out" env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$remote_identity" -H app.two)"
+  if [[ "$hash_two_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: hash app.two failed; see $hash_two_out"
+    return 1
+  fi
+  local hash_two
+  hash_two="$(extract_dest_hash "$hash_two_out")"
+  if [[ -z "$hash_two" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: could not parse app.two hash; see $hash_two_out"
+    return 1
+  fi
+  if [[ "$hash_one" == "$hash_two" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: app.one and app.two hashes unexpectedly match"
+    return 1
+  fi
+
+  local announce_one_out="$OUT_DIR/${label}.announce.one.out"
+  local announce_one_code
+  announce_one_code="$(run_capture_retry "$announce_one_out" 3 1 env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$remote_identity" -a app.one -q)"
+  if [[ "$announce_one_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: announce app.one failed; see $announce_one_out"
+    return 1
+  fi
+
+  local announce_two_out="$OUT_DIR/${label}.announce.two.out"
+  local announce_two_code
+  announce_two_code="$(run_capture_retry "$announce_two_out" 3 1 env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$remote_identity" -a app.two -q)"
+  if [[ "$announce_two_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: announce app.two failed; see $announce_two_out"
+    return 1
+  fi
+
+  local request_one_out="$OUT_DIR/${label}.request.one.out"
+  local request_one_code
+  request_one_code="$(request_identity "$request_one_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$hash_one" 15)"
+  if [[ "$request_one_code" != "0" ]] || ! identity_output_ok "$request_one_out"; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: request app.one failed; see $request_one_out"
+    return 1
+  fi
+
+  local request_two_out="$OUT_DIR/${label}.request.two.out"
+  local request_two_code
+  request_two_code="$(request_identity "$request_two_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$hash_two" 15)"
+  if [[ "$request_two_code" != "0" ]] || ! identity_output_ok "$request_two_out"; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: request app.two failed; see $request_two_out"
+    return 1
+  fi
+
+  local reannounce_out="$OUT_DIR/${label}.reannounce.out"
+  local reannounce_code
+  reannounce_code="$(run_capture_retry "$reannounce_out" 3 1 env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$remote_identity" -a app.aspect -q)"
+  if [[ "$reannounce_code" != "0" ]]; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: re-announce failed; see $reannounce_out"
+    return 1
+  fi
+
+  local request_after_reannounce_out="$OUT_DIR/${label}.request_after_reannounce.out"
+  local request_after_reannounce_code
+  request_after_reannounce_code="$(request_identity "$request_after_reannounce_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$dest_hash" 15)"
+  if [[ "$request_after_reannounce_code" != "0" ]] || ! identity_output_ok "$request_after_reannounce_out"; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: request after re-announce failed; see $request_after_reannounce_out"
+    return 1
+  fi
+
+  local repeat_request_out="$OUT_DIR/${label}.repeat_request.out"
+  local repeat_request_code
+  repeat_request_code="$(request_identity "$repeat_request_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$dest_hash" 15)"
+  if [[ "$repeat_request_code" != "0" ]] || ! identity_output_ok "$repeat_request_out"; then
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    echo "[cmp] $label: repeated request while peer online failed; see $repeat_request_out"
+    return 1
+  fi
+
+  stop_proc "$pid_b"
+
+  local offline_request_out="$OUT_DIR/${label}.offline_request.out"
+  local offline_request_code
+  offline_request_code="$(request_identity "$offline_request_out" "$home_a" "$rnid_cmd_a" "$cfg_flag_a" "$node_a_dir" "$dest_hash" 1)"
+  stop_proc "$pid_a"
+  if [[ "$offline_request_code" != "0" ]] || ! identity_output_ok "$offline_request_out"; then
+    echo "[cmp] $label: offline recall request failed; see $offline_request_out"
     return 1
   fi
 
   {
     echo "dest_hash=$dest_hash"
     echo "request_ok=yes"
+    echo "multi_aspect_ok=yes"
+    echo "reannounce_ok=yes"
+    echo "repeat_request_ok=yes"
+    echo "offline_recall_ok=yes"
   } >"$OUT_DIR/${label}.summary.txt"
 
   echo "[cmp] $label OK"

@@ -180,7 +180,6 @@ func (rr *RequestReceipt) markDelivered() {
 	}
 	rr.status = ReceiptDelivered
 	rr.mu.Unlock()
-	rr.startResponseWait()
 }
 
 func (rr *RequestReceipt) startResponseWait() {
@@ -270,6 +269,10 @@ func (rr *RequestReceipt) responseReceived(resp any, metadata any, transferSize 
 func (rr *RequestReceipt) requestTimedOut() {
 	rr.timedOutOnce.Do(func() {
 		rr.mu.Lock()
+		if rr.status != ReceiptDelivered {
+			rr.mu.Unlock()
+			return
+		}
 		rr.status = ReceiptFailed
 		rr.concludedAt = time.Now()
 		rr.mu.Unlock()

@@ -44,6 +44,18 @@ run_capture() {
   echo "$code"
 }
 
+run_capture_with_timeout() {
+  local timeout="$1"
+  local out="$2"
+  shift 2
+  local code=0
+  set +e
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$timeout" -- "$@" >"$out" 2>&1
+  code=$?
+  set -e
+  echo "$code"
+}
+
 wait_for_tcp_status() {
   local timeout="$1"
   local out="$2"
@@ -121,6 +133,24 @@ wait_for_file_nonempty() {
   start="$(date +%s)"
   while true; do
     if [[ -f "$path" ]] && [[ -s "$path" ]]; then
+      return 0
+    fi
+    local now
+    now="$(date +%s)"
+    if [[ $((now - start)) -ge "$timeout" ]]; then
+      return 1
+    fi
+    sleep 0.2
+  done
+}
+
+wait_for_path_absent() {
+  local timeout="$1"
+  local path="$2"
+  local start
+  start="$(date +%s)"
+  while true; do
+    if [[ ! -e "$path" ]]; then
       return 0
     fi
     local now
@@ -482,9 +512,170 @@ run_pair() {
   fi
   echo "[cmp] $label: fetch_ok=yes"
 
+  echo "[cmp] $label: repeated fetch over TCP"
+  local repeat_a="$OUT_DIR/${label}.repeat_a"
+  local repeat_b="$OUT_DIR/${label}.repeat_b"
+  mkdir -p "$repeat_a" "$repeat_b"
+  local repeat_out_a="$OUT_DIR/${label}.repeat_a.out"
+  local repeat_out_b="$OUT_DIR/${label}.repeat_b.out"
+  local repeat_code
+  repeat_code="$(run_capture "$repeat_out_a" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$repeat_a" -w 30 "$fetch_name" "$listen_hash")"
+  if [[ "$repeat_code" != "0" ]]; then
+    echo "[cmp] $label: repeated fetch #1 failed; see $repeat_out_a"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  repeat_code="$(run_capture "$repeat_out_b" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$repeat_b" -w 30 "$fetch_name" "$listen_hash")"
+  if [[ "$repeat_code" != "0" ]]; then
+    echo "[cmp] $label: repeated fetch #2 failed; see $repeat_out_b"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  [[ "$(sha256_file "$repeat_a/$fetch_name")" == "$fetch_sha" ]] || {
+    echo "[cmp] $label: repeated fetch #1 hash mismatch"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  [[ "$(sha256_file "$repeat_b/$fetch_name")" == "$fetch_sha" ]] || {
+    echo "[cmp] $label: repeated fetch #2 hash mismatch"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: repeated_fetch_ok=yes"
+
+  echo "[cmp] $label: overwrite fetch over TCP"
+  local overwrite_dir="$OUT_DIR/${label}.overwrite"
+  mkdir -p "$overwrite_dir"
+  printf "old-content-%s\n" "$label" >"$overwrite_dir/$fetch_name"
+  local overwrite_out="$OUT_DIR/${label}.overwrite.out"
+  local overwrite_code
+  overwrite_code="$(run_capture "$overwrite_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -O -s "$overwrite_dir" -w 30 "$fetch_name" "$listen_hash")"
+  if [[ "$overwrite_code" != "0" ]]; then
+    echo "[cmp] $label: overwrite fetch failed; see $overwrite_out"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  [[ "$(sha256_file "$overwrite_dir/$fetch_name")" == "$fetch_sha" ]] || {
+    echo "[cmp] $label: overwrite fetch did not replace file"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: overwrite_ok=yes"
+
+  echo "[cmp] $label: missing-file fetch rejection"
+  local missing_out="$OUT_DIR/${label}.missing.out"
+  local missing_name="missing.txt"
+  local missing_code
+  missing_code="$(run_capture "$missing_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$fetch_save" -w 30 "$missing_name" "$listen_hash")"
+  if ! rg -F "was not found on the remote" "$missing_out" >/dev/null 2>&1; then
+    echo "[cmp] $label: missing-file fetch output mismatch; see $missing_out"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  wait_for_path_absent 1 "$fetch_save/$missing_name" || {
+    echo "[cmp] $label: missing-file unexpectedly created local file"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: missing_ok=yes"
+
+  echo "[cmp] $label: jail traversal rejection"
+  local traversal_out="$OUT_DIR/${label}.traversal.out"
+  local traversal_code
+  traversal_code="$(run_capture_with_timeout 12 "$traversal_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$fetch_save" -w 5 "../nope" "$listen_hash")"
+  wait_for_path_absent 1 "$fetch_save/nope" || {
+    echo "[cmp] $label: traversal fetch unexpectedly created local file"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: jail_ok=yes"
+
   stop_proc "$rncp_listener_pid"
-  stop_proc "$pid_a"
-  stop_proc "$pid_b"
+  : >"$listener_log"
+
+  echo "[cmp] $label: fetch denied"
+  local deny_save="$OUT_DIR/${label}.deny_save"
+  mkdir -p "$deny_save"
+  env HOME="$home_b" USERPROFILE="$home_b" \
+    $rncp_cmd_b $cfg_flag_b "$node_b_dir" -i "$listener_identity" -l -n -b 0 -S -s "$deny_save" >"$listener_log" 2>&1 &
+  rncp_listener_pid=$!
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
+    echo "[cmp] $label: deny listener did not become ready; see $listener_log"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  listen_hash="$(extract_listen_hash "$listener_log")"
+  local deny_out="$OUT_DIR/${label}.deny.out"
+  local deny_fetch_save="$OUT_DIR/${label}.deny_fetch_out"
+  rm -rf "$deny_fetch_save"
+  mkdir -p "$deny_fetch_save"
+  local deny_code
+  deny_code="$(run_capture_with_timeout 15 "$deny_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$deny_fetch_save" -w 30 "$fetch_name" "$listen_hash")"
+  if ! rg -F "was not allowed by the remote" "$deny_out" >/dev/null 2>&1 \
+    && ! rg -F "unknown error" "$deny_out" >/dev/null 2>&1 \
+    && [[ "$deny_code" != "124" ]]; then
+    echo "[cmp] $label: denied fetch output mismatch; see $deny_out"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  wait_for_path_absent 1 "$deny_fetch_save/$fetch_name" || {
+    echo "[cmp] $label: denied fetch unexpectedly created local file"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: deny_ok=yes"
+  stop_proc "$rncp_listener_pid"
+  : >"$listener_log"
+
+  echo "[cmp] $label: large send over TCP"
+  local large_recv_dir="$OUT_DIR/${label}.large_recv"
+  mkdir -p "$large_recv_dir"
+  env HOME="$home_b" USERPROFILE="$home_b" \
+    $rncp_cmd_b $cfg_flag_b "$node_b_dir" -v -v -v -v -i "$listener_identity" -l -n -b 0 -S -s "$large_recv_dir" >"$listener_log" 2>&1 &
+  rncp_listener_pid=$!
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
+    echo "[cmp] $label: large-send listener did not become ready; see $listener_log"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  listen_hash="$(extract_listen_hash "$listener_log")"
+  local large_src="$OUT_DIR/${label}.large.bin"
+  python3 - <<'PY' >"$large_src"
+import sys
+data = (b"0123456789abcdef" * (64*1024))
+sys.stdout.buffer.write(data)
+PY
+  local large_sha
+  large_sha="$(sha256_file "$large_src")"
+  local large_out="$OUT_DIR/${label}.large_send.out"
+  local large_code
+  large_code="$(run_capture "$large_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -v -v -S -w 60 "$large_src" "$listen_hash")"
+  if [[ "$large_code" != "0" ]]; then
+    echo "[cmp] $label: large send failed; see $large_out"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  local large_recv="$large_recv_dir/$(basename "$large_src")"
+  if ! wait_for_file_nonempty "$START_TIMEOUT_SECS" "$large_recv"; then
+    echo "[cmp] $label: large send did not arrive; see $large_out"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  [[ "$(sha256_file "$large_recv")" == "$large_sha" ]] || {
+    echo "[cmp] $label: large send hash mismatch"
+    stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  }
+  echo "[cmp] $label: large_send_ok=yes"
+  stop_proc "$rncp_listener_pid"
+
   echo "[cmp] $label OK"
 }
 
