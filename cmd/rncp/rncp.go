@@ -437,28 +437,11 @@ func receiveResourceConcluded(res *rns.Resource) {
 	}
 	fmt.Println(res.String(), "completed")
 
-	meta, ok := res.Metadata().(map[string]any)
-	if !ok || meta == nil {
+	filename, ok := resourceMetadataName(res.Metadata())
+	if !ok {
 		fmt.Println("Invalid data received, ignoring resource")
 		return
 	}
-
-	nameBytes, ok := meta["name"]
-	if !ok {
-		fmt.Println("Invalid metadata, ignoring resource")
-		return
-	}
-	var name string
-	switch v := nameBytes.(type) {
-	case string:
-		name = v
-	case []byte:
-		name = string(v)
-	default:
-		fmt.Println("Invalid metadata name field, ignoring resource")
-		return
-	}
-	filename := filepath.Base(name)
 
 	var savedFilename string
 	if savePath != "" {
@@ -584,7 +567,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 		return err
 	}
 
-	link, err = rns.NewOutgoingLink(receiverDest, 0, nil, nil)
+	link, err = rns.NewOutgoingLink(receiverDest, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -791,7 +774,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		return err
 	}
 
-	link, err = rns.NewOutgoingLink(listenerDest, 0, nil, nil)
+	link, err = rns.NewOutgoingLink(listenerDest, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -868,28 +851,11 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 			return
 		}
 
-		meta, ok := res.Metadata().(map[string]any)
-		if !ok || meta == nil {
+		filename, ok := resourceMetadataName(res.Metadata())
+		if !ok {
 			fmt.Println("Invalid data received, ignoring resource")
 			return
 		}
-
-		nameBytes, ok := meta["name"]
-		if !ok {
-			fmt.Println("Invalid metadata, ignoring resource")
-			return
-		}
-		var name string
-		switch v := nameBytes.(type) {
-		case string:
-			name = v
-		case []byte:
-			name = string(v)
-		default:
-			fmt.Println("Invalid metadata name field, ignoring resource")
-			return
-		}
-		filename := filepath.Base(name)
 
 		var savedFilename string
 		if savePath != "" {
@@ -925,7 +891,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	link.SetResourceStrategy(rns.LinkAcceptAll)
 	link.SetResourceStartedCallback(fetchResourceStarted)
 	link.SetResourceConcludedCallback(fetchResourceConcluded)
-	link.Request("fetch_file", []byte(file), requestResponse, requestFailed, nil, timeout)
+	link.Request("fetch_file", file, requestResponse, requestFailed, nil, timeout)
 
 	for !requestResolved {
 		if !silent {
@@ -1087,6 +1053,27 @@ func startResourceTransfer(file *os.File, link *rns.Link, metadata map[string][]
 		return nil, err
 	}
 	return res, nil
+}
+
+func resourceMetadataName(meta any) (string, bool) {
+	var raw any
+	switch m := meta.(type) {
+	case map[string]any:
+		raw = m["name"]
+	case map[any]any:
+		raw = m["name"]
+	case map[string][]byte:
+		raw = m["name"]
+	}
+
+	switch v := raw.(type) {
+	case string:
+		return filepath.Base(v), true
+	case []byte:
+		return filepath.Base(string(v)), true
+	default:
+		return "", false
+	}
 }
 
 func findActiveLink(linkID []byte) *rns.Link {

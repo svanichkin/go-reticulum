@@ -612,7 +612,7 @@ func getRemoteStatus(destHash []byte, includeLstats bool, identity *rns.Identity
 	if err != nil {
 		return nil, nil, err
 	}
-	link, err := rns.NewOutgoingLink(remoteDest, 0, nil, nil)
+	link, err := rns.NewOutgoingLink(remoteDest, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}

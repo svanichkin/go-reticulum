@@ -3343,11 +3343,22 @@ func Outbound(p *Packet) bool {
 		}
 	}
 
+	linkAttachedInterface := func() *Interface {
+		if p == nil || p.Link == nil {
+			return nil
+		}
+		if attached, ok := p.Link.attachedInterface.(*Interface); ok {
+			return attached
+		}
+		return nil
+	}
+
 	// is the path known?
 	sendBroadcast := true
 	if p.Type != PacketAnnounce &&
 		p.Destination.Type != DestPlain &&
 		p.Destination.Type != DestGroup &&
+		p.Link == nil &&
 		HasPath(p.DestinationHash) {
 
 		entry := getPathEntry(p.DestinationHash)
@@ -3400,6 +3411,10 @@ func Outbound(p *Packet) bool {
 				continue
 			}
 			shouldSend := true
+
+			if attached := linkAttachedInterface(); attached != nil && ifc != attached {
+				shouldSend = false
+			}
 
 			if p.AttachedInterface != nil && ifc != p.AttachedInterface {
 				shouldSend = false

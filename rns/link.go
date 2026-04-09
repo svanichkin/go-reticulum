@@ -303,10 +303,12 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 			l.estTimeout = Transport.GetFirstHopTimeout(destination.hash) + linkDefaultPerHop*time.Duration(l.expectedHops)
 		}
 		l.startWatchdog()
+		// Python parity: register the outgoing link before sending LINKREQUEST so
+		// an early LRPROOF can be resolved back to this pending initiator link.
+		registerLinkWithTransport(l)
 		if err := l.sendLinkRequest(); err != nil {
 			Log(fmt.Sprintf("Could not send link request: %v", err), LOG_ERROR)
-		} else {
-			registerLinkWithTransport(l)
+			unregisterLinkWithTransport(l)
 		}
 	} else {
 		registerLinkWithTransport(l)
@@ -769,7 +771,6 @@ func (l *Link) ResourceConcluded(res *Resource) {
 	if res == nil {
 		return
 	}
-	var cb func(*Resource)
 	l.mu.Lock()
 	removedIncoming := l.removeResourceLocked(&l.incomingResources, res)
 	removedOutgoing := l.removeResourceLocked(&l.outgoingResources, res)
@@ -784,19 +785,25 @@ func (l *Link) ResourceConcluded(res *Resource) {
 		}
 		l.ExpectedRate = float64(res.size*8) / d.Seconds()
 	}
-	cb = l.callbacks.ResourceConcluded
 	l.mu.Unlock()
+}
 
-	if cb != nil {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					Log(fmt.Sprintf("resource concluded callback panic on %s: %v", l, r), LOG_ERROR)
-				}
-			}()
-			cb(res)
-		}()
+func (l *Link) invokeResourceConcludedCallback(res *Resource) {
+	if l == nil || res == nil {
+		return
 	}
+	l.mu.Lock()
+	cb := l.callbacks.ResourceConcluded
+	l.mu.Unlock()
+	if cb == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			Log(fmt.Sprintf("resource concluded callback panic on %s: %v", l, r), LOG_ERROR)
+		}
+	}()
+	cb(res)
 }
 
 func (l *Link) removeResourceLocked(list *[]*Resource, target *Resource) bool {
@@ -872,6 +879,7 @@ func (l *Link) sendResponsePayload(handler *RequestHandler, requestID []byte, re
 	timeoutSeconds := timeout.Seconds()
 	callback := func(res *Resource) {
 		l.ResourceConcluded(res)
+		l.invokeResourceConcludedCallback(res)
 	}
 	if _, err := NewResource(
 		payload,
@@ -1028,8 +1036,9 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	if packet != nil {
 		link.EstablishmentCost += len(packet.Raw)
 	}
-	link.requestTime = time.Now()
 	link.prove()
+	link.requestTime = time.Now()
+	registerLinkWithTransport(link)
 	link.lastInbound = time.Now()
 	link.updatePhyStatsForce(packet)
 
@@ -2012,6 +2021,7 @@ func (l *Link) handleResourceAdvertisement(packet *Packet) {
 			func(res *Resource) {
 				l.ResourceConcluded(res)
 				l.requestResourceConcluded(res)
+				l.invokeResourceConcludedCallback(res)
 			},
 			nil,
 			adv.Q,
@@ -2031,6 +2041,7 @@ func (l *Link) handleResourceAdvertisement(packet *Packet) {
 			func(res *Resource) {
 				l.ResourceConcluded(res)
 				l.responseResourceConcluded(res)
+				l.invokeResourceConcludedCallback(res)
 			},
 			func(res *Resource) {
 				l.responseResourceProgress(res)
@@ -2060,13 +2071,19 @@ func (l *Link) handleResourceAdvertisement(packet *Packet) {
 					}
 				}()
 				if l.callbacks.Resource(adv) {
-					ResourceAccept(packet, l.ResourceConcluded, nil, nil)
+					ResourceAccept(packet, func(res *Resource) {
+						l.ResourceConcluded(res)
+						l.invokeResourceConcludedCallback(res)
+					}, nil, nil)
 				} else {
 					ResourceReject(packet)
 				}
 			}()
 		case LinkAcceptAll:
-			ResourceAccept(packet, l.ResourceConcluded, nil, nil)
+			ResourceAccept(packet, func(res *Resource) {
+				l.ResourceConcluded(res)
+				l.invokeResourceConcludedCallback(res)
+			}, nil, nil)
 		}
 	}
 }
@@ -2326,6 +2343,26 @@ func activateLinkInTransport(l *Link) {
 	}
 	if !linkSliceContains(ActiveLinks, l) {
 		ActiveLinks = append(ActiveLinks, l)
+	}
+}
+
+func unregisterLinkWithTransport(l *Link) {
+	if l == nil {
+		return
+	}
+	linkMu.Lock()
+	defer linkMu.Unlock()
+	for i, existing := range PendingLinks {
+		if existing == l {
+			PendingLinks = append(PendingLinks[:i], PendingLinks[i+1:]...)
+			break
+		}
+	}
+	for i, existing := range ActiveLinks {
+		if existing == l {
+			ActiveLinks = append(ActiveLinks[:i], ActiveLinks[i+1:]...)
+			break
+		}
 	}
 }
 

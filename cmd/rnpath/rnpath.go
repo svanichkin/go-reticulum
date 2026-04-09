@@ -299,7 +299,7 @@ func connectRemote(destHash []byte, auth *rns.Identity, timeout float64, noOutpu
 	if err != nil {
 		return err
 	}
-	if _, err := rns.NewOutgoingLink(dest, 0, established, closed); err != nil {
+	if _, err := rns.NewOutgoingLink(dest, rns.LinkModeDefault, established, closed); err != nil {
 		return err
 	}
 

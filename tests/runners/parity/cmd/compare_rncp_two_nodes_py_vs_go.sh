@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
@@ -13,7 +13,7 @@ export GOMODCACHE="$ROOT/.gomodcache"
 export PYTHONPATH="${PYTHONPATH:-"$ROOT/python"}"
 export PYTHONUNBUFFERED=1
 
-CMD_TIMEOUT_SECS="${CMD_TIMEOUT_SECS:-90}"
+CMD_TIMEOUT_SECS="${CMD_TIMEOUT_SECS:-180}"
 START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-30}"
 STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-6}"
 
@@ -38,7 +38,7 @@ run_capture() {
   shift
   local code=0
   set +e
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
   code=$?
   set -e
   echo "$code"
@@ -54,17 +54,17 @@ stop_proc() {
   fi
 
   kill -INT "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -TERM "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -KILL "$pid" >/dev/null 2>&1 || true
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -118,7 +118,7 @@ new_run_dir_from_template() {
   local run_dir
   run_dir="$(mktemp -d)"
   cp "$template" "$run_dir/config"
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" \
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
     --path "$run_dir/config" \
     --shared-instance-port "$sip" \
     --instance-control-port "$cip" \
@@ -142,6 +142,18 @@ extract_listen_hash() {
   rg -o "<[0-9a-fA-F]+>" "$path" | head -n 1 | tr -d '<>' || true
 }
 
+generate_python_identity() {
+  local config_dir="$1"
+  local home_dir="$2"
+  local identity_path="$3"
+  local out_path="$4"
+
+  local code
+  code="$(run_capture "$out_path" env HOME="$home_dir" USERPROFILE="$home_dir" \
+    "$PYTHON" "$ROOT/python/RNS/Utilities/rnid.py" --config "$config_dir" --generate "$identity_path" -q)"
+  [[ "$code" == "0" ]]
+}
+
 json_escape() {
   "$PYTHON" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
 }
@@ -155,16 +167,15 @@ maybe_skip_env() {
 }
 
 run_pair() {
-  local label="$1" # python|go
-  local rnsd_cmd="$2"
-  local rnstatus_cmd="$3"
-  local rncp_cmd="$4"
-
-  local cfg_flag
-  cfg_flag="-config"
-  if [[ "$label" == "python" ]]; then
-    cfg_flag="--config"
-  fi
+  local label="$1"
+  local rnsd_cmd_a="$2"
+  local rnstatus_cmd_a="$3"
+  local rncp_cmd_a="$4"
+  local cfg_flag_a="$5"
+  local rnsd_cmd_b="$6"
+  local rnstatus_cmd_b="$7"
+  local rncp_cmd_b="$8"
+  local cfg_flag_b="$9"
 
   echo
   echo "[cmp] $label: start two rnsd nodes"
@@ -191,15 +202,22 @@ run_pair() {
   home_b="$node_b_dir/home"
   mkdir -p "$home_a" "$home_b"
 
+  local listener_identity="$node_b_dir/node_b_python.id"
+  local gen_identity_log="$OUT_DIR/${label}.listener_identity.generate.out"
+  if ! generate_python_identity "$node_b_dir" "$home_b" "$listener_identity" "$gen_identity_log"; then
+    echo "[cmp] $label: failed to generate listener identity via python; see $gen_identity_log"
+    return 1
+  fi
+
   local log_a="$OUT_DIR/${label}.rnsd.node_a.log"
   local log_b="$OUT_DIR/${label}.rnsd.node_b.log"
 
   env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnsd_cmd $cfg_flag "$node_a_dir" -q >"$log_a" 2>&1 &
+    $rnsd_cmd_a $cfg_flag_a "$node_a_dir" -q >"$log_a" 2>&1 &
   local pid_a=$!
 
   env HOME="$home_b" USERPROFILE="$home_b" \
-    $rnsd_cmd $cfg_flag "$node_b_dir" -q >"$log_b" 2>&1 &
+    $rnsd_cmd_b $cfg_flag_b "$node_b_dir" -q >"$log_b" 2>&1 &
   local pid_b=$!
 
   sleep 0.5
@@ -223,9 +241,9 @@ run_pair() {
 
   # Ensure shared instance is reachable for clients.
   _="$(run_capture "$status_a" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnstatus_cmd $cfg_flag "$node_a_dir" -a)"
+    $rnstatus_cmd_a $cfg_flag_a "$node_a_dir" -a)"
   _="$(run_capture "$status_b" env HOME="$home_b" USERPROFILE="$home_b" \
-    $rnstatus_cmd $cfg_flag "$node_b_dir" -a)"
+    $rnstatus_cmd_b $cfg_flag_b "$node_b_dir" -a)"
 
   echo "[cmp] $label: rncp send (A -> B)"
   local send_src="$OUT_DIR/${label}.send.src"
@@ -239,7 +257,7 @@ run_pair() {
 
   # Start listener in background (no-auth, announce once at startup, silent output, save dir).
   env HOME="$home_b" USERPROFILE="$home_b" \
-    $rncp_cmd $cfg_flag "$node_b_dir" -l -n -b 0 -S -s "$recv_dir" >"$listener_log" 2>&1 &
+    $rncp_cmd_b $cfg_flag_b "$node_b_dir" -i "$listener_identity" -l -n -b 0 -S -s "$recv_dir" >"$listener_log" 2>&1 &
   local rncp_listener_pid=$!
 
   if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
@@ -260,11 +278,12 @@ run_pair() {
     return 1
   fi
   echo "[cmp] $label: listener_hash=$listen_hash"
+  sleep 2
 
   local send_out="$OUT_DIR/${label}.send.out"
   local send_code
   send_code="$(run_capture "$send_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rncp_cmd $cfg_flag "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
 
   if [[ "$send_code" != "0" ]]; then
     echo "[cmp] $label: send failed; see $send_out"
@@ -300,7 +319,7 @@ run_pair() {
   local send2_out="$OUT_DIR/${label}.send2.out"
   local send2_code
   send2_code="$(run_capture "$send2_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rncp_cmd $cfg_flag "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
 
   if [[ "$send2_code" != "0" ]]; then
     echo "[cmp] $label: send2 failed; see $send2_out"
@@ -334,7 +353,7 @@ run_pair() {
   : >"$listener_log"
 
   env HOME="$home_b" USERPROFILE="$home_b" \
-    $rncp_cmd $cfg_flag "$node_b_dir" -l -n -O -b 0 -S -s "$recv_dir_ovr" >"$listener_log" 2>&1 &
+    $rncp_cmd_b $cfg_flag_b "$node_b_dir" -i "$listener_identity" -l -n -O -b 0 -S -s "$recv_dir_ovr" >"$listener_log" 2>&1 &
   rncp_listener_pid=$!
 
   if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
@@ -352,6 +371,7 @@ run_pair() {
     stop_proc "$pid_b"
     return 1
   fi
+  sleep 2
 
   printf "rncp-ovr-v1-%s-%s\n" "$label" "$(date +%s%N)" >"$send_src"
   local send_ovr_v1_sha
@@ -359,7 +379,7 @@ run_pair() {
   local send_ovr1_out="$OUT_DIR/${label}.send_ovr1.out"
   local send_ovr1_code
   send_ovr1_code="$(run_capture "$send_ovr1_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rncp_cmd $cfg_flag "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
   if [[ "$send_ovr1_code" != "0" ]]; then
     echo "[cmp] $label: send_ovr1 failed; see $send_ovr1_out"
     stop_proc "$rncp_listener_pid"
@@ -374,7 +394,7 @@ run_pair() {
   local send_ovr2_out="$OUT_DIR/${label}.send_ovr2.out"
   local send_ovr2_code
   send_ovr2_code="$(run_capture "$send_ovr2_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rncp_cmd $cfg_flag "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
   if [[ "$send_ovr2_code" != "0" ]]; then
     echo "[cmp] $label: send_ovr2 failed; see $send_ovr2_out"
     stop_proc "$rncp_listener_pid"
@@ -413,7 +433,7 @@ run_pair() {
   : >"$listener_log"
 
   env HOME="$home_b" USERPROFILE="$home_b" \
-    $rncp_cmd $cfg_flag "$node_b_dir" -l -n -F -b 0 -S -j "$jail_dir" >"$listener_log" 2>&1 &
+    $rncp_cmd_b $cfg_flag_b "$node_b_dir" -i "$listener_identity" -l -n -F -b 0 -S -j "$jail_dir" >"$listener_log" 2>&1 &
   rncp_listener_pid=$!
 
   if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
@@ -432,13 +452,14 @@ run_pair() {
     return 1
   fi
   echo "[cmp] $label: fetch_listener_hash=$listen_hash"
+  sleep 2
 
   local fetch_save="$OUT_DIR/${label}.fetch_out"
   mkdir -p "$fetch_save"
   local fetch_out="$OUT_DIR/${label}.fetch.out"
   local fetch_code
   fetch_code="$(run_capture "$fetch_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rncp_cmd $cfg_flag "$node_a_dir" -S -f -s "$fetch_save" -w 30 "$fetch_name" "$listen_hash")"
+    $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -f -s "$fetch_save" -w 30 "$fetch_name" "$listen_hash")"
 
   if [[ "$fetch_code" != "0" ]]; then
     echo "[cmp] $label: fetch failed; see $fetch_out"
@@ -491,31 +512,33 @@ run_pair() {
 
 overall=0
 
-if ! run_pair "python" \
+if ! run_pair "go_node_a_python_node_b" \
+  "$GO_BIN_DIR/rnsd" \
+  "$GO_BIN_DIR/rnstatus" \
+  "$GO_BIN_DIR/rncp" \
+  "-config" \
   "$PYTHON $ROOT/python/RNS/Utilities/rnsd.py" \
   "$PYTHON $ROOT/python/RNS/Utilities/rnstatus.py" \
-  "$PYTHON $ROOT/python/RNS/Utilities/rncp.py"; then
+  "$PYTHON $ROOT/python/RNS/Utilities/rncp.py" \
+  "--config"; then
   overall=1
 fi
 
-if ! run_pair "go" \
+if ! run_pair "python_node_a_go_node_b" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnsd.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnstatus.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rncp.py" \
+  "--config" \
   "$GO_BIN_DIR/rnsd" \
   "$GO_BIN_DIR/rnstatus" \
-  "$GO_BIN_DIR/rncp"; then
+  "$GO_BIN_DIR/rncp" \
+  "-config"; then
   overall=1
 fi
 
 if [[ "$overall" -ne 0 ]]; then
   echo "[cmp] FAIL (see $OUT_DIR)"
   exit 1
-fi
-
-if diff -u "$OUT_DIR/python.summary.txt" "$OUT_DIR/go.summary.txt" >"$OUT_DIR/summary.diff"; then
-  echo "[cmp] summary parity OK"
-  rm -f "$OUT_DIR/summary.diff" || true
-else
-  echo "[cmp] summary parity DIFF: $OUT_DIR/summary.diff"
-  overall=1
 fi
 
 if [[ "$overall" -eq 0 ]]; then

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
+CMD_TIMEOUT_SECS="${CMD_TIMEOUT_SECS:-90}"
+START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-30}"
+STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-6}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
 export GOCACHE="$ROOT/.gocache"
@@ -26,6 +29,8 @@ trap cleanup EXIT
 echo "[cmp] out=$OUT_DIR"
 echo "[cmp] building go rnid..."
 go build -o "$GO_BIN_DIR/rnid" ./cmd/rnid
+go build -o "$GO_BIN_DIR/rnsd" ./cmd/rnsd
+go build -o "$GO_BIN_DIR/rnstatus" ./cmd/rnstatus
 
 run_capture() {
   local out="$1"
@@ -36,6 +41,236 @@ run_capture() {
   code=$?
   set -e
   echo "$code"
+}
+
+run_capture_retry() {
+  local out="$1"
+  local attempts="$2"
+  local delay="$3"
+  shift 3
+  local code=0
+  local i=1
+  while [[ "$i" -le "$attempts" ]]; do
+    code="$(run_capture "$out" "$@")"
+    if [[ "$code" == "0" ]]; then
+      echo "$code"
+      return 0
+    fi
+    if [[ "$i" -lt "$attempts" ]]; then
+      sleep "$delay"
+    fi
+    i=$((i+1))
+  done
+  echo "$code"
+  return 0
+}
+
+stop_proc() {
+  local pid="$1"
+  if [[ -z "${pid}" ]]; then
+    return 0
+  fi
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  kill -INT "$pid" >/dev/null 2>&1 || true
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  kill -TERM "$pid" >/dev/null 2>&1 || true
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  kill -KILL "$pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  return 0
+}
+
+wait_for_file_contains() {
+  local timeout="$1"
+  local path="$2"
+  local needle="$3"
+  local start
+  start="$(date +%s)"
+  while true; do
+    if [[ -f "$path" ]] && rg --fixed-strings "$needle" "$path" >/dev/null 2>&1; then
+      return 0
+    fi
+    local now
+    now="$(date +%s)"
+    if [[ $((now - start)) -ge "$timeout" ]]; then
+      return 1
+    fi
+    sleep 0.2
+  done
+}
+
+new_run_dir_from_template() {
+  local template="$1"
+  local sip="$2"
+  local cip="$3"
+  local listen="$4"
+  local forward="$5"
+
+  local run_dir
+  run_dir="$(mktemp -d)"
+  cp "$template" "$run_dir/config"
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
+    --path "$run_dir/config" \
+    --shared-instance-port "$sip" \
+    --instance-control-port "$cip" \
+    --listen-port "$listen" \
+    --forward-port "$forward"
+  echo "$run_dir"
+}
+
+extract_dest_hash() {
+  local path="$1"
+  rg "destination for this Identity is" "$path" \
+    | sed -E 's/^.*<([0-9a-fA-F]+)>.*/\1/' \
+    | head -n 1
+}
+
+maybe_skip_env() {
+  local log="$1"
+  if rg -q -i "operation not permitted|permission denied|bind:|listen .*:.*(denied|not permitted)" "$log"; then
+    echo "[cmp] SKIP: environment does not permit binding sockets (see $log)"
+    exit 0
+  fi
+}
+
+run_two_node_request() {
+  local label="$1"
+  local rnsd_cmd_a="$2"
+  local rnstatus_cmd_a="$3"
+  local rnid_cmd_a="$4"
+  local cfg_flag_a="$5"
+  local rnsd_cmd_b="$6"
+  local rnstatus_cmd_b="$7"
+  local rnid_cmd_b="$8"
+  local cfg_flag_b="$9"
+
+  local base
+  base=$(( (RANDOM % 10000) + 52000 ))
+  base=$(( base / 2 * 2 ))
+  local sip_a cip_a sip_b cip_b
+  sip_a=$(( (RANDOM % 10000) + 38000 ))
+  cip_a=$(( sip_a + 1 ))
+  sip_b=$(( sip_a + 2 ))
+  cip_b=$(( sip_a + 3 ))
+
+  local node_a_template="$ROOT/configs/testing/two_nodes_udp/node_a/config"
+  local node_b_template="$ROOT/configs/testing/two_nodes_udp/node_b/config"
+  local node_a_dir node_b_dir
+  node_a_dir="$(new_run_dir_from_template "$node_a_template" "$sip_a" "$cip_a" "$base" "$((base+1))")"
+  node_b_dir="$(new_run_dir_from_template "$node_b_template" "$sip_b" "$cip_b" "$((base+1))" "$base")"
+
+  local home_a="$node_a_dir/home"
+  local home_b="$node_b_dir/home"
+  mkdir -p "$home_a" "$home_b"
+
+  local log_a="$OUT_DIR/${label}.two_node.rnsd.node_a.log"
+  local log_b="$OUT_DIR/${label}.two_node.rnsd.node_b.log"
+  env HOME="$home_a" USERPROFILE="$home_a" \
+    $rnsd_cmd_a $cfg_flag_a "$node_a_dir" -q >"$log_a" 2>&1 &
+  local pid_a=$!
+  env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnsd_cmd_b $cfg_flag_b "$node_b_dir" -q >"$log_b" 2>&1 &
+  local pid_b=$!
+
+  sleep 0.5
+  maybe_skip_env "$log_a"
+  maybe_skip_env "$log_b"
+
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_a" "Started rnsd version"; then
+    echo "[cmp] $label: node_a did not start; see $log_a"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_b" "Started rnsd version"; then
+    echo "[cmp] $label: node_b did not start; see $log_b"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  local status_a="$OUT_DIR/${label}.two_node.rnstatus.node_a.out"
+  local status_b="$OUT_DIR/${label}.two_node.rnstatus.node_b.out"
+  local status_a_code status_b_code
+  status_a_code="$(run_capture "$status_a" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rnstatus_cmd_a $cfg_flag_a "$node_a_dir" -a)"
+  status_b_code="$(run_capture "$status_b" env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnstatus_cmd_b $cfg_flag_b "$node_b_dir" -a)"
+  if [[ "$status_a_code" != "0" || "$status_b_code" != "0" ]]; then
+    echo "[cmp] $label: rnstatus failed"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  local py_identity="$node_b_dir/node_b_python.id"
+  local py_generate="$OUT_DIR/${label}.two_node.generate_python_identity.out"
+  local py_gen_code
+  py_gen_code="$(run_capture "$py_generate" env HOME="$home_b" USERPROFILE="$home_b" \
+    "$PYTHON" "$ROOT/python/RNS/Utilities/rnid.py" --config "$node_b_dir" --generate "$py_identity" -q)"
+  if [[ "$py_gen_code" != "0" ]]; then
+    echo "[cmp] $label: python identity generation failed; see $py_generate"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  local hash_out="$OUT_DIR/${label}.two_node.hash.out"
+  local hash_code
+  hash_code="$(run_capture "$hash_out" env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$py_identity" -H app.aspect)"
+  if [[ "$hash_code" != "0" ]]; then
+    echo "[cmp] $label: hash failed; see $hash_out"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  local dest_hash
+  dest_hash="$(extract_dest_hash "$hash_out")"
+  if [[ -z "$dest_hash" ]]; then
+    echo "[cmp] $label: could not parse destination hash; see $hash_out"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  local announce_out="$OUT_DIR/${label}.two_node.announce.out"
+  local announce_code
+  announce_code="$(run_capture_retry "$announce_out" 3 1 env HOME="$home_b" USERPROFILE="$home_b" \
+    $rnid_cmd_b $cfg_flag_b "$node_b_dir" -i "$py_identity" -a app.aspect -q)"
+  if [[ "$announce_code" != "0" ]]; then
+    echo "[cmp] $label: announce failed; see $announce_out"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  local request_out="$OUT_DIR/${label}.two_node.request.out"
+  local request_code
+  request_code="$(run_capture "$request_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rnid_cmd_a $cfg_flag_a "$node_a_dir" -i "$dest_hash" -R -t 15 -p -q)"
+
+  stop_proc "$pid_a"
+  stop_proc "$pid_b"
+
+  if [[ "$request_code" != "0" ]]; then
+    echo "[cmp] $label: request failed; see $request_out"
+    return 1
+  fi
+  if ! rg -q "(Identity[[:space:]]*:|Public Key[[:space:]]*:)" "$request_out"; then
+    echo "[cmp] $label: request output missing recalled identity details; see $request_out"
+    return 1
+  fi
+
+  {
+    echo "dest_hash=$dest_hash"
+    echo "request_ok=yes"
+  } >"$OUT_DIR/${label}.two_node.summary.txt"
+
+  echo "[cmp] $label: two-node request OK"
+  return 0
 }
 
 require_eq() {
@@ -249,6 +484,34 @@ else
 fi
 
 rm -rf "$run_dir"
+
+echo
+echo "[cmp] two-node request via python-generated remote identity"
+if ! run_two_node_request "go_node_a_python_node_b" \
+  "$GO_BIN_DIR/rnsd" \
+  "$GO_BIN_DIR/rnstatus" \
+  "$GO_BIN_DIR/rnid" \
+  "-config" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnsd.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnstatus.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnid.py" \
+  "--config"; then
+  overall=1
+fi
+
+echo
+echo "[cmp] two-node request via go remote identity recalled by python"
+if ! run_two_node_request "python_node_a_go_node_b" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnsd.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnstatus.py" \
+  "$PYTHON $ROOT/python/RNS/Utilities/rnid.py" \
+  "--config" \
+  "$GO_BIN_DIR/rnsd" \
+  "$GO_BIN_DIR/rnstatus" \
+  "$GO_BIN_DIR/rnid" \
+  "-config"; then
+  overall=1
+fi
 
 echo
 echo "[cmp] done (out=$OUT_DIR)"

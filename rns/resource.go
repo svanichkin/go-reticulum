@@ -1220,10 +1220,11 @@ func (r *Resource) Assemble() {
 
 	r.status = ResourceComplete
 	r.Prove(fullData)
-	if r.link != nil {
-		concluded = true
-		r.link.ResourceConcluded(r)
-	}
+	// Incoming resources are concluded via handleIncomingCompletion(), which
+	// invokes the resource callback after metadata decoding and before the
+	// temporary storage file is removed. Mark this as handled so the deferred
+	// tail-call does not fire a second concluded callback after cleanup.
+	concluded = true
 	r.handleIncomingCompletion()
 	for i := range fullData {
 		fullData[i] = 0

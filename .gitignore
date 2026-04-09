@@ -20,6 +20,7 @@ tests/_logs
 .rs*
 config
 storage
+artifacts
 
 # Test binary, built with `go test -c`
 *.test
