@@ -453,10 +453,7 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 		rns.Log("Created destination "+dst.String(), rns.LogInfo)
 		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash()), rns.LogInfo)
 		time.Sleep(1100 * time.Millisecond)
-		if pkt := dst.Announce(nil, false, nil, nil, true); pkt == nil {
-			rns.Log("Announce failed", rns.LogError)
-			os.Exit(32)
-		}
+		dst.Announce(nil, false, nil, nil, true)
 		time.Sleep(250 * time.Millisecond)
 		os.Exit(0)
 	} else {
