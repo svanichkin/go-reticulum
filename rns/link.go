@@ -1117,6 +1117,7 @@ func (l *Link) Receive(packet *Packet) {
 	case PacketCtxChannel:
 		l.handleChannelPacket(packet)
 	case PacketCtxKeepalive:
+		Logf(LOG_DEBUG, "KEEPALIVE received on %s payload=%x", l, packet.Data)
 		// Python: the destination replies to initiator keepalive 0xFF with 0xFE.
 		if !l.Initiator && bytes.Equal(packet.Data, []byte{0xFF}) {
 			go l.sendKeepaliveReply()
@@ -1256,6 +1257,7 @@ func (l *Link) sendKeepalive() {
 		return
 	}
 	_ = p.Send()
+	Logf(LOG_DEBUG, "KEEPALIVE sent 0xFF on %s", l)
 	l.noteOutbound(PacketCtxKeepalive, 1)
 }
 
@@ -1270,6 +1272,7 @@ func (l *Link) sendKeepaliveReply() {
 		return
 	}
 	_ = p.Send()
+	Logf(LOG_DEBUG, "KEEPALIVE sent 0xFE on %s", l)
 	l.noteOutbound(PacketCtxKeepalive, 1)
 }
 
@@ -1310,6 +1313,7 @@ func (l *Link) prove() {
 		return
 	}
 	_ = proof.Send()
+	Logf(LOG_DEBUG, "LRPROOF sent on %s", l)
 	if len(proof.Raw) > 0 {
 		l.EstablishmentCost += len(proof.Raw)
 	}
@@ -1365,6 +1369,7 @@ func (l *Link) handleLRProof(packet *Packet) {
 		Log("Invalid link proof signature received, ignoring", LOG_DEBUG)
 		return
 	}
+	Logf(LOG_DEBUG, "LRPROOF validated on %s", l)
 
 	now := time.Now()
 	if !l.requestTime.IsZero() {
@@ -2250,6 +2255,7 @@ func (l *Link) handleLinkClose(packet *Packet) {
 	if !bytes.Equal(payload, linkID) {
 		return
 	}
+	Logf(LOG_DEBUG, "LINKCLOSE received on %s", l)
 	// Mirror Python: initiator sees destination close, destination sees initiator close.
 	if initiator {
 		l.teardownWithOptions(LinkDestinationClose, false)
@@ -2267,6 +2273,7 @@ func (l *Link) sendTeardownPacket() {
 		return
 	}
 	_ = p.Send()
+	Logf(LOG_DEBUG, "LINKCLOSE sent on %s", l)
 	l.noteOutbound(PacketCtxLinkClose, len(l.LinkID))
 }
 

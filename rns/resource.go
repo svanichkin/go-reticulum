@@ -1261,6 +1261,7 @@ func (r *Resource) Prove(data []byte) {
 	)
 	p.Send()
 	if p.Sent {
+		Log(fmt.Sprintf("RESOURCE_PRF sent for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_DEBUG)
 		Cache(p, true)
 		return
 	}
@@ -1607,6 +1608,7 @@ func (r *Resource) RequestNext() {
 		r.Cancel()
 		return
 	}
+	Log(fmt.Sprintf("RESOURCE_REQ sent for %s outstanding=%d wants_hmu=%t", r, r.outstanding, hashmapState == HashmapExhausted), LOG_DEBUG)
 
 	r.lastActivity = time.Now()
 	r.reqSent = r.lastActivity
@@ -1755,6 +1757,7 @@ func (r *Resource) Request(requestData []byte) {
 			r.Cancel()
 			return
 		}
+		Log(fmt.Sprintf("RESOURCE_HMU sent for %s segment=%d", r, segment), LOG_DEBUG)
 		r.lastActivity = time.Now()
 	}
 

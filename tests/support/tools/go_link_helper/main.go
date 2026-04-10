@@ -25,6 +25,7 @@ func main() {
 		identify         bool
 		teardown         bool
 		expectClose      bool
+		traceMode        bool
 		holdSeconds      float64
 		waitSeconds      float64
 		keepaliveSeconds float64
@@ -37,6 +38,7 @@ func main() {
 	flag.BoolVar(&identify, "identify", true, "send identify on outgoing link")
 	flag.BoolVar(&teardown, "teardown", false, "teardown link after hold")
 	flag.BoolVar(&expectClose, "expect-close", false, "expect link to close during hold")
+	flag.BoolVar(&traceMode, "trace", false, "enable trace logging")
 	flag.Float64Var(&holdSeconds, "hold-seconds", 0, "hold active link for N seconds")
 	flag.Float64Var(&waitSeconds, "wait-seconds", 30, "overall wait timeout")
 	flag.Float64Var(&keepaliveSeconds, "keepalive-seconds", 0, "override keepalive after link activation")
@@ -51,7 +53,11 @@ func main() {
 		fatalf("reticulum init failed: %v", err)
 	}
 	rns.SetCompactLogFormat(true)
-	rns.SetLogLevel(-1)
+	if traceMode {
+		rns.SetLogLevel(rns.LOG_DEBUG)
+	} else {
+		rns.SetLogLevel(-1)
+	}
 
 	id, err := loadOrCreateIdentity(identityPath)
 	if err != nil {

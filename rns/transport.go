@@ -5415,22 +5415,116 @@ func CacheRequest(hash []byte, link *Link) {
 	if link == nil {
 		return
 	}
+	var attached *Interface
+	if ifc, ok := link.attachedInterface.(*Interface); ok && ifc != nil {
+		attached = ifc
+	} else if link.destination != nil {
+		if entry := getPathEntry(link.destination.hash); entry != nil && entry.RecvInterface != nil {
+			attached = entry.RecvInterface
+		}
+	}
+	var opts []PacketOption
+	opts = append(opts, WithPacketContext(PacketCONTEXT_CACHE_REQUEST), WithoutReceipt())
+	if attached != nil {
+		opts = append(opts, WithAttachedInterface(attached))
+	}
 	req := NewPacket(
 		link,
 		hash,
-		WithPacketContext(PacketCONTEXT_CACHE_REQUEST),
-		WithoutReceipt(),
+		opts...,
 	)
 	if req != nil {
-		req.Send()
+		if !sendLinkPacketDirect(req, attached) {
+			req.Send()
+		}
 	}
 }
 
 func cacheRequestPacket(packet *Packet) bool {
 	if len(packet.Data) == 0 {
+		Log("cacheRequestPacket: empty request", LogDebug)
 		return false
 	}
+	Logf(LogDebug, "cacheRequestPacket: destType=%d hash=%x recv=%v", packet.DestinationType, packet.Data, packet.ReceivingInterface)
+	if packet.DestinationType == DestLink {
+		packetCacheMu.RLock()
+		entry := packetCache[string(packet.Data)]
+		packetCacheMu.RUnlock()
+		if entry == nil || len(entry.Raw) == 0 {
+			Logf(LogDebug, "cacheRequestPacket: no cached entry for %x", packet.Data)
+			return false
+		}
+		link := findLinkByID(packet.DestinationHash)
+		if link == nil {
+			Logf(LogDebug, "cacheRequestPacket: no link for %x", packet.DestinationHash)
+			return false
+		}
+		cached := NewPacket(nil, entry.Raw)
+		if cached == nil || !cached.Unpack() {
+			return false
+		}
+		replay := NewPacket(
+			link,
+			cached.Data,
+			WithPacketType(cached.PacketType),
+			WithPacketContext(cached.Context),
+			WithAttachedInterface(packet.ReceivingInterface),
+			WithoutReceipt(),
+		)
+		if replay == nil {
+			Log("cacheRequestPacket: failed to build replay packet", LogDebug)
+			return false
+		}
+		Logf(LogDebug, "cacheRequestPacket: replaying cached packet %x over link %x", packet.Data, packet.DestinationHash)
+		return sendLinkPacketDirect(replay, packet.ReceivingInterface) || replay.Send() != nil || replay.Sent
+	}
 	return deliverCachedPacket(packet.Data)
+}
+
+func sendLinkPacketDirect(packet *Packet, ifc *Interface) bool {
+	if packet == nil {
+		Log("sendLinkPacketDirect: nil packet", LogDebug)
+		return false
+	}
+	if packet.Link == nil || packet.Link.Status == LinkClosed {
+		Logf(LogDebug, "sendLinkPacketDirect: invalid link status=%v", func() any {
+			if packet.Link == nil {
+				return nil
+			}
+			return packet.Link.Status
+		}())
+		return false
+	}
+	if ifc == nil {
+		if attached, ok := packet.Link.attachedInterface.(*Interface); ok && attached != nil {
+			ifc = attached
+		} else if packet.AttachedInterface != nil {
+			ifc = packet.AttachedInterface
+		} else {
+			for _, candidate := range Interfaces {
+				if candidate != nil && candidate.OUT {
+					ifc = candidate
+					break
+				}
+			}
+		}
+	}
+	if ifc == nil {
+		Log("sendLinkPacketDirect: no interface resolved", LogDebug)
+		return false
+	}
+	packet.Link.noteOutbound(packet.Context, len(packet.Data))
+	if !packet.Packed {
+		if err := packet.Pack(); err != nil {
+			Logf(LogDebug, "sendLinkPacketDirect: pack failed: %v", err)
+			return false
+		}
+	}
+	Logf(LogDebug, "sendLinkPacketDirect: transmit ctx=0x%02x link=%x ifc=%s", packet.Context, packet.Link.LinkID, ifc)
+	Transmit(ifc, packet.Raw)
+	packet.Sent = true
+	packet.SentAt = time.Now()
+	return true
 }
 
 func deliverCachedPacket(hash []byte) bool {

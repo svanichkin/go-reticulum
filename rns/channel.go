@@ -825,22 +825,15 @@ func (o *LinkChannelOutlet) Send(raw []byte) any {
 
 	// Python parity: create the packet, but only send if link is ACTIVE.
 	o.link.mu.Lock()
-	dest := o.link.destination
 	status := o.link.Status
 	o.link.mu.Unlock()
 
-	if dest == nil {
-		Log("Channel send attempted on link without destination", LOG_WARNING)
-		return nil
-	}
-
 	o.link.noteOutbound(PacketCtxChannel, len(raw))
 	packet := NewPacket(
-		dest,
+		o.link,
 		raw,
 		WithPacketContext(PacketCtxChannel),
 	)
-	packet.Link = o.link
 
 	if status == LinkActive {
 		if receipt := packet.Send(); receipt != nil {

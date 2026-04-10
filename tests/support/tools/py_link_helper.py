@@ -165,12 +165,13 @@ def main():
     parser.add_argument("--identify", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--teardown", action="store_true")
     parser.add_argument("--expect-close", action="store_true")
+    parser.add_argument("--trace", action="store_true")
     parser.add_argument("--hold-seconds", type=float, default=0)
     parser.add_argument("--wait-seconds", type=float, default=30)
     parser.add_argument("--keepalive-seconds", type=float, default=0)
     args = parser.parse_args()
 
-    reticulum = RNS.Reticulum(configdir=args.config, loglevel=2)
+    reticulum = RNS.Reticulum(configdir=args.config, loglevel=(RNS.LOG_DEBUG if args.trace else 2))
     _ = reticulum
     identity = prepare_identity(args.identity)
     global EXPECT_CLOSE
