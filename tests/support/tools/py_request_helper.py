@@ -50,8 +50,25 @@ def run_listener(identity, wait_seconds):
         time.sleep(secs)
         return f"slept:{secs}"
 
+    def timeout_handler(path, data, request_id, link_id, remote_identity, requested_at):
+        return None
+
+    def denied_handler(path, data, request_id, link_id, remote_identity, requested_at):
+        return "unexpected-denied-response"
+
+    def malformed_handler(path, data, request_id, link_id, remote_identity, requested_at):
+        for link in RNS.Transport.active_links:
+            if link.link_id == link_id:
+                RNS.Packet(link, b"bad-response-payload", RNS.Packet.DATA, context=RNS.Packet.RESPONSE).send()
+                log("EVENT malformed_sent")
+                break
+        return None
+
     destination.register_request_handler(path="echo", response_generator=echo, allow=RNS.Destination.ALLOW_ALL)
     destination.register_request_handler(path="sleep", response_generator=sleep_handler, allow=RNS.Destination.ALLOW_ALL)
+    destination.register_request_handler(path="timeout", response_generator=timeout_handler, allow=RNS.Destination.ALLOW_ALL)
+    destination.register_request_handler(path="denied", response_generator=denied_handler, allow=RNS.Destination.ALLOW_NONE)
+    destination.register_request_handler(path="malformed", response_generator=malformed_handler, allow=RNS.Destination.ALLOW_ALL)
 
     log("LISTEN_HASH " + RNS.hexrep(destination.hash, delimit=False))
     time.sleep(1.0)
@@ -134,12 +151,55 @@ def run_client(identity, destination_hex, wait_seconds):
             return 1
         if sleep_state["resp"] is not None:
             log(f"EVENT sleep_response {sleep_state['resp']}")
-            link.teardown()
-            return 0
+            break
+        time.sleep(0.1)
+    else:
+        print("sleep response timeout", file=sys.stderr)
+        return 1
+
+    denied_result = request_expect_no_response(link, "denied", "nope", 1, 4)
+    if denied_result is None:
+        return 1
+    log(f"EVENT denied_{denied_result}")
+
+    timeout_result = request_expect_no_response(link, "timeout", "hang", 1, 3)
+    if timeout_result is None:
+        return 1
+    log(f"EVENT timeout_{timeout_result}")
+
+    malformed_result = request_expect_no_response(link, "malformed", "bad", 1, 3)
+    if malformed_result is None:
+        return 1
+    log(f"EVENT malformed_{malformed_result}")
+
+    link.teardown()
+    return 0
+
+
+def request_expect_no_response(link, path, data, timeout, wait_seconds):
+    state = {"resp": None, "failed": False}
+
+    def ok(receipt):
+        state["resp"] = receipt.response
+
+    def failed(receipt):
+        state["failed"] = True
+
+    rr = link.request(path, data, response_callback=ok, failed_callback=failed, timeout=timeout)
+    if rr is False:
+        print(f"{path} request not sent", file=sys.stderr)
+        return None
+
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        if state["resp"] is not None:
+            print(f"{path} request unexpectedly got response: {state['resp']}", file=sys.stderr)
+            return None
+        if state["failed"]:
+            return "failed"
         time.sleep(0.1)
 
-    print("sleep response timeout", file=sys.stderr)
-    return 1
+    return "silent"
 
 
 def main():

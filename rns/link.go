@@ -774,6 +774,8 @@ func (l *Link) ResourceConcluded(res *Resource) {
 	l.mu.Lock()
 	removedIncoming := l.removeResourceLocked(&l.incomingResources, res)
 	removedOutgoing := l.removeResourceLocked(&l.outgoingResources, res)
+	inCount := len(l.incomingResources)
+	outCount := len(l.outgoingResources)
 	if removedIncoming {
 		l.lastResourceWindow = res.window
 		l.lastResourceEIFR = res.eifr
@@ -786,6 +788,7 @@ func (l *Link) ResourceConcluded(res *Resource) {
 		l.ExpectedRate = float64(res.size*8) / d.Seconds()
 	}
 	l.mu.Unlock()
+	Log(fmt.Sprintf("ResourceConcluded on %s removed_in=%t removed_out=%t incoming=%d outgoing=%d resource=%s", l, removedIncoming, removedOutgoing, inCount, outCount, res), LOG_WARNING)
 }
 
 func (l *Link) invokeResourceConcludedCallback(res *Resource) {

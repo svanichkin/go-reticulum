@@ -19,6 +19,8 @@ STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-6}"
 LINK_WAIT_SECS="${LINK_WAIT_SECS:-20}"
 LINK_HOLD_SECS="${LINK_HOLD_SECS:-12}"
 LINK_KEEPALIVE_SECS="${LINK_KEEPALIVE_SECS:-5}"
+LINK_STALE_HOLD_SECS="${LINK_STALE_HOLD_SECS:-45}"
+LINK_STALE_WAIT_SECS="${LINK_STALE_WAIT_SECS:-60}"
 
 TS="${TS:-"$(date +"%Y%m%d-%H%M%S")"}"
 OUT_DIR="$ROOT/tests/artifacts/logs/$TS/compare_link_level_two_nodes_tcp"
@@ -345,15 +347,27 @@ run_pair() {
   sleep 1
 
   local client_code
-  client_code="$(run_capture "$client_log" env HOME="$home_a" USERPROFILE="$home_a" \
-    $helper_cmd_a $cfg_flag_a "$node_a_dir" \
-    --identity "$client_identity" \
-    --destination "$listen_hash" \
-    --identify \
-    --hold-seconds "$LINK_HOLD_SECS" \
-    --wait-seconds "$LINK_WAIT_SECS" \
-    --keepalive-seconds "$LINK_KEEPALIVE_SECS" \
-    --teardown)"
+  local attempt
+  for attempt in 1 2 3; do
+    client_code="$(run_capture "$client_log" env HOME="$home_a" USERPROFILE="$home_a" \
+      $helper_cmd_a $cfg_flag_a "$node_a_dir" \
+      --identity "$client_identity" \
+      --destination "$listen_hash" \
+      --identify \
+      --hold-seconds "$LINK_HOLD_SECS" \
+      --wait-seconds "$LINK_WAIT_SECS" \
+      --keepalive-seconds "$LINK_KEEPALIVE_SECS" \
+      --teardown)"
+    if [[ "$client_code" == "0" ]]; then
+      break
+    fi
+    if ! rg -q "path not found|connect: connection refused" "$client_log"; then
+      break
+    fi
+    if [[ "$attempt" -lt 3 ]]; then
+      sleep 2
+    fi
+  done
   if [[ "$client_code" != "0" ]]; then
     echo "[cmp] $label: client helper failed; see $client_log"
     stop_proc "$listener_pid"
@@ -374,7 +388,70 @@ run_pair() {
   assert_log_contains "$listener_log" "EVENT closed" "$label listener" || { stop_proc "$listener_pid"; return 1; }
 
   stop_proc "$listener_pid"
+
+  echo "[cmp] $label: stale/timeout phase"
+  local stale_listener_log="$OUT_DIR/${label}.stale.listener.out"
+  local stale_client_log="$OUT_DIR/${label}.stale.client.out"
+
+  env HOME="$home_b" USERPROFILE="$home_b" \
+    $helper_cmd_b $cfg_flag_b "$node_b_dir" \
+    --identity "$listener_identity" \
+    --listen \
+    --wait-seconds "$LINK_WAIT_SECS" \
+    --keepalive-seconds "$LINK_KEEPALIVE_SECS" >"$stale_listener_log" 2>&1 &
+  listener_pid=$!
+
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$stale_listener_log" "LISTEN_HASH "; then
+    echo "[cmp] $label: stale listener did not become ready; see $stale_listener_log"
+    stop_proc "$listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  listen_hash="$(extract_listen_hash "$stale_listener_log")"
+  if [[ -z "$listen_hash" ]]; then
+    echo "[cmp] $label: failed to parse stale listener hash; see $stale_listener_log"
+    stop_proc "$listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  env HOME="$home_a" USERPROFILE="$home_a" \
+    $helper_cmd_a $cfg_flag_a "$node_a_dir" \
+    --identity "$client_identity" \
+    --destination "$listen_hash" \
+    --identify \
+    --expect-close \
+    --hold-seconds "$LINK_STALE_HOLD_SECS" \
+    --wait-seconds "$LINK_STALE_WAIT_SECS" \
+    --keepalive-seconds "$LINK_KEEPALIVE_SECS" >"$stale_client_log" 2>&1 &
+  local stale_client_pid=$!
+
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$stale_client_log" "EVENT established"; then
+    echo "[cmp] $label: stale client did not establish link; see $stale_client_log"
+    stop_proc "$stale_client_pid"; stop_proc "$listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$stale_listener_log" "EVENT established"; then
+    echo "[cmp] $label: stale listener did not observe establishment; see $stale_listener_log"
+    stop_proc "$stale_client_pid"; stop_proc "$listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+
+  stop_proc "$pid_b"
+
+  if ! wait_for_file_contains "$LINK_STALE_WAIT_SECS" "$stale_client_log" "EVENT stale_closed"; then
+    echo "[cmp] $label: stale client did not observe stale close; see $stale_client_log"
+    stop_proc "$stale_client_pid"; stop_proc "$listener_pid"; stop_proc "$pid_a"
+    return 1
+  fi
+  stop_proc "$stale_client_pid"
+
+  assert_log_contains "$stale_client_log" "EVENT closed" "$label stale-client" || { stop_proc "$listener_pid"; stop_proc "$pid_a"; return 1; }
+  assert_log_contains "$stale_client_log" "EVENT stale_closed" "$label stale-client" || { stop_proc "$listener_pid"; stop_proc "$pid_a"; return 1; }
+
   echo "[cmp] $label OK"
+  stop_proc "$listener_pid"
+  stop_proc "$pid_a"
+  stop_proc "$pid_b"
 }
 
 overall=0

@@ -24,6 +24,7 @@ func main() {
 		listenMode       bool
 		identify         bool
 		teardown         bool
+		expectClose      bool
 		holdSeconds      float64
 		waitSeconds      float64
 		keepaliveSeconds float64
@@ -35,6 +36,7 @@ func main() {
 	flag.BoolVar(&listenMode, "listen", false, "listen for links")
 	flag.BoolVar(&identify, "identify", true, "send identify on outgoing link")
 	flag.BoolVar(&teardown, "teardown", false, "teardown link after hold")
+	flag.BoolVar(&expectClose, "expect-close", false, "expect link to close during hold")
 	flag.Float64Var(&holdSeconds, "hold-seconds", 0, "hold active link for N seconds")
 	flag.Float64Var(&waitSeconds, "wait-seconds", 30, "overall wait timeout")
 	flag.Float64Var(&keepaliveSeconds, "keepalive-seconds", 0, "override keepalive after link activation")
@@ -66,7 +68,7 @@ func main() {
 	if destinationHex == "" {
 		fatalf("destination is required in client mode")
 	}
-	if err := runClient(id, destinationHex, identify, teardown, holdSeconds, waitSeconds, keepaliveSeconds); err != nil {
+	if err := runClient(id, destinationHex, identify, teardown, expectClose, holdSeconds, waitSeconds, keepaliveSeconds); err != nil {
 		fatalf("client failed: %v", err)
 	}
 }
@@ -81,6 +83,13 @@ func runListener(id *rns.Identity, waitSeconds, keepaliveSeconds float64) error 
 	dest.SetLinkEstablishedCallback(func(l *rns.Link) {
 		applyKeepalive(l, keepaliveSeconds)
 		fmt.Printf("EVENT established %s\n", hex.EncodeToString(l.LinkID))
+		if mtu := l.GetMTU(); mtu != nil {
+			if mdu := l.GetMDU(); mdu != nil {
+				fmt.Printf("EVENT mtu=%d mdu=%d\n", *mtu, *mdu)
+			} else {
+				fmt.Printf("EVENT mtu=%d\n", *mtu)
+			}
+		}
 		l.SetRemoteIdentifiedCallback(func(_ *rns.Link, rid *rns.Identity) {
 			if rid != nil {
 				fmt.Printf("EVENT identified %s\n", hex.EncodeToString(rid.Hash))
@@ -113,7 +122,7 @@ func runListener(id *rns.Identity, waitSeconds, keepaliveSeconds float64) error 
 	}
 }
 
-func runClient(id *rns.Identity, destinationHex string, identify, teardown bool, holdSeconds, waitSeconds, keepaliveSeconds float64) error {
+func runClient(id *rns.Identity, destinationHex string, identify, teardown, expectClose bool, holdSeconds, waitSeconds, keepaliveSeconds float64) error {
 	destHash, err := hex.DecodeString(destinationHex)
 	if err != nil {
 		return err
@@ -158,6 +167,13 @@ func runClient(id *rns.Identity, destinationHex string, identify, teardown bool,
 
 	applyKeepalive(link, keepaliveSeconds)
 	fmt.Printf("EVENT established %s\n", hex.EncodeToString(link.LinkID))
+	if mtu := link.GetMTU(); mtu != nil {
+		if mdu := link.GetMDU(); mdu != nil {
+			fmt.Printf("EVENT mtu=%d mdu=%d\n", *mtu, *mdu)
+		} else {
+			fmt.Printf("EVENT mtu=%d\n", *mtu)
+		}
+	}
 
 	if identify {
 		link.Identify(id)
@@ -167,7 +183,13 @@ func runClient(id *rns.Identity, destinationHex string, identify, teardown bool,
 
 	if holdSeconds > 0 {
 		time.Sleep(durationSeconds(holdSeconds))
-		if link.Status == rns.LinkActive {
+		if expectClose {
+			if link.Status == rns.LinkClosed {
+				fmt.Println("EVENT stale_closed")
+			} else {
+				return fmt.Errorf("link did not close during hold, status=%d", link.Status)
+			}
+		} else if link.Status == rns.LinkActive {
 			fmt.Println("EVENT still_active")
 		} else {
 			return fmt.Errorf("link not active after hold, status=%d", link.Status)

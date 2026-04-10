@@ -3720,8 +3720,15 @@ func Inbound(raw []byte, ifc *Interface) {
 		// decisions. Shared instances will typically have no local link, and will
 		// fall back to link_table forwarding below.
 		if p.DestinationType == DestLink {
+			if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+				Logf(LogWarning, "Inbound DestLink packet ctx=0x%02x hash=%x recv=%v fromLocal=%v forLocalClient=%v proofForLocal=%v",
+					p.Context, p.DestinationHash, ifc, fromLocal, forLocalClient, proofForLocalClient)
+			}
 			link := findLinkByID(p.DestinationHash)
 			if link != nil {
+				if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+					Logf(LogWarning, "Inbound DestLink packet ctx=0x%02x delivered locally to %s", p.Context, link)
+				}
 				link.Receive(p)
 				return
 			}
@@ -3832,6 +3839,10 @@ func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
 	}
 
 	if outbound == nil || outbound == receivedOn {
+		if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+			Logf(LogWarning, "LinkTable forward blocked ctx=0x%02x hash=%x recv=%v next=%v got=%v hops=%d rem=%d",
+				p.Context, p.DestinationHash, receivedOn, entry.NextHopInterface, outbound, p.Hops, entry.RemainingHops)
+		}
 		return false
 	}
 
@@ -3839,11 +3850,19 @@ func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
 	AddPacketHash(p.PacketHash)
 
 	outRaw := append([]byte{p.Raw[0], p.Raw[1]}, p.Raw[2:]...)
+	if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+		Logf(LogWarning, "LinkTable forwarding ctx=0x%02x hash=%x recv=%v out=%v hops=%d rem=%d",
+			p.Context, p.DestinationHash, receivedOn, outbound, p.Hops, entry.RemainingHops)
+	}
 	Transmit(outbound, outRaw)
 
 	now := time.Now()
 	linkMu.Lock()
 	if cur := linkTable[key]; cur == entry {
+		if p.Type == PacketProof && p.Context == PacketCtxLRProof {
+			entry.Validated = true
+			entry.ProofTimeout = time.Time{}
+		}
 		entry.Timestamp = now
 		linkTable[key] = entry
 	}

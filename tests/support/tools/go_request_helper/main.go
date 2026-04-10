@@ -96,6 +96,39 @@ func runReqListener(id *rns.Identity, waitSeconds float64) error {
 		return err
 	}
 
+	if err := dest.RegisterRequestHandler("timeout", func(path string, data any, requestID []byte, linkID []byte, remoteIdentity *rns.Identity, requestedAt time.Time) any {
+		return nil
+	}, rns.DestinationALLOW_ALL, nil); err != nil {
+		return err
+	}
+
+	if err := dest.RegisterRequestHandler("denied", func(path string, data any, requestID []byte, linkID []byte, remoteIdentity *rns.Identity, requestedAt time.Time) any {
+		return "unexpected-denied-response"
+	}, rns.DestinationALLOW_NONE, nil); err != nil {
+		return err
+	}
+
+	if err := dest.RegisterRequestHandler("malformed", func(path string, data any, requestID []byte, linkID []byte, remoteIdentity *rns.Identity, requestedAt time.Time) any {
+		for _, link := range dest.Links() {
+			if link != nil && string(link.LinkID) == string(linkID) {
+				packet := rns.NewPacket(
+					link,
+					[]byte("bad-response-payload"),
+					rns.WithPacketContext(rns.PacketCtxResponse),
+					rns.WithoutReceipt(),
+				)
+				if packet != nil {
+					_ = packet.Send()
+					fmt.Println("EVENT malformed_sent")
+				}
+				break
+			}
+		}
+		return nil
+	}, rns.DestinationALLOW_ALL, nil); err != nil {
+		return err
+	}
+
 	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
 	time.Sleep(time.Second)
 	deadline := time.Now().Add(durationReq(waitSeconds))
@@ -185,8 +218,51 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 		return fmt.Errorf("sleep response timeout")
 	}
 
+	denyResult, err := requestExpectNoResponse(link, "denied", "nope", 1, 4*time.Second)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("EVENT denied_%s\n", denyResult)
+
+	timeoutResult, err := requestExpectNoResponse(link, "timeout", "hang", 1, 3*time.Second)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("EVENT timeout_%s\n", timeoutResult)
+
+	malformedResult, err := requestExpectNoResponse(link, "malformed", "bad", 1, 3*time.Second)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("EVENT malformed_%s\n", malformedResult)
+
 	link.Teardown()
 	return nil
+}
+
+func requestExpectNoResponse(link *rns.Link, path string, data any, timeout float64, wait time.Duration) (string, error) {
+	respCh := make(chan *rns.RequestReceipt, 1)
+	failCh := make(chan *rns.RequestReceipt, 1)
+	rr := rns.RequestReceiptFrom(link.Request(path, data, func(rr *rns.RequestReceipt) {
+		respCh <- rr
+	}, func(rr *rns.RequestReceipt) {
+		failCh <- rr
+	}, nil, timeout))
+	if rr == nil {
+		return "", fmt.Errorf("%s request not sent", path)
+	}
+
+	select {
+	case got := <-respCh:
+		if got != nil {
+			return "", fmt.Errorf("%s request unexpectedly got response: %v", path, got.Response())
+		}
+		return "", fmt.Errorf("%s request unexpectedly got empty response", path)
+	case <-failCh:
+		return "failed", nil
+	case <-time.After(wait):
+		return "silent", nil
+	}
 }
 
 func awaitReqPath(destHash []byte, timeout time.Duration) bool {

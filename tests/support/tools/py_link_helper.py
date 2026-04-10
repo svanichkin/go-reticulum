@@ -9,6 +9,7 @@ import RNS
 
 APP_NAME = "paritylink"
 ASPECT = "hold"
+EXPECT_CLOSE = False
 
 
 def log(msg):
@@ -56,6 +57,8 @@ def run_listener(identity, wait_seconds, keepalive_seconds):
     def on_link_established(link):
         apply_keepalive(link, keepalive_seconds)
         log("EVENT established " + RNS.hexrep(link.link_id, delimit=False))
+        if link.get_mtu() is not None:
+            log(f"EVENT mtu={link.get_mtu()} mdu={link.get_mdu()}")
 
         def on_identified(_link, remote_identity):
             log("EVENT identified " + RNS.hexrep(remote_identity.hash, delimit=False))
@@ -117,6 +120,8 @@ def run_client(identity, destination_hex, identify, teardown, hold_seconds, wait
 
     apply_keepalive(link, keepalive_seconds)
     log("EVENT established " + RNS.hexrep(link.link_id, delimit=False))
+    if link.get_mtu() is not None:
+        log(f"EVENT mtu={link.get_mtu()} mdu={link.get_mdu()}")
 
     if identify:
         link.identify(identity)
@@ -125,10 +130,17 @@ def run_client(identity, destination_hex, identify, teardown, hold_seconds, wait
 
     if hold_seconds > 0:
         time.sleep(hold_seconds)
-        if link.status != RNS.Link.ACTIVE:
-            print(f"link not active after hold, status={link.status}", file=sys.stderr)
-            return 1
-        log("EVENT still_active")
+        if EXPECT_CLOSE:
+            if link.status == RNS.Link.CLOSED:
+                log("EVENT stale_closed")
+            else:
+                print(f"link did not close during hold, status={link.status}", file=sys.stderr)
+                return 1
+        else:
+            if link.status != RNS.Link.ACTIVE:
+                print(f"link not active after hold, status={link.status}", file=sys.stderr)
+                return 1
+            log("EVENT still_active")
 
     if teardown:
         link.teardown()
@@ -152,6 +164,7 @@ def main():
     parser.add_argument("--listen", action="store_true")
     parser.add_argument("--identify", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--teardown", action="store_true")
+    parser.add_argument("--expect-close", action="store_true")
     parser.add_argument("--hold-seconds", type=float, default=0)
     parser.add_argument("--wait-seconds", type=float, default=30)
     parser.add_argument("--keepalive-seconds", type=float, default=0)
@@ -160,6 +173,8 @@ def main():
     reticulum = RNS.Reticulum(configdir=args.config, loglevel=2)
     _ = reticulum
     identity = prepare_identity(args.identity)
+    global EXPECT_CLOSE
+    EXPECT_CLOSE = args.expect_close
 
     if args.listen:
         raise SystemExit(run_listener(identity, args.wait_seconds, args.keepalive_seconds))

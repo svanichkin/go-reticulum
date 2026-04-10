@@ -933,8 +933,13 @@ func (r *Resource) advertiseJob() {
 	}
 	r.status = ResourceQueued
 
+	queuedSince := time.Now()
 	for !r.link.ReadyForNewResource() {
 		r.status = ResourceQueued
+		if time.Since(queuedSince) > time.Second {
+			Log(fmt.Sprintf("Resource %s waiting for ReadyForNewResource on %s", r, r.link), LOG_WARNING)
+			queuedSince = time.Now()
+		}
 		time.Sleep(250 * time.Millisecond)
 	}
 
@@ -958,6 +963,7 @@ func (r *Resource) advertiseJob() {
 		r.Cancel()
 		return
 	}
+	Log(fmt.Sprintf("Advertised resource segment %d/%d for %s on %s", r.segmentIndex, r.totalSegments, r, r.link), LOG_WARNING)
 	Log("Sent resource advertisement for "+PrettyHex(r.hash), LOG_EXTREME)
 	r.WatchdogJob()
 }
@@ -1312,7 +1318,6 @@ func (r *Resource) prepareNextSegment() {
 	}
 	Log(fmt.Sprintf("Preparing segment %d of %d for resource %s", r.segmentIndex+1, r.totalSegments, r), LOG_DEBUG)
 	r.preparingNext = true
-	defer func() { r.preparingNext = false }()
 	next, err := NewResource(
 		nil,
 		r.inputFile,
@@ -1362,7 +1367,7 @@ func (r *Resource) ValidateProof(proofData []byte) {
 	if r.segmentIndex == r.totalSegments {
 		r.finishSender()
 	} else {
-		if !r.preparingNext {
+		if r.nextSegment == nil && !r.preparingNext {
 			Log(fmt.Sprintf("Next segment preparation for resource %s was not started yet, preparing now. This will slow down transfer.", r), LOG_WARNING)
 			r.prepareNextSegment()
 		}

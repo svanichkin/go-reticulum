@@ -151,7 +151,7 @@ type TCPClientInterface struct {
 	detached   atomic.Bool
 	reconnect  atomic.Bool
 	neverConn  atomic.Bool
-	readOnce   sync.Once
+	reading    atomic.Bool
 	writeMutex sync.Mutex
 
 	wantsTunnel atomic.Bool
@@ -459,14 +459,12 @@ func (t *TCPClientInterface) WantsTunnel() bool {
 }
 
 func (t *TCPClientInterface) readLoop() {
-	// avoid running twice
-	called := false
-	t.readOnce.Do(func() { called = true })
-	if !called {
+	// Allow a new read loop after reconnect, but never run two in parallel.
+	if !t.reading.CompareAndSwap(false, true) {
 		return
 	}
-
 	defer func() {
+		t.reading.Store(false)
 		t.online.Store(false)
 	}()
 

@@ -296,6 +296,21 @@ run_pair() {
 
   assert_contains "$client_log" "EVENT echo_response echo:hello" "$label client" || { stop_proc "$listener_pid"; return 1; }
   assert_contains "$client_log" "EVENT sleep_response slept:3" "$label client" || { stop_proc "$listener_pid"; return 1; }
+  if ! rg -q "EVENT denied_(failed|silent)" "$client_log"; then
+    echo "[cmp] $label client missing denied event; see $client_log"
+    stop_proc "$listener_pid"
+    return 1
+  fi
+  if ! rg -q "EVENT timeout_(failed|silent)" "$client_log"; then
+    echo "[cmp] $label client missing timeout event; see $client_log"
+    stop_proc "$listener_pid"
+    return 1
+  fi
+  if ! rg -q "EVENT malformed_(failed|silent)" "$client_log"; then
+    echo "[cmp] $label client missing malformed event; see $client_log"
+    stop_proc "$listener_pid"
+    return 1
+  fi
 
   stop_proc "$listener_pid"
   echo "[cmp] $label OK"
