@@ -270,6 +270,25 @@ run_pair() {
   _="$(run_capture "$status_b" env HOME="$home_b" USERPROFILE="$home_b" \
     $rnstatus_cmd_b $cfg_flag_b "$node_b_dir" -a)"
 
+  echo "[cmp] $label: link/probe"
+  local probe_hash
+  probe_hash="$(extract_probe_hash "$status_b")"
+  if [[ -z "$probe_hash" ]]; then
+    echo "[cmp] $label: could not parse probe hash; see $status_b"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  local probe_out="$OUT_DIR/${label}.probe.out"
+  local probe_code
+  probe_code="$(run_capture "$probe_out" env HOME="$home_a" USERPROFILE="$home_a" \
+    $rnprobe_cmd_a $cfg_flag_a "$node_a_dir" -n 1 -t 15 -w 0.2 rnstransport.probe "$probe_hash")"
+  if [[ "$probe_code" != "0" ]] || ! rg -q "Valid reply from" "$probe_out"; then
+    echo "[cmp] $label: probe failed; see $probe_out"
+    stop_proc "$pid_a"; stop_proc "$pid_b"
+    return 1
+  fi
+  echo "[cmp] $label: probe_ok=yes"
+
   echo "[cmp] $label: announce + path"
   local hash_out="$OUT_DIR/${label}.hash.out"
   local hash_code
@@ -308,25 +327,6 @@ run_pair() {
     return 1
   fi
   echo "[cmp] $label: announce_ok=yes path_ok=yes"
-
-  echo "[cmp] $label: link/probe"
-  local probe_hash
-  probe_hash="$(extract_probe_hash "$status_b")"
-  if [[ -z "$probe_hash" ]]; then
-    echo "[cmp] $label: could not parse probe hash; see $status_b"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-  local probe_out="$OUT_DIR/${label}.probe.out"
-  local probe_code
-  probe_code="$(run_capture "$probe_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnprobe_cmd_a $cfg_flag_a "$node_a_dir" -n 1 -t 15 -w 0.2 rnstransport.probe "$probe_hash")"
-  if [[ "$probe_code" != "0" ]] || ! rg -q "Valid reply from" "$probe_out"; then
-    echo "[cmp] $label: probe failed; see $probe_out"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-  echo "[cmp] $label: probe_ok=yes"
 
   echo "[cmp] $label: identity request/response"
   local request_out="$OUT_DIR/${label}.request.out"

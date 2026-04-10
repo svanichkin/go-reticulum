@@ -113,7 +113,6 @@ func main() {
 
 	if exampleConf {
 		fmt.Print(exampleConfig)
-		fmt.Println()
 		return
 	}
 

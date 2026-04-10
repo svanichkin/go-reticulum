@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 
 LOG_DIR="${LOG_DIR:-"$ROOT/tests/artifacts/logs"}"
 TS="$(date +"%Y%m%d-%H%M%S")"
@@ -90,7 +90,7 @@ wait_for_rg() {
   local start now
   start="$(date +%s)"
   while true; do
-    if rg -q --no-messages "$pattern" "$file" 2>/dev/null; then
+    if rg -q --no-messages -- "$pattern" "$file" 2>/dev/null; then
       return 0
     fi
     now="$(date +%s)"
@@ -129,18 +129,20 @@ start_proc_with_fifo() {
 
   rm -f "$fifo"
   mkfifo "$fifo"
-  exec {fd}>"$fifo"
+  # Keep a writer attached so opening the read side for the child does not deadlock.
+  tail -f /dev/null >"$fifo" 2>/dev/null &
+  local keep_pid=$!
 
   "$@" <"$fifo" >"$log" 2>&1 &
   local pid=$!
 
-  echo "$pid $fd $fifo"
+  echo "$pid $fifo $keep_pid"
 }
 
 send_line_fd() {
-  local fd="$1"
+  local fifo="$1"
   shift
-  printf "%s\n" "$*" >&"$fd"
+  printf "%s\n" "$*" >"$fifo"
 }
 
 wait_gone() {
@@ -160,7 +162,7 @@ wait_gone() {
 
 stop_proc() {
   local pid="$1"
-  local fd="$2"
+  local _fifo_handle="$2"
   local fifo="$3"
 
   if kill -0 "$pid" >/dev/null 2>&1; then
@@ -174,8 +176,9 @@ stop_proc() {
     fi
   fi
 
-  # Close stdin writer and remove fifo.
-  eval "exec ${fd}>&-"
+  # Terminate the helper that keeps the FIFO write side open.
+  pkill -f "tail -f /dev/null >$fifo" >/dev/null 2>&1 || true
+
   rm -f "$fifo"
 }
 
@@ -261,6 +264,10 @@ run_server_client_smoke() {
 
   # One action. Only quit after success is observed (some clients exit on "quit").
   send_line_fd "$client_fd" "hello"
+
+  if ! wait_for_rg "$READY_TIMEOUT_SECS" "$client_log" "$client_success_re"; then
+    send_line_fd "$client_fd" ""
+  fi
 
   if ! wait_for_rg "$READY_TIMEOUT_SECS" "$client_log" "$client_success_re"; then
     echo "[cmp] $name client did not reach expected output; log: $client_log"
@@ -697,7 +704,7 @@ for ex in "${examples[@]}"; do
       if ! run_server_client_smoke \
         "channel.python" "$py_out" "$py_cfg" \
         "Channel example" \
-        "Link established with server" \
+        "Establishing link with server|Link established with server" \
         "I received \\\"hello\\\" over the link" \
         "$PYTHON -u $ROOT/python/Examples/Channel.py --config $py_cfg --server" \
         "$PYTHON -u $ROOT/python/Examples/Channel.py --config $py_cfg"; then

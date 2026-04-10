@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
@@ -38,7 +38,7 @@ run_capture() {
   shift
   local code=0
   set +e
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
   code=$?
   set -e
   echo "$code"
@@ -54,17 +54,17 @@ stop_proc() {
   fi
 
   kill -INT "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -TERM "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -KILL "$pid" >/dev/null 2>&1 || true
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -75,7 +75,7 @@ wait_for_ok() {
   local start
   start="$(date +%s)"
   while true; do
-    if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout 2 -- "$@" >/dev/null 2>&1; then
+    if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout 2 -- "$@" >/dev/null 2>&1; then
       return 0
     fi
     now="$(date +%s)"
@@ -96,7 +96,7 @@ new_run_dir_from_template() {
   local run_dir
   run_dir="$(mktemp -d)"
   cp "$template" "$run_dir/config"
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" \
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
     --path "$run_dir/config" \
     --shared-instance-port "$sip" \
     --instance-control-port "$cip" \

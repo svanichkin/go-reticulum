@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
@@ -34,7 +34,7 @@ run_capture() {
   shift
   local code=0
   set +e
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
   code=$?
   set -e
   echo "$code"
@@ -70,7 +70,7 @@ new_run_dir_from_template() {
   local run_dir
   run_dir="$(mktemp -d)"
   cp "$template" "$run_dir/config"
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" \
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
     --path "$run_dir/config" \
     --shared-instance-port "$sip" \
     --instance-control-port "$cip" \
@@ -154,4 +154,3 @@ else
   echo "[cmp] FAIL (see $OUT_DIR)"
   exit 1
 fi
-

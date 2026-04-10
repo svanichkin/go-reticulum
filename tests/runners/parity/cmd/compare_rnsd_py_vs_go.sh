@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 STATUS_CMD_TIMEOUT_SECS="${STATUS_CMD_TIMEOUT_SECS:-2}"
@@ -86,17 +86,17 @@ stop_proc() {
   fi
 
   kill -INT "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -TERM "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -KILL "$pid" >/dev/null 2>&1 || true
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -107,7 +107,7 @@ wait_for_ok() {
   local start
   start="$(date +%s)"
   while true; do
-    if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "$@" >/dev/null 2>&1; then
+    if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "$@" >/dev/null 2>&1; then
       return 0
     fi
     now="$(date +%s)"
@@ -144,7 +144,7 @@ new_run_dir_from_template() {
     patch_args+=(--shared-instance-type "$shared_instance_type")
   fi
 
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" \
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
     "${patch_args[@]}"
 
   echo "$run_dir"
@@ -305,13 +305,13 @@ if ! wait_for_ok "$RNSD_READY_TIMEOUT_SECS" "$PYTHON" "$ROOT/python/RNS/Utilitie
   stop_proc "$py_pid"
   overall=1
 else
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$PYTHON" "$ROOT/python/RNS/Utilities/rnstatus.py" --config "$run_dir" -j -a >"$py_json"; then
     echo "[cmp] rpc_key_invalid python rnstatus timed out; log: $py_log"
     stop_proc "$py_pid"
     overall=1
   else
-    "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
+    "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
     if ! require_file_contains "python rnsd log" "$py_log" "Invalid shared instance RPC key"; then
       overall=1
     fi
@@ -326,13 +326,13 @@ if ! wait_for_ok "$RNSD_READY_TIMEOUT_SECS" "$GO_BIN_DIR/rnstatus" --config "$ru
   stop_proc "$go_pid"
   overall=1
 else
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$GO_BIN_DIR/rnstatus" --config "$run_dir" -j -a >"$go_json"; then
     echo "[cmp] rpc_key_invalid go rnstatus timed out; log: $go_log"
     stop_proc "$go_pid"
     overall=1
   else
-    "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
+    "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
     if ! require_file_contains "go rnsd log" "$go_log" "Invalid shared instance RPC key"; then
       overall=1
     fi
@@ -364,8 +364,8 @@ else
   if [[ "$py_code" -eq 0 ]]; then
     py_norm="$OUT_DIR/require_shared.python.norm"
     go_norm="$OUT_DIR/require_shared.go.norm"
-    "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$py_out" >"$py_norm"
-    "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$go_out" >"$go_norm"
+    "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$py_out" >"$py_norm"
+    "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$go_out" >"$go_norm"
     if diff -u "$py_norm" "$go_norm" >"$OUT_DIR/require_shared.diff"; then
       echo "[cmp] require_shared OK"
     else
@@ -405,14 +405,14 @@ for shared_type in tcp unix; do
     overall=1
     continue
   fi
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$PYTHON" "$ROOT/python/RNS/Utilities/rnstatus.py" --config "$run_dir" -j -a >"$py_json"; then
     echo "[cmp] shared_type=$shared_type python rnstatus timed out; log: $py_log"
     stop_proc "$py_pid"
     overall=1
     continue
   fi
-  "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
+  "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
   stop_proc "$py_pid"
 
   RNS_EXIT_WAIT_TIMEOUT=1 "$GO_BIN_DIR/rnsd" --config "$run_dir" -q >"$go_log" 2>&1 &
@@ -423,14 +423,14 @@ for shared_type in tcp unix; do
     overall=1
     continue
   fi
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$GO_BIN_DIR/rnstatus" --config "$run_dir" -j -a >"$go_json"; then
     echo "[cmp] shared_type=$shared_type go rnstatus timed out; log: $go_log"
     stop_proc "$go_pid"
     overall=1
     continue
   fi
-  "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
+  "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
   stop_proc "$go_pid"
 
   if diff -u "$py_norm" "$go_norm" >"$OUT_DIR/shared_type_${shared_type}.diff"; then

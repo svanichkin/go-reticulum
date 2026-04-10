@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 SHARED_INSTANCE_TYPE="${SHARED_INSTANCE_TYPE:-}"
 STATUS_CMD_TIMEOUT_SECS="${STATUS_CMD_TIMEOUT_SECS:-2}"
@@ -35,7 +35,7 @@ wait_for_status() {
   local cmd=("$@")
   local tries=80
   for _ in $(seq 1 "$tries"); do
-    if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "${cmd[@]}" >/dev/null 2>&1; then
+    if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "${cmd[@]}" >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.1
@@ -53,24 +53,24 @@ stop_proc() {
   fi
 
   kill -INT "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -TERM "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -KILL "$pid" >/dev/null 2>&1 || true
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
   return 0
 }
 
 run_status_text() {
   local out_file="$1"
   shift
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "$@" >"$out_file" 2>&1; then
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- "$@" >"$out_file" 2>&1; then
     return 1
   fi
   return 0
@@ -79,7 +79,7 @@ run_status_text() {
 normalize_text() {
   local in_file="$1"
   local out_file="$2"
-  "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_text.py" <"$in_file" >"$out_file"
+  "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_text.py" <"$in_file" >"$out_file"
 }
 
 run_one() {
@@ -105,7 +105,7 @@ run_one() {
   if [[ -n "$SHARED_INSTANCE_TYPE" ]]; then
     patch_args+=(--shared-instance-type "$SHARED_INSTANCE_TYPE")
   fi
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" "${patch_args[@]}"
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" "${patch_args[@]}"
 
   local py_log="$OUT_DIR/$label.python.rnsd.log"
   local go_log="$OUT_DIR/$label.go.rnsd.log"
@@ -133,14 +133,14 @@ run_one() {
     rm -rf "$run_dir"
     return 1
   fi
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$PYTHON" "$ROOT/python/RNS/Utilities/rnstatus.py" --config "$run_dir" -j -a >"$py_json"; then
     echo "[cmp] $label python rnstatus timed out; log: $py_log"
     stop_proc "$py_pid"
     rm -rf "$run_dir"
     return 1
   fi
-  "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
+  "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$py_json" >"$py_norm"
 
   # Text-mode parity cases (normalised).
   local -a TEXT_CASES=(
@@ -180,14 +180,14 @@ run_one() {
     rm -rf "$run_dir"
     return 1
   fi
-  if ! "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
+  if ! "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STATUS_CMD_TIMEOUT_SECS" -- \
     "$GO_BIN_DIR/rnstatus" -config "$run_dir" -j -a >"$go_json"; then
     echo "[cmp] $label go rnstatus timed out; log: $go_log"
     stop_proc "$go_pid"
     rm -rf "$run_dir"
     return 1
   fi
-  "$PYTHON" "$ROOT/tests/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
+  "$PYTHON" "$ROOT/tests/support/tools/normalize_rnstatus_json.py" <"$go_json" >"$go_norm"
 
   for case in "${TEXT_CASES[@]}"; do
     local case_label="${case%%::*}"

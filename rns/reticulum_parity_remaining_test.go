@@ -88,6 +88,17 @@ func TestBringUpSystemInterfaces_ExternalInterfacePyInitFailureIsSkipped(t *test
 		t.Fatalf("configobj.Load: %v", err)
 	}
 
+	prevInterfaces := Interfaces
+	Interfaces = nil
+	t.Cleanup(func() {
+		for _, ifc := range Interfaces {
+			if ifc != nil {
+				ifc.Detach()
+			}
+		}
+		Interfaces = prevInterfaces
+	})
+
 	r := &Reticulum{
 		Config:                parsed,
 		ConfigPath:            cfgPath,

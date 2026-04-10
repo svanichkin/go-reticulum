@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
@@ -39,7 +39,7 @@ run_capture() {
   shift
   local code=0
   set +e
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$CMD_TIMEOUT_SECS" -- "$@" >"$out" 2>&1
   code=$?
   set -e
   echo "$code"
@@ -55,17 +55,17 @@ stop_proc() {
   fi
 
   kill -INT "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -TERM "$pid" >/dev/null 2>&1 || true
-  if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
+  if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1; then
     return 0
   fi
 
   kill -KILL "$pid" >/dev/null 2>&1 || true
-  "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
+  "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout "$STOP_TIMEOUT_SECS" -- bash -c "wait $pid" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -76,7 +76,7 @@ wait_for_ok() {
   local start
   start="$(date +%s)"
   while true; do
-    if "$PYTHON" "$ROOT/tests/tools/timeout_exec.py" --timeout 2 -- "$@" >/dev/null 2>&1; then
+    if "$PYTHON" "$ROOT/tests/support/tools/timeout_exec.py" --timeout 2 -- "$@" >/dev/null 2>&1; then
       return 0
     fi
     now="$(date +%s)"
@@ -97,7 +97,7 @@ new_run_dir_from_template() {
   local run_dir
   run_dir="$(mktemp -d)"
   cp "$template" "$run_dir/config"
-  "$PYTHON" "$ROOT/tests/tools/patch_reticulum_config_ports.py" \
+  "$PYTHON" "$ROOT/tests/support/tools/patch_reticulum_config_ports.py" \
     --path "$run_dir/config" \
     --shared-instance-port "$sip" \
     --instance-control-port "$cip" \
@@ -230,6 +230,12 @@ run_pair() {
   local status_b="$OUT_DIR/${label}.rnstatus.node_b.out"
 
   if ! wait_for_ok "$START_TIMEOUT_SECS" bash -c "env HOME='$home_a' USERPROFILE='$home_a' $rnstatus_cmd $cfg_flag '$node_a_dir' -a >'$status_a' 2>&1"; then
+    if rg -q -i "address already in use|errno 48" "$log_a" "$status_a"; then
+      echo "[cmp] $label: startup port collision on node_a, retry"
+      stop_proc "$pid_a"
+      stop_proc "$pid_b"
+      return 2
+    fi
     if rg -q -i "operation not permitted|permission denied" "$log_a" "$status_a"; then
       echo "[cmp] SKIP: environment does not permit socket operations (see $log_a)"
       stop_proc "$pid_a"
@@ -242,6 +248,12 @@ run_pair() {
     return 1
   fi
   if ! wait_for_ok "$START_TIMEOUT_SECS" bash -c "env HOME='$home_b' USERPROFILE='$home_b' $rnstatus_cmd $cfg_flag '$node_b_dir' -a >'$status_b' 2>&1"; then
+    if rg -q -i "address already in use|errno 48" "$log_b" "$status_b"; then
+      echo "[cmp] $label: startup port collision on node_b, retry"
+      stop_proc "$pid_a"
+      stop_proc "$pid_b"
+      return 2
+    fi
     if rg -q -i "operation not permitted|permission denied" "$log_b" "$status_b"; then
       echo "[cmp] SKIP: environment does not permit socket operations (see $log_b)"
       stop_proc "$pid_a"
@@ -287,16 +299,41 @@ run_pair() {
   return 0
 }
 
+run_pair_with_retry() {
+  local label="$1"
+  shift
+  local attempts=3
+  local i=1
+  local code=0
+  while [[ "$i" -le "$attempts" ]]; do
+    set +e
+    run_pair "$label" "$@"
+    code=$?
+    set -e
+    if [[ "$code" == "0" ]]; then
+      return 0
+    fi
+    if [[ "$code" != "2" ]]; then
+      return "$code"
+    fi
+    if [[ "$i" -lt "$attempts" ]]; then
+      sleep 1
+    fi
+    i=$((i+1))
+  done
+  return 1
+}
+
 overall=0
 
-if ! run_pair "python" \
+if ! run_pair_with_retry "python" \
   "$PYTHON $ROOT/python/RNS/Utilities/rnsd.py" \
   "$PYTHON $ROOT/python/RNS/Utilities/rnstatus.py" \
   "$PYTHON $ROOT/python/RNS/Utilities/rnprobe.py"; then
   overall=1
 fi
 
-if ! run_pair "go" \
+if ! run_pair_with_retry "go" \
   "$GO_BIN_DIR/rnsd" \
   "$GO_BIN_DIR/rnstatus" \
   "$GO_BIN_DIR/rnprobe"; then

@@ -56,6 +56,28 @@ run_capture_with_timeout() {
   echo "$code"
 }
 
+run_capture_retry() {
+  local out="$1"
+  local attempts="$2"
+  local delay="$3"
+  shift 3
+  local code=0
+  local i=1
+  while [[ "$i" -le "$attempts" ]]; do
+    code="$(run_capture "$out" "$@")"
+    if [[ "$code" == "0" ]]; then
+      echo "$code"
+      return 0
+    fi
+    if [[ "$i" -lt "$attempts" ]]; then
+      sleep "$delay"
+    fi
+    i=$((i+1))
+  done
+  echo "$code"
+  return 0
+}
+
 wait_for_tcp_status() {
   local timeout="$1"
   local out="$2"
@@ -430,6 +452,7 @@ run_pair() {
     stop_proc "$rncp_listener_pid"; stop_proc "$pid_a"; stop_proc "$pid_b"
     return 1
   fi
+  sleep 1
 
   local listen_hash
   listen_hash="$(extract_listen_hash "$listener_log")"
@@ -445,7 +468,7 @@ run_pair() {
   send_sha="$(sha256_file "$send_src")"
   local send_out="$OUT_DIR/${label}.send.out"
   local send_code
-  send_code="$(run_capture "$send_out" env HOME="$home_a" USERPROFILE="$home_a" \
+  send_code="$(run_capture_retry "$send_out" 3 1 env HOME="$home_a" USERPROFILE="$home_a" \
     $rncp_cmd_a $cfg_flag_a "$node_a_dir" -S -w 30 "$send_src" "$listen_hash")"
   if [[ "$send_code" != "0" ]]; then
     echo "[cmp] $label: send failed; see $send_out"

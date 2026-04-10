@@ -274,12 +274,18 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			}
 
 			if withMeta {
-				m, ok := gotMeta.(map[string]any)
-				if !ok || m == nil {
-					t.Fatalf("expected metadata map on peer")
+				if gotMeta == nil {
+					t.Fatalf("expected metadata on peer")
 				}
-				if m["text"] == nil {
-					t.Fatalf("expected metadata key 'text'")
+				switch m := gotMeta.(type) {
+				case map[string]any:
+					if m["text"] == nil {
+						t.Fatalf("expected metadata key 'text'")
+					}
+				case map[any]any:
+					if m["text"] == nil {
+						t.Fatalf("expected metadata key 'text'")
+					}
 				}
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -481,29 +482,13 @@ func TestIntegration_LinkEstablish_AES128CBC(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeAES128CBC, nil, nil)
-		if err != nil {
-			t.Fatalf("NewOutgoingLink: %v", err)
+		_, err = NewOutgoingLink(destOut, LinkModeAES128CBC, nil, nil)
+		if err == nil {
+			t.Fatalf("expected AES128CBC link mode to be disabled for Python parity")
 		}
-
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
+		if !strings.Contains(err.Error(), "disabled") {
+			t.Fatalf("expected disabled error, got: %v", err)
 		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got status %d", l.Status)
-		}
-		if l.Mode != LinkModeAES128CBC {
-			t.Fatalf("expected mode AES128CBC, got %d", l.Mode)
-		}
-		if got := len(l.derivedKey); got != 32 {
-			t.Fatalf("expected derived key length 32, got %d", got)
-		}
-
-		l.Teardown()
 	})
 }
 
