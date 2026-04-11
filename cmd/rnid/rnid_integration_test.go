@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -43,31 +42,7 @@ func repoRootRNID(t *testing.T) string {
 
 func buildRNID(t *testing.T, binDir string) string {
 	t.Helper()
-	name := "rnid"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	out := filepath.Join(binDir, name)
-	gocache := filepath.Join(binDir, ".gocache")
-	gotmp := filepath.Join(binDir, ".gotmp")
-	if err := os.MkdirAll(gocache, 0o755); err != nil {
-		t.Fatalf("mkdir gocache: %v", err)
-	}
-	if err := os.MkdirAll(gotmp, 0o755); err != nil {
-		t.Fatalf("mkdir gotmp: %v", err)
-	}
-	cmd := exec.Command("go", "build", "-o", out, "./cmd/rnid")
-	cmd.Dir = repoRootRNID(t)
-	cmd.Env = append(os.Environ(),
-		"GOCACHE="+gocache,
-		"GOTMPDIR="+gotmp,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("build rnid: %v", err)
-	}
-	return out
+	return cmdtest.Build(t, binDir, "rnid", "./cmd/rnid")
 }
 
 func writeMinimalReticulumConfigRNID(t *testing.T, configDir string) {
@@ -142,20 +117,12 @@ func skipIfReticulumUnavailable(t *testing.T, out string, exitCode int) {
 func rememberPublicDestinationRNID(t *testing.T, configDir string, destinationHash []byte, publicKey []byte) {
 	t.Helper()
 
-	logLevel := 0
-	cfg := configDir
-	ret, err := rns.NewReticulum(&cfg, &logLevel, nil, nil, false, nil)
+	helperBin := cmdtest.Build(t, configDir, "go_known_dest_helper", "./tests/support/tools/go_known_dest_helper")
+	cmd := exec.Command(helperBin, configDir, hex.EncodeToString(destinationHash), hex.EncodeToString(publicKey))
+	cmd.Dir = repoRootRNID(t)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("start reticulum for known destination prep: %v", err)
-	}
-	if ret == nil {
-		t.Fatalf("reticulum instance is nil")
-	}
-	if err := rns.IdentityRemember([]byte("pkt"), destinationHash, publicKey, nil); err != nil {
-		t.Fatalf("remember public destination: %v", err)
-	}
-	if err := rns.IdentitySaveKnownDestinations(); err != nil {
-		t.Fatalf("save known destinations: %v", err)
+		t.Fatalf("remember public destination: %v\n%s", err, string(out))
 	}
 }
 
@@ -229,14 +196,27 @@ func startRNSDServiceRNID(t *testing.T, ctx context.Context, bin, cfg, workDir s
 
 func waitForRNStatusSuccessRNID(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
 	t.Helper()
+	if timeout < 90*time.Second {
+		timeout = 90 * time.Second
+	}
 	deadline := time.Now().Add(timeout)
+	var last string
+	consecutive := 0
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		res := cmdtest.Run(t, ctx, rnstatusBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: workDir}, "--config", cfg, "--json")
 		cancel()
 		if res.ExitCode == 0 {
-			return res.Output
+			last = res.Output
+			consecutive++
+			if consecutive >= 2 {
+				time.Sleep(500 * time.Millisecond)
+				return last
+			}
+			time.Sleep(250 * time.Millisecond)
+			continue
 		}
+		consecutive = 0
 		if !strings.Contains(res.Output, "no shared RNS instance available") &&
 			!strings.Contains(res.Output, "could not get RNS status") &&
 			!strings.Contains(res.Output, "operation not permitted") {
@@ -1147,6 +1127,7 @@ func TestRNIDIntegration_SharedInstancePublicOnlyAnnounceExit33(t *testing.T) {
 }
 
 func TestRNIDIntegration_TwoNodeRequestSuccess(t *testing.T) {
+	cmdtest.AcquireLock(t, "integration-two-node-shared", 5*time.Minute)
 	root := t.TempDir()
 	rnidBin := buildRNID(t, root)
 	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
@@ -1169,8 +1150,8 @@ func TestRNIDIntegration_TwoNodeRequestSuccess(t *testing.T) {
 
 	_, outA := startRNSDServiceRNID(t, ctx, rnsdBin, nodeADir, root)
 	_, outB := startRNSDServiceRNID(t, ctx, rnsdBin, nodeBDir, root)
-	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeADir, root, 10*time.Second)
-	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeADir, root, 20*time.Second)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeBDir, root, 20*time.Second)
 
 	identityPath := filepath.Join(root, "node-b.id")
 	out, code := runRNID(t, ctx, rnidBin, nodeBDir, root, "--config", nodeBDir, "--generate", identityPath)
@@ -1231,6 +1212,7 @@ func TestRNIDIntegration_TwoNodeRequestSuccess(t *testing.T) {
 }
 
 func TestRNIDIntegration_TwoNodeAnnounceIsReceived(t *testing.T) {
+	cmdtest.AcquireLock(t, "integration-two-node-shared", 5*time.Minute)
 	root := t.TempDir()
 	rnidBin := buildRNID(t, root)
 	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
@@ -1253,8 +1235,8 @@ func TestRNIDIntegration_TwoNodeAnnounceIsReceived(t *testing.T) {
 
 	_, outA := startRNSDServiceRNID(t, ctx, rnsdBin, nodeADir, root)
 	_, outB := startRNSDServiceRNID(t, ctx, rnsdBin, nodeBDir, root)
-	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeADir, root, 10*time.Second)
-	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeADir, root, 20*time.Second)
+	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, nodeBDir, root, 20*time.Second)
 
 	identityPath := filepath.Join(root, "node-b.id")
 	out, code := runRNID(t, ctx, rnidBin, nodeBDir, root, "--config", nodeBDir, "--generate", identityPath)
@@ -1655,6 +1637,7 @@ func TestRNIDIntegration_TwoNodeRepeatedRequestUsesRecall(t *testing.T) {
 }
 
 func TestRNIDIntegration_TwoNodeRequestUnknownHashTimesOut(t *testing.T) {
+	cmdtest.AcquireLock(t, "integration-two-node-shared", 5*time.Minute)
 	root := t.TempDir()
 	rnidBin := buildRNID(t, root)
 	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")

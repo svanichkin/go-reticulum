@@ -11,11 +11,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/svanichkin/go-reticulum/internal/cmdtest"
 )
 
 func repoRootRNodeconf(t *testing.T) string {
@@ -52,22 +53,8 @@ func getRNodeconfBin(t *testing.T) string {
 			rnodeconfBinErr = err
 			return
 		}
-		name := "rnodeconf"
-		if runtime.GOOS == "windows" {
-			name += ".exe"
-		}
-		out := filepath.Join(binDir, name)
-		gocache := filepath.Join(binDir, ".gocache")
-		gotmp := filepath.Join(binDir, ".gotmp")
-		_ = os.MkdirAll(gocache, 0o755)
-		_ = os.MkdirAll(gotmp, 0o755)
-		cmd := exec.Command("go", "build", "-o", out, "./cmd/rnodeconf")
-		cmd.Dir = repo
-		cmd.Env = append(os.Environ(),
-			"GOCACHE="+gocache,
-			"GOTMPDIR="+gotmp,
-		)
-		if err := cmd.Run(); err != nil {
+		out := cmdtest.Build(t, binDir, "rnodeconf", "./cmd/rnodeconf")
+		if _, err := os.Stat(out); err != nil {
 			rnodeconfBinErr = err
 			return
 		}

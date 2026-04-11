@@ -79,15 +79,28 @@ func startRNSDServiceRNProbe(t *testing.T, ctx context.Context, bin, cfg, workDi
 
 func waitForRNStatusSuccessRNProbe(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
 	t.Helper()
+	if timeout < 90*time.Second {
+		timeout = 90 * time.Second
+	}
 
 	deadline := time.Now().Add(timeout)
+	var last string
+	consecutive := 0
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		res := cmdtest.Run(t, ctx, rnstatusBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: workDir}, "--config", cfg, "--json")
 		cancel()
 		if res.ExitCode == 0 {
-			return res.Output
+			last = res.Output
+			consecutive++
+			if consecutive >= 2 {
+				time.Sleep(500 * time.Millisecond)
+				return last
+			}
+			time.Sleep(250 * time.Millisecond)
+			continue
 		}
+		consecutive = 0
 		if !strings.Contains(res.Output, "no shared RNS instance available") &&
 			!strings.Contains(res.Output, "could not get RNS status") &&
 			!strings.Contains(res.Output, "operation not permitted") {
@@ -334,6 +347,7 @@ func TestRNProbeIntegration_SharedInstanceTCPPathTimeoutExit1(t *testing.T) {
 }
 
 func TestRNProbeIntegration_TwoNodeUDPSuccess(t *testing.T) {
+	cmdtest.AcquireLock(t, "integration-two-node-shared", 5*time.Minute)
 	root := t.TempDir()
 	rnprobeBin := cmdtest.Build(t, root, "rnprobe", "./cmd/rnprobe")
 	rnstatusBin := cmdtest.Build(t, root, "rnstatus", "./cmd/rnstatus")

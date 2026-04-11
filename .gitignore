@@ -14,10 +14,13 @@ bin/
 .gopath
 .gomodcache
 .tmp
+*rsls*
+.cmdtestbin
+.cmdtestlocks
 python
 tests/_bin
 tests/_logs
-.rs*
+
 config
 storage
 artifacts

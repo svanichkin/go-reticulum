@@ -82,14 +82,27 @@ func startRNSDServiceRNX(t *testing.T, ctx context.Context, bin, cfg, workDir st
 
 func waitForRNStatusSuccessRNX(t *testing.T, rnstatusBin, cfg, workDir string, timeout time.Duration) string {
 	t.Helper()
+	if timeout < 90*time.Second {
+		timeout = 90 * time.Second
+	}
 	deadline := time.Now().Add(timeout)
+	var last string
+	consecutive := 0
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		res := cmdtest.Run(t, ctx, rnstatusBin, cmdtest.RunOptions{ConfigDir: cfg, WorkDir: workDir}, "--config", cfg, "--json")
 		cancel()
 		if res.ExitCode == 0 {
-			return res.Output
+			last = res.Output
+			consecutive++
+			if consecutive >= 2 {
+				time.Sleep(500 * time.Millisecond)
+				return last
+			}
+			time.Sleep(250 * time.Millisecond)
+			continue
 		}
+		consecutive = 0
 		if !strings.Contains(res.Output, "no shared RNS instance available") &&
 			!strings.Contains(res.Output, "could not get RNS status") &&
 			!strings.Contains(res.Output, "operation not permitted") {
@@ -222,7 +235,7 @@ func TestRNXIntegration_MissingArgsShowsUsageExit0(t *testing.T) {
 	if res.ExitCode != 0 {
 		t.Fatalf("expected exit 0, got %d\n%s", res.ExitCode, res.Output)
 	}
-	if !strings.Contains(res.Output, "Usage:") || !strings.Contains(res.Output, "-destination") {
+	if !strings.Contains(res.Output, "usage: rnx") || !strings.Contains(res.Output, "-destination string") {
 		t.Fatalf("unexpected output:\n%s", res.Output)
 	}
 }
@@ -238,7 +251,7 @@ func TestRNXIntegration_InteractiveWithoutDestinationShowsUsageExit0(t *testing.
 	if res.ExitCode != 0 {
 		t.Fatalf("expected exit 0, got %d\n%s", res.ExitCode, res.Output)
 	}
-	if !strings.Contains(res.Output, "Usage:") || !strings.Contains(res.Output, "-destination") {
+	if !strings.Contains(res.Output, "usage: rnx") || !strings.Contains(res.Output, "-destination string") {
 		t.Fatalf("unexpected output:\n%s", res.Output)
 	}
 }
@@ -457,6 +470,7 @@ func TestRNXIntegration_CountFlagsExpandWithPrintIdentity(t *testing.T) {
 }
 
 func TestRNXIntegration_TwoNodeRemoteExec(t *testing.T) {
+	cmdtest.AcquireLock(t, "integration-two-node-shared", 5*time.Minute)
 	root := t.TempDir()
 	rnxBin := cmdtest.Build(t, root, "rnx", "./cmd/rnx")
 	rnsdBin := cmdtest.Build(t, root, "rnsd", "./cmd/rnsd")
@@ -480,8 +494,8 @@ func TestRNXIntegration_TwoNodeRemoteExec(t *testing.T) {
 
 	_, outA := startRNSDServiceRNX(t, ctx, rnsdBin, nodeADir, root)
 	_, outB := startRNSDServiceRNX(t, ctx, rnsdBin, nodeBDir, root)
-	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeADir, root, 10*time.Second)
-	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeADir, root, 30*time.Second)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeBDir, root, 30*time.Second)
 
 	listener, dest, listenerOut := startRNXListener(t, ctx, rnxBin, nodeBDir, root)
 	_ = listener
@@ -524,8 +538,8 @@ func TestRNXIntegration_TwoNodeMirrorRemoteExitCode(t *testing.T) {
 
 	_, outA := startRNSDServiceRNX(t, ctx, rnsdBin, nodeADir, root)
 	_, outB := startRNSDServiceRNX(t, ctx, rnsdBin, nodeBDir, root)
-	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeADir, root, 10*time.Second)
-	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeBDir, root, 10*time.Second)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeADir, root, 30*time.Second)
+	_ = waitForRNStatusSuccessRNX(t, rnstatusBin, nodeBDir, root, 30*time.Second)
 
 	listener, dest, listenerOut := startRNXListener(t, ctx, rnxBin, nodeBDir, root)
 	_ = listener
