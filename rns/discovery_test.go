@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	platformutils "github.com/svanichkin/go-reticulum/rns/vendor"
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
@@ -232,7 +231,7 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_UsesStampCache(t *testing.T
 }
 
 func TestInterfaceAnnouncer_GetInterfaceAnnounceData_ReachableOnExecutable(t *testing.T) {
-	if platformutils.IsWindows() {
+	if umsgpack.IsWindows() {
 		t.Skip("executable reachable_on flow is non-Windows only")
 	}
 

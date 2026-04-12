@@ -229,6 +229,12 @@ var (
 	packetHashlistSaveMu sync.Mutex
 	savingPacketHashlist bool
 
+	pathTableSaveMu sync.Mutex
+	savingPathTable bool
+
+	tunnelTableSaveMu sync.Mutex
+	savingTunnelTable bool
+
 	discoveryTagsMu    sync.Mutex
 	discoveryPRTags    = make(map[string]struct{})
 	discoveryPRTagFIFO []string
@@ -652,7 +658,7 @@ type linkEntry struct {
 }
 
 type heldAnnounce struct {
-	Packet  *Packet
+	Entry   *announceEntry
 	Release time.Time
 }
 
@@ -1119,7 +1125,7 @@ func serialisableBlackholeEntry(entry *blackholeEntry) map[string]any {
 		"reason": nil,
 	}
 	if entry.Until != nil && !entry.Until.IsZero() {
-		out["until"] = float64(entry.Until.Unix())
+		out["until"] = float64(entry.Until.UnixNano()) / 1e9
 	}
 	if entry.Reason != nil {
 		out["reason"] = *entry.Reason
@@ -1678,6 +1684,36 @@ func saveDestinationTable() error {
 		return nil
 	}
 
+	// Python parity: serialize concurrent saves via a flag with a bounded wait.
+	pathTableSaveMu.Lock()
+	if savingPathTable {
+		pathTableSaveMu.Unlock()
+		waitInterval := 200 * time.Millisecond
+		waitTimeout := 5 * time.Second
+		start := time.Now()
+		for {
+			time.Sleep(waitInterval)
+			pathTableSaveMu.Lock()
+			busy := savingPathTable
+			pathTableSaveMu.Unlock()
+			if !busy {
+				break
+			}
+			if time.Since(start) > waitTimeout {
+				return errors.New("could not save path table to storage, waiting for previous save operation timed out")
+			}
+		}
+		pathTableSaveMu.Lock()
+	}
+	savingPathTable = true
+	pathTableSaveMu.Unlock()
+	defer func() {
+		pathTableSaveMu.Lock()
+		savingPathTable = false
+		pathTableSaveMu.Unlock()
+		runtime.GC()
+	}()
+
 	entries := make([][]any, 0)
 	now := time.Now()
 
@@ -1703,11 +1739,12 @@ func saveDestinationTable() error {
 
 		entries = append(entries, []any{
 			dst,
-			float64(entry.Timestamp.Unix()),
+			float64(entry.Timestamp.UnixNano()) / 1e9,
 			append([]byte(nil), entry.NextHop...),
 			entry.Hops,
-			float64(entry.ExpiresAt.Unix()),
-			dedupeAndTailRandomBlobs(entry.RandomBlobs, persistRandomBlobs),
+			float64(entry.ExpiresAt.UnixNano()) / 1e9,
+			// Python save_path_table() persists the full random_blobs slice.
+			copyRandomBlobSlice(entry.RandomBlobs),
 			ifHash,
 			append([]byte(nil), entry.PacketHash...),
 		})
@@ -1727,6 +1764,36 @@ func saveTunnelTable() error {
 	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
 		return nil
 	}
+	// Python parity: serialize concurrent saves via a flag with a bounded wait.
+	tunnelTableSaveMu.Lock()
+	if savingTunnelTable {
+		tunnelTableSaveMu.Unlock()
+		waitInterval := 200 * time.Millisecond
+		waitTimeout := 5 * time.Second
+		start := time.Now()
+		for {
+			time.Sleep(waitInterval)
+			tunnelTableSaveMu.Lock()
+			busy := savingTunnelTable
+			tunnelTableSaveMu.Unlock()
+			if !busy {
+				break
+			}
+			if time.Since(start) > waitTimeout {
+				return errors.New("could not save tunnel table to storage, waiting for previous save operation timed out")
+			}
+		}
+		tunnelTableSaveMu.Lock()
+	}
+	savingTunnelTable = true
+	tunnelTableSaveMu.Unlock()
+	defer func() {
+		tunnelTableSaveMu.Lock()
+		savingTunnelTable = false
+		tunnelTableSaveMu.Unlock()
+		runtime.GC()
+	}()
+
 	now := time.Now()
 	serialised := make([][]any, 0)
 
@@ -1765,10 +1832,10 @@ func saveTunnelTable() error {
 
 			serialisedPaths = append(serialisedPaths, []any{
 				append([]byte(nil), dstHash...),
-				float64(pe.Timestamp.Unix()),
+				float64(pe.Timestamp.UnixNano()) / 1e9,
 				append([]byte(nil), pe.ReceivedFrom...),
 				pe.Hops,
-				float64(pe.ExpiresAt.Unix()),
+				float64(pe.ExpiresAt.UnixNano()) / 1e9,
 				copyRandomBlobSlice(blobs),
 				ifHash,
 				append([]byte(nil), pe.PacketHash...),
@@ -1779,7 +1846,7 @@ func saveTunnelTable() error {
 			append([]byte(nil), te.ID...),
 			ifHash,
 			serialisedPaths,
-			float64(te.ExpiresAt.Unix()),
+			float64(te.ExpiresAt.UnixNano()) / 1e9,
 		})
 	}
 	tunnelsMu.RUnlock()
@@ -1985,6 +2052,17 @@ func Jobs() {
 		pendingPRsLastChecked = now
 	}
 
+	discoveryTagsMu.Lock()
+	if len(discoveryPRTagFIFO) > maxPRTags {
+		kept := append([]string(nil), discoveryPRTagFIFO[len(discoveryPRTagFIFO)-maxPRTags:len(discoveryPRTagFIFO)-1]...)
+		discoveryPRTagFIFO = kept
+		discoveryPRTags = make(map[string]struct{}, len(discoveryPRTagFIFO))
+		for _, tag := range discoveryPRTagFIFO {
+			discoveryPRTags[tag] = struct{}{}
+		}
+	}
+	discoveryTagsMu.Unlock()
+
 	// periodic culling of tables (Python: tables_last_culled / tables_cull_interval)
 	if now.Sub(TablesLastCulled) > tablesCullInterval {
 		cullTunnels(now)
@@ -2112,14 +2190,14 @@ func processHeldAnnounces(now time.Time, outgoing *[]*Packet) {
 	announceMu.Lock()
 	defer announceMu.Unlock()
 	for key, entry := range heldAnnounces {
-		if entry == nil || entry.Packet == nil {
+		if entry == nil || entry.Entry == nil {
 			delete(heldAnnounces, key)
 			continue
 		}
 		if entry.Release.After(now) {
 			continue
 		}
-		*outgoing = append(*outgoing, entry.Packet)
+		announceTable[key] = entry.Entry
 		delete(heldAnnounces, key)
 	}
 }
@@ -2563,11 +2641,6 @@ func pathRequestHandler(data []byte, packet *Packet) {
 	}
 	discoveryPRTags[uniqueKey] = struct{}{}
 	discoveryPRTagFIFO = append(discoveryPRTagFIFO, uniqueKey)
-	if len(discoveryPRTagFIFO) > maxPRTags {
-		evict := discoveryPRTagFIFO[0]
-		discoveryPRTagFIFO = discoveryPRTagFIFO[1:]
-		delete(discoveryPRTags, evict)
-	}
 	discoveryTagsMu.Unlock()
 
 	var attached *Interface
@@ -2855,7 +2928,7 @@ func restoreTunnelPaths(te *tunnelEntry, ifc *Interface) {
 			Hops:          entry.Hops,
 			Timestamp:     now,
 			ExpiresAt:     entry.ExpiresAt,
-			RandomBlobs:   copyRandomBlobSlice(entry.RandomBlobs),
+			RandomBlobs:   dedupeAndTailRandomBlobs(copyRandomBlobSlice(entry.RandomBlobs), maxRandomBlobs),
 			PacketHash:    copyBytes(entry.PacketHash),
 		}
 
@@ -2868,7 +2941,11 @@ func restoreTunnelPaths(te *tunnelEntry, ifc *Interface) {
 				Logf(LogDebug, "Did not restore path to %s because a newer path with fewer hops exist", PrettyHexRep(dstHash))
 			}
 		} else {
-			shouldAdd = true
+			if now.Before(entry.ExpiresAt) {
+				shouldAdd = true
+			} else {
+				Logf(LogDebug, "Did not restore path to %s because it has expired", PrettyHexRep(dstHash))
+			}
 		}
 
 		if shouldAdd {
@@ -2973,6 +3050,14 @@ func answerPathRequest(destinationHash []byte, attachedInterface *Interface, req
 	delay := pathRequestGrace
 	if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming {
 		delay += pathRequestRoamingGrace
+	}
+	if key, ok := makeHashKey(destinationHash); ok {
+		announceMu.Lock()
+		if existing := announceTable[key]; existing != nil {
+			heldAnnounces[key] = &heldAnnounce{Entry: existing, Release: time.Now().Add(delay)}
+			delete(announceTable, key)
+		}
+		announceMu.Unlock()
 	}
 	QueueAnnounce(resp, WithAnnounceDelay(delay), WithAnnounceBlockRebroadcasts(true), WithAnnounceAttachedInterface(attachedInterface))
 	return true
@@ -3188,10 +3273,6 @@ func cullReverseAndLinkTables(now time.Time) bool {
 			removed = true
 			continue
 		}
-		if !entry.Timestamp.IsZero() && now.Sub(entry.Timestamp) > pathExpiration {
-			delete(linkTable, key)
-			removed = true
-		}
 	}
 	linkMu.Unlock()
 
@@ -3208,12 +3289,25 @@ func cullPathTable(now time.Time) bool {
 			removed = true
 			continue
 		}
-		if !entry.ExpiresAt.IsZero() && entry.ExpiresAt.Before(now) {
+		expires := entry.ExpiresAt
+		if entry.RecvInterface != nil {
+			switch entry.RecvInterface.Mode {
+			case InterfaceModeAccessPoint:
+				if !entry.Timestamp.IsZero() {
+					expires = entry.Timestamp.Add(apPathTime)
+				}
+			case InterfaceModeRoaming:
+				if !entry.Timestamp.IsZero() {
+					expires = entry.Timestamp.Add(roamingPathTime)
+				}
+			}
+		}
+		if !expires.IsZero() && expires.Before(now) {
 			delete(pathTable, key)
 			removed = true
 			continue
 		}
-		if !entry.Timestamp.IsZero() && now.Sub(entry.Timestamp) > pathExpiration {
+		if entry.RecvInterface != nil && !interfacePresent(entry.RecvInterface) {
 			delete(pathTable, key)
 			removed = true
 		}
@@ -5198,23 +5292,12 @@ func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Inter
 // It exposes the same public transport surface while preserving the existing
 // Go rate-limiting on duplicate path requests.
 func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
-	key, ok := makeHashKey(hash)
-	if !ok {
+	if _, ok := makeHashKey(hash); !ok {
 		return false
 	}
 	if HasPath(hash) && !PathIsUnresponsive(hash) {
 		return false
 	}
-
-	now := time.Now()
-	pathRequestMu.Lock()
-	last := lastPathRequest[key]
-	if now.Sub(last) < pathRequestMinInterval {
-		pathRequestMu.Unlock()
-		return false
-	}
-	lastPathRequest[key] = now
-	pathRequestMu.Unlock()
 
 	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
 	requestPathOnInterface(hash, onInterface, tag, recursive)
@@ -5222,23 +5305,12 @@ func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, rec
 }
 
 func RequestPath(hash []byte, blocked *Interface) {
-	key, ok := makeHashKey(hash)
-	if !ok {
+	if _, ok := makeHashKey(hash); !ok {
 		return
 	}
 	if HasPath(hash) && !PathIsUnresponsive(hash) {
 		return
 	}
-
-	now := time.Now()
-	pathRequestMu.Lock()
-	last := lastPathRequest[key]
-	if now.Sub(last) < pathRequestMinInterval {
-		pathRequestMu.Unlock()
-		return
-	}
-	lastPathRequest[key] = now
-	pathRequestMu.Unlock()
 
 	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
 
@@ -5766,11 +5838,11 @@ func GetPathTable(maxHops int) []map[string]any {
 		hashCopy := make([]byte, truncatedHashBytes)
 		copy(hashCopy, key[:])
 		via := append([]byte(nil), entry.NextHop...)
-		var expires int64
+		var expires float64
 		if !entry.ExpiresAt.IsZero() {
-			expires = entry.ExpiresAt.Unix()
+			expires = float64(entry.ExpiresAt.UnixNano()) / 1e9
 		}
-		timestamp := entry.Timestamp.Unix()
+		timestamp := float64(entry.Timestamp.UnixNano()) / 1e9
 		res = append(res, map[string]any{
 			"hash":      hashCopy,
 			"timestamp": timestamp,
@@ -5793,15 +5865,15 @@ func GetRateTable() []map[string]any {
 		}
 		hashCopy := make([]byte, truncatedHashBytes)
 		copy(hashCopy, key[:])
-		timestamps := make([]int64, len(entry.Timestamps))
+		timestamps := make([]float64, len(entry.Timestamps))
 		for i, ts := range entry.Timestamps {
-			timestamps[i] = ts.Unix()
+			timestamps[i] = float64(ts.UnixNano()) / 1e9
 		}
 		res = append(res, map[string]any{
 			"hash":            hashCopy,
-			"last":            entry.Last.Unix(),
+			"last":            float64(entry.Last.UnixNano()) / 1e9,
 			"rate_violations": entry.RateViolations,
-			"blocked_until":   entry.BlockedUntil.Unix(),
+			"blocked_until":   float64(entry.BlockedUntil.UnixNano()) / 1e9,
 			"timestamps":      timestamps,
 		})
 	}

@@ -343,7 +343,7 @@ func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, rea
 		defer client.Close()
 		req := map[string]any{"blackhole_identity": identityHash}
 		if until != nil && !until.IsZero() {
-			req["until"] = float64(until.Unix())
+			req["until"] = float64(until.UnixNano()) / 1e9
 		}
 		if reason != nil {
 			req["reason"] = *reason
@@ -749,7 +749,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		RequireShared:      requireSharedInstance,
 		ifacSalt:           IFAC_SALT,
 		lastDataPersist:    time.Now(),
-		lastCacheClean:     time.Unix(0, 0),
+		lastCacheClean:     time.Time{},
 		// Python parity: runtime interface panic behaviour is disabled by default.
 		PanicOnInterfaceError: false,
 	}

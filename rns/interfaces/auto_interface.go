@@ -33,6 +33,7 @@ type autoConfig struct {
 	HWMTU                  int
 	PeeringTimeout         time.Duration
 	AnnounceInterval       time.Duration
+	ReversePeeringInterval time.Duration
 	PeerJobInterval        time.Duration
 	MultiIFDequeLen        int
 	MultiIFDequeTTL        time.Duration
@@ -45,6 +46,7 @@ type autoState struct {
 
 	mu            sync.Mutex
 	finalInitDone atomic.Bool
+	carrierChanged atomic.Bool
 
 	adopted map[string]*net.Interface // ifname -> interface
 	llip    map[string]net.IP         // ifname -> link-local IPv6
@@ -73,9 +75,10 @@ type autoSeen struct {
 }
 
 type autoPeerState struct {
-	addr     net.IP
-	ifname   string
-	lastSeen time.Time
+	addr         net.IP
+	ifname       string
+	lastSeen     time.Time
+	lastOutbound time.Time
 }
 
 const (
@@ -108,6 +111,7 @@ func defaultAutoConfig(name string) autoConfig {
 		HWMTU:                autoDefaultMTU,
 		PeeringTimeout:       22 * time.Second,
 		AnnounceInterval:     time.Duration(float64(time.Second) * 1.6),
+		ReversePeeringInterval: time.Duration(float64(time.Second) * 1.6 * 3.25),
 		PeerJobInterval:      4 * time.Second,
 		MultiIFDequeLen:      48,
 		MultiIFDequeTTL:      time.Duration(float64(time.Second) * 0.75),
@@ -717,6 +721,14 @@ func (st *autoState) autoPeerJobsLoop(parent *Interface) {
 				delete(st.spawned, k)
 				delete(st.peers, k)
 			}
+			for _, p := range st.peers {
+				if now.After(p.lastOutbound.Add(st.cfg.ReversePeeringInterval)) {
+					p.lastOutbound = now
+					peerIP := append(net.IP(nil), p.addr...)
+					peerIf := p.ifname
+					go st.reverseAnnounce(peerIf, peerIP)
+				}
+			}
 			st.mu.Unlock()
 			for _, ifc := range dead {
 				removeInterface(ifc)
@@ -746,6 +758,7 @@ func (st *autoState) autoPeerJobsLoop(parent *Interface) {
 						}
 					}
 					_ = st.startOrRestartInterface(parent, *nif, newLL, newLLStr, true)
+					st.carrierChanged.Store(true)
 					continue
 				}
 
@@ -755,6 +768,7 @@ func (st *autoState) autoPeerJobsLoop(parent *Interface) {
 					} else {
 						DiagLogf(LogWarning, "%s Carrier recovered on %s", parent, ifname)
 					}
+					st.carrierChanged.Store(true)
 				}
 
 				if DiagLogf != nil && !echoSeen[ifname] {
@@ -794,6 +808,29 @@ func (st *autoState) sendDiscoveryAnnounce(ifname string) {
 		}
 	}
 	_ = conn.Close()
+}
+
+func (st *autoState) reverseAnnounce(ifname string, peerIP net.IP) {
+	st.mu.Lock()
+	ll := st.llip[ifname]
+	st.mu.Unlock()
+	if ll == nil || peerIP == nil {
+		return
+	}
+	dst := &net.UDPAddr{IP: peerIP.To16(), Zone: ifname, Port: st.cfg.DiscoveryPort + 1}
+	if dst.IP == nil {
+		return
+	}
+	conn, err := net.DialUDP("udp6", nil, dst)
+	if err != nil {
+		if DiagLogf != nil {
+			DiagLogf(LogError, "Could not send reverse peering packet to %s on %s: %v", peerIP.String(), ifname, err)
+		}
+		return
+	}
+	defer conn.Close()
+	token := sha256.Sum256(append(append([]byte{}, st.cfg.GroupID...), []byte(ll.String())...))
+	_, _ = conn.Write(token[:])
 }
 
 func (st *autoState) addOrRefreshPeer(parent *Interface, peerIP net.IP, peerStr string, ifname string) {
@@ -838,7 +875,7 @@ func (st *autoState) addOrRefreshPeer(parent *Interface, peerIP net.IP, peerStr 
 		delete(st.spawned, key)
 	}
 
-	st.peers[key] = &autoPeerState{addr: peerIP, ifname: ifname, lastSeen: now}
+	st.peers[key] = &autoPeerState{addr: peerIP, ifname: ifname, lastSeen: now, lastOutbound: now}
 
 	peerIfc := &Interface{
 		Name:                  fmt.Sprintf("AutoInterfacePeer[%s/%s]", ifname, key),

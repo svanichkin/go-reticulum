@@ -475,7 +475,11 @@ func (i *Interface) Detach() {
 }
 
 func (i *Interface) Age() time.Duration {
-	if i == nil || i.Created.IsZero() {
+	if i == nil {
+		return 0
+	}
+	if i.Created.IsZero() {
+		i.Created = time.Now()
 		return 0
 	}
 	return time.Since(i.Created)
@@ -568,9 +572,11 @@ func (i *Interface) DiscoveryPortValue() *int {
 		v := i.backboneClient.cfg.TargetPort
 		return &v
 	}
-	if i.tcpClient != nil && i.tcpClient.Initiator && i.tcpClient.TargetPort > 0 {
-		v := i.tcpClient.TargetPort
-		return &v
+	if i.tcpClient != nil && i.tcpClient.Initiator && strings.TrimSpace(i.tcpClient.TargetPort) != "" {
+		if p, err := strconv.Atoi(i.tcpClient.TargetPort); err == nil && p > 0 {
+			v := p
+			return &v
+		}
 	}
 	if i.tcpServer != nil {
 		_, port, err := net.SplitHostPort(i.tcpServer.ListenAddr)
@@ -668,9 +674,11 @@ func (i *Interface) DiscoveryTargetPort() *int {
 		v := i.backboneClient.cfg.TargetPort
 		return &v
 	}
-	if i.tcpClient != nil && i.tcpClient.Initiator && i.tcpClient.TargetPort > 0 {
-		v := i.tcpClient.TargetPort
-		return &v
+	if i.tcpClient != nil && i.tcpClient.Initiator && strings.TrimSpace(i.tcpClient.TargetPort) != "" {
+		if p, err := strconv.Atoi(i.tcpClient.TargetPort); err == nil && p > 0 {
+			v := p
+			return &v
+		}
 	}
 	return nil
 }

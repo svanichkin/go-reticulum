@@ -520,7 +520,7 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 		if pathResponse {
 			key := string(tag)
 			d.pathResponses[key] = &pathResponseEntry{
-				Timestamp: float64(time.Now().Unix()),
+				Timestamp: now,
 				Data:      announceData,
 			}
 		}
@@ -830,19 +830,14 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 	if d.Type == DestinationSINGLE && d.identity != nil {
 		d.latestRatchetID = nil
 		if d.ratchets != nil {
-			var (
-				decrypted []byte
-				err       error
-				ratchetID []byte
-			)
-			decrypted, ratchetID, err = d.identity.DecryptWithRatchetID(ciphertext, d.ratchets, d.enforceRatchets)
+			decrypted, err := d.identity.DecryptWithRatchetReceiver(ciphertext, d.ratchets, d.enforceRatchets, d)
 			if err != nil || decrypted == nil {
 				Log("Decryption with ratchets failed on "+d.String()+", reloading ratchets from storage and retrying", LOG_ERROR)
 				if err2 := d.reloadRatchets(d.ratchetsPath); err2 != nil {
 					Log("Decryption still failing after ratchet reload. "+err2.Error(), LOG_ERROR)
 					return nil
 				}
-				decrypted, ratchetID, err = d.identity.DecryptWithRatchetID(ciphertext, d.ratchets, d.enforceRatchets)
+				decrypted, err = d.identity.DecryptWithRatchetReceiver(ciphertext, d.ratchets, d.enforceRatchets, d)
 				if err != nil || decrypted == nil {
 					if err != nil {
 						Log("Decryption still failing after ratchet reload. "+err.Error(), LOG_ERROR)
@@ -853,15 +848,9 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 				}
 				Log("Decryption succeeded after ratchet reload", LOG_NOTICE)
 			}
-			if len(ratchetID) > 0 {
-				d.latestRatchetID = ratchetID
-			}
 			return decrypted
 		}
-		decrypted, ratchetID, _ := d.identity.DecryptWithRatchetID(ciphertext, nil, d.enforceRatchets)
-		if len(ratchetID) > 0 {
-			d.latestRatchetID = ratchetID
-		}
+		decrypted, _ := d.identity.DecryptWithRatchetReceiver(ciphertext, nil, d.enforceRatchets, d)
 		return decrypted
 	}
 
@@ -878,6 +867,14 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 		panicDestinationState("No private key held by GROUP destination. Did you create or load one?")
 	}
 	return nil
+}
+
+func (d *Destination) setLatestRatchetID(ratchetID []byte) {
+	if len(ratchetID) == 0 {
+		d.latestRatchetID = nil
+		return
+	}
+	d.latestRatchetID = append([]byte{}, ratchetID...)
 }
 
 func (d *Destination) Sign(message []byte) []byte {

@@ -32,7 +32,6 @@ type RequestReceipt struct {
 	status               byte
 	progress             float64
 	timeout              time.Duration
-	responseTimeoutOnce  sync.Once
 	timedOutOnce         sync.Once
 	callbacks            RequestReceiptCallbacks
 }
@@ -180,29 +179,6 @@ func (rr *RequestReceipt) markDelivered() {
 	}
 	rr.status = ReceiptDelivered
 	rr.mu.Unlock()
-}
-
-func (rr *RequestReceipt) startResponseWait() {
-	rr.responseTimeoutOnce.Do(func() {
-		if rr.timeout <= 0 {
-			return
-		}
-		deadline := time.Now().Add(rr.timeout)
-		go func() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			defer ticker.Stop()
-			for {
-				if rr.status != ReceiptDelivered {
-					return
-				}
-				if time.Now().After(deadline) {
-					rr.requestTimedOut()
-					return
-				}
-				<-ticker.C
-			}
-		}()
-	})
 }
 
 func (rr *RequestReceipt) noteResponseAdvertisement(adv *ResourceAdvertisement) {

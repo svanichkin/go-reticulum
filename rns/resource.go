@@ -290,16 +290,6 @@ func resourceHashmapCapacity(linkMDU int) int {
 	return int(math.Floor(float64(usable) / float64(MapHashLen)))
 }
 
-func resourceHashmapCapacityForLink(link *Link) int {
-	if link == nil {
-		return resourceHashmapCapacity(LinkMDU)
-	}
-	if link.MDU > 0 {
-		return resourceHashmapCapacity(link.MDU)
-	}
-	return resourceHashmapCapacity(LinkMDU)
-}
-
 func setResourceSizing(hashLen int) {
 	HashmapMaxLen = hashLen
 	CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
@@ -1551,6 +1541,10 @@ func (r *Resource) ReceivePart(packet *Packet) {
 
 // RequestNext requests subsequent parts from the initiator.
 func (r *Resource) RequestNext() {
+	for r.receivingPart {
+		time.Sleep(1 * time.Millisecond)
+	}
+
 	if r.status == ResourceFailed || r.waitingForHMU {
 		return
 	}
@@ -1793,15 +1787,14 @@ func (r *Resource) Cancel() {
 		if r.link != nil {
 			r.link.CancelOutgoingResource(r)
 		}
-	} else if r.link != nil {
-		r.link.CancelIncomingResource(r)
-	}
-
-	if r.link != nil {
-		r.link.ResourceConcluded(r)
-	}
+		} else if r.link != nil {
+			r.link.CancelIncomingResource(r)
+		}
 
 	if r.callback != nil {
+		if r.link != nil {
+			r.link.ResourceConcluded(r)
+		}
 		go safeResourceCallback(r.callback, r)
 	}
 	if r.inputFile != nil {
@@ -1824,6 +1817,9 @@ func (r *Resource) rejected() {
 			r.link.CancelOutgoingResource(r)
 		}
 		if r.callback != nil {
+			if r.link != nil {
+				r.link.ResourceConcluded(r)
+			}
 			go safeResourceCallback(r.callback, r)
 		}
 	}

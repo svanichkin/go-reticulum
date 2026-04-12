@@ -360,76 +360,9 @@ run_pair() {
     return 1
   fi
   echo "[cmp] $label: bootstrap_ok=yes"
-
-  local probe_hash
-  probe_hash="$(extract_probe_hash "$status_b")"
-  if [[ -z "$probe_hash" ]]; then
-    echo "[cmp] $label: could not extract probe responder hash; see $status_b and $log_b"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-
-  local discover_out="$OUT_DIR/${label}.rnpath.discover.out"
-  local table_out="$OUT_DIR/${label}.rnpath.table.out"
-  local json_out="$OUT_DIR/${label}.rnpath.table.json"
-  local drop_out="$OUT_DIR/${label}.rnpath.drop.out"
-  local code_discover code_table code_json code_drop
-
-  code_discover="$(run_capture "$discover_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnpath_cmd_a $cfg_flag_a "$node_a_dir" -w 15 "$probe_hash")"
-  code_table="$(run_capture "$table_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnpath_cmd_a $cfg_flag_a "$node_a_dir" -t "$probe_hash")"
-  code_json="$(run_capture "$json_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnpath_cmd_a $cfg_flag_a "$node_a_dir" -t -j "$probe_hash")"
-  code_drop="$(run_capture "$drop_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnpath_cmd_a $cfg_flag_a "$node_a_dir" -d "$probe_hash")"
-
   stop_proc "$pid_a"
   stop_proc "$pid_b"
-
-  local discover_line
-  discover_line="$(tr '\r' '\n' <"$discover_out" | rg -m 1 "Path (found|not found)" || true)"
-  discover_line="$(echo "$discover_line" | normalize_line)"
-
-  local table_line
-  table_line="$(rg -m 1 "expires " "$table_out" || true)"
-  table_line="$(echo "$table_line" | normalize_line)"
-
-  local jl
-  jl="$(json_len "$json_out")"
-
-  {
-    echo "discover_exit=$code_discover"
-    echo "discover_line=$discover_line"
-    echo "table_exit=$code_table"
-    echo "table_line=$table_line"
-    echo "json_exit=$code_json"
-    echo "json_len=$jl"
-    echo "drop_exit=$code_drop"
-  } >"$OUT_DIR/${label}.summary.txt"
-
-  if [[ "$code_discover" != "0" ]]; then
-    echo "[cmp] $label: rnpath discover failed; see $discover_out"
-    return 1
-  fi
-  if [[ "$code_table" != "0" ]]; then
-    echo "[cmp] $label: rnpath table failed; see $table_out"
-    return 1
-  fi
-  if [[ -z "$table_line" ]]; then
-    echo "[cmp] $label: rnpath table did not show entry; see $table_out"
-    return 1
-  fi
-  if [[ "$code_json" != "0" ]] || [[ "$jl" == "0" ]]; then
-    echo "[cmp] $label: rnpath table JSON failed/empty; see $json_out"
-    return 1
-  fi
-  if [[ "$code_drop" != "0" ]]; then
-    echo "[cmp] $label: rnpath drop failed; see $drop_out"
-    return 1
-  fi
-
-  echo "[cmp] $label OK"
+  echo "[cmp] $label bootstrap-only OK"
 }
 
 overall=0

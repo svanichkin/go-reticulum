@@ -919,6 +919,14 @@ func (id *Identity) DecryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 	return id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
 }
 
+func (id *Identity) DecryptWithRatchetReceiver(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool, receiver interface{ setLatestRatchetID([]byte) }) ([]byte, error) {
+	plaintext, ratchetID, err := id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
+	if receiver != nil {
+		receiver.setLatestRatchetID(ratchetID)
+	}
+	return plaintext, err
+}
+
 func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool) ([]byte, []byte, error) {
 	if id.prv == nil {
 		return nil, nil, errors.New("identity has no private key")

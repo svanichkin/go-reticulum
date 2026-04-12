@@ -18,7 +18,6 @@ import (
 	"time"
 
 	ifaces "github.com/svanichkin/go-reticulum/rns/interfaces"
-	platformutils "github.com/svanichkin/go-reticulum/rns/vendor"
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
@@ -712,7 +711,7 @@ func discoveryConfigEntry(info map[string]any) string {
 		}
 		connectionType := "BackboneInterface"
 		remoteKey := "remote"
-		if platformutils.IsWindows() {
+		if umsgpack.IsWindows() {
 			connectionType = "TCPClientInterface"
 			remoteKey = "target_host"
 		}
@@ -825,7 +824,7 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 	if interfaceType != "BackboneInterface" && interfaceType != "TCPServerInterface" {
 		return
 	}
-	if platformutils.IsWindows() {
+	if umsgpack.IsWindows() {
 		Log("Your operating system does not support the Backbone interface type, and must degrade to using TCPClientInterface instead", LogWarning)
 		Log("Auto-connecting discovered TCPClient interfaces is not yet implemented, aborting auto-connect", LogWarning)
 		Log("You can obtain the configuration entry and add this interface manually instead using rnstatus -D", LogWarning)
@@ -1407,7 +1406,7 @@ func isDiscoveryAddress(v string) bool {
 
 func resolveDiscoveryReachableOn(ifc *Interface, reachableOn string) (string, error) {
 	reachableOn = sanitizeDiscoveryString(reachableOn)
-	if platformutils.IsWindows() {
+	if umsgpack.IsWindows() {
 		return reachableOn, nil
 	}
 	execPath, ok := expandDiscoveryExecutablePath(reachableOn)

@@ -120,7 +120,7 @@ type TCPClientInterface struct {
 	Name string
 
 	TargetHost string
-	TargetPort int
+	TargetPort string
 
 	KISSFraming bool
 	I2PTunneled bool
@@ -168,7 +168,7 @@ func NewTCPClientInitiator(owner TCPOwner, log TCPLog, name, host string, port i
 		Log:              log,
 		Name:             name,
 		TargetHost:       host,
-		TargetPort:       port,
+		TargetPort:       fmt.Sprintf("%d", port),
 		KISSFraming:      kiss,
 		I2PTunneled:      i2p,
 		Initiator:        true,
@@ -238,7 +238,7 @@ func (t *TCPClientInterface) String() string {
 	if host == "" && t.conn != nil {
 		host = t.conn.RemoteAddr().String()
 	}
-	return fmt.Sprintf("TCPInterface[%s/%s:%d]", t.Name, host, t.TargetPort)
+	return fmt.Sprintf("TCPInterface[%s/%s:%s]", t.Name, host, t.TargetPort)
 }
 
 func (t *TCPClientInterface) setConn(c net.Conn) {
@@ -289,10 +289,10 @@ func (t *TCPClientInterface) InitialConnect(ctx context.Context) {
 }
 
 func (t *TCPClientInterface) connect(ctx context.Context, initial bool) bool {
-	if t.TargetHost == "" || t.TargetPort == 0 {
+	if t.TargetHost == "" || strings.TrimSpace(t.TargetPort) == "" {
 		return false
 	}
-	addr := net.JoinHostPort(t.TargetHost, fmt.Sprintf("%d", t.TargetPort))
+	addr := net.JoinHostPort(t.TargetHost, t.TargetPort)
 	if initial && t.Log != nil {
 		t.Log.Debugf("Establishing TCP connection for %s...", t.String())
 	}
@@ -689,6 +689,8 @@ func NewTCPServer(owner TCPOwner, log TCPLog, name, listenAddr string, kiss, i2p
 		ListenAddr:  listenAddr,
 		I2PTunneled: i2p,
 		KISSFraming: kiss,
+		// Python TCPServerInterface always supports discovery.
+		// Discoverable is set in the higher-level wrapper.
 		HWMTU:       TCP_HW_MTU,
 		Bitrate:     TCP_BITRATE_GUESS,
 		IFACSize:    TCP_DEFAULT_IFAC_SIZE,
@@ -765,6 +767,7 @@ func NewTCPClientInterfaceFromConfig(cfg TCPClientConfig) (*Interface, error) {
 		IN:                true,
 		OUT:               true,
 		DriverImplemented: true,
+		Discoverable:      true,
 		Online:            false,
 		Bitrate:           TCP_BITRATE_GUESS,
 		HWMTU:             TCP_HW_MTU,
@@ -978,7 +981,7 @@ func (s *TCPServerInterface) spawnClient(c net.Conn, ra *net.TCPAddr) *TCPClient
 	iface.parent = s
 	if ra != nil {
 		iface.TargetHost = ra.IP.String()
-		iface.TargetPort = ra.Port
+		iface.TargetPort = fmt.Sprintf("%d", ra.Port)
 	}
 	iface.HWMTU = s.HWMTU
 	iface.FixedMTU = s.FixedMTU
