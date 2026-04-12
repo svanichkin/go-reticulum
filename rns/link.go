@@ -437,6 +437,19 @@ func (l *Link) GetRemoteIdentity() *Identity {
 	return l.RemoteIdentity()
 }
 
+// ActivatedAt returns the timestamp when the link most recently became active.
+// This mirrors Python's public `activated_at` attribute and is used by higher
+// level LXMF code to distinguish never-activated links from links that were
+// active and later closed.
+func (l *Link) ActivatedAt() time.Time {
+	if l == nil {
+		return time.Time{}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.activatedAt
+}
+
 func (l *Link) NoInboundFor() float64 {
 	if l == nil {
 		return 0

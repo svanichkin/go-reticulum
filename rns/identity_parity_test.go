@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+func resetKnownDestinationsForTestIdentityParity() {
+	knownDestinationsLoadMu.Lock()
+	defer knownDestinationsLoadMu.Unlock()
+	knownDestinations.entries = make(map[string]*knownDestinationEntry)
+	knownDestinationsLoaded.Store(true)
+	knownDestinationsLoadAttempted.Store(true)
+}
+
 func TestIdentityValidateAnnounce_RejectsBlackholedIdentity(t *testing.T) {
 	resetKnownDestinationsForTest()
 
@@ -99,6 +107,38 @@ func TestIdentityValidateAnnounce_LoadsPersistedKnownDestinationsBeforeCollision
 
 	if ok := IdentityValidateAnnounce(ap, false); ok {
 		t.Fatal("IdentityValidateAnnounce() = true, want false for persisted key collision")
+	}
+}
+
+func TestIdentityRecall_FollowsAnnounceDispatch(t *testing.T) {
+	resetKnownDestinationsForTestIdentityParity()
+	t.Cleanup(resetKnownDestinationsForTestIdentityParity)
+
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	dst, err := NewDestination(id, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	packet := dst.Announce(nil, false, nil, nil, false)
+	if packet == nil {
+		t.Fatal("Announce() returned nil")
+	}
+	if err := packet.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+
+	knownDestinationsLoadMu.Lock()
+	knownDestinations.entries = make(map[string]*knownDestinationEntry)
+	knownDestinationsLoaded.Store(true)
+	knownDestinationsLoadAttempted.Store(true)
+	knownDestinationsLoadMu.Unlock()
+
+	NotifyAnnounceHandlers(packet)
+	if got := IdentityRecall(packet.DestinationHash); got == nil {
+		t.Fatal("IdentityRecall() returned nil after announce dispatch")
 	}
 }
 
