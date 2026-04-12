@@ -14,7 +14,6 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 	prevTransportEnabled := transportEnabled
 	prevInterfaces := Interfaces
 	prevPathTable := pathTable
-	prevPacketCache := packetCache
 
 	dir := t.TempDir()
 	Owner = &Reticulum{
@@ -25,14 +24,12 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 	transportEnabled = true
 	Interfaces = nil
 	pathTable = make(map[hashKey]*PathEntry)
-	packetCache = make(map[string]*cachedPacket)
 
 	t.Cleanup(func() {
 		Owner = prevOwner
 		transportEnabled = prevTransportEnabled
 		Interfaces = prevInterfaces
 		pathTable = prevPathTable
-		packetCache = prevPacketCache
 	})
 
 	_ = os.MkdirAll(filepath.Join(Owner.CachePath, "announces"), 0o755)
@@ -53,7 +50,14 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 	for i := range packetHash {
 		packetHash[i] = byte(0xAA + i)
 	}
-	packetCache[string(packetHash)] = &cachedPacket{Raw: []byte("not-a-real-packet")}
+	rawAnnounce := []byte("not-a-real-packet")
+	buf, err := umsgpack.Packb([]any{rawAnnounce, nil})
+	if err != nil {
+		t.Fatalf("pack cached announce: %v", err)
+	}
+	if err := os.WriteFile(announceCachePath(packetHash), buf, 0o600); err != nil {
+		t.Fatalf("write cached announce: %v", err)
+	}
 
 	pathTable[key] = &PathEntry{
 		NextHop:       []byte{1, 2, 3},

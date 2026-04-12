@@ -823,8 +823,8 @@ func NewTCPClientInterfaceFromConfig(cfg TCPClientConfig) (*Interface, error) {
 	ifc.SetTCPClient(client)
 	ifc.OptimiseMTU()
 
+	client.InitialConnect(context.Background())
 	go func() {
-		client.InitialConnect(context.Background())
 		t := time.NewTicker(750 * time.Millisecond)
 		defer t.Stop()
 		for range t.C {

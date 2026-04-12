@@ -352,10 +352,14 @@ func (d *Destination) IncomingLinkRequest(data []byte, packet *Packet) {
 
 // internal
 func (d *Destination) cleanRatchets() {
+	// Python parity: if len(ratchets) > retained_ratchets, slice to RATCHET_COUNT.
+	// Yes, this intentionally ignores the retained_ratchets value.
 	if d.ratchets != nil && len(d.ratchets) > d.retainedRatchets {
-		if len(d.ratchets) > DestinationRATCHET_COUNT {
-			d.ratchets = d.ratchets[:DestinationRATCHET_COUNT]
+		n := len(d.ratchets)
+		if n > DestinationRATCHET_COUNT {
+			n = DestinationRATCHET_COUNT
 		}
+		d.ratchets = d.ratchets[:n]
 	}
 }
 
@@ -411,14 +415,11 @@ func (d *Destination) RotateRatchets() (bool, error) {
 	if d.ratchets == nil {
 		return false, errors.New("cannot rotate ratchet, ratchets are not enabled")
 	}
-	now := float64(time.Now().Unix())
+	// Python uses time.time() (float seconds).
+	now := float64(time.Now().UnixNano()) / 1e9
 	if now > d.latestRatchetTime+float64(d.ratchetInterval) {
 		Log("Rotating ratchets for "+d.String(), LOG_DEBUG)
 		newRatchet, err := IdentityGenerateRatchet()
-		if err != nil {
-			return false, err
-		}
-		pub, err := IdentityRatchetPublicBytes(newRatchet)
 		if err != nil {
 			return false, err
 		}
@@ -428,7 +429,6 @@ func (d *Destination) RotateRatchets() (bool, error) {
 		if err := d.persistRatchets(); err != nil {
 			return false, err
 		}
-		IdentityRememberRatchet(d.hash, pub)
 	}
 	return true, nil
 }
@@ -444,7 +444,8 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 	}
 
 	var ratchetPub []byte
-	now := float64(time.Now().Unix())
+	// Python uses time.time() (float seconds).
+	now := float64(time.Now().UnixNano()) / 1e9
 
 	// purge old path_responses
 	for k, v := range d.pathResponses {

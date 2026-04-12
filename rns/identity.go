@@ -1174,7 +1174,7 @@ func IdentityCleanRatchets() {
 			if len(rec.Ratchet) != x25519KeyLen {
 				remove = true
 			} else {
-				stored := time.Unix(int64(rec.Received), 0)
+				stored := timeFromFloatSeconds(rec.Received)
 				if now.Sub(stored) > ratchetExpiry {
 					remove = true
 				}
@@ -1221,7 +1221,7 @@ func persistRatchet(destHash, ratchet []byte) error {
 
 	payload, err := umsgpack.Packb(map[string]any{
 		"ratchet":  append([]byte{}, ratchet...),
-		"received": float64(time.Now().Unix()),
+		"received": float64(time.Now().UnixNano()) / 1e9,
 	})
 	if err != nil {
 		return err
@@ -1254,9 +1254,9 @@ func loadRatchetFromDisk(destHash []byte) ([]byte, error) {
 		return nil, errors.New("invalid ratchet size on disk")
 	}
 	if rec.Received == 0 {
-		rec.Received = float64(time.Now().Unix())
+		rec.Received = float64(time.Now().UnixNano()) / 1e9
 	}
-	if time.Since(time.Unix(int64(rec.Received), 0)) > ratchetExpiry {
+	if time.Since(timeFromFloatSeconds(rec.Received)) > ratchetExpiry {
 		_ = os.Remove(path)
 		return nil, nil
 	}

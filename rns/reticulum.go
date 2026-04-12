@@ -3290,10 +3290,10 @@ func rpcUnixTime(value any) *time.Time {
 		t := *v
 		return &t
 	case float64:
-		t := time.Unix(int64(v), 0)
+		t := timeFromFloatSeconds(v)
 		return &t
 	case float32:
-		t := time.Unix(int64(v), 0)
+		t := timeFromFloatSeconds(float64(v))
 		return &t
 	case int:
 		t := time.Unix(int64(v), 0)

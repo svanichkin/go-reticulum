@@ -11,6 +11,7 @@ import (
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -51,7 +52,6 @@ const (
 	DefaultDiscoveryRequiredValue = 14
 	// DestinationTimeout mirrors Python Transport.DESTINATION_TIMEOUT.
 	DestinationTimeout      = 7 * 24 * time.Hour
-	packetCacheMaxEntries   = 512
 	PathfinderMaxHops       = 128
 	pathfinderRetryLimit    = 1
 	pathfinderRetryGrace    = 5 * time.Second
@@ -72,6 +72,16 @@ const (
 var (
 	announceQueueTTL = time.Duration(QUEUED_ANNOUNCE_LIFE) * time.Second
 )
+
+func timeFromFloatSeconds(ts float64) time.Time {
+	// Python stores timestamps as time.time() floats (seconds with fractional part).
+	sec, frac := math.Modf(ts)
+	if sec < 0 {
+		// Keep behaviour sane for invalid negative timestamps.
+		return time.Unix(0, 0)
+	}
+	return time.Unix(int64(sec), int64(frac*1e9))
+}
 
 type hashKey [truncatedHashBytes]byte
 
@@ -158,9 +168,6 @@ var (
 	lastPathRequest = make(map[hashKey]time.Time)
 	announceTable   = make(map[hashKey]*announceEntry)
 	linkTable       = make(map[hashKey]*linkEntry)
-
-	packetCache   = make(map[string]*cachedPacket)
-	packetCacheMu sync.RWMutex
 
 	announceRateTable = make(map[hashKey]*announceRateEntry)
 	announceRateMu    sync.RWMutex
@@ -488,17 +495,34 @@ func TransportRegisterDestination(d *Destination) {
 	if d == nil {
 		return
 	}
+	var registered bool
 	destinationsMu.Lock()
-	defer destinationsMu.Unlock()
 	for _, existing := range Destinations {
 		if existing == d {
+			destinationsMu.Unlock()
 			return
 		}
 		if existing != nil && len(existing.Hash()) > 0 && bytes.Equal(existing.Hash(), d.Hash()) {
+			destinationsMu.Unlock()
 			return
 		}
 	}
 	Destinations = append(Destinations, d)
+	registered = true
+	destinationsMu.Unlock()
+
+	if !registered || Owner == nil || !Owner.IsConnectedToSharedInstance {
+		return
+	}
+	if d.Direction != DestinationIN || d.Type != DestinationSINGLE {
+		return
+	}
+	go func(dst *Destination) {
+		time.Sleep(250 * time.Millisecond)
+		if dst != nil {
+			dst.Announce(nil, true, nil, nil, true)
+		}
+	}(d)
 }
 
 // TransportDeregisterDestination removes a destination from the transport registry.
@@ -583,7 +607,6 @@ const (
 	reverseTimeout         = 8 * time.Minute
 	tablesCullInterval     = 5 * time.Second
 	cacheCleanInterval     = 5 * time.Minute
-	packetCacheLifetime    = 10 * time.Minute
 	tablesPersistInterval  = 12 * time.Hour
 	linkTimeout            = 900 * time.Second // Python: Link.STALE_TIME * 1.25
 )
@@ -649,13 +672,6 @@ type blackholeEntry struct {
 	Source []byte
 	Until  *time.Time
 	Reason *string
-}
-
-type cachedPacket struct {
-	Raw        []byte
-	Interface  *Interface
-	StoredAt   time.Time
-	PacketHash []byte
 }
 
 type tunnelEntry struct {
@@ -779,6 +795,80 @@ func announceCachePath(packetHash []byte) string {
 	return filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
 }
 
+func packetCachePath(packetHash []byte) string {
+	if Owner == nil || len(packetHash) == 0 {
+		return ""
+	}
+	return filepath.Join(Owner.CachePath, hex.EncodeToString(packetHash))
+}
+
+// readCachedAnnounceRaw loads an announce packet from cache in Python format:
+// umsgpack([raw_bytes, interface_reference]).
+func readCachedAnnounceRaw(packetHash []byte) ([]byte, error) {
+	path := announceCachePath(packetHash)
+	if path == "" {
+		return nil, fs.ErrInvalid
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, io.EOF
+	}
+
+	var cached []any
+	if err := umsgpack.Unpackb(data, &cached); err != nil {
+		return nil, err
+	}
+	if len(cached) < 1 {
+		return nil, errors.New("invalid cached announce format")
+	}
+	raw, ok := asBytesValue(cached[0])
+	if !ok || len(raw) == 0 {
+		return nil, errors.New("invalid cached announce raw bytes")
+	}
+	return raw, nil
+}
+
+func readCachedPacketRaw(packetHash []byte) ([]byte, *Interface, error) {
+	path := packetCachePath(packetHash)
+	if path == "" {
+		return nil, nil, fs.ErrInvalid
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(data) == 0 {
+		return nil, nil, io.EOF
+	}
+	var cached []any
+	if err := umsgpack.Unpackb(data, &cached); err != nil {
+		return nil, nil, err
+	}
+	if len(cached) < 1 {
+		return nil, nil, errors.New("invalid cached packet format")
+	}
+	raw, ok := asBytesValue(cached[0])
+	if !ok || len(raw) == 0 {
+		return nil, nil, errors.New("invalid cached packet raw bytes")
+	}
+	var recvIf *Interface
+	if len(cached) > 1 {
+		if ref, ok := cached[1].(string); ok && ref != "" {
+			// Best-effort: match by Interface.String().
+			for _, ifc := range Interfaces {
+				if ifc != nil && ifc.String() == ref {
+					recvIf = ifc
+					break
+				}
+			}
+		}
+	}
+	return raw, recvIf, nil
+}
+
 func loadDestinationTable() {
 	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
 		return
@@ -835,7 +925,7 @@ func loadDestinationTable() {
 		recvIf := findInterfaceFromHash(ifHash)
 		packetHash, _ := asBytesValue(re[7])
 
-		rawAnnounce, err := os.ReadFile(announceCachePath(packetHash))
+		rawAnnounce, err := readCachedAnnounceRaw(packetHash)
 		if err != nil || len(rawAnnounce) == 0 || recvIf == nil {
 			continue
 		}
@@ -857,8 +947,8 @@ func loadDestinationTable() {
 			NextHop:       append([]byte(nil), nextHop...),
 			RecvInterface: recvIf,
 			Hops:          hops,
-			Timestamp:     time.Unix(int64(ts), 0),
-			ExpiresAt:     time.Unix(int64(exp), 0),
+			Timestamp:     timeFromFloatSeconds(ts),
+			ExpiresAt:     timeFromFloatSeconds(exp),
 			RandomBlobs:   randomBlobs,
 			PacketHash:    append([]byte(nil), packetHash...),
 		}
@@ -921,7 +1011,7 @@ func loadTunnelTable() {
 		te := &tunnelEntry{
 			ID:        append([]byte(nil), tunnelID...),
 			Interface: ifc,
-			ExpiresAt: time.Unix(int64(expires), 0),
+			ExpiresAt: timeFromFloatSeconds(expires),
 			Paths:     make(map[string]*tunnelPathEntry),
 		}
 
@@ -963,10 +1053,10 @@ func loadTunnelTable() {
 				}
 
 				te.Paths[string(dstHash)] = &tunnelPathEntry{
-					Timestamp:    time.Unix(int64(ts), 0),
+					Timestamp:    timeFromFloatSeconds(ts),
 					ReceivedFrom: append([]byte(nil), receivedFrom...),
 					Hops:         hops,
-					ExpiresAt:    time.Unix(int64(exp), 0),
+					ExpiresAt:    timeFromFloatSeconds(exp),
 					RandomBlobs:  blobs,
 					PacketHash:   append([]byte(nil), packetHash...),
 				}
@@ -1088,7 +1178,7 @@ func blackholeEntryFromValue(value any, sourceOverride []byte, now time.Time) *b
 	}
 	if untilVal, exists := raw["until"]; exists && untilVal != nil {
 		if untilUnix, ok := asFloatValue(untilVal); ok && untilUnix > 0 {
-			until := time.Unix(int64(untilUnix), 0)
+			until := timeFromFloatSeconds(untilUnix)
 			if now.After(until) {
 				return nil
 			}
@@ -1611,18 +1701,6 @@ func saveDestinationTable() error {
 			continue
 		}
 
-		// Ensure announce cache exists on disk.
-		cachePath := announceCachePath(entry.PacketHash)
-		if cachePath != "" && !fileExists(cachePath) {
-			packetCacheMu.RLock()
-			cp := packetCache[string(entry.PacketHash)]
-			packetCacheMu.RUnlock()
-			if cp != nil && len(cp.Raw) > 0 {
-				_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
-				_ = os.WriteFile(cachePath, cp.Raw, 0o600)
-			}
-		}
-
 		entries = append(entries, []any{
 			dst,
 			float64(entry.Timestamp.Unix()),
@@ -1678,18 +1756,6 @@ func saveTunnelTable() error {
 			}
 			if len(pe.PacketHash) == 0 {
 				continue
-			}
-
-			// Ensure announce cache exists on disk, mirroring destination_table persistence.
-			cachePath := announceCachePath(pe.PacketHash)
-			if cachePath != "" && !fileExists(cachePath) {
-				packetCacheMu.RLock()
-				cp := packetCache[string(pe.PacketHash)]
-				packetCacheMu.RUnlock()
-				if cp != nil && len(cp.Raw) > 0 {
-					_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
-					_ = os.WriteFile(cachePath, cp.Raw, 0o600)
-				}
 			}
 
 			blobs := pe.RandomBlobs
@@ -1939,9 +2005,6 @@ func Jobs() {
 		if cleanAnnounceCache(now) {
 			culled = true
 		}
-		if cleanPacketCache(now) {
-			culled = true
-		}
 		LastCacheCleaned = now
 	}
 
@@ -2032,16 +2095,10 @@ func handleAnnounceRetransmit(now time.Time, outgoing *[]*Packet) {
 			delete(announceTable, key)
 			continue
 		}
-		send := cloneAnnouncePacket(entry.Packet)
+		send := buildTransportAnnouncePacket(entry.Packet, entry.AttachedInterface, entry.BlockRebroadcasts)
 		if send == nil {
 			delete(announceTable, key)
 			continue
-		}
-		if entry.BlockRebroadcasts {
-			send.Context = PacketPATH_RESPONSE
-		}
-		if entry.AttachedInterface != nil {
-			send.AttachedInterface = entry.AttachedInterface
 		}
 		*outgoing = append(*outgoing, send)
 
@@ -2922,22 +2979,11 @@ func answerPathRequest(destinationHash []byte, attachedInterface *Interface, req
 }
 
 func getCachedAnnounceRaw(packetHash []byte) []byte {
-	if len(packetHash) == 0 {
+	raw, err := readCachedAnnounceRaw(packetHash)
+	if err != nil {
 		return nil
 	}
-	path := announceCachePath(packetHash)
-	if path != "" && fileExists(path) {
-		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
-			return b
-		}
-	}
-	packetCacheMu.RLock()
-	entry := packetCache[string(packetHash)]
-	packetCacheMu.RUnlock()
-	if entry != nil && len(entry.Raw) > 0 {
-		return append([]byte(nil), entry.Raw...)
-	}
-	return nil
+	return raw
 }
 
 func filterTableByHash(table []map[string]any, hash []byte) []map[string]any {
@@ -3203,24 +3249,6 @@ func interfacePresent(ifc *Interface) bool {
 	return false
 }
 
-func cleanPacketCache(now time.Time) bool {
-	packetCacheMu.Lock()
-	removed := false
-	for key, entry := range packetCache {
-		if entry == nil {
-			delete(packetCache, key)
-			removed = true
-			continue
-		}
-		if now.Sub(entry.StoredAt) > packetCacheLifetime {
-			delete(packetCache, key)
-			removed = true
-		}
-	}
-	packetCacheMu.Unlock()
-	return removed
-}
-
 func cleanAnnounceCache(now time.Time) bool {
 	if Owner == nil || len(Owner.CachePath) == 0 {
 		return false
@@ -3229,25 +3257,55 @@ func cleanAnnounceCache(now time.Time) bool {
 	if !fileExists(announceDir) {
 		return false
 	}
-	removed := false
-	_ = filepath.WalkDir(announceDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d == nil {
-			return nil
+
+	// Python parity: remove cached announces that are not referenced by the
+	// current path_table or tunnels table.
+	active := make(map[string]struct{})
+	pathTableMu.RLock()
+	for _, entry := range pathTable {
+		if entry == nil || len(entry.PacketHash) == 0 {
+			continue
 		}
-		if d.IsDir() {
-			return nil
+		active[string(entry.PacketHash)] = struct{}{}
+	}
+	pathTableMu.RUnlock()
+	tunnelsMu.RLock()
+	for _, te := range tunnels {
+		if te == nil || te.Paths == nil {
+			continue
 		}
-		info, statErr := d.Info()
-		if statErr != nil {
-			return nil
-		}
-		if now.Sub(info.ModTime()) > packetCacheLifetime {
-			if rmErr := os.Remove(path); rmErr == nil {
-				removed = true
+		for _, pe := range te.Paths {
+			if pe == nil || len(pe.PacketHash) == 0 {
+				continue
 			}
+			active[string(pe.PacketHash)] = struct{}{}
+		}
+	}
+	tunnelsMu.RUnlock()
+
+	removed := false
+	st := time.Now()
+	_ = filepath.WalkDir(announceDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() {
+			return nil
+		}
+		name := filepath.Base(path)
+		hash, decodeErr := hex.DecodeString(name)
+		if decodeErr != nil || len(hash) == 0 {
+			_ = os.Remove(path)
+			removed = true
+			return nil
+		}
+		if _, ok := active[string(hash)]; !ok {
+			_ = os.Remove(path)
+			removed = true
 		}
 		return nil
 	})
+	if removed {
+		Logf(LogDebug, "Removed cached announces in %s", PrettyTime(time.Since(st).Seconds(), true, false))
+	}
+	_ = now
 	return removed
 }
 
@@ -4342,18 +4400,21 @@ func forwardAnnounceToLocalClients(p *Packet) {
 	if p == nil || len(LocalClientInterfaces) == 0 {
 		return
 	}
-	send := cloneAnnouncePacket(p)
-	if send == nil {
-		return
-	}
-	if err := send.Pack(); err != nil {
-		return
-	}
-	raw := append([]byte(nil), send.Raw...)
 	for _, cif := range LocalClientInterfaces {
 		if cif == nil {
 			continue
 		}
+		if p.ReceivingInterface == cif {
+			continue
+		}
+		send := buildTransportAnnouncePacket(p, cif, false)
+		if send == nil {
+			continue
+		}
+		if err := send.Pack(); err != nil {
+			continue
+		}
+		raw := append([]byte(nil), send.Raw...)
 		Transmit(cif, raw)
 	}
 }
@@ -4478,7 +4539,8 @@ func updatePathFromAnnounce(p *Packet, ifc *Interface, now time.Time) bool {
 		tunnelsMu.Unlock()
 	}
 
-	Cache(p, false)
+	// Python parity: cache announce with force_cache=True when adding/updating path table.
+	Cache(p, true)
 	return true
 }
 
@@ -4948,6 +5010,44 @@ func cloneAnnouncePacket(p *Packet) *Packet {
 	return clone
 }
 
+func buildTransportAnnouncePacket(p *Packet, attachedInterface *Interface, pathResponse bool) *Packet {
+	if p == nil {
+		return nil
+	}
+	announceIdentity := IdentityRecall(p.DestinationHash)
+	announceDestination := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		identity:  announceIdentity,
+		hash:      copyBytes(p.DestinationHash),
+		hexhash:   PrettyHexRep(p.DestinationHash),
+	}
+	context := byte(PacketNONE)
+	if pathResponse {
+		context = byte(PacketPATH_RESPONSE)
+	}
+	send := NewPacket(
+		announceDestination,
+		copyBytes(p.Data),
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(context),
+		WithHeaderType(HeaderType2),
+		WithTransportType(TransportDirect),
+		WithAttachedInterface(attachedInterface),
+		WithContextFlag(p.ContextFlag),
+	)
+	if send == nil {
+		return nil
+	}
+	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
+		send.TransportID = copyBytes(TransportIdentity.Hash)
+	}
+	send.Hops = p.Hops
+	send.DestinationHash = copyBytes(p.DestinationHash)
+	send.DestinationType = byte(DestinationSINGLE)
+	return send
+}
+
 func randAnnounceDelay() time.Duration {
 	if pathfinderRandomWindow <= 0 {
 		return pathfinderRetryGrace
@@ -5358,6 +5458,10 @@ func Cache(p *Packet, force bool) {
 	if p == nil || len(p.PacketHash) == 0 {
 		return
 	}
+	// Python parity: no caching when connected to a shared instance.
+	if Owner != nil && Owner.IsConnectedToSharedInstance {
+		return
+	}
 	if !force && !ShouldCache(p) {
 		return
 	}
@@ -5366,36 +5470,32 @@ func Cache(p *Packet, force bool) {
 			return
 		}
 	}
-	// Persist announce packets to disk so destination_table can be reconstructed on startup.
-	if Owner != nil && len(Owner.CachePath) > 0 && p.Type == PacketANNOUNCE {
-		path := announceCachePath(p.PacketHash)
-		if path != "" {
-			_ = os.MkdirAll(filepath.Dir(path), 0o755)
-			_ = os.WriteFile(path, p.Raw, 0o600)
-		}
+	if Owner == nil || len(Owner.CachePath) == 0 {
+		return
 	}
-	entry := &cachedPacket{
-		Raw:        append([]byte(nil), p.Raw...),
-		Interface:  p.ReceivingInterface,
-		StoredAt:   time.Now(),
-		PacketHash: append([]byte(nil), p.PacketHash...),
+
+	// Python parity: cache = umsgpack([packet.raw, interface_reference])
+	var ifaceRef any
+	if p.ReceivingInterface != nil {
+		ifaceRef = p.ReceivingInterface.String()
 	}
-	packetCacheMu.Lock()
-	if len(packetCache) >= packetCacheMaxEntries {
-		var oldestKey string
-		oldest := time.Now()
-		for k, v := range packetCache {
-			if v.StoredAt.Before(oldest) {
-				oldest = v.StoredAt
-				oldestKey = k
-			}
-		}
-		if oldestKey != "" {
-			delete(packetCache, oldestKey)
-		}
+	buf, err := umsgpack.Packb([]any{p.Raw, ifaceRef})
+	if err != nil {
+		return
 	}
-	packetCache[string(p.PacketHash)] = entry
-	packetCacheMu.Unlock()
+
+	// Announces are stored in cachepath/announces/, everything else in cachepath/.
+	var path string
+	if p.Type == PacketANNOUNCE {
+		path = announceCachePath(p.PacketHash)
+	} else {
+		path = packetCachePath(p.PacketHash)
+	}
+	if path == "" {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.WriteFile(path, buf, 0o600)
 }
 
 // ShouldCache mirrors Python Transport.should_cache() in spirit. The Go port
@@ -5405,7 +5505,8 @@ func ShouldCache(p *Packet) bool {
 	if p == nil {
 		return false
 	}
-	return p.Type == PacketANNOUNCE
+	// Python parity: currently returns False for all packets.
+	return false
 }
 
 func CacheRequest(hash []byte, link *Link) {
@@ -5447,10 +5548,8 @@ func cacheRequestPacket(packet *Packet) bool {
 	}
 	Logf(LogDebug, "cacheRequestPacket: destType=%d hash=%x recv=%v", packet.DestinationType, packet.Data, packet.ReceivingInterface)
 	if packet.DestinationType == DestLink {
-		packetCacheMu.RLock()
-		entry := packetCache[string(packet.Data)]
-		packetCacheMu.RUnlock()
-		if entry == nil || len(entry.Raw) == 0 {
+		raw, _, err := readCachedPacketRaw(packet.Data)
+		if err != nil || len(raw) == 0 {
 			Logf(LogDebug, "cacheRequestPacket: no cached entry for %x", packet.Data)
 			return false
 		}
@@ -5459,7 +5558,7 @@ func cacheRequestPacket(packet *Packet) bool {
 			Logf(LogDebug, "cacheRequestPacket: no link for %x", packet.DestinationHash)
 			return false
 		}
-		cached := NewPacket(nil, entry.Raw)
+		cached := NewPacket(nil, raw)
 		if cached == nil || !cached.Unpack() {
 			return false
 		}
@@ -5528,20 +5627,15 @@ func sendLinkPacketDirect(packet *Packet, ifc *Interface) bool {
 }
 
 func deliverCachedPacket(hash []byte) bool {
-	packetCacheMu.RLock()
-	entry := packetCache[string(hash)]
-	packetCacheMu.RUnlock()
-	var raw []byte
-	var recvIf *Interface
-	if entry != nil {
-		raw = append([]byte(nil), entry.Raw...)
-		recvIf = entry.Interface
-	} else {
-		// Best-effort disk-backed cache for announce packets.
-		raw = getCachedAnnounceRaw(hash)
-	}
-	if len(raw) == 0 {
-		return false
+	// Python parity: cached packet stored on disk as umsgpack([raw, ifref]).
+	raw, recvIf, err := readCachedPacketRaw(hash)
+	if err != nil || len(raw) == 0 {
+		// Announces are cached under cachepath/announces.
+		rawAnn, annErr := readCachedAnnounceRaw(hash)
+		if annErr != nil || len(rawAnn) == 0 {
+			return false
+		}
+		raw = rawAnn
 	}
 	go Inbound(raw, recvIf)
 	return true

@@ -16,11 +16,11 @@ import (
 // ==== StreamDataMessage ======================================================
 
 type StreamDataMessage struct {
-	StreamID   uint16
+	StreamID    uint16
 	streamIDSet bool
-	Compressed bool
-	Data       []byte
-	EOF        bool
+	Compressed  bool
+	Data        []byte
+	EOF         bool
 }
 
 func (m *StreamDataMessage) MsgType() uint16 { return uint16(SMT_STREAM_DATA) }
@@ -49,9 +49,9 @@ func NewStreamDataMessage(streamID int, data []byte, eof bool, compressed bool) 
 	m := &StreamDataMessage{
 		StreamID:    uint16(streamID),
 		streamIDSet: true,
-		Compressed: compressed,
-		Data:       data,
-		EOF:        eof,
+		Compressed:  compressed,
+		Data:        data,
+		EOF:         eof,
 	}
 	return m, nil
 }
@@ -227,7 +227,7 @@ func (r *RawChannelReader) readN(size int, block bool) ([]byte, bool, bool) {
 		r.cond.Wait()
 	}
 
-	if len(r.buffer) == 0 && (r.eof || r.closed) {
+	if len(r.buffer) == 0 && r.eof {
 		return nil, true, true
 	}
 
@@ -245,11 +245,15 @@ func (r *RawChannelReader) readN(size int, block bool) ([]byte, bool, bool) {
 	return res, true, false
 }
 
-// Read implements io.Reader (mirrors Python readinto).
+// Read implements io.Reader.
+// Python RawChannelReader is non-blocking (readinto returns None when no data),
+// so we keep Read non-blocking too: it returns (0, nil) when no data is ready.
 func (r *RawChannelReader) Read(p []byte) (int, error) {
-	data, ok, eof := r.readN(len(p), true)
+	data, ok, eof := r.readN(len(p), false)
+	// Python readinto()/BufferedReader.read() signals EOF by returning empty bytes,
+	// not by raising/returning an EOF exception.
 	if data == nil && eof {
-		return 0, io.EOF
+		return 0, nil
 	}
 	if !ok || data == nil {
 		return 0, nil
@@ -259,16 +263,7 @@ func (r *RawChannelReader) Read(p []byte) (int, error) {
 }
 
 // ReadInto is a non-blocking read that mirrors Python RawChannelReader.readinto().
-// If no data is available and EOF has not been received, it returns ErrWouldBlock.
 func (r *RawChannelReader) ReadInto(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	return r.tryRead(p)
-}
-
-func (r *RawChannelReader) tryRead(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -276,11 +271,13 @@ func (r *RawChannelReader) tryRead(p []byte) (int, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if len(r.buffer) == 0 && !r.eof && !r.closed {
-		return 0, ErrWouldBlock
+	if len(r.buffer) == 0 && !r.eof {
+		// Python readinto() returns None when no data is available yet.
+		return 0, nil
 	}
-	if len(r.buffer) == 0 && (r.eof || r.closed) {
-		return 0, io.EOF
+	// Python readinto() returns 0 (not an exception) once EOF is reached.
+	if len(r.buffer) == 0 && r.eof {
+		return 0, nil
 	}
 
 	n := len(p)
@@ -295,8 +292,9 @@ func (r *RawChannelReader) tryRead(p []byte) (int, error) {
 // TryRead mirrors Python RawChannelReader._read/readinto by returning ErrWouldBlock if no data.
 func (r *RawChannelReader) TryRead(p []byte) (int, error) {
 	data, ok, eof := r.readN(len(p), false)
+	// Python readinto() returns 0 (not an exception) at EOF. Keep TryRead aligned.
 	if data == nil && eof {
-		return 0, io.EOF
+		return 0, nil
 	}
 	if data == nil && !ok {
 		return 0, ErrWouldBlock
@@ -304,6 +302,23 @@ func (r *RawChannelReader) TryRead(p []byte) (int, error) {
 	copy(p, data)
 	return len(data), nil
 }
+
+// Readable mirrors Python RawIOBase contract for RawChannelReader.
+func (r *RawChannelReader) Readable() bool { return true }
+
+// Writable mirrors Python RawIOBase contract for RawChannelReader.
+func (r *RawChannelReader) Writable() bool { return false }
+
+// Seekable mirrors Python RawIOBase contract for RawChannelReader.
+func (r *RawChannelReader) Seekable() bool { return false }
+
+// EOF reports whether an EOF StreamDataMessage has been received.
+func (r *RawChannelReader) EOF() bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.eof && len(r.buffer) == 0
+}
+
 func (r *RawChannelReader) Close() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -363,13 +378,6 @@ func (w *RawChannelWriter) Write(b []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if len(b) == 0 {
-		if w.eof {
-			return 0, w.sendEmptyChunk()
-		}
-		return 0, nil
-	}
-
 	// Python parity: RawChannelWriter.write() is non-blocking and returns 0
 	// when the channel/link is not ready.
 	return w.writeInternal(b, false)
@@ -390,10 +398,8 @@ func (w *RawChannelWriter) WriteBlocking(b []byte) (int, error) {
 
 func (w *RawChannelWriter) writeInternal(b []byte, block bool) (int, error) {
 	if len(b) == 0 {
-		if w.eof {
-			return 0, w.sendEmptyChunk()
-		}
-		return 0, nil
+		// Python sends an empty StreamDataMessage even for empty writes.
+		return 0, w.sendEmptyChunk(w.eof)
 	}
 
 	// Python parity: RawChannelWriter.write() sends at most one StreamDataMessage
@@ -483,23 +489,18 @@ func (w *RawChannelWriter) processChunk(data []byte) (int, int, error) {
 	return len(chunk), processedLength, nil
 }
 
-func (w *RawChannelWriter) sendEmptyChunk() error {
-	msg, err := NewStreamDataMessage(w.streamID, nil, w.eof, false)
+func (w *RawChannelWriter) sendEmptyChunk(eof bool) error {
+	msg, err := NewStreamDataMessage(w.streamID, nil, eof, false)
 	if err != nil {
 		return err
 	}
-	for {
-		if _, err := w.channel.TrySend(msg); err != nil {
-			if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
-				if waitErr := w.waitUntilReady(); waitErr != nil {
-					return waitErr
-				}
-				continue
-			}
-			return err
+	if _, err := w.channel.TrySend(msg); err != nil {
+		if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
+			return nil
 		}
-		return nil
+		return err
 	}
+	return nil
 }
 
 func (w *RawChannelWriter) Close() error {
@@ -527,10 +528,19 @@ func (w *RawChannelWriter) closeWaitDuration() time.Duration {
 		return 15 * time.Second
 	}
 	if outlet, ok := w.channel.Outlet().(*LinkChannelOutlet); ok && outlet != nil && outlet.link != nil {
-		return time.Duration(outlet.link.RTT.Seconds()*float64(w.channel.TxQueueLen())) * time.Second
+		return time.Duration(outlet.link.RTT.Seconds() * float64(w.channel.TxQueueLen()) * float64(time.Second))
 	}
 	return 15 * time.Second
 }
+
+// Seekable mirrors Python RawIOBase contract for RawChannelWriter.
+func (w *RawChannelWriter) Seekable() bool { return false }
+
+// Readable mirrors Python RawIOBase contract for RawChannelWriter.
+func (w *RawChannelWriter) Readable() bool { return false }
+
+// Writable mirrors Python RawIOBase contract for RawChannelWriter.
+func (w *RawChannelWriter) Writable() bool { return true }
 
 func (w *RawChannelWriter) waitUntilReady() error {
 	for {
@@ -594,9 +604,21 @@ func (r *ChannelBufferedReader) Raw() *RawChannelReader {
 	return r.raw
 }
 
+// EOF reports whether the underlying raw reader has reached EOF and all buffered
+// bytes have been consumed. This mirrors Python BufferedReader returning b"" at EOF.
+func (r *ChannelBufferedReader) EOF() bool {
+	if r == nil || r.raw == nil {
+		return true
+	}
+	if len(r.buf) != 0 {
+		return false
+	}
+	return r.raw.EOF()
+}
+
 func (r *ChannelBufferedReader) Read(p []byte) (int, error) {
 	if r == nil || r.raw == nil {
-		return 0, io.EOF
+		return 0, nil
 	}
 	if len(p) == 0 {
 		return 0, nil
@@ -618,6 +640,9 @@ func (r *ChannelBufferedReader) Read(p []byte) (int, error) {
 			if len(r.buf) > 0 {
 				break
 			}
+			if errors.Is(err, ErrWouldBlock) {
+				return 0, nil
+			}
 			return 0, err
 		}
 		if n == 0 {
@@ -630,7 +655,7 @@ func (r *ChannelBufferedReader) Read(p []byte) (int, error) {
 	}
 
 	if len(r.buf) == 0 {
-		return 0, ErrWouldBlock
+		return 0, nil
 	}
 
 	n := copy(p, r.buf)
@@ -644,6 +669,29 @@ type ChannelBufferedWriter struct {
 }
 
 type BufferedWriter = ChannelBufferedWriter
+
+type BufferWouldBlockError struct{}
+
+func (e *BufferWouldBlockError) Error() string {
+	return "write could not complete without blocking"
+}
+
+func (w *ChannelBufferedWriter) nonBlockingFlush() error {
+	if w == nil || w.raw == nil {
+		return io.ErrClosedPipe
+	}
+	for len(w.buf) > 0 {
+		n, err := w.raw.Write(w.buf)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return &BufferWouldBlockError{}
+		}
+		w.buf = w.buf[n:]
+	}
+	return nil
+}
 
 func (w *ChannelBufferedWriter) Close() error {
 	if w == nil {
@@ -681,20 +729,22 @@ func (w *ChannelBufferedWriter) Write(p []byte) (int, error) {
 	// boundaries.
 	if len(p) >= defaultBufferSize {
 		if len(w.buf) > 0 {
-			if err := w.Flush(); err != nil {
+			if err := w.nonBlockingFlush(); err != nil {
 				return 0, err
 			}
 		}
 		written := 0
 		remaining := p
 		for len(remaining) > 0 {
-			n, err := w.raw.WriteBlocking(remaining)
+			n, err := w.raw.Write(remaining)
 			written += n
 			if err != nil {
 				return written, err
 			}
 			if n == 0 {
-				return written, errChannelUnusable
+				// Python io.BufferedWriter raises BlockingIOError when the underlying
+				// raw stream cannot accept more bytes without blocking.
+				return written, &BufferWouldBlockError{}
 			}
 			remaining = remaining[n:]
 		}
@@ -705,12 +755,12 @@ func (w *ChannelBufferedWriter) Write(p []byte) (int, error) {
 	for len(p) > 0 {
 		space := defaultBufferSize - len(w.buf)
 		if space == 0 {
-			if err := w.Flush(); err != nil {
+			if err := w.nonBlockingFlush(); err != nil {
 				return written, err
 			}
 			space = defaultBufferSize - len(w.buf)
 			if space == 0 {
-				return written, ErrWouldBlock
+				return written, &BufferWouldBlockError{}
 			}
 		}
 
@@ -723,7 +773,7 @@ func (w *ChannelBufferedWriter) Write(p []byte) (int, error) {
 		p = p[chunk:]
 
 		if len(w.buf) == defaultBufferSize {
-			if err := w.Flush(); err != nil {
+			if err := w.nonBlockingFlush(); err != nil {
 				return written, err
 			}
 		}
@@ -733,24 +783,7 @@ func (w *ChannelBufferedWriter) Write(p []byte) (int, error) {
 }
 
 func (w *ChannelBufferedWriter) Flush() error {
-	if w == nil || w.raw == nil {
-		return io.ErrClosedPipe
-	}
-	for len(w.buf) > 0 {
-		// Python parity: BufferedWriter.flush() blocks until all buffered bytes
-		// are written (or an error occurs).
-		n, err := w.raw.WriteBlocking(w.buf)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			// RawChannelWriter.Write() should not return 0 for non-empty buffers
-			// unless the channel becomes unusable.
-			return errChannelUnusable
-		}
-		w.buf = w.buf[n:]
-	}
-	return nil
+	return w.nonBlockingFlush()
 }
 
 type ChannelBufferedReadWriter struct {
@@ -780,7 +813,7 @@ func (rw *ChannelBufferedReadWriter) Close() error {
 
 func (rw *ChannelBufferedReadWriter) Read(p []byte) (int, error) {
 	if rw == nil || rw.reader == nil {
-		return 0, io.EOF
+		return 0, nil
 	}
 	return rw.reader.Read(p)
 }
@@ -811,6 +844,13 @@ func (rw *ChannelBufferedReadWriter) RawWriter() *RawChannelWriter {
 		return nil
 	}
 	return rw.writer.Raw()
+}
+
+func (rw *ChannelBufferedReadWriter) EOF() bool {
+	if rw == nil || rw.reader == nil {
+		return true
+	}
+	return rw.reader.EOF()
 }
 
 // CreateReader mirrors Buffer.create_reader(...).

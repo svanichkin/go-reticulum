@@ -361,60 +361,6 @@ run_pair() {
   fi
   echo "[cmp] $label: bootstrap_ok=yes"
 
-  stop_proc "$pid_a"
-  stop_proc "$pid_b"
-
-  server_port=$(( (RANDOM % 10000) + 42000 ))
-  sip_a=$(( (RANDOM % 10000) + 38000 ))
-  cip_a=$(( sip_a + 1 ))
-  sip_b=$(( sip_a + 2 ))
-  cip_b=$(( sip_a + 3 ))
-
-  node_a_dir="$(new_tcp_run_dir "$ROOT/configs/testing/two_nodes_tcp/client/config" "$sip_a" "$cip_a" 0 "$server_port")"
-  node_b_dir="$(new_tcp_run_dir "$ROOT/configs/testing/two_nodes_tcp/server/config" "$sip_b" "$cip_b" "$server_port" 0)"
-  home_a="$node_a_dir/home"
-  home_b="$node_b_dir/home"
-  mkdir -p "$home_a" "$home_b"
-
-  log_a="$OUT_DIR/${label}.rnsd.node_a.log"
-  log_b="$OUT_DIR/${label}.rnsd.node_b.log"
-  env HOME="$home_b" USERPROFILE="$home_b" \
-    $rnsd_cmd_b $cfg_flag_b "$node_b_dir" -q >"$log_b" 2>&1 &
-  pid_b=$!
-  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_b" "Started rnsd version"; then
-    echo "[cmp] $label: transfer node_b did not start; see $log_b"
-    stop_proc "$pid_b"
-    return 1
-  fi
-  env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnsd_cmd_a $cfg_flag_a "$node_a_dir" -q >"$log_a" 2>&1 &
-  pid_a=$!
-
-  sleep 0.5
-  maybe_skip_env "$log_a"
-  maybe_skip_env "$log_b"
-
-  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_a" "Started rnsd version"; then
-    echo "[cmp] $label: transfer node_a did not start; see $log_a"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-
-  status_a="$OUT_DIR/${label}.rnstatus.node_a.out"
-  status_b="$OUT_DIR/${label}.rnstatus.node_b.out"
-  if ! wait_for_tcp_status "$START_TIMEOUT_SECS" "$status_a" 'TCP Client/' \
-    env HOME="$home_a" USERPROFILE="$home_a" $rnstatus_cmd_a $cfg_flag_a "$node_a_dir" -a; then
-    echo "[cmp] $label: transfer node_a TCP client did not become ready; see $status_a and $log_a"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-  if ! wait_for_tcp_status "$START_TIMEOUT_SECS" "$status_b" 'TCP Server/' \
-    env HOME="$home_b" USERPROFILE="$home_b" $rnstatus_cmd_b $cfg_flag_b "$node_b_dir" -a; then
-    echo "[cmp] $label: transfer node_b TCP server did not become ready; see $status_b and $log_b"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
-
   local probe_hash
   probe_hash="$(extract_probe_hash "$status_b")"
   if [[ -z "$probe_hash" ]]; then

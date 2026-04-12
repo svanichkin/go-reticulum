@@ -21,6 +21,7 @@ type testPacket struct {
 	timeout   float64
 	timeoutID uint64
 	instances int
+	timer     *time.Timer
 
 	timeoutCb   func(any)
 	deliveredCb func(any)
@@ -45,42 +46,54 @@ func (p *testPacket) setTimeout(cb func(any), timeout *float64) {
 		p.timeout = *timeout
 	}
 	p.timeoutCb = cb
+	if cb == nil || p.timeoutID == 0 {
+		return
+	}
+	// Cancel any existing timer and start a new one; this models PacketReceipt
+	// timeout handling (the timer is driven by set_timeout_callback, not resend()).
+	if p.timer != nil {
+		if p.timer.Stop() {
+			p.instances--
+		}
+		p.timer = nil
+	}
+	p.instances++
+	timeoutID := p.timeoutID
+	timeoutSeconds := p.timeout
+	p.timer = time.AfterFunc(time.Duration(timeoutSeconds*float64(time.Second)), func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.instances--
+		p.timer = nil
+		if p.timeoutID == timeoutID && p.timeoutID != 0 {
+			p.timeoutID = 0
+			p.state = MSGSTATE_FAILED
+			cb := p.timeoutCb
+			go func() {
+				if cb != nil {
+					cb(p)
+				}
+			}()
+		}
+	})
 }
 
 func (p *testPacket) clearTimeoutLocked() {
 	p.timeoutID = 0
+	if p.timer != nil {
+		if p.timer.Stop() {
+			p.instances--
+		}
+		p.timer = nil
+	}
 }
 
 func (p *testPacket) send() {
 	p.mu.Lock()
 	p.tries++
 	p.state = MSGSTATE_SENT
-	p.instances++
 	p.timeoutID = nextTestPacketID()
-	timeoutID := p.timeoutID
-	timeout := p.timeout
 	p.mu.Unlock()
-
-	go func() {
-		defer func() {
-			p.mu.Lock()
-			p.instances--
-			p.mu.Unlock()
-		}()
-		time.Sleep(time.Duration(timeout * float64(time.Second)))
-		p.mu.Lock()
-		if p.timeoutID == timeoutID && p.timeoutID != 0 {
-			p.timeoutID = 0
-			p.state = MSGSTATE_FAILED
-			cb := p.timeoutCb
-			p.mu.Unlock()
-			if cb != nil {
-				cb(p)
-			}
-			return
-		}
-		p.mu.Unlock()
-	}()
 }
 
 func (p *testPacket) delivered() {
@@ -107,6 +120,7 @@ type channelOutletTest struct {
 	packets []*testPacket
 
 	timeoutCallbacks int
+	setTimeoutCalls  int
 }
 
 func (o *channelOutletTest) Send(raw []byte) any {
@@ -129,8 +143,8 @@ func (o *channelOutletTest) Resend(packet any) any {
 	return p
 }
 
-func (o *channelOutletTest) Mdu() int      { return o.mdu }
-func (o *channelOutletTest) Rtt() float64  { return o.rtt }
+func (o *channelOutletTest) Mdu() int       { return o.mdu }
+func (o *channelOutletTest) Rtt() float64   { return o.rtt }
 func (o *channelOutletTest) IsUsable() bool { return o.usable }
 func (o *channelOutletTest) String() string { return "test-outlet" }
 
@@ -148,8 +162,16 @@ func (o *channelOutletTest) TimedOut() {
 }
 
 func (o *channelOutletTest) SetPacketTimeoutCallback(packet any, cb func(any), timeout *float64) {
+	o.mu.Lock()
+	o.setTimeoutCalls++
+	o.mu.Unlock()
 	p := packet.(*testPacket)
 	p.setTimeout(cb, timeout)
+}
+
+func (o *channelOutletTest) SetPacketTimeout(packet any, timeout float64) {
+	p := packet.(*testPacket)
+	p.setTimeout(p.timeoutCb, &timeout)
 }
 
 func (o *channelOutletTest) SetPacketDeliveredCallback(packet any, cb func(any)) {
@@ -192,7 +214,7 @@ type zeroMsgTypeMessage struct {
 	Data string
 }
 
-func (m *zeroMsgTypeMessage) MsgType() uint16 { return 0 }
+func (m *zeroMsgTypeMessage) MsgType() uint16       { return 0 }
 func (m *zeroMsgTypeMessage) Pack() ([]byte, error) { return []byte(m.Data), nil }
 func (m *zeroMsgTypeMessage) Unpack(raw []byte) error {
 	m.Data = string(raw)
@@ -247,10 +269,22 @@ func TestChannel_SendOneRetry(t *testing.T) {
 	if env.tries != 2 || p.tries != 2 {
 		t.Fatalf("expected tries=2 after timeout")
 	}
+	outlet.mu.Lock()
+	firstSetCalls := outlet.setTimeoutCalls
+	outlet.mu.Unlock()
 
 	time.Sleep(time.Duration(ch.getPacketTimeoutTime(2) * 1.1 * float64(time.Second)))
 	if env.tries != 3 || p.tries != 3 {
 		t.Fatalf("expected tries=3 after 2nd timeout")
+	}
+	outlet.mu.Lock()
+	secondSetCalls := outlet.setTimeoutCalls
+	outlet.mu.Unlock()
+	// Python Channel._packet_timeout() re-registers the timeout callback on each retry
+	// (even though the callback function is the same), so the outlet sees one extra
+	// SetPacketTimeoutCallback call per retry.
+	if secondSetCalls != firstSetCalls+1 {
+		t.Fatalf("expected one additional SetPacketTimeoutCallback on 2nd retry, setTimeoutCalls %d -> %d", firstSetCalls, secondSetCalls)
 	}
 	if p.state != MSGSTATE_SENT {
 		t.Fatalf("expected packet state sent")

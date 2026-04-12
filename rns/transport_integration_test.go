@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
 func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
@@ -13,7 +15,6 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 	prevOwner := Owner
 	prevTransportEnabled := transportEnabled
 	prevPathTable := pathTable
-	prevPacketCache := packetCache
 	prevInterfaces := Interfaces
 
 	dir := t.TempDir()
@@ -24,14 +25,12 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 	}
 	transportEnabled = true
 	pathTable = make(map[hashKey]*PathEntry)
-	packetCache = make(map[string]*cachedPacket)
 	Interfaces = nil
 
 	t.Cleanup(func() {
 		Owner = prevOwner
 		transportEnabled = prevTransportEnabled
 		pathTable = prevPathTable
-		packetCache = prevPacketCache
 		Interfaces = prevInterfaces
 	})
 
@@ -51,7 +50,14 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 	for i := range packetHash {
 		packetHash[i] = byte(0xAA + i)
 	}
-	packetCache[string(packetHash)] = &cachedPacket{Raw: []byte("not-a-real-packet")}
+	rawAnnounce := []byte("not-a-real-packet")
+	buf, err := umsgpack.Packb([]any{rawAnnounce, nil})
+	if err != nil {
+		t.Fatalf("pack cached announce: %v", err)
+	}
+	if err := os.WriteFile(announceCachePath(packetHash), buf, 0o600); err != nil {
+		t.Fatalf("write cached announce: %v", err)
+	}
 	pathTable[key] = &PathEntry{
 		NextHop:       []byte{1, 2, 3},
 		RecvInterface: ifc,

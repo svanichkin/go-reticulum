@@ -38,6 +38,12 @@ type ChannelOutletBase interface {
 	GetPacketID(packet any) any
 }
 
+// channelOutletTimeoutSetter matches Python's receipt.set_timeout() behavior:
+// update timeout without replacing callbacks.
+type channelOutletTimeoutSetter interface {
+	SetPacketTimeout(packet any, timeout float64)
+}
+
 // ====== errors ===============================================================
 
 type CEType int
@@ -262,8 +268,20 @@ func (c *Channel) Close() {
 		return
 	}
 	c.closed = true
-	c.clearRingsLocked()
+	c.shutdownLocked()
+}
+
+// shutdownLocked mirrors Python Channel._shutdown(): clears handlers and rings,
+// but does not permanently "close" the Channel object.
+func (c *Channel) shutdownLocked() {
 	c.messageCallbacks = nil
+	c.clearRingsLocked()
+}
+
+func (c *Channel) shutdown() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.shutdownLocked()
 }
 
 // RegisterMessageType is the public registration method.
@@ -680,11 +698,16 @@ func (c *Channel) getPacketTimeoutTime(tries int) float64 {
 }
 
 func (c *Channel) updatePacketTimeouts() {
+	// Python parity: Channel._update_packet_timeouts() only increases receipt.timeout
+	// and must not replace timeout callbacks.
+	timeoutSetter, _ := c.outlet.(channelOutletTimeoutSetter)
 	for _, env := range c.txRing {
 		to := c.getPacketTimeoutTime(env.tries)
 		if env.packet != nil && (env.timeout == 0 || to > env.timeout) {
 			env.timeout = to
-			c.outlet.SetPacketTimeoutCallback(env.packet, c.packetTimeout, &to)
+			if timeoutSetter != nil {
+				timeoutSetter.SetPacketTimeout(env.packet, to)
+			}
 		}
 	}
 }
@@ -703,6 +726,7 @@ func (c *Channel) packetTimeout(packet any) {
 		}
 
 		env.tries++
+		// Python order: resend first, then update callbacks/timeouts.
 		c.outlet.Resend(env.packet)
 		c.outlet.SetPacketDeliveredCallback(env.packet, c.packetDelivered)
 		timeout := c.getPacketTimeoutTime(env.tries)
@@ -723,7 +747,9 @@ func (c *Channel) packetTimeout(packet any) {
 
 	if tearDown {
 		c.log(LOG_ERROR, "retry count exceeded, tearing down link")
-		c.Close()
+		// Python parity: Channel._shutdown() is called, but the object is not "closed"
+		// (it can still exist; handlers are just cleared).
+		c.shutdown()
 		c.outlet.TimedOut()
 	}
 }
@@ -924,6 +950,14 @@ func (o *LinkChannelOutlet) SetPacketTimeoutCallback(packet any, cb func(any), t
 	pkt.Receipt.SetTimeoutCallback(func(*PacketReceipt) {
 		cb(pkt)
 	})
+}
+
+func (o *LinkChannelOutlet) SetPacketTimeout(packet any, timeout float64) {
+	pkt, ok := packet.(*Packet)
+	if !ok || pkt == nil || pkt.Receipt == nil {
+		return
+	}
+	pkt.Receipt.SetTimeout(timeout)
 }
 
 func (o *LinkChannelOutlet) SetPacketDeliveredCallback(packet any, cb func(any)) {
