@@ -41,7 +41,7 @@ if [[ -z "${DEST_HASH:-}" ]]; then
   # Only pick the first destination `"hash":"..."`.
   DEST_HASH="$(
     printf '%s\n' "$TABLE_JSON" |
-      rg -o '"hash":"[0-9a-f]{32}"' |
+      rg -o '"hash"\s*:\s*"[0-9a-f]{32}"' |
       head -n 1 |
       rg -o '[0-9a-f]{32}' || true
   )"

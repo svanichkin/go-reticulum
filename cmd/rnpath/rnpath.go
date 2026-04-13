@@ -174,6 +174,77 @@ func main() {
 
 // -------- core ----------
 
+func pythonJSONDumpListOfMaps(maps []map[string]any, keyOrder []string) (string, error) {
+	// Match Python json.dumps() formatting (", ", ": ") and stable key order
+	// from Reticulum.get_path_table()/get_rate_table().
+	//
+	// Go's encoding/json sorts map keys lexicographically, which drifts from
+	// Python's insertion-order dict serialisation.
+	keySet := make(map[string]struct{}, len(keyOrder))
+	for _, k := range keyOrder {
+		keySet[k] = struct{}{}
+	}
+
+	var b strings.Builder
+	b.Grow(len(maps) * 64)
+	b.WriteByte('[')
+	for i, m := range maps {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteByte('{')
+
+		wrote := false
+		writeKV := func(k string, v any) error {
+			kb, err := json.Marshal(k)
+			if err != nil {
+				return err
+			}
+			vb, err := json.Marshal(v)
+			if err != nil {
+				return err
+			}
+			if wrote {
+				b.WriteString(", ")
+			}
+			wrote = true
+			b.Write(kb)
+			b.WriteString(": ")
+			b.Write(vb)
+			return nil
+		}
+
+		for _, k := range keyOrder {
+			v, ok := m[k]
+			if !ok {
+				continue
+			}
+			if err := writeKV(k, v); err != nil {
+				return "", err
+			}
+		}
+
+		// Any unknown keys (eg remote extensions) go last, sorted for determinism.
+		extras := make([]string, 0, len(m))
+		for k := range m {
+			if _, ok := keySet[k]; ok {
+				continue
+			}
+			extras = append(extras, k)
+		}
+		sort.Strings(extras)
+		for _, k := range extras {
+			if err := writeKV(k, m[k]); err != nil {
+				return "", err
+			}
+		}
+
+		b.WriteByte('}')
+	}
+	b.WriteByte(']')
+	return b.String(), nil
+}
+
 func programSetup(
 	configdir *string,
 	table, rates, drop bool,
@@ -345,7 +416,7 @@ func handleTable(destinationHex string, maxHops int, jsonOut, noOutput bool) err
 		return nil
 	}
 
-	sort.Slice(table, func(i, j int) bool {
+	sort.SliceStable(table, func(i, j int) bool {
 		ifaceI, _ := table[i]["interface"].(string)
 		ifaceJ, _ := table[j]["interface"].(string)
 		if ifaceI == ifaceJ {
@@ -356,11 +427,11 @@ func handleTable(destinationHex string, maxHops int, jsonOut, noOutput bool) err
 
 	if jsonOut {
 		normalized := normalizeForJSON(table)
-		b, err := json.Marshal(normalized)
+		out, err := pythonJSONDumpListOfMaps(normalized, []string{"hash", "timestamp", "via", "hops", "expires", "interface"})
 		if err != nil {
 			return err
 		}
-		fmt.Println(pythonJSONSpacing(string(b)))
+		fmt.Println(out)
 		return nil
 	}
 
@@ -607,16 +678,17 @@ func handleRates(destinationHex string, jsonOut, noOutput bool) error {
 		return nil
 	}
 
-	sort.Slice(table, func(i, j int) bool {
+	sort.SliceStable(table, func(i, j int) bool {
 		return int64Value(table[i]["last"]) < int64Value(table[j]["last"])
 	})
 
 	if jsonOut {
-		b, err := json.Marshal(normalizeForJSON(table))
+		normalized := normalizeForJSON(table)
+		out, err := pythonJSONDumpListOfMaps(normalized, []string{"hash", "last", "rate_violations", "blocked_until", "timestamps"})
 		if err != nil {
 			return err
 		}
-		fmt.Println(pythonJSONSpacing(string(b)))
+		fmt.Println(out)
 		return nil
 	}
 
@@ -755,7 +827,9 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 
 	if !rns.TransportHasPath(destHash) {
 		rns.TransportRequestPath(destHash)
-		fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested  ")
+		// Python prints: "requested  " with end=" ", so there is one space
+		// before the 2-char spinner field.
+		fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested   ")
 	}
 	syms := []rune("⢄⢂⢁⡁⡈⡐⡠")
 	i := 0
