@@ -82,7 +82,7 @@ func TestTCPClientInterface_SynthesizeTunnelIfNeeded_CallsTunnelSynthesizer(t *t
 	}
 }
 
-func TestTCPClientInterface_ProcessOutgoing_Offline_TriggersReconnect(t *testing.T) {
+func TestTCPClientInterface_ProcessOutgoing_OfflineIsNoop(t *testing.T) {
 	ci := NewTCPClientInitiator(nil, nil, "test", "", 0, false, false)
 	ci.Initiator = true
 	ci.online.Store(false)
@@ -91,13 +91,24 @@ func TestTCPClientInterface_ProcessOutgoing_Offline_TriggersReconnect(t *testing
 	tries := 0
 	ci.MaxReconnectTry = &tries
 
-	_ = ci.ProcessOutgoing([]byte{0x01})
-
-	deadline := time.Now().Add(50 * time.Millisecond)
-	for time.Now().Before(deadline) && !ci.reconnect.Load() {
-		time.Sleep(1 * time.Millisecond)
+	if err := ci.ProcessOutgoing([]byte{0x01}); err != nil {
+		t.Fatalf("offline process outgoing should be a no-op, got error: %v", err)
 	}
-	if !ci.reconnect.Load() {
-		t.Fatalf("expected reconnectLoop to start")
+
+	time.Sleep(50 * time.Millisecond)
+	if ci.reconnect.Load() {
+		t.Fatalf("offline process outgoing should not start reconnect")
+	}
+}
+
+func TestTCPClientInterface_TeardownDisablesInterfaceDirections(t *testing.T) {
+	ci := NewTCPClientInitiator(nil, nil, "test", "", 0, false, false)
+	ci.iface = &Interface{IN: true, OUT: true}
+	ci.online.Store(true)
+
+	ci.teardown()
+
+	if ci.iface.IN || ci.iface.OUT {
+		t.Fatalf("teardown should disable IN/OUT, got IN=%v OUT=%v", ci.iface.IN, ci.iface.OUT)
 	}
 }

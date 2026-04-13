@@ -3233,12 +3233,17 @@ func rpcBytes(value any) []byte {
 	}
 }
 
+type rpcFloatResponse struct {
+	Valid bool
+	Value float64
+}
+
 func rpcSendFloat(conn RPCConn, value *float64) {
 	if value == nil {
-		_ = conn.Send(nil)
+		_ = conn.Send(rpcFloatResponse{})
 		return
 	}
-	_ = conn.Send(*value)
+	_ = conn.Send(rpcFloatResponse{Valid: true, Value: *value})
 }
 
 func rpcSendError(conn RPCConn, err error) {
@@ -3693,31 +3698,16 @@ func (r *Reticulum) rpcGetFloat(kind string, packetHash []byte) (*float64, bool)
 		return nil, false
 	}
 
-	var raw any
+	var raw rpcFloatResponse
 	if err := client.Recv(&raw); err != nil {
 		Log("RPC response for "+kind+" failed: "+err.Error(), LogError)
 		return nil, false
 	}
 
-	return decodeFloatPointer(raw), true
-}
-
-func decodeFloatPointer(raw any) *float64 {
-	switch v := raw.(type) {
-	case nil:
-		return nil
-	case float64:
-		val := v
-		return &val
-	case *float64:
-		if v == nil {
-			return nil
-		}
-		val := *v
-		return &val
-	default:
-		return nil
+	if !raw.Valid {
+		return nil, true
 	}
+	return &raw.Value, true
 }
 
 func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {

@@ -64,6 +64,45 @@ func TestRefreshManagementDestinations_IncludesRemoteAndProbe(t *testing.T) {
 	}
 }
 
+func TestConfigureControlDestinations_DoesNotCreateProbeWhenTransportDisabled(t *testing.T) {
+	prevOwner := Owner
+	prevTransportEnabled := transportEnabled
+	prevAllowProbes := allowProbes
+	prevIdentity := TransportIdentity
+	prevProbe := ProbeDestination
+	prevDests := Destinations
+	prevMgmt := mgmtDestinations
+
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+
+	Owner = &Reticulum{}
+	transportEnabled = false
+	allowProbes = true
+	TransportIdentity = id
+	ProbeDestination = nil
+	Destinations = nil
+	mgmtDestinations = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		transportEnabled = prevTransportEnabled
+		allowProbes = prevAllowProbes
+		TransportIdentity = prevIdentity
+		ProbeDestination = prevProbe
+		Destinations = prevDests
+		mgmtDestinations = prevMgmt
+	})
+
+	configureControlDestinations()
+
+	if ProbeDestination != nil {
+		t.Fatalf("ProbeDestination was created with transport disabled")
+	}
+}
+
 func TestDueManagementDestinations_DeferredInitialAnnounce(t *testing.T) {
 	prevMgmt := mgmtDestinations
 	prevLast := LastMgmtAnnounce

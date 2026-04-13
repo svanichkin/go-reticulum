@@ -1,0 +1,521 @@
+[2026-04-13 18:10:14] [Debug]    Reticulum running in interpreted mode
+[2026-04-13 18:10:14] [Debug]    Shared Instance[37432] hardware MTU set to 524288
+[2026-04-13 18:10:14] [Debug]    Started shared instance interface: Shared Instance[37432]
+[2026-04-13 18:10:14] [Debug]    Cleaning ratchets...
+[2026-04-13 18:10:14] [Debug]    Utilising cryptography backend "internal"
+[2026-04-13 18:10:14] [Verbose]  Configuration loaded from /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/tests/hand/rnsd/test2/.run/go/config
+[2026-04-13 18:10:14] [Extra]    Cleaning resource and packet caches...
+[2026-04-13 18:10:14] [Verbose]  Loaded 307 known destinations from storage
+[2026-04-13 18:10:14] [Verbose]  Loaded Transport Identity from storage
+[2026-04-13 18:10:14] [Notice]   Transport Instance will respond to probe requests on <rnstransport.probe.39fcd26df348d9de0c5c3cc7e594d8bb:<13da3e301bfb15dc0d0499859e0e7cfe>>
+[2026-04-13 18:10:14] [Verbose]  Bringing up system interfaces...
+[2026-04-13 18:10:14] [Debug]    TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] hardware MTU set to 8192
+[2026-04-13 18:10:14] [Debug]    Establishing TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]...
+[2026-04-13 18:10:14] [Debug]    TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] established
+[2026-04-13 18:10:14] [Debug]    TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] hardware MTU set to 8192
+[2026-04-13 18:10:14] [Debug]    Establishing TCP connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]...
+[2026-04-13 18:10:14] [Error]    Initial connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] could not be established: dial tcp: lookup dublin.connect.reticulum.network: no such host
+[2026-04-13 18:10:14] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-13 18:10:14] [Debug]    TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] hardware MTU set to 8192
+[2026-04-13 18:10:14] [Debug]    Establishing TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]...
+[2026-04-13 18:10:14] [Debug]    TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] established
+[2026-04-13 18:10:14] [Debug]    TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] hardware MTU set to 8192
+[2026-04-13 18:10:14] [Debug]    Establishing TCP connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]...
+[2026-04-13 18:10:16] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:16] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:10:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:16] [Debug]    Updated path to <95ca807f05d258f7723d5f1f75c29159> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:16] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:17] [Extra]    Valid announce for <c09a5cf4c1ef615844eeb86ea928b47b> 12 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:17] [Debug]    Updated path to <c09a5cf4c1ef615844eeb86ea928b47b> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (12 hops)
+[2026-04-13 18:10:17] [Extra]    Valid announce for <93f793207919f56ff52449bcf41b244e> 9 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:17] [Debug]    Updated path to <93f793207919f56ff52449bcf41b244e> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (9 hops)
+[2026-04-13 18:10:19] [Extra]    Valid announce for <4cce8a55cc0f232fb0946b392a73fa92> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:19] [Debug]    Updated path to <4cce8a55cc0f232fb0946b392a73fa92> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:19] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:19] [Debug]    Updated path to <ffc8d3472451090677fd446837e384ff> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:10:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:10:19] [Error]    Initial connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] could not be established: dial tcp 162.255.87.166:4242: i/o timeout
+[2026-04-13 18:10:19] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-13 18:10:19] [Debug]    TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] hardware MTU set to 8192
+[2026-04-13 18:10:19] [Debug]    Establishing TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]...
+[2026-04-13 18:10:19] [Debug]    TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] established
+[2026-04-13 18:10:19] [Debug]    TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] hardware MTU set to 8192
+[2026-04-13 18:10:19] [Debug]    Establishing TCP connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]...
+[2026-04-13 18:10:20] [Extra]    Valid announce for <4ba30ddbc5e3639be796a98117bb08a8> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:20] [Debug]    Updated path to <4ba30ddbc5e3639be796a98117bb08a8> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:20] [Extra]    Valid announce for <4ba30ddbc5e3639be796a98117bb08a8> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:20] [Extra]    Valid announce for <0644032081ec4c00a0114c648214de30> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:20] [Debug]    Updated path to <0644032081ec4c00a0114c648214de30> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:20] [Debug]    Updated path to <e345f6220682e127cab52c3387436778> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:10:20] [Extra]    Valid announce for <053db2ffc4105a601f6ac5f23cc356d6> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:20] [Debug]    Updated path to <053db2ffc4105a601f6ac5f23cc356d6> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:10:21] [Extra]    Valid announce for <d62f88565958b2cd1045cf7f74796ce8> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:21] [Debug]    Updated path to <d62f88565958b2cd1045cf7f74796ce8> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:21] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:21] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:21] [Extra]    Valid announce for <bb3819350c3c8ddaea5c441868e1699c> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:21] [Debug]    Updated path to <bb3819350c3c8ddaea5c441868e1699c> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:10:21] [Extra]    Valid announce for <d62f88565958b2cd1045cf7f74796ce8> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:22] [Extra]    Valid announce for <bb3819350c3c8ddaea5c441868e1699c> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:22] [Extra]    Valid announce for <d20a381e1b46d0855c46105b565ec8ce> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:22] [Debug]    Updated path to <d20a381e1b46d0855c46105b565ec8ce> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:22] [Extra]    Valid announce for <e59c163a01cac4628dace75d8a8c5efe> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:22] [Debug]    Updated path to <e59c163a01cac4628dace75d8a8c5efe> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:22] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:22] [Debug]    Updated path to <02aaf088472435718061211d3752c8ed> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:10:22] [Extra]    Remembering ratchet <2b23ec15c571cde781a3> for <1f163087a2d335a87bd8dd4ceaf162f2>
+[2026-04-13 18:10:22] [Extra]    Valid announce for <1f163087a2d335a87bd8dd4ceaf162f2> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:22] [Debug]    Updated path to <1f163087a2d335a87bd8dd4ceaf162f2> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:10:22] [Extra]    Valid announce for <d20a381e1b46d0855c46105b565ec8ce> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:22] [Extra]    Valid announce for <e59c163a01cac4628dace75d8a8c5efe> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:23] [Extra]    Valid announce for <9f3a20b50352a2523193caa1b5130f5d> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:23] [Debug]    Updated path to <9f3a20b50352a2523193caa1b5130f5d> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:23] [Extra]    Valid announce for <95cb09df57c070a2e9c6a35831e9904c> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:23] [Debug]    Updated path to <95cb09df57c070a2e9c6a35831e9904c> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:10:23] [Extra]    Valid announce for <c077d6b4bf557e71faebf52aa54a74d2> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:23] [Debug]    Updated path to <c077d6b4bf557e71faebf52aa54a74d2> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (9 hops)
+[2026-04-13 18:10:24] [Extra]    Remembering ratchet <e0e56b8405eb1e30cc81> for <219a60c23a74cf1ede2ee1c56dc790d7>
+[2026-04-13 18:10:24] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:24] [Debug]    Updated path to <219a60c23a74cf1ede2ee1c56dc790d7> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:24] [Extra]    Valid announce for <c077d6b4bf557e71faebf52aa54a74d2> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:10:24] [Error]    Initial connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] could not be established: dial tcp 161.35.103.165:4242: i/o timeout
+[2026-04-13 18:10:24] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-13 18:10:24] [Debug]    Configured 6 interface(s) from config
+[2026-04-13 18:10:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:10:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:10:24] [Verbose]  System interfaces are ready
+[2026-04-13 18:10:24] [Notice]   Started rnsd version 1.1.4
+[2026-04-13 18:10:25] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:25] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:25] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:10:26] [Extra]    Valid announce for <c077d6b4bf557e71faebf52aa54a74d2> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:26] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:27] [Extra]    Valid announce for <86679efd1b4665cf40e013de83815721> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <86679efd1b4665cf40e013de83815721> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (2 hops)
+[2026-04-13 18:10:27] [Extra]    Remembering ratchet <612907cb90322a409f08> for <bf79f82d383f1c03978df59c3e552b55>
+[2026-04-13 18:10:27] [Extra]    Valid announce for <bf79f82d383f1c03978df59c3e552b55> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <bf79f82d383f1c03978df59c3e552b55> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <24b37de77503f7b3ac107f56016bf1a1> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <24b37de77503f7b3ac107f56016bf1a1> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <b993f1def2a655d9ef7b723f14a4d7b4> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <b993f1def2a655d9ef7b723f14a4d7b4> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:27] [Extra]    Remembering ratchet <261fefb614da2a763c51> for <85e9a26a50510706b7a344081bfc2032>
+[2026-04-13 18:10:27] [Extra]    Valid announce for <85e9a26a50510706b7a344081bfc2032> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <85e9a26a50510706b7a344081bfc2032> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (6 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <2f51e50b1b0bf7cef8b6837ea5614947> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <2f51e50b1b0bf7cef8b6837ea5614947> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <44213278b52d888683e970004dc95f3c> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <44213278b52d888683e970004dc95f3c> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-13 18:10:27] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:27] [Extra]    Valid announce for <93f793207919f56ff52449bcf41b244e> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <0644032081ec4c00a0114c648214de30> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <4ba30ddbc5e3639be796a98117bb08a8> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <d62f88565958b2cd1045cf7f74796ce8> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:27] [Extra]    Valid announce for <b993f1def2a655d9ef7b723f14a4d7b4> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <bb3819350c3c8ddaea5c441868e1699c> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <1f163087a2d335a87bd8dd4ceaf162f2> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <d20a381e1b46d0855c46105b565ec8ce> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <e59c163a01cac4628dace75d8a8c5efe> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <9f3a20b50352a2523193caa1b5130f5d> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Remembering ratchet <9847480adb2f5f271e95> for <04535e4477fb3c573c6fa5abea7cc7d8>
+[2026-04-13 18:10:28] [Extra]    Valid announce for <04535e4477fb3c573c6fa5abea7cc7d8> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:28] [Debug]    Updated path to <04535e4477fb3c573c6fa5abea7cc7d8> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:28] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Extra]    Valid announce for <b993f1def2a655d9ef7b723f14a4d7b4> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:28] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:29] [Extra]    Remembering ratchet <b2d1fce33ccfd63fbd83> for <178b7b83ff68e7b8364ec6112ed4feb6>
+[2026-04-13 18:10:29] [Extra]    Valid announce for <178b7b83ff68e7b8364ec6112ed4feb6> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:29] [Debug]    Updated path to <178b7b83ff68e7b8364ec6112ed4feb6> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (6 hops)
+[2026-04-13 18:10:29] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:29] [Debug]    Updated path to <6ee8d89ae74833c397169c07b81e62e2> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:10:29] [Extra]    Valid announce for <d7fa9b80db0ecbffe303616bebe78f74> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:29] [Debug]    Updated path to <d7fa9b80db0ecbffe303616bebe78f74> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (2 hops)
+[2026-04-13 18:10:29] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:29] [Extra]    Valid announce for <d7fa9b80db0ecbffe303616bebe78f74> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:29] [Extra]    Valid announce for <d7fa9b80db0ecbffe303616bebe78f74> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:10:30] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:30] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:31] [Debug]    Decryption by <39fcd26df348d9de0c5c3cc7e594d8bb> failed: Token HMAC was invalid
+[2026-04-13 18:10:31] [Extra]    Valid announce for <9a6c93b8d5c45f9c63a49625ba8cc134> 34 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:31] [Debug]    Updated path to <9a6c93b8d5c45f9c63a49625ba8cc134> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (34 hops)
+[2026-04-13 18:10:31] [Extra]    Remembering ratchet <6ab3fef84cf57abfb6f0> for <fe495113c2090bdaf932b0f936b03864>
+[2026-04-13 18:10:31] [Extra]    Valid announce for <fe495113c2090bdaf932b0f936b03864> 12 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:31] [Debug]    Updated path to <fe495113c2090bdaf932b0f936b03864> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (12 hops)
+[2026-04-13 18:10:31] [Extra]    Valid announce for <fe495113c2090bdaf932b0f936b03864> 12 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:32] [Extra]    Valid announce for <f3a6a73294416a6d9e75706bb9167c6c> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:32] [Debug]    Updated path to <f3a6a73294416a6d9e75706bb9167c6c> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:10:32] [Extra]    Valid announce for <5789bdb62e037b74610b0a29fd586687> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:32] [Debug]    Updated path to <5789bdb62e037b74610b0a29fd586687> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:10:32] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:32] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:32] [Extra]    Valid announce for <f3a6a73294416a6d9e75706bb9167c6c> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:32] [Extra]    Valid announce for <f3a6a73294416a6d9e75706bb9167c6c> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:32] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:34] [Extra]    Valid announce for <8de2bfef94c263a7de4b026fdfed72c9> 65 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:34] [Debug]    Updated path to <8de2bfef94c263a7de4b026fdfed72c9> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (65 hops)
+[2026-04-13 18:10:34] [Extra]    Valid announce for <2c6ccd83044bf6397fe4bacc3288f7ea> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:34] [Debug]    Updated path to <2c6ccd83044bf6397fe4bacc3288f7ea> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:34] [Extra]    Valid announce for <2c6ccd83044bf6397fe4bacc3288f7ea> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:35] [Extra]    Valid announce for <c24169e0e90677f5a1839577742e5d23> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:35] [Debug]    Updated path to <c24169e0e90677f5a1839577742e5d23> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:35] [Extra]    Valid announce for <8de2bfef94c263a7de4b026fdfed72c9> 67 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:35] [Extra]    Valid announce for <c24169e0e90677f5a1839577742e5d23> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:36] [Debug]    LocalInterface[59327] hardware MTU set to 524288
+[2026-04-13 18:10:36] [Debug]    Sent proof for <bfb3aa27e268013c04f33fd4b40578ae09f3d966fb8417998d92d7e5b802199d>
+[2026-04-13 18:10:36] [Extra]    Valid announce for <c24169e0e90677f5a1839577742e5d23> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:36] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:36] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:36] [Debug]    Sent proof for <7e1d7c8c6375399a0e6dbfdd3803cc33686847d65de332db0d6c2b13e93ecc5f>
+[2026-04-13 18:10:36] [Debug]    Sent proof for <26f18d5ad7cd71765b9f4b6a1a3d8bfc01e43e90e82053b08cae50f2e766a3d4>
+[2026-04-13 18:10:36] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:36] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:36] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:10:37] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:37] [Extra]    Remembering ratchet <a6453384682661a87f9a> for <a64477187d9dcec0f9317b97096039f7>
+[2026-04-13 18:10:37] [Extra]    Valid announce for <a64477187d9dcec0f9317b97096039f7> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:37] [Debug]    Updated path to <a64477187d9dcec0f9317b97096039f7> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:10:37] [Extra]    Valid announce for <4ba30ddbc5e3639be796a98117bb08a8> 8 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:38] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:38] [Extra]    Valid announce for <636d51787cd3b5f8e90aec12fb6e6b7a> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:38] [Debug]    Updated path to <636d51787cd3b5f8e90aec12fb6e6b7a> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:10:38] [Extra]    Valid announce for <a64477187d9dcec0f9317b97096039f7> 9 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <2f51e50b1b0bf7cef8b6837ea5614947> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <f3a6a73294416a6d9e75706bb9167c6c> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <d62f88565958b2cd1045cf7f74796ce8> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:38] [Extra]    Valid announce for <636d51787cd3b5f8e90aec12fb6e6b7a> 8 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:39] [Extra]    Remembering ratchet <3c883a5cc91c98c2b8b8> for <2d84b2297ec68336c31d45e34be62f8c>
+[2026-04-13 18:10:39] [Extra]    Valid announce for <2d84b2297ec68336c31d45e34be62f8c> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:39] [Debug]    Updated path to <2d84b2297ec68336c31d45e34be62f8c> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (6 hops)
+[2026-04-13 18:10:40] [Extra]    Valid announce for <db99465d104f1f2b72739c9db4347797> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:40] [Debug]    Updated path to <db99465d104f1f2b72739c9db4347797> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:10:40] [Extra]    Remembering ratchet <3cfc1ec5f84280f15c40> for <16cf0ecc7fd12831b31cddc5a909c5ec>
+[2026-04-13 18:10:40] [Extra]    Valid announce for <16cf0ecc7fd12831b31cddc5a909c5ec> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:40] [Debug]    Updated path to <16cf0ecc7fd12831b31cddc5a909c5ec> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:41] [Extra]    Valid announce for <16cf0ecc7fd12831b31cddc5a909c5ec> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:41] [Extra]    Valid announce for <16cf0ecc7fd12831b31cddc5a909c5ec> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:42] [Extra]    Valid announce for <75a761de7bdd03adeb6ad16b004e53a1> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:42] [Debug]    Updated path to <75a761de7bdd03adeb6ad16b004e53a1> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (6 hops)
+[2026-04-13 18:10:42] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:42] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:10:42] [Extra]    Valid announce for <75a761de7bdd03adeb6ad16b004e53a1> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:43] [Extra]    Valid announce for <75a761de7bdd03adeb6ad16b004e53a1> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:43] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:44] [Extra]    Valid announce for <94bd1825f5818f4839b276eefbfc99a9> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:44] [Debug]    Updated path to <94bd1825f5818f4839b276eefbfc99a9> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (7 hops)
+[2026-04-13 18:10:45] [Extra]    Remembering ratchet <4f6fa8a8191b421342cc> for <477fddb189b7a04d81c5964809a5980b>
+[2026-04-13 18:10:45] [Extra]    Valid announce for <477fddb189b7a04d81c5964809a5980b> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:45] [Debug]    Updated path to <477fddb189b7a04d81c5964809a5980b> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (13 hops)
+[2026-04-13 18:10:46] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:46] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:47] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:48] [Extra]    Remembering ratchet <1e84fe0c6684ccc9ce8c> for <424157ea5e1bb6dd1aa6dba8970460cf>
+[2026-04-13 18:10:48] [Extra]    Valid announce for <424157ea5e1bb6dd1aa6dba8970460cf> 38 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:48] [Debug]    Updated path to <424157ea5e1bb6dd1aa6dba8970460cf> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (38 hops)
+[2026-04-13 18:10:50] [Extra]    Valid announce for <9eb0f17e1691e819bb34eddafa2ca82b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:50] [Debug]    Updated path to <9eb0f17e1691e819bb34eddafa2ca82b> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:10:51] [Extra]    Valid announce for <9eb0f17e1691e819bb34eddafa2ca82b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:51] [Debug]    Updated path to <e345f6220682e127cab52c3387436778> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:10:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:51] [Debug]    Updated path to <02aaf088472435718061211d3752c8ed> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:51] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:51] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:10:52] [Extra]    Valid announce for <fb31704d247f8b1547f9a3b356760e7b> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:52] [Debug]    Updated path to <fb31704d247f8b1547f9a3b356760e7b> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:10:52] [Extra]    Valid announce for <dc085bf490f24f9051a492155bf5e283> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:52] [Debug]    Updated path to <dc085bf490f24f9051a492155bf5e283> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:10:52] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:52] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:52] [Extra]    Remembering ratchet <38ebfa21cea03497c2d7> for <54f0e7796ac804890832cb3ee61131f2>
+[2026-04-13 18:10:52] [Extra]    Valid announce for <54f0e7796ac804890832cb3ee61131f2> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:52] [Debug]    Updated path to <54f0e7796ac804890832cb3ee61131f2> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:52] [Extra]    Valid announce for <dce1135780d75f28804a92545aea418a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:52] [Debug]    Updated path to <dce1135780d75f28804a92545aea418a> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:10:52] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:52] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:52] [Extra]    Valid announce for <dce1135780d75f28804a92545aea418a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:52] [Extra]    Valid announce for <54f0e7796ac804890832cb3ee61131f2> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:52] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:52] [Extra]    Valid announce for <54f0e7796ac804890832cb3ee61131f2> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:53] [Extra]    Valid announce for <768fb269391fb64afc979dffe6572cb2> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:53] [Debug]    Updated path to <768fb269391fb64afc979dffe6572cb2> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (13 hops)
+[2026-04-13 18:10:53] [Extra]    Valid announce for <768fb269391fb64afc979dffe6572cb2> 13 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:53] [Extra]    Valid announce for <587a35e51879b1954788cca5c3be2ff7> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:53] [Debug]    Updated path to <587a35e51879b1954788cca5c3be2ff7> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (11 hops)
+[2026-04-13 18:10:53] [Extra]    Valid announce for <34593130ea32ad163dff5b3066c43964> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:53] [Debug]    Updated path to <34593130ea32ad163dff5b3066c43964> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:10:53] [Extra]    Valid announce for <34593130ea32ad163dff5b3066c43964> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:54] [Extra]    Valid announce for <3c81447dff85b425c79ca5a97ff75f75> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:54] [Debug]    Updated path to <3c81447dff85b425c79ca5a97ff75f75> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (9 hops)
+[2026-04-13 18:10:54] [Extra]    Remembering ratchet <90fecec03e5de4bb72d9> for <38073923c15b25893cd38a7938a9943a>
+[2026-04-13 18:10:54] [Extra]    Valid announce for <38073923c15b25893cd38a7938a9943a> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:54] [Debug]    Updated path to <38073923c15b25893cd38a7938a9943a> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:10:55] [Extra]    Valid announce for <38073923c15b25893cd38a7938a9943a> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:55] [Extra]    Remembering ratchet <9c7f806698ce1cee4d34> for <55c16056b1b0f93042c92ea31ceb801a>
+[2026-04-13 18:10:55] [Extra]    Valid announce for <55c16056b1b0f93042c92ea31ceb801a> 16 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:55] [Debug]    Updated path to <55c16056b1b0f93042c92ea31ceb801a> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (16 hops)
+[2026-04-13 18:10:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:55] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:55] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:55] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:10:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:56] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:58] [Extra]    Valid announce for <935168fd3d4582a802036c6958010662> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:58] [Debug]    Updated path to <935168fd3d4582a802036c6958010662> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:10:58] [Extra]    Valid announce for <935168fd3d4582a802036c6958010662> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:10:59] [Extra]    Valid announce for <935168fd3d4582a802036c6958010662> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:10:59] [Extra]    Remembering ratchet <c8580e95b64a828dc0f3> for <8bbd266fcef9a841fcd8c1cab0bc0388>
+[2026-04-13 18:10:59] [Extra]    Valid announce for <8bbd266fcef9a841fcd8c1cab0bc0388> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:10:59] [Debug]    Updated path to <8bbd266fcef9a841fcd8c1cab0bc0388> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:10:59] [Extra]    Valid announce for <8bbd266fcef9a841fcd8c1cab0bc0388> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:00] [Extra]    Valid announce for <46820c17ae36924b2a39f1de43014c7d> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:00] [Debug]    Updated path to <46820c17ae36924b2a39f1de43014c7d> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:11:02] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:02] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:11:02] [Extra]    Remembering ratchet <e1d55e17846a54c5f756> for <284395a82e44594554a03e3757988396>
+[2026-04-13 18:11:02] [Extra]    Valid announce for <284395a82e44594554a03e3757988396> 19 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:02] [Debug]    Updated path to <284395a82e44594554a03e3757988396> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (19 hops)
+[2026-04-13 18:11:02] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:02] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:02] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:02] [Extra]    Valid announce for <284395a82e44594554a03e3757988396> 19 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:03] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:03] [Extra]    Valid announce for <284395a82e44594554a03e3757988396> 20 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:03] [Extra]    Remembering ratchet <e80d9c5f8cf76dac64d5> for <6034cb0a2644c5a7c47ccf24f9707f55>
+[2026-04-13 18:11:03] [Extra]    Valid announce for <6034cb0a2644c5a7c47ccf24f9707f55> 15 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:03] [Debug]    Updated path to <6034cb0a2644c5a7c47ccf24f9707f55> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (15 hops)
+[2026-04-13 18:11:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:03] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:04] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:04] [Extra]    Valid announce for <31d518e10003a12ff62fe56f3484dabe> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:04] [Debug]    Updated path to <31d518e10003a12ff62fe56f3484dabe> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (13 hops)
+[2026-04-13 18:11:04] [Extra]    Remembering ratchet <35608dfea8d04db35f97> for <aea9a5706da57d932ffa95cf58d0bac8>
+[2026-04-13 18:11:04] [Extra]    Valid announce for <aea9a5706da57d932ffa95cf58d0bac8> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:04] [Debug]    Updated path to <aea9a5706da57d932ffa95cf58d0bac8> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:11:06] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:06] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:06] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:07] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:07] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:07] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:07] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:07] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:07] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:07] [Debug]    Updated path to <125bfe4fc66ac35f73e30c2613ab09fa> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:11:08] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:08] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:08] [Extra]    Valid announce for <422d3e345b5e84f843ade3821f28cf9e> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:08] [Debug]    Updated path to <422d3e345b5e84f843ade3821f28cf9e> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:09] [Extra]    Valid announce for <7d53d87143d698fc327d8a31f9a54751> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:09] [Debug]    Updated path to <7d53d87143d698fc327d8a31f9a54751> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:11:10] [Extra]    Valid announce for <7d53d87143d698fc327d8a31f9a54751> 10 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:10] [Extra]    Valid announce for <f0921573abf41194ce99f3976f3c7792> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:10] [Debug]    Updated path to <f0921573abf41194ce99f3976f3c7792> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:11:11] [Extra]    Valid announce for <f0921573abf41194ce99f3976f3c7792> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:11] [Extra]    Valid announce for <6ea9ba935598917da4dd305962c2760c> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:11] [Debug]    Updated path to <6ea9ba935598917da4dd305962c2760c> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (3 hops)
+[2026-04-13 18:11:11] [Extra]    Valid announce for <7a9d8bc724b1c75fa75da91c433886e9> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:11] [Debug]    Updated path to <7a9d8bc724b1c75fa75da91c433886e9> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (13 hops)
+[2026-04-13 18:11:12] [Extra]    Valid announce for <44213278b52d888683e970004dc95f3c> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:12] [Debug]    Updated path to <44213278b52d888683e970004dc95f3c> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:12] [Extra]    Valid announce for <44213278b52d888683e970004dc95f3c> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:13] [Extra]    Remembering ratchet <5a11d8ac40c6ad608e4c> for <0040730e1a189246b832aca13b68de2b>
+[2026-04-13 18:11:13] [Extra]    Valid announce for <0040730e1a189246b832aca13b68de2b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:13] [Debug]    Updated path to <0040730e1a189246b832aca13b68de2b> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:14] [Extra]    Valid announce for <0040730e1a189246b832aca13b68de2b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:16] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:16] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:16] [Debug]    Updated path to <95ca807f05d258f7723d5f1f75c29159> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:16] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:16] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:16] [Debug]    Updated path to <125bfe4fc66ac35f73e30c2613ab09fa> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:16] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:16] [Debug]    Updated path to <192eed7af8e3311445372f2a43cb63ec> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (2 hops)
+[2026-04-13 18:11:17] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:17] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:17] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:17] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:17] [Debug]    Updated path to <ffc8d3472451090677fd446837e384ff> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:17] [Extra]    Valid announce for <2a2c53858ac1ef449ff10c402a5e512c> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:17] [Debug]    Updated path to <2a2c53858ac1ef449ff10c402a5e512c> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (7 hops)
+[2026-04-13 18:11:17] [Extra]    Remembering ratchet <7a42e9c334fe61e12fe9> for <ce32ad052da5f355e968cfae2ecc1cea>
+[2026-04-13 18:11:17] [Extra]    Valid announce for <ce32ad052da5f355e968cfae2ecc1cea> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:17] [Debug]    Updated path to <ce32ad052da5f355e968cfae2ecc1cea> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (9 hops)
+[2026-04-13 18:11:17] [Extra]    Valid announce for <5ccfc2181dc7a99bbacf66c585b7155f> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:17] [Debug]    Updated path to <5ccfc2181dc7a99bbacf66c585b7155f> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-13 18:11:17] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:17] [Extra]    Valid announce for <3a9c2c862b4b57eefbc107426a1f9126> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:17] [Debug]    Updated path to <3a9c2c862b4b57eefbc107426a1f9126> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (10 hops)
+[2026-04-13 18:11:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:19] [Extra]    Remembering ratchet <e829baa63052c17285b1> for <e501ecf33dd6a62392733c5de79e9683>
+[2026-04-13 18:11:19] [Extra]    Valid announce for <e501ecf33dd6a62392733c5de79e9683> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:19] [Debug]    Updated path to <e501ecf33dd6a62392733c5de79e9683> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (6 hops)
+[2026-04-13 18:11:19] [Extra]    Valid announce for <2a2c53858ac1ef449ff10c402a5e512c> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:19] [Extra]    Valid announce for <e501ecf33dd6a62392733c5de79e9683> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:19] [Extra]    Valid announce for <7d53d87143d698fc327d8a31f9a54751> 9 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:19] [Debug]    Updated path to <7d53d87143d698fc327d8a31f9a54751> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (9 hops)
+[2026-04-13 18:11:20] [Extra]    Remembering ratchet <07eaddeca1101afbf904> for <b831f4805fd51cbdc4b549afbd481898>
+[2026-04-13 18:11:20] [Extra]    Valid announce for <b831f4805fd51cbdc4b549afbd481898> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:20] [Debug]    Updated path to <b831f4805fd51cbdc4b549afbd481898> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (5 hops)
+[2026-04-13 18:11:20] [Extra]    Valid announce for <7d53d87143d698fc327d8a31f9a54751> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:20] [Extra]    Valid announce for <b831f4805fd51cbdc4b549afbd481898> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:20] [Debug]    Updated path to <e345f6220682e127cab52c3387436778> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:21] [Extra]    Valid announce for <9e4352aef634a634d9335eb137fcc82f> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:21] [Debug]    Updated path to <9e4352aef634a634d9335eb137fcc82f> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:21] [Extra]    Valid announce for <2a2c53858ac1ef449ff10c402a5e512c> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:21] [Debug]    Updated path to <02aaf088472435718061211d3752c8ed> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-13 18:11:21] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:21] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:21] [Extra]    Valid announce for <1f163087a2d335a87bd8dd4ceaf162f2> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:21] [Debug]    Updated path to <1f163087a2d335a87bd8dd4ceaf162f2> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:21] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:21] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:21] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:11:22] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:22] [Extra]    Valid announce for <1f163087a2d335a87bd8dd4ceaf162f2> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:22] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:22] [Extra]    Valid announce for <aea9a5706da57d932ffa95cf58d0bac8> 12 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:22] [Extra]    Valid announce for <55c16056b1b0f93042c92ea31ceb801a> 18 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:22] [Extra]    Valid announce for <284395a82e44594554a03e3757988396> 22 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:23] [Extra]    Valid announce for <1f163087a2d335a87bd8dd4ceaf162f2> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:23] [Debug]    Updated path to <219a60c23a74cf1ede2ee1c56dc790d7> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:11:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:25] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:25] [Extra]    Valid announce for <d0d54b0bddc0c4e4f8c6590a8d03149b> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:25] [Debug]    Updated path to <d0d54b0bddc0c4e4f8c6590a8d03149b> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:11:25] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:25] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:26] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:26] [Extra]    Valid announce for <d0d54b0bddc0c4e4f8c6590a8d03149b> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:27] [Extra]    Valid announce for <ba2780f844f711525924923e9bfb23cb> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:27] [Debug]    Updated path to <ba2780f844f711525924923e9bfb23cb> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:27] [Extra]    Remembering ratchet <b4dfe8369ed8b0a46098> for <bab9607fc1b1afbc73bd9b455bf3ee98>
+[2026-04-13 18:11:27] [Extra]    Valid announce for <bab9607fc1b1afbc73bd9b455bf3ee98> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:27] [Debug]    Updated path to <bab9607fc1b1afbc73bd9b455bf3ee98> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:27] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:27] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:27] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:27] [Debug]    Updated path to <6ee8d89ae74833c397169c07b81e62e2> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (2 hops)
+[2026-04-13 18:11:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:28] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:28] [Extra]    Valid announce for <bab9607fc1b1afbc73bd9b455bf3ee98> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:28] [Extra]    Remembering ratchet <4c893747ec52ecc0f326> for <3e9008b06eb94497de65274af72143df>
+[2026-04-13 18:11:28] [Extra]    Valid announce for <3e9008b06eb94497de65274af72143df> 12 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:28] [Debug]    Updated path to <3e9008b06eb94497de65274af72143df> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (12 hops)
+[2026-04-13 18:11:29] [Extra]    Valid announce for <9e21f49afdaae8885663e807606387a2> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:29] [Debug]    Updated path to <9e21f49afdaae8885663e807606387a2> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:29] [Extra]    Valid announce for <0f5a6232102792b2e98c19209070d4f8> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:29] [Debug]    Updated path to <0f5a6232102792b2e98c19209070d4f8> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:29] [Extra]    Remembering ratchet <8e80ab92dddf07355f90> for <f2406f55c853b6138b3296c2d7763cd8>
+[2026-04-13 18:11:29] [Extra]    Valid announce for <f2406f55c853b6138b3296c2d7763cd8> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:29] [Debug]    Updated path to <f2406f55c853b6138b3296c2d7763cd8> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:30] [Extra]    Valid announce for <f2406f55c853b6138b3296c2d7763cd8> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:30] [Extra]    Valid announce for <f2406f55c853b6138b3296c2d7763cd8> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:30] [Extra]    Valid announce for <893609eb1317367ce3986f04b95973d9> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:30] [Debug]    Updated path to <893609eb1317367ce3986f04b95973d9> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:32] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:32] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (4 hops)
+[2026-04-13 18:11:32] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:32] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:32] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:33] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:33] [Extra]    Valid announce for <cf4ca0a1cf91f87778b3543586f75d9f> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:33] [Debug]    Updated path to <cf4ca0a1cf91f87778b3543586f75d9f> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:11:33] [Extra]    Valid announce for <cd94ae523668995bde8cda5198dd9516> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:33] [Debug]    Updated path to <cd94ae523668995bde8cda5198dd9516> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:33] [Extra]    Remembering ratchet <463cf31fc5007c01b8ae> for <5286f603040a5c396ba0dd79d63dc778>
+[2026-04-13 18:11:33] [Extra]    Valid announce for <5286f603040a5c396ba0dd79d63dc778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:33] [Debug]    Updated path to <5286f603040a5c396ba0dd79d63dc778> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:33] [Extra]    Valid announce for <5286f603040a5c396ba0dd79d63dc778> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:33] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:33] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:33] [Extra]    Valid announce for <5286f603040a5c396ba0dd79d63dc778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:34] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:34] [Extra]    Valid announce for <ca655871b843def1277cc3416cdeed54> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:34] [Debug]    Updated path to <ca655871b843def1277cc3416cdeed54> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:11:34] [Extra]    Valid announce for <164c25505b1f19d8326fc0d69ca15b4d> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:34] [Debug]    Updated path to <164c25505b1f19d8326fc0d69ca15b4d> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:34] [Extra]    Valid announce for <4a51b31b70c8461767758f521428cfdd> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:34] [Debug]    Updated path to <4a51b31b70c8461767758f521428cfdd> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:34] [Extra]    Valid announce for <ca655871b843def1277cc3416cdeed54> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:34] [Extra]    Valid announce for <4a51b31b70c8461767758f521428cfdd> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:35] [Extra]    Valid announce for <0f57e368cd7ead982478f3640b8c7dc3> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:35] [Debug]    Updated path to <0f57e368cd7ead982478f3640b8c7dc3> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-13 18:11:35] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:35] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:36] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:36] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:36] [Debug]    Updated path to <73400f494c8d580bd774443a5163127b> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:36] [Extra]    Valid announce for <bab9607fc1b1afbc73bd9b455bf3ee98> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:36] [Debug]    Updated path to <bab9607fc1b1afbc73bd9b455bf3ee98> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:36] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:36] [Debug]    Updated path to <ca273d664d1a6c59a5a002670a641eff> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-13 18:11:37] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:37] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:37] [Extra]    Valid announce for <f83661aed7c7dd80e1dbbef00dc55ad9> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:37] [Debug]    Updated path to <f83661aed7c7dd80e1dbbef00dc55ad9> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (7 hops)
+[2026-04-13 18:11:37] [Extra]    Valid announce for <bab9607fc1b1afbc73bd9b455bf3ee98> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:38] [Extra]    Remembering ratchet <3c2e99daf70089e2242a> for <c1c04c5dfdb2d647a0a5e6bf54bc4b07>
+[2026-04-13 18:11:38] [Extra]    Valid announce for <c1c04c5dfdb2d647a0a5e6bf54bc4b07> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:38] [Debug]    Updated path to <c1c04c5dfdb2d647a0a5e6bf54bc4b07> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:11:38] [Extra]    Valid announce for <8f396811d9d704a0237e09103ddec1eb> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:38] [Debug]    Updated path to <8f396811d9d704a0237e09103ddec1eb> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:38] [Extra]    Valid announce for <42f9397c4362faa9cf62ac6da6a41f5a> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:38] [Debug]    Updated path to <42f9397c4362faa9cf62ac6da6a41f5a> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:38] [Extra]    Valid announce for <8f396811d9d704a0237e09103ddec1eb> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:39] [Extra]    Remembering ratchet <ed8fb21d75938b2e90f0> for <9f233c2f8499e84df0a58c63ac2ae728>
+[2026-04-13 18:11:39] [Extra]    Valid announce for <9f233c2f8499e84df0a58c63ac2ae728> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:39] [Debug]    Updated path to <9f233c2f8499e84df0a58c63ac2ae728> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (2 hops)
+[2026-04-13 18:11:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:39] [Debug]    Updated path to <e80bd281bd26e00d735aada7b7b94c7a> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:40] [Extra]    Valid announce for <23dfe3ab2b2523179a9fe1f22c18c13e> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:40] [Debug]    Updated path to <23dfe3ab2b2523179a9fe1f22c18c13e> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:40] [Extra]    Valid announce for <aea9a5706da57d932ffa95cf58d0bac8> 14 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:40] [Extra]    Valid announce for <55c16056b1b0f93042c92ea31ceb801a> 20 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:40] [Extra]    Valid announce for <284395a82e44594554a03e3757988396> 24 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:41] [Extra]    Valid announce for <cf4ca0a1cf91f87778b3543586f75d9f> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:41] [Debug]    Updated path to <cf4ca0a1cf91f87778b3543586f75d9f> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:41] [Extra]    Valid announce for <cf4ca0a1cf91f87778b3543586f75d9f> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:42] [Extra]    Valid announce for <cf4ca0a1cf91f87778b3543586f75d9f> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:42] [Extra]    Valid announce for <cd94ae523668995bde8cda5198dd9516> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:11:42] [Debug]    Updated path to <cd94ae523668995bde8cda5198dd9516> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (4 hops)
+[2026-04-13 18:11:42] [Extra]    Valid announce for <cd94ae523668995bde8cda5198dd9516> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:43] [Extra]    Valid announce for <cd94ae523668995bde8cda5198dd9516> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:44] [Extra]    Valid announce for <3b0e16f84e64170294aadab9d360bac3> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:44] [Debug]    Updated path to <3b0e16f84e64170294aadab9d360bac3> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:11:45] [Extra]    Valid announce for <249922b43687681be4d0a025507ef1ae> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:45] [Debug]    Updated path to <249922b43687681be4d0a025507ef1ae> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (6 hops)
+[2026-04-13 18:11:45] [Extra]    Valid announce for <249922b43687681be4d0a025507ef1ae> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:45] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:45] [Debug]    Updated path to <2d8a25919ea488ce008d3635d9b104c7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-13 18:11:46] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:46] [Extra]    Valid announce for <125bfe4fc66ac35f73e30c2613ab09fa> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:11:47] [Extra]    Valid announce for <c266fa77af262ed1cde8bc66b2f716a3> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:47] [Debug]    Updated path to <c266fa77af262ed1cde8bc66b2f716a3> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:47] [Extra]    Remembering ratchet <bac19280b4aede4b3671> for <dd9a64e30bf202e6ad95bc14666ae358>
+[2026-04-13 18:11:47] [Extra]    Valid announce for <dd9a64e30bf202e6ad95bc14666ae358> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:47] [Debug]    Updated path to <dd9a64e30bf202e6ad95bc14666ae358> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (5 hops)
+[2026-04-13 18:11:47] [Extra]    Valid announce for <b70dbc0b123dfc531164dd8189d6ac95> 8 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:11:47] [Debug]    Updated path to <b70dbc0b123dfc531164dd8189d6ac95> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (8 hops)

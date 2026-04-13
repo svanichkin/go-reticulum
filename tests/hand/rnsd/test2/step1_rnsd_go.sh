@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-TEST_DIR="$ROOT/tests/hand/rnsd/test1"
+TEST_DIR="$ROOT/tests/hand/rnsd/test2"
 RUN_DIR="$TEST_DIR/.run/go"
 CFG="$RUN_DIR"
 CONFIG_FILE="$RUN_DIR/config"
@@ -11,17 +11,12 @@ RNSD_BIN="$BIN_DIR/rnsd"
 LOGFILE="$RUN_DIR/logfile"
 PIDFILE="$RUN_DIR/rnsd.pid"
 RNSD_FLAGS=(-config "$CFG" -service -vvvvvvv)
-SHARED_PORT=37428
-CONTROL_PORT=37429
+SHARED_PORT=37432
+CONTROL_PORT=37433
 
 mkdir -p "$RUN_DIR"
 cp "$TEST_DIR/config" "$CONFIG_FILE"
 perl -0pi -e "s/share_instance = Yes\\n/share_instance = Yes\\nshared_instance_port = $SHARED_PORT\\ninstance_control_port = $CONTROL_PORT\\n/" "$CONFIG_FILE"
-if grep -qiE '^[[:space:]]*respond_to_probes[[:space:]]*=' "$CONFIG_FILE"; then
-  perl -0pi -e 's/^[ \t]*respond_to_probes[ \t]*=.*$/respond_to_probes = Yes/m' "$CONFIG_FILE"
-else
-  perl -0pi -e 's/(\[logging\])/\nrespond_to_probes = Yes\n\n$1/' "$CONFIG_FILE"
-fi
 
 mkdir -p "$BIN_DIR"
 
@@ -73,16 +68,16 @@ GOCACHE=/tmp/go-cache GOTMPDIR=/tmp/go-tmp go build -a -o "$RNSD_BIN" ./cmd/rnsd
 echo "[2/4] Resetting old logfile"
 rm -f "$LOGFILE" "$LOGFILE.1"
 
-echo "[3/4] Starting rnsd in service mode"
+echo "[3/4] Starting transport-enabled rnsd in service mode"
 echo "Command: $RNSD_BIN ${RNSD_FLAGS[*]}"
 "$RNSD_BIN" "${RNSD_FLAGS[@]}" &
 RNSD_PID=$!
 echo "$RNSD_PID" > "$PIDFILE"
 
-echo "[4/4] Waiting for startup log"
+echo "[4/4] Waiting for probe responder log"
 started=0
-for _ in {1..100}; do
-  if [[ -f "$LOGFILE" ]] && grep -q "Started rnsd version" "$LOGFILE" 2>/dev/null; then
+for _ in {1..150}; do
+  if [[ -f "$LOGFILE" ]] && grep -q "Transport Instance will respond to probe requests on" "$LOGFILE" 2>/dev/null; then
     started=1
     break
   fi
@@ -95,21 +90,15 @@ for _ in {1..100}; do
 done
 
 if [[ "$started" -ne 1 ]]; then
-  echo "Timed out waiting for rnsd startup log"
+  echo "Timed out waiting for probe responder log"
   [[ -f "$LOGFILE" ]] && cat "$LOGFILE"
   exit 1
 fi
 
-if grep -q "connected to another shared local instance" "$LOGFILE" 2>/dev/null; then
-  echo "rnsd connected to another shared instance, expected a standalone local daemon"
-  cat "$LOGFILE"
-  exit 1
-fi
-
-echo "rnsd started successfully"
+echo "transport-enabled rnsd started successfully"
 echo "pid: $RNSD_PID"
 echo "log: $LOGFILE"
-echo "next: ./tests/hand/rnsd/test1/step2_rnstatus_go.sh, then step3_rnpath_go.sh"
+echo "next: ./tests/hand/rnsd/test2/step2_rnprobe_go.sh"
 echo "Press Ctrl+C to stop rnsd"
 echo
 echo "===== logfile stream ====="

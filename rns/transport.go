@@ -2351,7 +2351,7 @@ func ensureProbeDestination() {
 	if Owner == nil {
 		return
 	}
-	if !ProbeDestinationEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
+	if !TransportEnabled() || !ProbeDestinationEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
 		if ProbeDestination != nil {
 			TransportDeregisterDestination(ProbeDestination)
 		}

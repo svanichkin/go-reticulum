@@ -406,14 +406,15 @@ func (t *TCPClientInterface) ProcessIncoming(data []byte) {
 
 func (t *TCPClientInterface) ProcessOutgoing(data []byte) error {
 	if !t.online.Load() || t.detached.Load() {
-		t.startReconnectAsync()
-		return errTCPOfflineDetached
+		// Python TCPInterface.process_outgoing() is a no-op while offline or
+		// detached. Reconnect is driven by the read/connect loops, not by every
+		// attempted transport send.
+		return nil
 	}
 
 	c := t.getConn()
 	if c == nil {
-		t.startReconnectAsync()
-		return errTCPConnNil
+		return nil
 	}
 
 	var framed []byte
@@ -615,6 +616,10 @@ func (t *TCPClientInterface) readLoop() {
 
 func (t *TCPClientInterface) teardown() {
 	t.online.Store(false)
+	if t.iface != nil {
+		t.iface.IN = false
+		t.iface.OUT = false
+	}
 	c := t.getConn()
 	if c != nil {
 		_ = c.Close()
@@ -698,9 +703,9 @@ func NewTCPServer(owner TCPOwner, log TCPLog, name, listenAddr string, kiss, i2p
 		KISSFraming: kiss,
 		// Python TCPServerInterface always supports discovery.
 		// Discoverable is set in the higher-level wrapper.
-		HWMTU:       TCP_HW_MTU,
-		Bitrate:     TCP_BITRATE_GUESS,
-		IFACSize:    TCP_DEFAULT_IFAC_SIZE,
+		HWMTU:    TCP_HW_MTU,
+		Bitrate:  TCP_BITRATE_GUESS,
+		IFACSize: TCP_DEFAULT_IFAC_SIZE,
 	}
 }
 
