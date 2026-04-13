@@ -159,11 +159,37 @@ func ConnectLocalInterfaceClient(cfg LocalConfig, ifc *Interface) error {
 	if ifc.Bitrate == 0 {
 		ifc.Bitrate = 1_000_000_000
 	}
-	if ifc.HWMTU == 0 {
-		ifc.HWMTU = localInterfaceHWMTU
-	}
 	if !ifc.AutoconfigureMTU {
 		ifc.AutoconfigureMTU = true
+	}
+	// Python rnstatus does not emit a "hardware MTU set" debug line when it
+	// connects to a running shared instance. Avoid an MTU-change log by
+	// seeding HWMTU to the same value OptimiseMTU() will choose.
+	if ifc.HWMTU == 0 {
+		switch br := ifc.Bitrate; {
+		case br >= 1_000_000_000:
+			ifc.HWMTU = 524288
+		case br > 750_000_000:
+			ifc.HWMTU = 262144
+		case br > 400_000_000:
+			ifc.HWMTU = 131072
+		case br > 200_000_000:
+			ifc.HWMTU = 65536
+		case br > 100_000_000:
+			ifc.HWMTU = 32768
+		case br > 10_000_000:
+			ifc.HWMTU = 16384
+		case br > 5_000_000:
+			ifc.HWMTU = 8192
+		case br > 2_000_000:
+			ifc.HWMTU = 4096
+		case br > 1_000_000:
+			ifc.HWMTU = 2048
+		case br > 62_500:
+			ifc.HWMTU = 1024
+		default:
+			ifc.HWMTU = localInterfaceHWMTU
+		}
 	}
 	ifc.OptimiseMTU()
 

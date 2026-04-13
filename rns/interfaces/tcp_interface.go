@@ -283,7 +283,6 @@ func (t *TCPClientInterface) InitialConnect(ctx context.Context) {
 		go t.reconnectLoop()
 		return
 	}
-	t.synthesizeTunnelIfNeeded()
 	go t.readLoop()
 	// Python: if not KISS, wants_tunnel = True (handled at a higher level).
 }
@@ -450,6 +449,14 @@ func (t *TCPClientInterface) ProcessOutgoing(data []byte) error {
 	t.txb.Add(uint64(len(framed)))
 	if t.parent != nil {
 		t.parent.txb.Add(uint64(len(framed)))
+	}
+	// rnstatus/GetInterfaceStats reads Interface.TXB, not the TCPClientInterface counter.
+	// Mirror Python semantics by accounting for transmitted framed bytes at the Interface level too.
+	if t.iface != nil {
+		atomic.AddUint64(&t.iface.TXB, uint64(len(framed)))
+		if t.iface.Parent != nil {
+			atomic.AddUint64(&t.iface.Parent.TXB, uint64(len(framed)))
+		}
 	}
 	return nil
 }

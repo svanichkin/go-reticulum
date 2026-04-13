@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	IAFreqSamples = 6
-	OAFreqSamples = 6
+	// Python parity (Interface.IA_FREQ_SAMPLES / OA_FREQ_SAMPLES).
+	IAFreqSamples = 12
+	OAFreqSamples = 12
 
 	MaxHeldAnnounces = 256
 
@@ -33,6 +34,8 @@ const (
 	ICBurstHold           = 1 * 60
 	ICBurstPenalty        = 5 * 60
 	ICHeldReleaseInterval = 30
+	// Python parity: IC_DEQUE_MIN_SAMPLE.
+	ICDequeMinSample = 8
 
 	MaxFrameLength = 1 << 20
 )
@@ -1217,7 +1220,6 @@ func (i *Interface) ProcessOutgoing(data []byte) {
 			}
 			return
 		}
-		atomic.AddUint64(&i.TXB, uint64(len(data)))
 		return
 	}
 }
@@ -1459,7 +1461,11 @@ func (i *Interface) shouldIngressLimitLocked(now time.Time) bool {
 		freqThreshold = *i.ICBurstFreq
 	}
 
-	iaFreq := i.incomingAnnounceFrequencyLocked(now)
+	// Python parity: only consider ingress limiting once enough samples exist.
+	iaFreq := 0.0
+	if len(i.iaFreq) >= ICDequeMinSample {
+		iaFreq = i.incomingAnnounceFrequencyLocked(now)
+	}
 
 	if i.icBurstActive {
 		hold := time.Duration(float64(time.Second) * float64(ICBurstHold))

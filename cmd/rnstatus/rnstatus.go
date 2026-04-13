@@ -21,6 +21,7 @@ var rnstatusVersion = fmt.Sprintf("rnstatus %s", rns.GetVersion())
 type countFlag int
 
 func (c *countFlag) String() string { return fmt.Sprint(int(*c)) }
+func (c *countFlag) IsBoolFlag() bool { return true }
 func (c *countFlag) Set(string) error {
 	*c++
 	return nil

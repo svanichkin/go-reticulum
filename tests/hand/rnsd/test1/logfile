@@ -1,0 +1,163 @@
+[2026-04-12 14:36:42] [Debug]    Reticulum running in interpreted mode
+[2026-04-12 14:36:42] [Debug]    Utilising cryptography backend "internal"
+[2026-04-12 14:36:42] [Verbose]  Configuration loaded from /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/tests/hand/rnsd/test1/config
+[2026-04-12 14:36:42] [Verbose]  Loaded 163 known destinations from storage
+[2026-04-12 14:36:42] [Verbose]  Loaded Transport Identity from storage
+[2026-04-12 14:36:42] [Debug]    Started shared instance RPC listener at 127.0.0.1:37429 (tcp)
+[2026-04-12 14:36:42] [Debug]    Shared Instance[37428] hardware MTU set to 524288
+[2026-04-12 14:36:42] [Debug]    Cleaning ratchets...
+[2026-04-12 14:36:42] [Verbose]  Bringing up system interfaces...
+[2026-04-12 14:36:42] [Extra]    Cleaning resource and packet caches...
+[2026-04-12 14:36:42] [Debug]    TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] hardware MTU set to 8192
+[2026-04-12 14:36:42] [Debug]    Establishing TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]...
+[2026-04-12 14:36:42] [Debug]    TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] established
+[2026-04-12 14:36:42] [Error]    No interfaces could process the outbound packet
+[2026-04-12 14:36:42] [Debug]    TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] hardware MTU set to 8192
+[2026-04-12 14:36:42] [Debug]    Establishing TCP connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]...
+[2026-04-12 14:36:42] [Error]    Initial connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] could not be established: dial tcp: lookup dublin.connect.reticulum.network: no such host
+[2026-04-12 14:36:42] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-12 14:36:42] [Debug]    TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] hardware MTU set to 8192
+[2026-04-12 14:36:42] [Debug]    Establishing TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]...
+[2026-04-12 14:36:42] [Debug]    TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] established
+[2026-04-12 14:36:42] [Error]    No interfaces could process the outbound packet
+[2026-04-12 14:36:42] [Debug]    TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] hardware MTU set to 8192
+[2026-04-12 14:36:42] [Debug]    Establishing TCP connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]...
+[2026-04-12 14:36:42] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:42] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-12 14:36:43] [Extra]    Remembering ratchet <96864c6cf8895edfcebd> for <4bbb5ceb0c3182c1680a7441de3ec2ab>
+[2026-04-12 14:36:43] [Extra]    Valid announce for <4bbb5ceb0c3182c1680a7441de3ec2ab> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:43] [Debug]    Updated path to <4bbb5ceb0c3182c1680a7441de3ec2ab> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-12 14:36:43] [Extra]    Valid announce for <4bbb5ceb0c3182c1680a7441de3ec2ab> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:44] [Extra]    Valid announce for <6904da64b451c10382d64e61fe292ca7> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:44] [Debug]    Updated path to <6904da64b451c10382d64e61fe292ca7> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-12 14:36:44] [Extra]    Valid announce for <177ab81a7ff8259290bd886b64360ead> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:44] [Debug]    Updated path to <177ab81a7ff8259290bd886b64360ead> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (8 hops)
+[2026-04-12 14:36:45] [Extra]    Valid announce for <a4a5e861626ce97c9aa544d9ecdf6d22> 10 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:45] [Debug]    Updated path to <a4a5e861626ce97c9aa544d9ecdf6d22> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (10 hops)
+[2026-04-12 14:36:45] [Extra]    Remembering ratchet <7fae9d231eecc1ced280> for <4577a88865c6b54e45770e08b307c532>
+[2026-04-12 14:36:45] [Extra]    Valid announce for <4577a88865c6b54e45770e08b307c532> 29 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:45] [Debug]    Updated path to <4577a88865c6b54e45770e08b307c532> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (29 hops)
+[2026-04-12 14:36:46] [Extra]    Valid announce for <4577a88865c6b54e45770e08b307c532> 29 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:46] [Extra]    Valid announce for <a4a5e861626ce97c9aa544d9ecdf6d22> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:47] [Debug]    Connection attempt for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] failed
+[2026-04-12 14:36:47] [Error]    Initial connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] could not be established: dial tcp 162.255.87.166:4242: i/o timeout
+[2026-04-12 14:36:47] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-12 14:36:47] [Debug]    TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] hardware MTU set to 8192
+[2026-04-12 14:36:47] [Debug]    Establishing TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]...
+[2026-04-12 14:36:47] [Debug]    TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] established
+[2026-04-12 14:36:47] [Error]    No interfaces could process the outbound packet
+[2026-04-12 14:36:47] [Debug]    TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] hardware MTU set to 8192
+[2026-04-12 14:36:47] [Debug]    Establishing TCP connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]...
+[2026-04-12 14:36:47] [Extra]    Valid announce for <25ed06aa593382101315a4b7f977fb44> 20 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:47] [Debug]    Updated path to <25ed06aa593382101315a4b7f977fb44> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (20 hops)
+[2026-04-12 14:36:47] [Extra]    Valid announce for <4d651533bbc7b35469bd882cda168389> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:47] [Debug]    Updated path to <4d651533bbc7b35469bd882cda168389> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-12 14:36:47] [Extra]    Valid announce for <4d651533bbc7b35469bd882cda168389> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:48] [Extra]    Valid announce for <4d651533bbc7b35469bd882cda168389> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:48] [Extra]    Valid announce for <61b97266deebf82666c6c290f8d14516> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:48] [Debug]    Updated path to <61b97266deebf82666c6c290f8d14516> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (6 hops)
+[2026-04-12 14:36:48] [Extra]    Valid announce for <df35458b57a018559d5ef9e4be0f5994> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:48] [Debug]    Updated path to <df35458b57a018559d5ef9e4be0f5994> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (7 hops)
+[2026-04-12 14:36:48] [Extra]    Valid announce for <61b97266deebf82666c6c290f8d14516> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:49] [Extra]    Remembering ratchet <f2caa606d644a6045e53> for <253cf882c038b827b7e6cdd5e756933a>
+[2026-04-12 14:36:49] [Extra]    Valid announce for <253cf882c038b827b7e6cdd5e756933a> 17 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:49] [Debug]    Updated path to <253cf882c038b827b7e6cdd5e756933a> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (17 hops)
+[2026-04-12 14:36:49] [Extra]    Valid announce for <abfd4cc3ee43e35d52eeabac53364ca2> 12 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:49] [Debug]    Updated path to <abfd4cc3ee43e35d52eeabac53364ca2> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (12 hops)
+[2026-04-12 14:36:49] [Extra]    Valid announce for <abfd4cc3ee43e35d52eeabac53364ca2> 13 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:49] [Extra]    Valid announce for <253cf882c038b827b7e6cdd5e756933a> 18 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:50] [Extra]    Valid announce for <645b9f5e3f75c6794d1497aba54e41b2> 13 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:50] [Debug]    Updated path to <645b9f5e3f75c6794d1497aba54e41b2> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (13 hops)
+[2026-04-12 14:36:50] [Extra]    Valid announce for <52ad03c20beb735c46a69a88da290717> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:50] [Debug]    Updated path to <52ad03c20beb735c46a69a88da290717> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (9 hops)
+[2026-04-12 14:36:50] [Extra]    Valid announce for <645b9f5e3f75c6794d1497aba54e41b2> 15 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:51] [Extra]    Valid announce for <645b9f5e3f75c6794d1497aba54e41b2> 15 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:51] [Extra]    Valid announce for <fad4f4c59b38f341d357383593c41bd8> 97 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:51] [Debug]    Updated path to <fad4f4c59b38f341d357383593c41bd8> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (97 hops)
+[2026-04-12 14:36:51] [Extra]    Remembering ratchet <0a74fe191246d795626a> for <16cf0ecc7fd12831b31cddc5a909c5ec>
+[2026-04-12 14:36:51] [Extra]    Valid announce for <16cf0ecc7fd12831b31cddc5a909c5ec> 10 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:51] [Debug]    Updated path to <16cf0ecc7fd12831b31cddc5a909c5ec> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (10 hops)
+[2026-04-12 14:36:52] [Extra]    Valid announce for <4577a88865c6b54e45770e08b307c532> 29 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:52] [Debug]    Connection attempt for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] failed
+[2026-04-12 14:36:52] [Extra]    Valid announce for <fad4f4c59b38f341d357383593c41bd8> 98 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:52] [Error]    Initial connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] could not be established: dial tcp 161.35.103.165:4242: i/o timeout
+[2026-04-12 14:36:52] [Error]    Leaving unconnected and retrying connection in 5s.
+[2026-04-12 14:36:52] [Debug]    Configured 6 interface(s) from config
+[2026-04-12 14:36:52] [Verbose]  System interfaces are ready
+[2026-04-12 14:36:52] [Notice]   Started rnsd version 1.1.4
+[2026-04-12 14:36:52] [Extra]    Valid announce for <0dfe2d939409c43b71df66e250e08588> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:52] [Debug]    Updated path to <0dfe2d939409c43b71df66e250e08588> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (6 hops)
+[2026-04-12 14:36:53] [Extra]    Valid announce for <fad4f4c59b38f341d357383593c41bd8> 98 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:53] [Extra]    Valid announce for <39a9a362206fbfb92c143a5252826bbc> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:53] [Debug]    Updated path to <39a9a362206fbfb92c143a5252826bbc> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-12 14:36:53] [Extra]    Remembering ratchet <343a09b3b01624e6155d> for <2e34a067ab62f76169d06c6fdcfe0d6f>
+[2026-04-12 14:36:53] [Extra]    Valid announce for <2e34a067ab62f76169d06c6fdcfe0d6f> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:53] [Debug]    Updated path to <2e34a067ab62f76169d06c6fdcfe0d6f> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-12 14:36:53] [Extra]    Remembering ratchet <56aba0f013712392aaca> for <7e74903dbcc711323132c039062592f1>
+[2026-04-12 14:36:53] [Extra]    Valid announce for <7e74903dbcc711323132c039062592f1> 58 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:53] [Debug]    Updated path to <7e74903dbcc711323132c039062592f1> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (58 hops)
+[2026-04-12 14:36:54] [Extra]    Valid announce for <0dfe2d939409c43b71df66e250e08588> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:54] [Extra]    Valid announce for <7e74903dbcc711323132c039062592f1> 58 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:54] [Extra]    Valid announce for <2e34a067ab62f76169d06c6fdcfe0d6f> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:54] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:54] [Debug]    Updated path to <110d7f3159c1d306851c3ec5c6d302ef> via TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] (3 hops)
+[2026-04-12 14:36:54] [Extra]    Valid announce for <7e74903dbcc711323132c039062592f1> 58 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:55] [Extra]    Valid announce for <f42ff9a5fd7a83570cd8d8608a876071> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:55] [Debug]    Updated path to <f42ff9a5fd7a83570cd8d8608a876071> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (7 hops)
+[2026-04-12 14:36:56] [Extra]    Remembering ratchet <07860eece5bb1fd2ca77> for <ff2255eaad37b08e62b3ce86f5889e15>
+[2026-04-12 14:36:56] [Extra]    Valid announce for <ff2255eaad37b08e62b3ce86f5889e15> 52 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:56] [Debug]    Updated path to <ff2255eaad37b08e62b3ce86f5889e15> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (52 hops)
+[2026-04-12 14:36:56] [Extra]    Valid announce for <0640a8c2c32342daa62434de578c6f93> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:56] [Debug]    Updated path to <0640a8c2c32342daa62434de578c6f93> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (5 hops)
+[2026-04-12 14:36:56] [Extra]    Valid announce for <e59c163a01cac4628dace75d8a8c5efe> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:56] [Debug]    Updated path to <e59c163a01cac4628dace75d8a8c5efe> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (7 hops)
+[2026-04-12 14:36:57] [Debug]    Connection attempt for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] failed
+[2026-04-12 14:36:57] [Debug]    Connection attempt for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] failed
+[2026-04-12 14:36:57] [Extra]    Valid announce for <ff2255eaad37b08e62b3ce86f5889e15> 53 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:57] [Extra]    Valid announce for <ff2255eaad37b08e62b3ce86f5889e15> 53 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:36:57] [Extra]    Remembering ratchet <c594b4e4cfcee59ad607> for <aa35ab81f68275fa0d4aa59b9c57fde8>
+[2026-04-12 14:36:57] [Extra]    Valid announce for <aa35ab81f68275fa0d4aa59b9c57fde8> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:57] [Debug]    Updated path to <aa35ab81f68275fa0d4aa59b9c57fde8> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (7 hops)
+[2026-04-12 14:36:57] [Extra]    Remembering ratchet <7f76998ba3722c6db479> for <22c8ba9c883e06c7e540ed6dc87ceecf>
+[2026-04-12 14:36:57] [Extra]    Valid announce for <22c8ba9c883e06c7e540ed6dc87ceecf> 19 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:57] [Debug]    Updated path to <22c8ba9c883e06c7e540ed6dc87ceecf> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (19 hops)
+[2026-04-12 14:36:58] [Extra]    Remembering ratchet <7cd1f5c58f8ea0c7cf13> for <2ab0ec8278f1dc842eb1403f3c998541>
+[2026-04-12 14:36:58] [Extra]    Valid announce for <2ab0ec8278f1dc842eb1403f3c998541> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:36:58] [Debug]    Updated path to <2ab0ec8278f1dc842eb1403f3c998541> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (3 hops)
+[2026-04-12 14:36:59] [Extra]    Valid announce for <2ab0ec8278f1dc842eb1403f3c998541> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:36:59] [Extra]    Valid announce for <0dfe2d939409c43b71df66e250e08588> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:37:00] [Extra]    Valid announce for <8624522b43f69ef3d214c8fdd0a1d689> 27 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:00] [Debug]    Updated path to <8624522b43f69ef3d214c8fdd0a1d689> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (27 hops)
+[2026-04-12 14:37:00] [Extra]    Remembering ratchet <bd993b21b79b61254a07> for <e8dc9b67289872ff8fea16147c7b2a98>
+[2026-04-12 14:37:00] [Extra]    Valid announce for <e8dc9b67289872ff8fea16147c7b2a98> 13 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:00] [Debug]    Updated path to <e8dc9b67289872ff8fea16147c7b2a98> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (13 hops)
+[2026-04-12 14:37:02] [Debug]    Connection attempt for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] failed
+[2026-04-12 14:37:02] [Debug]    Connection attempt for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] failed
+[2026-04-12 14:37:03] [Extra]    Valid announce for <b5548c5e432cff10bf2157ccebc3951d> 30 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:03] [Debug]    Updated path to <b5548c5e432cff10bf2157ccebc3951d> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (30 hops)
+[2026-04-12 14:37:03] [Extra]    Remembering ratchet <f5553919b7dbb9d92f87> for <95579f476735328b15077285bb166c12>
+[2026-04-12 14:37:03] [Extra]    Valid announce for <95579f476735328b15077285bb166c12> 28 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:03] [Debug]    Updated path to <95579f476735328b15077285bb166c12> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (28 hops)
+[2026-04-12 14:37:04] [Extra]    Valid announce for <2d0327084841845d0f6f5ca4e4cd96ba> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:04] [Debug]    Updated path to <2d0327084841845d0f6f5ca4e4cd96ba> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (4 hops)
+[2026-04-12 14:37:04] [Extra]    Valid announce for <19048e2461a2dc12ee5c4562884a5389> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:04] [Debug]    Updated path to <19048e2461a2dc12ee5c4562884a5389> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (9 hops)
+[2026-04-12 14:37:04] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:04] [Debug]    Updated path to <e345f6220682e127cab52c3387436778> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (6 hops)
+[2026-04-12 14:37:04] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:37:05] [Extra]    Valid announce for <0640a8c2c32342daa62434de578c6f93> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-12 14:37:05] [Debug]    Updated path to <0640a8c2c32342daa62434de578c6f93> via TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] (8 hops)
+[2026-04-12 14:37:05] [Extra]    Valid announce for <c42d4407c06d048edcd0c10b50e731e6> 18 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:05] [Debug]    Updated path to <c42d4407c06d048edcd0c10b50e731e6> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (18 hops)
+[2026-04-12 14:37:05] [Extra]    Valid announce for <46aafae149c0e8eb1d93b193e5b22118> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:05] [Debug]    Updated path to <46aafae149c0e8eb1d93b193e5b22118> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (6 hops)
+[2026-04-12 14:37:05] [Extra]    Valid announce for <46aafae149c0e8eb1d93b193e5b22118> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-12 14:37:06] [Extra]    Valid announce for <0640a8c2c32342daa62434de578c6f93> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:07] [Debug]    Connection attempt for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] failed
+[2026-04-12 14:37:07] [Debug]    Connection attempt for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] failed
+[2026-04-12 14:37:07] [Extra]    Valid announce for <aece2241e9e1b927c4f95ba1b21532e4> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-12 14:37:07] [Debug]    Updated path to <aece2241e9e1b927c4f95ba1b21532e4> via TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] (9 hops)
+[2026-04-12 14:37:07] [Debug]    The socket for remote client TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] was closed.
+[2026-04-12 14:37:07] [Debug]    The socket for remote client TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] was closed.
+[2026-04-12 14:37:07] [Debug]    The socket for remote client TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] was closed.
+[2026-04-12 14:37:07] [Debug]    Saved 198 known destinations to storage

@@ -621,19 +621,14 @@ func rpcRecvBytes(conn net.Conn, maxLen int) ([]byte, error) {
 // performRPCHandshake implements the Python multiprocessing.connection
 // HMAC challenge-response authentication protocol.
 //
-// Server sequence: deliver_challenge → answer_challenge
-// Client sequence: answer_challenge → deliver_challenge
+// Python multiprocessing.connection uses a one-way auth exchange per side.
+// Server: deliver_challenge.
+// Client: answer_challenge.
 func performRPCHandshake(conn net.Conn, key []byte, server bool) error {
 	if server {
-		if err := rpcDeliverChallenge(conn, key); err != nil {
-			return fmt.Errorf("deliver challenge: %w", err)
-		}
-		return rpcAnswerChallenge(conn, key)
+		return rpcDeliverChallenge(conn, key)
 	}
-	if err := rpcAnswerChallenge(conn, key); err != nil {
-		return fmt.Errorf("answer challenge: %w", err)
-	}
-	return rpcDeliverChallenge(conn, key)
+	return rpcAnswerChallenge(conn, key)
 }
 
 var (
@@ -648,9 +643,7 @@ func rpcDeliverChallenge(conn net.Conn, key []byte) error {
 	if _, err := rand.Read(randBytes); err != nil {
 		return err
 	}
-	digestPrefix := []byte("{sha256}")
-	challengeMsg := append(digestPrefix, randBytes...)
-	msg := append(rpcChallenge, challengeMsg...)
+	msg := append(rpcChallenge, randBytes...)
 	if err := rpcSendBytes(conn, msg); err != nil {
 		return err
 	}
@@ -658,7 +651,7 @@ func rpcDeliverChallenge(conn net.Conn, key []byte) error {
 	if err != nil {
 		return err
 	}
-	expected, err := rpcCreateResponse(key, challengeMsg)
+	expected, err := rpcCreateResponse(key, randBytes)
 	if err != nil {
 		return err
 	}
@@ -697,15 +690,8 @@ func rpcAnswerChallenge(conn net.Conn, key []byte) error {
 }
 
 // rpcCreateResponse computes the HMAC response for a challenge message.
-// It handles both legacy (HMAC-MD5) and modern (prefixed HMAC-SHA256) formats.
+// Python multiprocessing.connection uses HMAC-MD5.
 func rpcCreateResponse(key, message []byte) ([]byte, error) {
-	digestPrefix := []byte("{sha256}")
-	if len(message) >= len(digestPrefix) && bytes.Equal(message[:len(digestPrefix)], digestPrefix) {
-		mac := hmac.New(sha256.New, key)
-		mac.Write(message)
-		sum := mac.Sum(nil)
-		return append(digestPrefix, sum...), nil
-	}
 	mac := hmac.New(md5.New, key)
 	mac.Write(message)
 	return mac.Sum(nil), nil
@@ -875,13 +861,8 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		return nil, err
 	}
 
-	Logf(LogDebug, "Utilising cryptography backend %q", cryptography.ProviderBackend())
-	Log("Configuration loaded from "+r.ConfigPath, LogVerbose)
-
-	_ = IdentityLoadKnownDestinations()
-	Start(r) // mirrors RNS.Transport.start(self)
-
-	// choose AF_UNIX vs TCP
+	// Python config application also decides the local shared-instance transport
+	// before Transport.start() and before any RPC listener is created.
 	if vendor.UseAFUnix() {
 		if r.SharedInstanceType == "tcp" {
 			r.UseAFUnix = false
@@ -893,7 +874,8 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		r.UseAFUnix = false
 	}
 
-	// Abstract AF_UNIX socket addresses are Linux-only. Fall back to TCP on other platforms.
+	// Abstract AF_UNIX socket addresses are Linux-only. Fall back to TCP on
+	// other platforms, matching the Python LocalInterface behaviour.
 	if r.UseAFUnix && runtime.GOOS != "linux" {
 		r.UseAFUnix = false
 		r.SharedInstanceType = "tcp"
@@ -902,6 +884,16 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	if r.LocalSocketPath == "" && r.UseAFUnix {
 		r.LocalSocketPath = "default"
 	}
+
+	if err := r.startLocalInterface(); err != nil {
+		return nil, err
+	}
+
+	Logf(LogDebug, "Utilising cryptography backend %q", cryptography.ProviderBackend())
+	Log("Configuration loaded from "+r.ConfigPath, LogVerbose)
+
+	_ = IdentityLoadKnownDestinations()
+	Start(r) // mirrors RNS.Transport.start(self)
 
 	if r.UseAFUnix {
 		r.rpcNetwork = "unix"
@@ -924,17 +916,38 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		}
 	}
 
-	// In Python, local shared instance setup happens after Transport.start() and after
-	// rpc addr/key selection.
-	if err := r.startLocalInterface(); err != nil {
-		return nil, err
+	// Python only creates the RPC listener for the shared-instance owner, after
+	// Transport.start() has loaded the transport identity used for the auth key.
+	if r.IsSharedInstance {
+		ln, err := NewRPCListener(r.rpcNetwork, r.rpcAddr, r.RPCKey)
+		if err != nil {
+			return nil, err
+		}
+		r.rpcLn = ln
+		go r.rpcLoop()
 	}
 
-	// If this is shared/standalone — bring up system interfaces.
-	if r.IsSharedInstance || r.IsStandaloneInstance {
+	// Python only brings up system interfaces for the shared or standalone
+	// daemon paths, not when this process merely connected to an existing
+	// shared instance.
+	if (r.IsSharedInstance || r.IsStandaloneInstance) && !r.IsConnectedToSharedInstance {
 		Log("Bringing up system interfaces...", LogVerbose)
 		if err := r.bringUpSystemInterfaces(); err != nil {
 			return nil, err
+		}
+		// Python parity: Transport.start() synthesizes tunnels after interfaces
+		// are registered. Our Transport.Start() runs before bringUpSystemInterfaces(),
+		// so do the tunnel synthesis pass here.
+		PrioritiseInterfaces()
+		for _, ifc := range Interfaces {
+			if ifc == nil {
+				continue
+			}
+			ifc.TunnelID = nil
+			if ifc.WantsTunnel {
+				SynthesizeTunnel(ifc)
+				ifc.WantsTunnel = false
+			}
 		}
 		Log("System interfaces are ready", LogVerbose)
 		if InterfaceDiscoveryEnabled() {
@@ -1416,143 +1429,103 @@ func (r *Reticulum) startLocalInterface() error {
 		return nil
 	}
 
-	// Try to become the shared instance by binding the RPC listener.
-	ln, err := NewRPCListener(r.rpcNetwork, r.rpcAddr, r.RPCKey)
-	if err == nil {
+	siName := "default"
+	if r.UseAFUnix {
+		if strings.TrimSpace(r.LocalSocketPath) != "" {
+			siName = strings.TrimSpace(r.LocalSocketPath)
+		}
+	} else {
+		siName = fmt.Sprintf("%d", r.localInterfacePort)
+	}
+
+	sharedIfc := &Interface{
+		Name:              fmt.Sprintf("Shared Instance[%s]", siName),
+		Type:              "LocalInterface",
+		IN:                true,
+		OUT:               true,
+		DriverImplemented: true,
+		Online:            true,
+		AutoconfigureMTU:  true,
+	}
+	sharedIfc.Bitrate = 1000000000
+	if br := SharedInstanceForcedBitrate(); br > 0 {
+		sharedIfc.Bitrate = br
+	}
+	sharedIfc.ForceBitrateLatency = true
+
+	ifaces.SharedConnectionDisappeared = SharedConnectionDisappeared
+	ifaces.SharedConnectionReappeared = SharedConnectionReappeared
+
+	ln, serverErr := ifaces.StartLocalInterfaceServer(ifaces.LocalConfig{
+		UseAFUnix:          r.UseAFUnix,
+		LocalSocketPath:    r.LocalSocketPath,
+		LocalInterfacePort: r.localInterfacePort,
+		Parent:             sharedIfc,
+		OnClientDisconnect: func(cif *ifaces.Interface) {
+			removeLocalClientInterface(cif)
+			removeInterface(cif)
+		},
+	}, func(cif *ifaces.Interface) {
+		AddInterface(cif)
+		LocalClientInterfaces = append(LocalClientInterfaces, cif)
+	})
+	if serverErr == nil {
 		if r.RequireShared {
 			_ = ln.Close()
-			// Python aborts startup if an existing shared instance was required,
-			// but we ended up becoming the shared instance (meaning none existed).
 			Log("Existing shared instance required, but this instance started as shared instance. Aborting startup.", LogVerbose)
 			return errors.New("no shared instance available, but application that started Reticulum required it")
 		}
-		r.rpcLn = ln
+
+		sharedIfc.OptimiseMTU()
+		AddInterface(sharedIfc)
+		sharedIfc.SetClientCountFunc(func() int {
+			return len(LocalClientInterfaces)
+		})
+		r.SharedInstanceInterface = sharedIfc
 		r.IsSharedInstance = true
 		r.IsStandaloneInstance = false
 		r.IsConnectedToSharedInstance = false
-		go r.rpcLoop()
-		Logf(LogDebug, "Started shared instance RPC listener at %s (%s)", r.rpcLn.Addr(), r.rpcNetwork)
-
-		// Python parity: the first instance creates a local shared-instance interface.
-		siName := "default"
-		if r.UseAFUnix {
-			if strings.TrimSpace(r.LocalSocketPath) != "" {
-				siName = strings.TrimSpace(r.LocalSocketPath)
-			}
-		} else {
-			// Python uses the shared instance port in the name when shared instance runs over TCP.
-			siName = fmt.Sprintf("%d", r.localInterfacePort)
-		}
-		si := &Interface{
-			Name:              fmt.Sprintf("Shared Instance[%s]", siName),
-			Type:              "LocalInterface",
-			IN:                true,
-			OUT:               true,
-			DriverImplemented: true,
-			Online:            true,
-			AutoconfigureMTU:  true,
-		}
-		// Python reports the shared instance interface as a 1 Gbps local link by default.
-		si.Bitrate = 1000000000
-		if br := SharedInstanceForcedBitrate(); br > 0 {
-			si.Bitrate = br
-		}
-		si.ForceBitrateLatency = true
-		si.OptimiseMTU()
-		AddInterface(si)
-		si.SetClientCountFunc(func() int {
-			return len(LocalClientInterfaces)
-		})
-		r.SharedInstanceInterface = si
-
-		// Start LocalInterface packet IPC server (Python local_client_interfaces).
-		ifaces.SharedConnectionDisappeared = SharedConnectionDisappeared
-		ifaces.SharedConnectionReappeared = SharedConnectionReappeared
-		if _, err := ifaces.StartLocalInterfaceServer(ifaces.LocalConfig{
-			UseAFUnix:          r.UseAFUnix,
-			LocalSocketPath:    r.LocalSocketPath,
-			LocalInterfacePort: r.localInterfacePort,
-			Parent:             r.SharedInstanceInterface,
-			OnClientDisconnect: func(cif *ifaces.Interface) {
-				removeLocalClientInterface(cif)
-				removeInterface(cif)
-			},
-		}, func(cif *ifaces.Interface) {
-			AddInterface(cif)
-			LocalClientInterfaces = append(LocalClientInterfaces, cif)
-		}); err != nil {
-			Logf(LogError, "Could not start LocalInterface IPC server: %v", err)
-		}
-
+		Logf(LogDebug, "Started shared instance interface: %s", r.SharedInstanceInterface)
 		r.startJobs()
 		return nil
 	}
 
-	// Could not bind: try to connect to an existing shared instance.
-	client, dialErr := dialRPC(r.rpcNetwork, r.rpcAddr, r.RPCKey)
-	if dialErr == nil {
-		_ = client.Close()
+	clientIfc := &Interface{
+		Name:                fmt.Sprintf("LocalInterface[%s]", siName),
+		Type:                "LocalInterface",
+		IN:                  true,
+		OUT:                 true,
+		DriverImplemented:   true,
+		Online:              true,
+		AutoconfigureMTU:    true,
+		LocalIsSharedClient: true,
+	}
+	clientIfc.Bitrate = 1000000000
+	if br := SharedInstanceForcedBitrate(); br > 0 {
+		clientIfc.Bitrate = br
+	}
+	clientIfc.ForceBitrateLatency = true
+
+	clientErr := ifaces.ConnectLocalInterfaceClient(ifaces.LocalConfig{
+		UseAFUnix:          r.UseAFUnix,
+		LocalSocketPath:    r.LocalSocketPath,
+		LocalInterfacePort: r.localInterfacePort,
+	}, clientIfc)
+	if clientErr == nil {
+		AddInterface(clientIfc)
+		r.SharedInstanceInterface = clientIfc
 		r.IsSharedInstance = false
 		r.IsStandaloneInstance = false
 		r.IsConnectedToSharedInstance = true
 		transportEnabled = false
 		remoteManagementEnabled = false
 		allowProbes = false
-		Logf(LogNotice, "Connected to locally available Reticulum shared instance via RPC")
-
-		// Python parity: create a LocalInterface client interface placeholder.
-		siName := "default"
-		if r.UseAFUnix {
-			if strings.TrimSpace(r.LocalSocketPath) != "" {
-				siName = strings.TrimSpace(r.LocalSocketPath)
-			}
-		} else {
-			// Python uses the shared instance port in the name when shared instance runs over TCP.
-			siName = fmt.Sprintf("%d", r.localInterfacePort)
-		}
-		si := &Interface{
-			Name:                fmt.Sprintf("LocalInterface[%s]", siName),
-			Type:                "LocalInterface",
-			IN:                  true,
-			OUT:                 true,
-			DriverImplemented:   true,
-			Online:              true,
-			AutoconfigureMTU:    true,
-			LocalIsSharedClient: true,
-		}
-		si.Bitrate = 1000000000
-		if br := SharedInstanceForcedBitrate(); br > 0 {
-			si.Bitrate = br
-		}
-		si.ForceBitrateLatency = true
-		si.OptimiseMTU()
-		AddInterface(si)
-		r.SharedInstanceInterface = si
-
-		// Connect LocalInterface packet IPC client to shared instance.
-		ifaces.SharedConnectionDisappeared = SharedConnectionDisappeared
-		ifaces.SharedConnectionReappeared = SharedConnectionReappeared
-		if err := ifaces.ConnectLocalInterfaceClient(ifaces.LocalConfig{
-			UseAFUnix:          r.UseAFUnix,
-			LocalSocketPath:    r.LocalSocketPath,
-			LocalInterfacePort: r.localInterfacePort,
-		}, si); err != nil {
-			Logf(LogError, "Could not connect to LocalInterface IPC server: %v", err)
-		} else {
-			Log("Connected to shared instance LocalInterface packet socket", LogNotice)
-		}
-
-		// Python parity: once we switch to shared-client mode, transport-managed
-		// destinations such as the local probe responder must be removed.
-		configureControlDestinations()
-
+		Logf(LogDebug, "Connected to locally available Reticulum instance via: %s", clientIfc)
 		return nil
 	}
 
 	Log("Local shared instance appears to be running, but it could not be connected", LogError)
-	Log("The contained exception was: "+dialErr.Error(), LogError)
-
-	// No shared instance available, fall back to standalone.
+	Log("The contained exception was: "+clientErr.Error(), LogError)
 	r.IsSharedInstance = false
 	r.IsStandaloneInstance = true
 	r.IsConnectedToSharedInstance = false
