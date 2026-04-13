@@ -700,6 +700,7 @@ type tunnelPathEntry struct {
 
 type announceEnqueueOptions struct {
 	delay            time.Duration
+	delaySet         bool
 	blockRebroadcast bool
 	attached         *Interface
 }
@@ -711,6 +712,7 @@ type AnnounceOption func(*announceEnqueueOptions)
 func WithAnnounceDelay(d time.Duration) AnnounceOption {
 	return func(o *announceEnqueueOptions) {
 		o.delay = d
+		o.delaySet = true
 	}
 }
 
@@ -718,6 +720,7 @@ func WithAnnounceDelay(d time.Duration) AnnounceOption {
 func WithAnnounceImmediate() AnnounceOption {
 	return func(o *announceEnqueueOptions) {
 		o.delay = 0
+		o.delaySet = true
 	}
 }
 
@@ -2283,7 +2286,7 @@ func QueueAnnounce(p *Packet, opts ...AnnounceOption) {
 
 	now := time.Now()
 	delay := params.delay
-	if delay == 0 {
+	if !params.delaySet {
 		delay = randAnnounceDelay()
 	}
 

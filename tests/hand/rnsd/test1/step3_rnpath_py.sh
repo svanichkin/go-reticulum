@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TEST_DIR="$ROOT/tests/hand/rnsd/test1"
-RUN_DIR="$TEST_DIR/.run/py"
+RUN_DIR="$TEST_DIR/.artifacts/run/py"
 CFG="$RUN_DIR"
 PIDFILE="$RUN_DIR/python-rnsd.pid"
 PYTHON="${PYTHON:-python3}"

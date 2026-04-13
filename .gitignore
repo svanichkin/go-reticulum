@@ -20,6 +20,9 @@ bin/
 python
 tests/_bin
 tests/_logs
+tests/hand/rnsd/test1/.artifacts/
+tests/hand/rnsd/test2/.artifacts/
+tests/hand/rnsd/test3/.artifacts/
 
 config
 storage
@@ -30,6 +33,9 @@ artifacts
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+*.log
+*.pid
+*logfile*
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

@@ -42,3 +42,11 @@ In another terminal:
 - `step1` logs `Transport Instance will respond to probe requests on ...`.
 - `step2` sends three probes to `rnstransport.probe`.
 - `step2` reports `Sent 3, received 3, packet loss 0.0%`.
+
+## Runtime Artifacts
+
+Все runtime-артефакты этого теста складываются в:
+
+```sh
+tests/hand/rnsd/test2/.artifacts/run/
+```

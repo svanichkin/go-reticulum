@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TEST_DIR="$ROOT/tests/hand/rnsd/test2"
-RUN_DIR="$TEST_DIR/.run/go"
+ARTIFACTS_DIR="$TEST_DIR/.artifacts"
+RUN_DIR="$ARTIFACTS_DIR/run/go"
 CFG="$RUN_DIR"
 CONFIG_FILE="$RUN_DIR/config"
 BIN_DIR="$ROOT/bin"
@@ -14,7 +15,7 @@ SHARED_PORT=37432
 CONTROL_PORT=37433
 RNSD_FLAGS=(-config "$CFG" -service -vvvvvvv)
 
-mkdir -p "$RUN_DIR"
+mkdir -p "$ARTIFACTS_DIR" "$RUN_DIR"
 cp "$TEST_DIR/config" "$CONFIG_FILE"
 perl -0pi -e "s/(\\[reticulum\\]\\n)/\\1shared_instance_port = $SHARED_PORT\\ninstance_control_port = $CONTROL_PORT\\n/" "$CONFIG_FILE"
 
