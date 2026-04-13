@@ -281,7 +281,7 @@ func programSetup(
 		if receipt.GetStatus() == rns.ReceiptSent {
 			fmt.Print("\r                                                                \rProbe timed out\n")
 		} else {
-			fmt.Print("\b\b ")
+			fmt.Print("\b\b \n")
 			os.Stdout.Sync()
 
 			if receipt.GetStatus() == rns.ReceiptDelivered {

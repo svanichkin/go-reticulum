@@ -9,13 +9,13 @@ CONFIG_FILE="$RUN_DIR/config"
 PYTHON="${PYTHON:-python3}"
 LOGFILE="$RUN_DIR/logfile.py"
 PIDFILE="$RUN_DIR/python-rnsd.pid"
-RNSD_CMD=("$PYTHON" "$ROOT/python/RNS/Utilities/rnsd.py" --config "$CFG" -vvvvvvv)
 SHARED_PORT=37430
 CONTROL_PORT=37431
+RNSD_CMD=("$PYTHON" "$ROOT/python/RNS/Utilities/rnsd.py" --config "$CFG" -vvvvvvv)
 
 mkdir -p "$RUN_DIR"
 cp "$TEST_DIR/config" "$CONFIG_FILE"
-perl -0pi -e "s/share_instance = Yes\\n/share_instance = Yes\\nshared_instance_port = $SHARED_PORT\\ninstance_control_port = $CONTROL_PORT\\n/" "$CONFIG_FILE"
+perl -0pi -e "s/(\\[reticulum\\]\\n)/\\1shared_instance_port = $SHARED_PORT\\ninstance_control_port = $CONTROL_PORT\\n/" "$CONFIG_FILE"
 if grep -qiE '^[[:space:]]*respond_to_probes[[:space:]]*=' "$CONFIG_FILE"; then
   perl -0pi -e 's/^[ \t]*respond_to_probes[ \t]*=.*$/respond_to_probes = Yes/m' "$CONFIG_FILE"
 else

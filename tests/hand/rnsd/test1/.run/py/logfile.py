@@ -20,1848 +20,1020 @@ Traceback (most recent call last):
   File "/Users/alien/Library/Python/3.10/lib/python/site-packages/RNS/Transport.py", line 2027, in synthesize_tunnel
     public_key     = RNS.Transport.identity.get_public_key()
 AttributeError: 'NoneType' object has no attribute 'get_public_key'
-[2026-04-13 17:40:28] [Debug]    Reticulum running in interpreted mode
-[2026-04-13 17:40:28] [Debug]    Started shared instance interface: Shared Instance[37430]
-[2026-04-13 17:40:28] [Debug]    Cleaning ratchets...
-[2026-04-13 17:40:28] [Extra]    Cleaning resource and packet caches...
-[2026-04-13 17:40:28] [Verbose]  Bringing up system interfaces...
-[2026-04-13 17:40:28] [Debug]    Establishing TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]...
-[2026-04-13 17:40:28] [Debug]    TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] established
-[2026-04-13 17:40:28] [Debug]    TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] hardware MTU set to 8192
-[2026-04-13 17:40:28] [Debug]    Establishing TCP connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]...
-[2026-04-13 17:40:28] [Error]    Initial connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] could not be established: [Errno 8] nodename nor servname provided, or not known
-[2026-04-13 17:40:28] [Error]    Leaving unconnected and retrying connection in 5 seconds.
-[2026-04-13 17:40:28] [Debug]    TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] hardware MTU set to 8192
-[2026-04-13 17:40:28] [Debug]    Establishing TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]...
-[2026-04-13 17:40:28] [Debug]    TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] established
-[2026-04-13 17:40:28] [Debug]    TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] hardware MTU set to 8192
-[2026-04-13 17:40:28] [Debug]    Establishing TCP connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]...
-[2026-04-13 17:40:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:33] [Error]    Initial connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] could not be established: timed out
-[2026-04-13 17:40:33] [Error]    Leaving unconnected and retrying connection in 5 seconds.
-[2026-04-13 17:40:33] [Debug]    TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] hardware MTU set to 8192
-[2026-04-13 17:40:33] [Debug]    Establishing TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]...
-[2026-04-13 17:40:33] [Debug]    TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] established
-[2026-04-13 17:40:33] [Debug]    TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] hardware MTU set to 8192
-[2026-04-13 17:40:33] [Debug]    Establishing TCP connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]...
-[2026-04-13 17:40:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:38] [Warning]  An interface error occurred for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965], the contained exception was: 'NoneType' object has no attribute 'get_public_key'
-[2026-04-13 17:40:38] [Warning]  Attempting to reconnect...
-[2026-04-13 17:40:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:40:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:38] [Error]    Initial connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] could not be established: timed out
-[2026-04-13 17:40:38] [Error]    Leaving unconnected and retrying connection in 5 seconds.
-[2026-04-13 17:40:38] [Debug]    TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] hardware MTU set to 8192
-[2026-04-13 17:40:38] [Verbose]  System interfaces are ready
-[2026-04-13 17:40:38] [Debug]    Utilising cryptography backend "openssl, PyCA 46.0.3"
-[2026-04-13 17:40:38] [Verbose]  Configuration loaded from /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/tests/hand/rnsd/test1/.run/py/config
-[2026-04-13 17:40:38] [Verbose]  Loaded 1839 known destination from storage
-[2026-04-13 17:40:38] [Verbose]  Loaded Transport Identity from storage
-[2026-04-13 17:40:38] [Notice]   Started rnsd version 1.0.4
-[2026-04-13 17:40:38] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:38] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:39] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:40] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:40] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:41] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:41] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:42] [Extra]    Valid announce for <26942c55352995532ae4965b0343db7f> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:40:42] [Debug]    Destination <26942c55352995532ae4965b0343db7f> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:40:42] [Extra]    Valid announce for <26942c55352995532ae4965b0343db7f> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:43] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:40:43] [Warning]  Attempting to reconnect...
-[2026-04-13 17:40:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:40:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:43] [Extra]    Valid announce for <75a761de7bdd03adeb6ad16b004e53a1> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:43] [Debug]    Destination <75a761de7bdd03adeb6ad16b004e53a1> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:48] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:48] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:40:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:48] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:40:48] [Warning]  Attempting to reconnect...
-[2026-04-13 17:40:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:49] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:50] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:50] [Debug]    Path request for <136f555ecf56ce8c46f300b39046de94> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:40:50] [Debug]    Ignoring path request for <136f555ecf56ce8c46f300b39046de94> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:40:51] [Extra]    Valid announce for <9eb0f17e1691e819bb34eddafa2ca82b> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:51] [Debug]    Destination <9eb0f17e1691e819bb34eddafa2ca82b> is now 7 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 8 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:51] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 8 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:51] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:51] [Extra]    Remembering ratchet <7b7b21123927ea513839> for <794884194914d03c4e199d9c1f090b0c>
-[2026-04-13 17:40:51] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:52] [Extra]    Valid announce for <54f0e7796ac804890832cb3ee61131f2> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:52] [Extra]    Remembering ratchet <79846146397d6ee40d69> for <54f0e7796ac804890832cb3ee61131f2>
-[2026-04-13 17:40:52] [Debug]    Destination <54f0e7796ac804890832cb3ee61131f2> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:52] [Extra]    Valid announce for <dce1135780d75f28804a92545aea418a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:52] [Debug]    Destination <dce1135780d75f28804a92545aea418a> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:53] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:40:53] [Warning]  Attempting to reconnect...
-[2026-04-13 17:40:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:40:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:56] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:40:56] [Debug]    Path request for <5de01254e806ab49d9c348ef2da1b7ad> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:56] [Debug]    Ignoring path request for <5de01254e806ab49d9c348ef2da1b7ad> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], no path known
-[2026-04-13 17:40:57] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:40:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:40:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:40:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:40:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:40:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:40:58] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:40:58] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:00] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:03] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:03] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:41:03] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:04] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:05] [Debug]    Path request for <52ad03c20beb735c46a69a88da290717> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:05] [Debug]    Ignoring path request for <52ad03c20beb735c46a69a88da290717> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:41:06] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:06] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:08] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:41:08] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:10] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:10] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:10] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:11] [Debug]    Path request for <091ec10a646b0c00cd246f088f7fa907> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:11] [Debug]    Ignoring path request for <091ec10a646b0c00cd246f088f7fa907> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:41:11] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:11] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:12] [Debug]    Path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:12] [Debug]    Ignoring path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], no path known
-[2026-04-13 17:41:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:13] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:41:13] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:13] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:13] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:41:13] [Debug]    Ignoring duplicate path request for <a3dfea289534e4b2d0f5730310eebd99> with tag <a3dfea289534e4b2d0f5730310eebd9947238abb0c1a23d040ab79904773d62f>
-[2026-04-13 17:41:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:18] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:41:18] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:19] [Debug]    Path request for <177ab81a7ff8259290bd886b64360ead> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:19] [Debug]    Ignoring path request for <177ab81a7ff8259290bd886b64360ead> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:41:19] [Debug]    Ignoring duplicate path request for <177ab81a7ff8259290bd886b64360ead> with tag <177ab81a7ff8259290bd886b64360ead395fdb28cea1118beb072fae49feff00>
-[2026-04-13 17:41:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:20] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:20] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:20] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:23] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:23] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:23] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:41:23] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:23] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:23] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:23] [Debug]    Replacing destination table entry for <794884194914d03c4e199d9c1f090b0c> with new announce, since it was more recently emitted
-[2026-04-13 17:41:23] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 7 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:24] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 9 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:27] [Debug]    Path request for <053db2ffc4105a601f6ac5f23cc356d6> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:27] [Debug]    Ignoring path request for <053db2ffc4105a601f6ac5f23cc356d6> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:28] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:28] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:28] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:28] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:41:28] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:28] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:28] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:29] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:31] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:31] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:31] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:33] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
-[2026-04-13 17:41:33] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:33] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:38] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
-[2026-04-13 17:41:38] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:39] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:40] [Debug]    Path request for <e1a8a3a6644ef291bf0543bac268498d> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:40] [Debug]    Ignoring path request for <e1a8a3a6644ef291bf0543bac268498d> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:41:40] [Debug]    Path request for <e1a8a3a6644ef291bf0543bac268498d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:40] [Debug]    Ignoring path request for <e1a8a3a6644ef291bf0543bac268498d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:40] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:41] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:41] [Extra]    Valid announce for <dc1665cfd1f79fb83b430d953bb13f59> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:41] [Extra]    Remembering ratchet <5db08ab5e2251a2b56aa> for <dc1665cfd1f79fb83b430d953bb13f59>
-[2026-04-13 17:41:41] [Debug]    Destination <dc1665cfd1f79fb83b430d953bb13f59> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:41] [Extra]    Valid announce for <dc1665cfd1f79fb83b430d953bb13f59> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:42] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:42] [Extra]    Valid announce for <33f4b51ed94310425808f2e84ffb918c> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:42] [Extra]    Remembering ratchet <dba455d958a5f4df967d> for <33f4b51ed94310425808f2e84ffb918c>
-[2026-04-13 17:41:42] [Debug]    Destination <33f4b51ed94310425808f2e84ffb918c> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:42] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:42] [Extra]    Remembering ratchet <4f2478c9901fa8b7fded> for <ea4a5a9a01c9ad6e39718716e6cf9c06>
-[2026-04-13 17:41:42] [Debug]    Destination <ea4a5a9a01c9ad6e39718716e6cf9c06> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:43] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:43] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: [Errno 60] Operation timed out
-[2026-04-13 17:41:43] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:48] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:41:48] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: [Errno 60] Operation timed out
-[2026-04-13 17:41:48] [Warning]  Attempting to reconnect...
-[2026-04-13 17:41:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:49] [Extra]    Valid announce for <ec6862efe5c7c99ac944aa1f7ac8f5df> 71 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:49] [Debug]    Destination <ec6862efe5c7c99ac944aa1f7ac8f5df> is now 71 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:50] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Debug]    Replacing destination table entry for <e345f6220682e127cab52c3387436778> with new announce, since it was more recently emitted
-[2026-04-13 17:41:50] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:50] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:51] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:53] [Extra]    Valid announce for <c987f39c391b4a565a4c585d2da419df> 12 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:53] [Debug]    Destination <c987f39c391b4a565a4c585d2da419df> is now 12 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:53] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:53] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:53] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:53] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:41:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:53] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:41:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:53] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:53] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:53] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:54] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:55] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:56] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:57] [Extra]    Remembering ratchet <47ed9564cd4c874373c3> for <0e9df50566390f7da1a180806ea7459a>
-[2026-04-13 17:41:57] [Debug]    Destination <0e9df50566390f7da1a180806ea7459a> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <ff41470c0c58afeb129103a5753bbc0f> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:57] [Debug]    Destination <ff41470c0c58afeb129103a5753bbc0f> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:57] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:41:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:58] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:41:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:41:58] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:58] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:41:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:41:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:41:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:41:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:41:59] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:59] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:59] [Debug]    Path request for <a0a0a61a0adff637f11e8c75f773d2f4> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:41:59] [Debug]    Ignoring path request for <a0a0a61a0adff637f11e8c75f773d2f4> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:41:59] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:41:59] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:00] [Extra]    Valid announce for <833ac927093e8d33370bed3655844587> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:00] [Debug]    Destination <833ac927093e8d33370bed3655844587> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:00] [Extra]    Valid announce for <833ac927093e8d33370bed3655844587> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:03] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:03] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:03] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:04] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:04] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:04] [Debug]    Path request for <cf4ca0a1cf91f87778b3543586f75d9f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:04] [Debug]    Ignoring path request for <cf4ca0a1cf91f87778b3543586f75d9f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:06] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:06] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:06] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:06] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:07] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:07] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:07] [Extra]    Valid announce for <90b625aada641de7f787d21793a546e5> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:07] [Debug]    Destination <90b625aada641de7f787d21793a546e5> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:08] [Extra]    Valid announce for <90b625aada641de7f787d21793a546e5> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:08] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:08] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:08] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:10] [Extra]    Valid announce for <73603b663251f2af83bd09d47919cc7c> 24 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:10] [Debug]    Destination <73603b663251f2af83bd09d47919cc7c> is now 24 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:11] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:11] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:13] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:13] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:13] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:13] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Remembering ratchet <1fcd72d36900f9673261> for <a430b813dd5c253002380cda46bf8a05>
-[2026-04-13 17:42:13] [Debug]    Destination <a430b813dd5c253002380cda46bf8a05> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <a576f1d475307a39dc9dcbf02e5bcae6> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Debug]    Destination <a576f1d475307a39dc9dcbf02e5bcae6> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <833ac927093e8d33370bed3655844587> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <6ba4df8ec7f814fc963347d9ee2a4b8e> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Debug]    Destination <6ba4df8ec7f814fc963347d9ee2a4b8e> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:13] [Extra]    Valid announce for <90b625aada641de7f787d21793a546e5> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:14] [Extra]    Valid announce for <943462afbda6b1f6578b5cdbcedbda07> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Debug]    Destination <943462afbda6b1f6578b5cdbcedbda07> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Extra]    Valid announce for <9a3437dc85f167c952dfc7e0a7703df3> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Debug]    Destination <9a3437dc85f167c952dfc7e0a7703df3> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Extra]    Valid announce for <70c584e468e39d5e46e7611d68764a5e> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Debug]    Destination <70c584e468e39d5e46e7611d68764a5e> is now 8 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Extra]    Valid announce for <e916365766702b768c93c28dd0caf168> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Debug]    Destination <e916365766702b768c93c28dd0caf168> is now 9 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Extra]    Valid announce for <9a91630046262f3537aa9ee595bd02f1> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:14] [Debug]    Destination <9a91630046262f3537aa9ee595bd02f1> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:18] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:18] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:18] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:18] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:18] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:18] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:20] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:21] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:21] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:21] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:21] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:23] [Debug]    Path request for <26211d998926dd810facde56fe28c78f> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:23] [Debug]    Ignoring path request for <26211d998926dd810facde56fe28c78f> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:42:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:23] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:23] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:23] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:23] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:23] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:23] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:24] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:24] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:25] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:26] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:26] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:26] [Debug]    Replacing destination table entry for <73400f494c8d580bd774443a5163127b> with new announce, since it was more recently emitted
-[2026-04-13 17:42:26] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:28] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:28] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:28] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:28] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:28] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:28] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:29] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:29] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:32] [Debug]    Path request for <41ea684bc8b1dc32d23e0d04e9029e1b> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:32] [Debug]    Ignoring path request for <41ea684bc8b1dc32d23e0d04e9029e1b> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:33] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:33] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:33] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:33] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:34] [Debug]    Path request for <1ba3f953b8e28bd2f5a5ec2e741edf65> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:34] [Debug]    Ignoring path request for <1ba3f953b8e28bd2f5a5ec2e741edf65> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], no path known
-[2026-04-13 17:42:35] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:35] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:35] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:35] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:36] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:36] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:38] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:38] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:38] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:39] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:40] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:40] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:40] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:42] [Debug]    Path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:42] [Debug]    Ignoring path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:42] [Debug]    Path request for <34b2d5e6e88abd17de1616d24ab7a66f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:42] [Debug]    Ignoring path request for <34b2d5e6e88abd17de1616d24ab7a66f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:42] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:43] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:43] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:43] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:43] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:43] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:43] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:46] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:46] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:47] [Debug]    Path request for <eae49b952fed85ac694a6896bda42e4b> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:47] [Debug]    Ignoring path request for <eae49b952fed85ac694a6896bda42e4b> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:42:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:48] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:48] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:48] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:49] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:49] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:49] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:49] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:50] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:50] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:50] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:52] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:52] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:53] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:53] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:53] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:53] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:54] [Extra]    Valid announce for <6f5ed4f09288c73e7c60ee96201c9ead> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Debug]    Destination <6f5ed4f09288c73e7c60ee96201c9ead> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Extra]    Valid announce for <5da0f016955580a0cad630bd440e7a5a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Debug]    Destination <5da0f016955580a0cad630bd440e7a5a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Extra]    Valid announce for <d4e654d7fea48a49d8889be71103f52c> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Extra]    Remembering ratchet <e0e8787d2456d38a42ad> for <d4e654d7fea48a49d8889be71103f52c>
-[2026-04-13 17:42:54] [Debug]    Destination <d4e654d7fea48a49d8889be71103f52c> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:54] [Extra]    Valid announce for <6f5ed4f09288c73e7c60ee96201c9ead> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <55d5de5349ba83aa440c17210c44aaab> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Extra]    Remembering ratchet <9ed18f8afae4ab6969d3> for <55d5de5349ba83aa440c17210c44aaab>
-[2026-04-13 17:42:55] [Debug]    Destination <55d5de5349ba83aa440c17210c44aaab> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <7bd7df0c83d109d89ab484faee04a9af> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Extra]    Remembering ratchet <d3998a2c1e2a12e42839> for <7bd7df0c83d109d89ab484faee04a9af>
-[2026-04-13 17:42:55] [Debug]    Destination <7bd7df0c83d109d89ab484faee04a9af> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <5da0f016955580a0cad630bd440e7a5a> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <d4e654d7fea48a49d8889be71103f52c> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:55] [Extra]    Valid announce for <7bd7df0c83d109d89ab484faee04a9af> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:56] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:56] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:58] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:58] [Debug]    Replacing destination table entry for <02aaf088472435718061211d3752c8ed> with new announce, since it was more recently emitted
-[2026-04-13 17:42:58] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:42:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:42:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:58] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:42:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:42:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:42:58] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:42:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:42:58] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:42:58] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:42:58] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:59] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:42:59] [Debug]    Replacing destination table entry for <e345f6220682e127cab52c3387436778> with new announce, since it was more recently emitted
-[2026-04-13 17:42:59] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:00] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:00] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:00] [Debug]    Destination <a430b813dd5c253002380cda46bf8a05> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:00] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:01] [Debug]    Path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:01] [Debug]    Ignoring path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:43:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:03] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:03] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:03] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:05] [Debug]    Path request for <34b2d5e6e88abd17de1616d24ab7a66f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:05] [Debug]    Ignoring path request for <34b2d5e6e88abd17de1616d24ab7a66f> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:43:06] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:06] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:06] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:06] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:06] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:06] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:07] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:07] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:08] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:08] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:08] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:08] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:08] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:08] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:08] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:09] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:11] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:11] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:11] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:12] [Debug]    Path request for <9340787e35f6412f3dbe046693e81589> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:12] [Debug]    Ignoring path request for <9340787e35f6412f3dbe046693e81589> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:43:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:13] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:13] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:13] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:15] [Debug]    Path request for <fad4b2d1036316292c7a7c92b34c246e> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:15] [Debug]    Ignoring path request for <fad4b2d1036316292c7a7c92b34c246e> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:43:15] [Extra]    Valid announce for <6d1319b8154d542d84fee89c9a131c98> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:15] [Debug]    Destination <6d1319b8154d542d84fee89c9a131c98> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:16] [Extra]    Valid announce for <f96951db4137fcaaab8f2b848aaf5e22> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:16] [Debug]    Destination <f96951db4137fcaaab8f2b848aaf5e22> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:16] [Extra]    Valid announce for <6d1319b8154d542d84fee89c9a131c98> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:16] [Extra]    Valid announce for <f96951db4137fcaaab8f2b848aaf5e22> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Debug]    Destination <a242915187d12f5b6d5072165fba4b5d> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:17] [Debug]    Destination <ffc8d3472451090677fd446837e384ff> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:18] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:18] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:43:18] [Debug]    Ignoring duplicate path request for <a3dfea289534e4b2d0f5730310eebd99> with tag <a3dfea289534e4b2d0f5730310eebd99a6f6f8bcdcc48f342b07d39c6f06c4a8>
-[2026-04-13 17:43:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:18] [Extra]    Valid announce for <a8a54ef3254cfe3369383ca34de3a423> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:18] [Debug]    Destination <a8a54ef3254cfe3369383ca34de3a423> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:18] [Extra]    Valid announce for <2717faeb3405187e45fecb2bfbab9d4d> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:18] [Debug]    Destination <2717faeb3405187e45fecb2bfbab9d4d> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:18] [Extra]    Valid announce for <e99770467e3a33c9f0a4ed8a95e2581e> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:18] [Debug]    Destination <e99770467e3a33c9f0a4ed8a95e2581e> is now 7 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:18] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:18] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:18] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:21] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:21] [Debug]    Destination <d7881baf17ece4f8683923d9b1df6f48> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:23] [Extra]    Remembering ratchet <8afca01e29302bf060d5> for <219a60c23a74cf1ede2ee1c56dc790d7>
-[2026-04-13 17:43:23] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:23] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:23] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:23] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:23] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:23] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:23] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:24] [Extra]    Valid announce for <d4b95fc3ffe1d8d0bbd9e2da7b0f6157> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:24] [Debug]    Destination <d4b95fc3ffe1d8d0bbd9e2da7b0f6157> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:24] [Extra]    Valid announce for <d4b95fc3ffe1d8d0bbd9e2da7b0f6157> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:24] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:24] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <3e0be866586a077ce39e9e4e065170a1> 41 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:25] [Debug]    Destination <3e0be866586a077ce39e9e4e065170a1> is now 41 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <cb49f32acdc2cc5f8fd5f0cb2ee2ec2e> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:25] [Debug]    Destination <cb49f32acdc2cc5f8fd5f0cb2ee2ec2e> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <cb49f32acdc2cc5f8fd5f0cb2ee2ec2e> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <3e0be866586a077ce39e9e4e065170a1> 41 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <d4b95fc3ffe1d8d0bbd9e2da7b0f6157> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:25] [Extra]    Valid announce for <cb49f32acdc2cc5f8fd5f0cb2ee2ec2e> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:26] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:26] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:26] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:28] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 94 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:28] [Debug]    Destination <e6f631470c948894ff4b4e481f4631af> is now 94 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:28] [Extra]    Valid announce for <82439e5d8ceaf0fbb8c78b022fb70c0d> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:28] [Debug]    Destination <82439e5d8ceaf0fbb8c78b022fb70c0d> is now 10 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:28] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 94 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:28] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:28] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:28] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:28] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:28] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:28] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:29] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:29] [Debug]    Destination <6ee8d89ae74833c397169c07b81e62e2> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:30] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:30] [Debug]    Destination <8976c1b2ae6b60fd1a09a83a6e64ff93> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:30] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:30] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:32] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:33] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:33] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:33] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:33] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:33] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:33] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:34] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:35] [Extra]    Valid announce for <3e0be866586a077ce39e9e4e065170a1> 43 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:35] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 95 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:36] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:36] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 96 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:36] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:36] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:43:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:38] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:38] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:38] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:38] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:38] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:43:38] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:38] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <afd9e647b556572d78d8b36e3390000b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:41] [Extra]    Remembering ratchet <0b0fa337a6cfe47714d7> for <afd9e647b556572d78d8b36e3390000b>
-[2026-04-13 17:43:41] [Debug]    Destination <afd9e647b556572d78d8b36e3390000b> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:41] [Debug]    Destination <c03bcc5418d9a06050e23c7daa68d5b2> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:41] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:42] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:42] [Extra]    Remembering ratchet <371466d8bf532057a086> for <58cea53bfb32988291b49a6205388cd1>
-[2026-04-13 17:43:42] [Debug]    Destination <58cea53bfb32988291b49a6205388cd1> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:42] [Extra]    Valid announce for <afd9e647b556572d78d8b36e3390000b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:42] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:42] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:42] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:43] [Extra]    Valid announce for <b36d8cabbd9eb695012558a30df33963> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:43] [Debug]    Destination <b36d8cabbd9eb695012558a30df33963> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:43] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:43] [Debug]    Replacing destination table entry for <ea4a5a9a01c9ad6e39718716e6cf9c06> with new announce, since it was more recently emitted
-[2026-04-13 17:43:43] [Debug]    Destination <ea4a5a9a01c9ad6e39718716e6cf9c06> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:43] [Extra]    Valid announce for <b36d8cabbd9eb695012558a30df33963> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:43] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:43] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:43] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:47] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:48] [Extra]    Valid announce for <3d670edfc4940393c314db7eb05460f7> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:48] [Extra]    Remembering ratchet <627e676193bba676d363> for <3d670edfc4940393c314db7eb05460f7>
-[2026-04-13 17:43:48] [Debug]    Destination <3d670edfc4940393c314db7eb05460f7> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:48] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:48] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:48] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:50] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:50] [Debug]    Replacing destination table entry for <103eb3c7f35278ba33e7d014e341b3ec> with new announce, since it was more recently emitted
-[2026-04-13 17:43:50] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Debug]    Replacing destination table entry for <02aaf088472435718061211d3752c8ed> with new announce, since it was more recently emitted
-[2026-04-13 17:43:51] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Debug]    Replacing destination table entry for <e345f6220682e127cab52c3387436778> with new announce, since it was more recently emitted
-[2026-04-13 17:43:51] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Debug]    Replacing destination table entry for <2d8a25919ea488ce008d3635d9b104c7> with new announce, since it was more recently emitted
-[2026-04-13 17:43:51] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:51] [Extra]    Valid announce for <e7bbfebb0d6f5ad15e2a96dd3200d215> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:51] [Extra]    Remembering ratchet <f86710f5d913eed6fe6b> for <e7bbfebb0d6f5ad15e2a96dd3200d215>
-[2026-04-13 17:43:51] [Debug]    Destination <e7bbfebb0d6f5ad15e2a96dd3200d215> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:51] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:51] [Debug]    Destination <f9590b10757da33e1953feaa32912373> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:52] [Extra]    Valid announce for <e7bbfebb0d6f5ad15e2a96dd3200d215> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:52] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:52] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:52] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:53] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:53] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:53] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:54] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <afd9e647b556572d78d8b36e3390000b> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <b36d8cabbd9eb695012558a30df33963> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <3d670edfc4940393c314db7eb05460f7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <e7bbfebb0d6f5ad15e2a96dd3200d215> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:54] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:55] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:55] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:55] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:56] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <0019bfdaad8067b50f13c5342d1e7b16> 27 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:56] [Debug]    Destination <0019bfdaad8067b50f13c5342d1e7b16> is now 27 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:43:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:58] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:43:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:43:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:43:58] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:43:58] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:43:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:43:58] [Extra]    Valid announce for <29c93015bace116dbb02fc0f5cbf1d9b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:58] [Debug]    Destination <29c93015bace116dbb02fc0f5cbf1d9b> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <29c93015bace116dbb02fc0f5cbf1d9b> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <9bb76650536202dc4e26313698e35a61> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:59] [Debug]    Destination <9bb76650536202dc4e26313698e35a61> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:59] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <29c93015bace116dbb02fc0f5cbf1d9b> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:43:59] [Extra]    Valid announce for <9bb76650536202dc4e26313698e35a61> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:00] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:01] [Debug]    Destination <a430b813dd5c253002380cda46bf8a05> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:01] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:03] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:03] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:03] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:03] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:07] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:07] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:08] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:08] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:08] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:08] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:09] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:09] [Debug]    Replacing destination table entry for <3b171e0b79acf468ae1bf3a6d8515d12> with new announce, since it was more recently emitted
-[2026-04-13 17:44:09] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:09] [Debug]    Path request for <4cce8a55cc0f232fb0946b392a73fa92> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:44:09] [Debug]    Ignoring path request for <4cce8a55cc0f232fb0946b392a73fa92> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:44:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:10] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:10] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:11] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:11] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:11] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:11] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:11] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:12] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:13] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:13] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:13] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:15] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:15] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:15] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:16] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:17] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:17] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:18] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:18] [Debug]    Destination <ffc8d3472451090677fd446837e384ff> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:18] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:18] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:18] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:19] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:19] [Extra]    Valid announce for <dc1665cfd1f79fb83b430d953bb13f59> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:21] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:21] [Debug]    Replacing destination table entry for <2d8a25919ea488ce008d3635d9b104c7> with new announce, since it was more recently emitted
-[2026-04-13 17:44:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:21] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:22] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:22] [Extra]    Valid announce for <38073923c15b25893cd38a7938a9943a> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:22] [Extra]    Remembering ratchet <90fecec03e5de4bb72d9> for <38073923c15b25893cd38a7938a9943a>
-[2026-04-13 17:44:22] [Debug]    Destination <38073923c15b25893cd38a7938a9943a> is now 7 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:23] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:23] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:23] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:23] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:23] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:23] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:23] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:23] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:23] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:23] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:24] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:24] [Debug]    Replacing destination table entry for <110d7f3159c1d306851c3ec5c6d302ef> with new announce, since it was more recently emitted
-[2026-04-13 17:44:24] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:24] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:24] [Debug]    Destination <a242915187d12f5b6d5072165fba4b5d> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:24] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:24] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:25] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:25] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:25] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:25] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:25] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:25] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:25] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:26] [Debug]    Replacing destination table entry for <ca273d664d1a6c59a5a002670a641eff> with new announce, since it was more recently emitted
-[2026-04-13 17:44:26] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:26] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:26] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:28] [Debug]    Destination <6ee8d89ae74833c397169c07b81e62e2> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:28] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:28] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:28] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:28] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:28] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:28] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:30] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:31] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:33] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:33] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:33] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:33] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:33] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:44:33] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:44:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:38] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:38] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:38] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:38] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:38] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:40] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:40] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:40] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:40] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:40] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:40] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:41] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:42] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:42] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:43] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:43] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:43] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:46] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:46] [Debug]    Replacing destination table entry for <58cea53bfb32988291b49a6205388cd1> with new announce, since it was more recently emitted
-[2026-04-13 17:44:46] [Debug]    Destination <58cea53bfb32988291b49a6205388cd1> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:46] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:46] [Debug]    Destination <c03bcc5418d9a06050e23c7daa68d5b2> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:46] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:46] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:46] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:48] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:48] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:48] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:48] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:48] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:48] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:49] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:49] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:49] [Extra]    Valid announce for <3d670edfc4940393c314db7eb05460f7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:49] [Debug]    Replacing destination table entry for <3d670edfc4940393c314db7eb05460f7> with new announce, since it was more recently emitted
-[2026-04-13 17:44:49] [Debug]    Destination <3d670edfc4940393c314db7eb05460f7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:49] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:49] [Extra]    Valid announce for <3d670edfc4940393c314db7eb05460f7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:50] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:50] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:50] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:50] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:51] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:51] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:51] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:51] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:51] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:51] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:53] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:44:53] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:44:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:53] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:53] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:53] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:54] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:54] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:55] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:56] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:57] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:57] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:57] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:57] [Debug]    Destination <0e9df50566390f7da1a180806ea7459a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:57] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:58] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:58] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:44:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:44:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:58] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:44:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:44:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:44:58] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:44:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:44:58] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:44:59] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:44:59] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:01] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 93 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:01] [Debug]    Replacing destination table entry for <a430b813dd5c253002380cda46bf8a05> with new announce, since it was more recently emitted
-[2026-04-13 17:45:01] [Debug]    Destination <a430b813dd5c253002380cda46bf8a05> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:01] [Extra]    Valid announce for <6862f26ba0bd11ecb058676e99192762> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:01] [Debug]    Destination <6862f26ba0bd11ecb058676e99192762> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:02] [Extra]    Valid announce for <456a0c7be5d912e51e23183edc77d39a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:02] [Debug]    Destination <456a0c7be5d912e51e23183edc77d39a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:02] [Extra]    Valid announce for <456a0c7be5d912e51e23183edc77d39a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:02] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:02] [Extra]    Valid announce for <6862f26ba0bd11ecb058676e99192762> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:03] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:03] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:03] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:05] [Extra]    Valid announce for <0ffbe2818af6cd15cb0931bab5f894f0> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Debug]    Destination <0ffbe2818af6cd15cb0931bab5f894f0> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <ae66591fbcb603812000b2e752838129> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Debug]    Destination <ae66591fbcb603812000b2e752838129> is now 8 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <68370ddefb86a6fc5aa142ff69dc08a1> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Debug]    Destination <68370ddefb86a6fc5aa142ff69dc08a1> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <16ca26cbfe503916ac4a52c8edba5bb1> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Debug]    Destination <16ca26cbfe503916ac4a52c8edba5bb1> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:05] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <58cea53bfb32988291b49a6205388cd1> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <c03bcc5418d9a06050e23c7daa68d5b2> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <3d670edfc4940393c314db7eb05460f7> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 94 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:06] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:45:08] [Debug]    Path request for <57a868d333476362e91d5189c3bc47d9> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:08] [Debug]    Ignoring path request for <57a868d333476362e91d5189c3bc47d9> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:45:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:08] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:08] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:08] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:10] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:10] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:11] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:11] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:12] [Extra]    Valid announce for <e6f631470c948894ff4b4e481f4631af> 94 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:12] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:12] [Extra]    Valid announce for <29c93015bace116dbb02fc0f5cbf1d9b> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:13] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:13] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:13] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:13] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:13] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:13] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:14] [Debug]    Path request for <204f895a19ad6717f387a774be3266db> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:14] [Debug]    Ignoring path request for <204f895a19ad6717f387a774be3266db> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:45:16] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:16] [Debug]    Destination <a242915187d12f5b6d5072165fba4b5d> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:17] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:17] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:17] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:17] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:18] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:18] [Debug]    Destination <ffc8d3472451090677fd446837e384ff> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:18] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:18] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:18] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:19] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:19] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:19] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:19] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:19] [Debug]    Destination <d7881baf17ece4f8683923d9b1df6f48> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:20] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:20] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:20] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:21] [Debug]    Replacing destination table entry for <02aaf088472435718061211d3752c8ed> with new announce, since it was more recently emitted
-[2026-04-13 17:45:21] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:23] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:23] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:23] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:23] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:23] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:23] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:23] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:23] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:23] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:24] [Debug]    Path request for <4762234229b7e0b83c68b857bdf245c3> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:24] [Debug]    Ignoring path request for <4762234229b7e0b83c68b857bdf245c3> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:45:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:24] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:24] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:25] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:25] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:25] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:25] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:26] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:26] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:26] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:26] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:26] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:27] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:28] [Debug]    Destination <6ee8d89ae74833c397169c07b81e62e2> is now 2 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:28] [Extra]    Valid announce for <6ee8d89ae74833c397169c07b81e62e2> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:28] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:28] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:28] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:28] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:28] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:28] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:28] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:28] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:31] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:31] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:31] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:33] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:33] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:33] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:33] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:33] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:33] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:33] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:33] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:35] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:35] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:35] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:37] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 11 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:38] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:38] [Debug]    Destination <e80bd281bd26e00d735aada7b7b94c7a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:38] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:38] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:38] [Debug]    Path request for <9dd2d5f7d8c461dc1b6116a5b3caebbf> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:38] [Debug]    Ignoring path request for <9dd2d5f7d8c461dc1b6116a5b3caebbf> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], no path known
-[2026-04-13 17:45:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:38] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:38] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:38] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:38] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:38] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:38] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:38] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:38] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:38] [Debug]    Path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:38] [Debug]    Ignoring path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:45:39] [Extra]    Valid announce for <e80bd281bd26e00d735aada7b7b94c7a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:39] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:39] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:40] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:40] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:40] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:40] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:40] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:40] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:41] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:41] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:42] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:42] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:42] [Debug]    Destination <ea4a5a9a01c9ad6e39718716e6cf9c06> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:42] [Debug]    Path request for <d3bd4df9b985db034f4bc7459b07fa3c> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:42] [Debug]    Ignoring path request for <d3bd4df9b985db034f4bc7459b07fa3c> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:45:42] [Debug]    Path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:42] [Debug]    Ignoring path request for <f5122ab9149c8794f771c70906bd4705> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:45:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:43] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:43] [Extra]    Valid announce for <ea4a5a9a01c9ad6e39718716e6cf9c06> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:43] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:43] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:43] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:43] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:43] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:43] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:43] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:43] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:43] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:44] [Extra]    Valid announce for <8976c1b2ae6b60fd1a09a83a6e64ff93> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:45] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:45] [Debug]    Replacing destination table entry for <3b171e0b79acf468ae1bf3a6d8515d12> with new announce, since it was more recently emitted
-[2026-04-13 17:45:45] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:46] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:47] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:47] [Debug]    Destination <f9590b10757da33e1953feaa32912373> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:47] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:48] [Extra]    Valid announce for <f9590b10757da33e1953feaa32912373> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:48] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:48] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:48] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:48] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:48] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:48] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:48] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:48] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:50] [Debug]    Replacing destination table entry for <e345f6220682e127cab52c3387436778> with new announce, since it was more recently emitted
-[2026-04-13 17:45:50] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:50] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:50] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:50] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:51] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:52] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:52] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:53] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:53] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
-[2026-04-13 17:45:53] [Debug]    Ignoring duplicate path request for <a3dfea289534e4b2d0f5730310eebd99> with tag <a3dfea289534e4b2d0f5730310eebd99cd7e98294f1319313f38eae78116f86c>
-[2026-04-13 17:45:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:53] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:53] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:53] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:53] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:53] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:53] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:53] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:53] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:53] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:53] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:54] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:54] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:55] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:55] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:56] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:56] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:56] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:57] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:45:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:57] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:45:58] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:58] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:45:58] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:58] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:45:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:45:58] [Debug]    Path request for <0d2f747395d7aab3cc57b00330fecf4a> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:45:58] [Debug]    Ignoring path request for <0d2f747395d7aab3cc57b00330fecf4a> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], no path known
-[2026-04-13 17:45:58] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:45:58] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:45:58] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:45:58] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:01] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:01] [Extra]    Valid announce for <75a761de7bdd03adeb6ad16b004e53a1> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:01] [Debug]    Destination <a430b813dd5c253002380cda46bf8a05> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:01] [Extra]    Valid announce for <a430b813dd5c253002380cda46bf8a05> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:02] [Extra]    Valid announce for <6862f26ba0bd11ecb058676e99192762> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:02] [Debug]    Destination <6862f26ba0bd11ecb058676e99192762> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:02] [Extra]    Valid announce for <6862f26ba0bd11ecb058676e99192762> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:03] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:03] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:46:03] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:03] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:46:03] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:03] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:46:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:03] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:46:03] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:03] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:03] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:04] [Debug]    Path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:04] [Debug]    Ignoring path request for <41165bf22801b29880cdf766ed8cceaf> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:46:06] [Extra]    Valid announce for <2fb8b45523a7aed73e80973854aaa9ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:06] [Extra]    Remembering ratchet <945c60a87f9fb89acd52> for <2fb8b45523a7aed73e80973854aaa9ec>
-[2026-04-13 17:46:06] [Debug]    Destination <2fb8b45523a7aed73e80973854aaa9ec> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:06] [Extra]    Valid announce for <546c10847829751484d1051182a1bde6> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:06] [Debug]    Destination <546c10847829751484d1051182a1bde6> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:06] [Extra]    Valid announce for <2fb8b45523a7aed73e80973854aaa9ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:06] [Extra]    Valid announce for <2fb8b45523a7aed73e80973854aaa9ec> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:06] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:06] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:46:07] [Extra]    Valid announce for <2b4ea7044c74fc8cc4843d75d072fc00> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Debug]    Destination <2b4ea7044c74fc8cc4843d75d072fc00> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Extra]    Valid announce for <f05ab4a7fd84074d040f2b5336bfe8d9> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Debug]    Destination <f05ab4a7fd84074d040f2b5336bfe8d9> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Extra]    Valid announce for <bdfbd5c09f84ac36fd07c1d4a16b9519> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Debug]    Destination <bdfbd5c09f84ac36fd07c1d4a16b9519> is now 8 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:07] [Extra]    Valid announce for <2b4ea7044c74fc8cc4843d75d072fc00> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:07] [Extra]    Valid announce for <68370ddefb86a6fc5aa142ff69dc08a1> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:07] [Debug]    Replacing destination table entry for <68370ddefb86a6fc5aa142ff69dc08a1> with new announce, since it was more recently emitted
-[2026-04-13 17:46:07] [Debug]    Destination <68370ddefb86a6fc5aa142ff69dc08a1> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:07] [Extra]    Valid announce for <68370ddefb86a6fc5aa142ff69dc08a1> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:08] [Extra]    Valid announce for <68370ddefb86a6fc5aa142ff69dc08a1> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:08] [Extra]    Valid announce for <ef98bc2981f7d1e793bb391ca0208231> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:08] [Debug]    Destination <ef98bc2981f7d1e793bb391ca0208231> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:08] [Extra]    Valid announce for <ef98bc2981f7d1e793bb391ca0208231> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:46:08] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:46:08] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:08] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:46:08] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:08] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:46:08] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:08] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:08] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:09] [Extra]    Valid announce for <d7e6c4222f0174b8881e9a47f424fcf8> 7 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:09] [Debug]    Destination <d7e6c4222f0174b8881e9a47f424fcf8> is now 7 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:09] [Extra]    Valid announce for <3151bdd81fa5d564b1fb766784291fed> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:09] [Debug]    Destination <3151bdd81fa5d564b1fb766784291fed> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:09] [Debug]    Path request for <9340787e35f6412f3dbe046693e81589> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:09] [Debug]    Ignoring path request for <9340787e35f6412f3dbe046693e81589> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
-[2026-04-13 17:46:10] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <d5d6cdb6d43cea76db89a50c6a7c3bcf> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Debug]    Destination <d5d6cdb6d43cea76db89a50c6a7c3bcf> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:10] [Extra]    Valid announce for <6ea9ba935598917da4dd305962c2760c> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:10] [Debug]    Destination <6ea9ba935598917da4dd305962c2760c> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:11] [Extra]    Valid announce for <f8a4bdb249dbe18c83e254b52edad748> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:11] [Debug]    Destination <f8a4bdb249dbe18c83e254b52edad748> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:11] [Extra]    Valid announce for <6ea9ba935598917da4dd305962c2760c> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:11] [Extra]    Valid announce for <f8a4bdb249dbe18c83e254b52edad748> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:11] [Extra]    Valid announce for <f0921573abf41194ce99f3976f3c7792> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:11] [Debug]    Destination <f0921573abf41194ce99f3976f3c7792> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:12] [Extra]    Valid announce for <82439e5d8ceaf0fbb8c78b022fb70c0d> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:12] [Debug]    Destination <82439e5d8ceaf0fbb8c78b022fb70c0d> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:12] [Extra]    Valid announce for <82439e5d8ceaf0fbb8c78b022fb70c0d> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:13] [Extra]    Valid announce for <82439e5d8ceaf0fbb8c78b022fb70c0d> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:46:13] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:13] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:46:13] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:13] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:46:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:13] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:46:13] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:13] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:13] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:13] [Extra]    Valid announce for <0b1eaf702382e3ce5d4a5ab241240b21> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:13] [Debug]    Destination <0b1eaf702382e3ce5d4a5ab241240b21> is now 8 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:15] [Extra]    Valid announce for <d7e6c4222f0174b8881e9a47f424fcf8> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:15] [Debug]    Replacing destination table entry for <d7e6c4222f0174b8881e9a47f424fcf8> with new announce, since it was more recently emitted
-[2026-04-13 17:46:15] [Debug]    Destination <d7e6c4222f0174b8881e9a47f424fcf8> is now 9 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:15] [Extra]    Valid announce for <e4fac75fff5af6a1c405f0eb978e47c7> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:15] [Debug]    Destination <e4fac75fff5af6a1c405f0eb978e47c7> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Extra]    Valid announce for <5033840275f77bdacc41a19b42aba77e> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Debug]    Destination <5033840275f77bdacc41a19b42aba77e> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Extra]    Valid announce for <9275c702df6c8b478dbcec7ea0bf0b08> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Debug]    Destination <9275c702df6c8b478dbcec7ea0bf0b08> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Extra]    Valid announce for <ab2f4fb3c71cb30bfc9bbaa2738e1b00> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Debug]    Destination <ab2f4fb3c71cb30bfc9bbaa2738e1b00> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:16] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:16] [Debug]    Replacing destination table entry for <a242915187d12f5b6d5072165fba4b5d> with new announce, since it was more recently emitted
-[2026-04-13 17:46:16] [Debug]    Destination <a242915187d12f5b6d5072165fba4b5d> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:17] [Extra]    Valid announce for <a242915187d12f5b6d5072165fba4b5d> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:17] [Extra]    Valid announce for <847512a381cc8022de12012ee575250f> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:17] [Debug]    Destination <847512a381cc8022de12012ee575250f> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:17] [Extra]    Valid announce for <b2187b4af3c4cba81b00fcf8bc7897de> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:17] [Debug]    Destination <b2187b4af3c4cba81b00fcf8bc7897de> is now 9 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:17] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:18] [Debug]    Destination <ffc8d3472451090677fd446837e384ff> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:18] [Extra]    Valid announce for <ffc8d3472451090677fd446837e384ff> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:46:18] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
-[2026-04-13 17:46:18] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:18] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:18] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
-[2026-04-13 17:46:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:18] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
-[2026-04-13 17:46:18] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
-[2026-04-13 17:46:18] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
-[2026-04-13 17:46:18] [Error]    No interfaces could process the outbound packet
-[2026-04-13 17:46:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:19] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:19] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:20] [Extra]    Valid announce for <847512a381cc8022de12012ee575250f> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:20] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:20] [Debug]    Replacing destination table entry for <02aaf088472435718061211d3752c8ed> with new announce, since it was more recently emitted
-[2026-04-13 17:46:20] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:20] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:21] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:21] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:21] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:21] [Extra]    Valid announce for <2fb8b45523a7aed73e80973854aaa9ec> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:21] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:21] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:22] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:22] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
-[2026-04-13 17:46:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
-[2026-04-13 17:46:23] [Debug]    Detaching interfaces
-[2026-04-13 17:46:23] [Extra]    Detaching TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
-[2026-04-13 17:46:23] [Extra]    Detaching TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
-[2026-04-13 17:46:23] [Warning]  An interface error occurred for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242], the contained exception was: [Errno 9] Bad file descriptor
-[2026-04-13 17:46:23] [Warning]  Attempting to reconnect...
+[2026-04-13 18:30:34] [Debug]    Reticulum running in interpreted mode
+[2026-04-13 18:30:34] [Debug]    Started shared instance interface: Shared Instance[37430]
+[2026-04-13 18:30:34] [Debug]    Cleaning ratchets...
+[2026-04-13 18:30:34] [Extra]    Cleaning resource and packet caches...
+[2026-04-13 18:30:34] [Verbose]  Bringing up system interfaces...
+[2026-04-13 18:30:34] [Debug]    Establishing TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]...
+[2026-04-13 18:30:34] [Debug]    TCP connection for TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] established
+[2026-04-13 18:30:34] [Debug]    TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242] hardware MTU set to 8192
+[2026-04-13 18:30:34] [Debug]    Establishing TCP connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]...
+[2026-04-13 18:30:34] [Error]    Initial connection for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] could not be established: [Errno 8] nodename nor servname provided, or not known
+[2026-04-13 18:30:34] [Error]    Leaving unconnected and retrying connection in 5 seconds.
+[2026-04-13 18:30:34] [Debug]    TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] hardware MTU set to 8192
+[2026-04-13 18:30:34] [Debug]    Establishing TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]...
+[2026-04-13 18:30:34] [Debug]    TCP connection for TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] established
+[2026-04-13 18:30:34] [Debug]    TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242] hardware MTU set to 8192
+[2026-04-13 18:30:34] [Debug]    Establishing TCP connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]...
+[2026-04-13 18:30:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:30:39] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:39] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:30:39] [Error]    Initial connection for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] could not be established: timed out
+[2026-04-13 18:30:39] [Error]    Leaving unconnected and retrying connection in 5 seconds.
+[2026-04-13 18:30:39] [Debug]    TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] hardware MTU set to 8192
+[2026-04-13 18:30:39] [Debug]    Establishing TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]...
+[2026-04-13 18:30:39] [Debug]    TCP connection for TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] established
+[2026-04-13 18:30:39] [Debug]    TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] hardware MTU set to 8192
+[2026-04-13 18:30:39] [Debug]    Establishing TCP connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]...
+[2026-04-13 18:30:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:30:44] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:44] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:30:44] [Warning]  An interface error occurred for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965], the contained exception was: 'NoneType' object has no attribute 'get_public_key'
+[2026-04-13 18:30:44] [Warning]  Attempting to reconnect...
+[2026-04-13 18:30:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:30:44] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:44] [Error]    Initial connection for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] could not be established: timed out
+[2026-04-13 18:30:44] [Error]    Leaving unconnected and retrying connection in 5 seconds.
+[2026-04-13 18:30:44] [Debug]    TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] hardware MTU set to 8192
+[2026-04-13 18:30:44] [Verbose]  System interfaces are ready
+[2026-04-13 18:30:44] [Debug]    Utilising cryptography backend "openssl, PyCA 46.0.3"
+[2026-04-13 18:30:44] [Verbose]  Configuration loaded from /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/tests/hand/rnsd/test1/.run/py/config
+[2026-04-13 18:30:44] [Verbose]  Loaded 1860 known destination from storage
+[2026-04-13 18:30:44] [Verbose]  Loaded Transport Identity from storage
+[2026-04-13 18:30:44] [Notice]   Started rnsd version 1.0.4
+[2026-04-13 18:30:45] [Extra]    Valid announce for <48f2546ae60d24d18ae80b13c355363f> 17 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:45] [Extra]    Remembering ratchet <aeb366891db86ed36dc3> for <48f2546ae60d24d18ae80b13c355363f>
+[2026-04-13 18:30:45] [Debug]    Destination <48f2546ae60d24d18ae80b13c355363f> is now 17 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:48] [Debug]    Path request for <dd66b48e71eab06345d8a1dc78c568c6> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:48] [Debug]    Ignoring path request for <dd66b48e71eab06345d8a1dc78c568c6> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:30:48] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:48] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:49] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:49] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:30:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:30:49] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:49] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:30:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:30:49] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:30:49] [Warning]  Attempting to reconnect...
+[2026-04-13 18:30:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:30:49] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:30:49] [Extra]    Valid announce for <0e2e89715c0ec973bfbc1786a2e0ab14> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:49] [Debug]    Destination <0e2e89715c0ec973bfbc1786a2e0ab14> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Extra]    Valid announce for <0e2e89715c0ec973bfbc1786a2e0ab14> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:50] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Extra]    Valid announce for <003ffb5ff7157c4f0d95568ced245293> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:50] [Debug]    Destination <003ffb5ff7157c4f0d95568ced245293> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:51] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:51] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:51] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:51] [Extra]    Valid announce for <b13a861aa95f150cac6f78db0d86d5b1> 25 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:51] [Debug]    Destination <b13a861aa95f150cac6f78db0d86d5b1> is now 25 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:52] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:52] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:52] [Extra]    Valid announce for <b13a861aa95f150cac6f78db0d86d5b1> 26 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:53] [Extra]    Valid announce for <b13a861aa95f150cac6f78db0d86d5b1> 26 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:53] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:53] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:53] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:54] [Extra]    Valid announce for <4dd9ed5f1d35aa5e95f9e34477bef74d> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:54] [Debug]    Destination <4dd9ed5f1d35aa5e95f9e34477bef74d> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:54] [Extra]    Valid announce for <4dd9ed5f1d35aa5e95f9e34477bef74d> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:30:54] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:54] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:30:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:30:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:30:54] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:30:54] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:30:54] [Warning]  Attempting to reconnect...
+[2026-04-13 18:30:55] [Extra]    Valid announce for <01a13e8c400bca74a6bfd2936c540d9e> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:55] [Debug]    Destination <01a13e8c400bca74a6bfd2936c540d9e> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:55] [Extra]    Valid announce for <01a13e8c400bca74a6bfd2936c540d9e> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:57] [Extra]    Valid announce for <3c9eec49d5f5b84938ef82e070c8522c> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:57] [Debug]    Destination <3c9eec49d5f5b84938ef82e070c8522c> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:57] [Extra]    Valid announce for <3c9eec49d5f5b84938ef82e070c8522c> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:57] [Extra]    Valid announce for <3c9eec49d5f5b84938ef82e070c8522c> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:58] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:58] [Extra]    Valid announce for <f90f50570b8d63b6765de0c3721717f1> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:58] [Extra]    Remembering ratchet <b13d00041873530bda99> for <f90f50570b8d63b6765de0c3721717f1>
+[2026-04-13 18:30:58] [Debug]    Destination <f90f50570b8d63b6765de0c3721717f1> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:58] [Extra]    Valid announce for <f90f50570b8d63b6765de0c3721717f1> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:59] [Extra]    Valid announce for <0e281b2064c07e7ff03be4f575a43446> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:59] [Extra]    Remembering ratchet <43f778a4433b3f1f50a6> for <0e281b2064c07e7ff03be4f575a43446>
+[2026-04-13 18:30:59] [Debug]    Destination <0e281b2064c07e7ff03be4f575a43446> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:30:59] [Extra]    Valid announce for <0e281b2064c07e7ff03be4f575a43446> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:59] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:59] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:30:59] [Extra]    Valid announce for <0e281b2064c07e7ff03be4f575a43446> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:30:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:30:59] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:59] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:30:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:30:59] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:30:59] [Warning]  Attempting to reconnect...
+[2026-04-13 18:30:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:30:59] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:30:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:00] [Extra]    Valid announce for <0db1c69d0a21974d88449c873f2b16b6> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:00] [Debug]    Destination <0db1c69d0a21974d88449c873f2b16b6> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:00] [Extra]    Valid announce for <d84cc1269a4cbbb5d0ce32a9c2167d6f> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:00] [Debug]    Destination <d84cc1269a4cbbb5d0ce32a9c2167d6f> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:00] [Extra]    Valid announce for <0db1c69d0a21974d88449c873f2b16b6> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:01] [Extra]    Valid announce for <0db1c69d0a21974d88449c873f2b16b6> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:01] [Extra]    Valid announce for <d84cc1269a4cbbb5d0ce32a9c2167d6f> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:01] [Extra]    Valid announce for <d84cc1269a4cbbb5d0ce32a9c2167d6f> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:02] [Extra]    Valid announce for <a80b3df97bf2237fe2210e343daeae57> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:02] [Debug]    Destination <a80b3df97bf2237fe2210e343daeae57> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:02] [Extra]    Valid announce for <a80b3df97bf2237fe2210e343daeae57> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:04] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:04] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:04] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:04] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:04] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:04] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:31:04] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:07] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:07] [Debug]    Ignoring path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:31:08] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:08] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:09] [Debug]    Path request for <383c8351d41296285b58708b8b23373a> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Ignoring path request for <383c8351d41296285b58708b8b23373a> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:31:09] [Extra]    Valid announce for <2b4ea7044c74fc8cc4843d75d072fc00> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Destination <2b4ea7044c74fc8cc4843d75d072fc00> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <e02cf7b19926911c7307807edf2ebbe7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Destination <e02cf7b19926911c7307807edf2ebbe7> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <b33322449eae574e0e401d58200b6a9f> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Debug]    Destination <b33322449eae574e0e401d58200b6a9f> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:09] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:31:09] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:09] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:09] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:09] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:09] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:09] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <2b4ea7044c74fc8cc4843d75d072fc00> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <e02cf7b19926911c7307807edf2ebbe7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <b33322449eae574e0e401d58200b6a9f> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <e02cf7b19926911c7307807edf2ebbe7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:09] [Extra]    Valid announce for <b33322449eae574e0e401d58200b6a9f> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:09] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:09] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:09] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:11] [Extra]    Valid announce for <f8a4bdb249dbe18c83e254b52edad748> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:11] [Debug]    Destination <f8a4bdb249dbe18c83e254b52edad748> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:11] [Extra]    Valid announce for <f0921573abf41194ce99f3976f3c7792> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:11] [Debug]    Destination <f0921573abf41194ce99f3976f3c7792> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:11] [Extra]    Valid announce for <f8a4bdb249dbe18c83e254b52edad748> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:11] [Extra]    Valid announce for <f0921573abf41194ce99f3976f3c7792> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:11] [Extra]    Valid announce for <f8a4bdb249dbe18c83e254b52edad748> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:12] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:12] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:12] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:12] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:12] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:12] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:13] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:14] [Debug]    Path request for <9c937d75f3222a5d9530f1496ba494df> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:14] [Debug]    Ignoring path request for <9c937d75f3222a5d9530f1496ba494df> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:31:14] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:14] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:14] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:14] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:14] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:14] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:14] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:14] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:31:14] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:15] [Extra]    Valid announce for <0af6ea481bf8a44ef41fd4842494c7b5> 27 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:15] [Debug]    Destination <0af6ea481bf8a44ef41fd4842494c7b5> is now 27 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:15] [Extra]    Valid announce for <39aa6e72184412ba10937f6349d31764> 27 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:15] [Debug]    Destination <39aa6e72184412ba10937f6349d31764> is now 27 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:15] [Extra]    Valid announce for <0af6ea481bf8a44ef41fd4842494c7b5> 28 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:16] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:17] [Extra]    Valid announce for <439c68f92489073ebf456f650aa57003> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:17] [Debug]    Destination <439c68f92489073ebf456f650aa57003> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:18] [Extra]    Valid announce for <439c68f92489073ebf456f650aa57003> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:18] [Extra]    Valid announce for <439c68f92489073ebf456f650aa57003> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:19] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:31:19] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:19] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:19] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:19] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:19] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:19] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:19] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:19] [Debug]    Replacing destination table entry for <2d8a25919ea488ce008d3635d9b104c7> with new announce, since it was more recently emitted
+[2026-04-13 18:31:19] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:19] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:19] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:20] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:20] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:20] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:20] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:21] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:21] [Debug]    Path request for <e36c13fd857732740ed3421a512e06aa> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:21] [Debug]    Ignoring path request for <e36c13fd857732740ed3421a512e06aa> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
+[2026-04-13 18:31:21] [Extra]    Valid announce for <d7881baf17ece4f8683923d9b1df6f48> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:21] [Debug]    Destination <d7881baf17ece4f8683923d9b1df6f48> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:21] [Debug]    Replacing destination table entry for <e345f6220682e127cab52c3387436778> with new announce, since it was more recently emitted
+[2026-04-13 18:31:21] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <604b95adfa625746d1c9e0c18d7cef75> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Debug]    Destination <604b95adfa625746d1c9e0c18d7cef75> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <030fd86cc5f5010c5a2c3904382a983c> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Extra]    Remembering ratchet <c146eb13988d916875f8> for <030fd86cc5f5010c5a2c3904382a983c>
+[2026-04-13 18:31:22] [Debug]    Destination <030fd86cc5f5010c5a2c3904382a983c> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <ff741b7170ca8f906b9599d89a9b30a3> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Debug]    Destination <ff741b7170ca8f906b9599d89a9b30a3> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <604b95adfa625746d1c9e0c18d7cef75> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <030fd86cc5f5010c5a2c3904382a983c> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:22] [Extra]    Valid announce for <ff741b7170ca8f906b9599d89a9b30a3> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:23] [Extra]    Valid announce for <030fd86cc5f5010c5a2c3904382a983c> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:23] [Extra]    Valid announce for <ff741b7170ca8f906b9599d89a9b30a3> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:24] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:24] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:24] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:24] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:24] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:24] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:31:24] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:24] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:24] [Extra]    Remembering ratchet <9c04e2d2c5fc7a1a011c> for <219a60c23a74cf1ede2ee1c56dc790d7>
+[2026-04-13 18:31:24] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:25] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:25] [Extra]    Remembering ratchet <0a0db4208f06e28af0c1> for <794884194914d03c4e199d9c1f090b0c>
+[2026-04-13 18:31:25] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:26] [Extra]    Valid announce for <1fbf9ae4d860dbaa9eb2e7c4c1091a37> 22 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:26] [Extra]    Remembering ratchet <02381733fb9ffcb35722> for <1fbf9ae4d860dbaa9eb2e7c4c1091a37>
+[2026-04-13 18:31:26] [Debug]    Destination <1fbf9ae4d860dbaa9eb2e7c4c1091a37> is now 22 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:26] [Extra]    Valid announce for <ad77593549ab167ea4da2e23c2a55d2c> 7 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:26] [Extra]    Remembering ratchet <3ddcbb98ea6289cf2a6e> for <ad77593549ab167ea4da2e23c2a55d2c>
+[2026-04-13 18:31:26] [Debug]    Destination <ad77593549ab167ea4da2e23c2a55d2c> is now 7 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:27] [Extra]    Valid announce for <ba2780f844f711525924923e9bfb23cb> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:27] [Debug]    Destination <ba2780f844f711525924923e9bfb23cb> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:28] [Extra]    Valid announce for <ba2780f844f711525924923e9bfb23cb> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:28] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:29] [Extra]    Valid announce for <0f5a6232102792b2e98c19209070d4f8> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:29] [Debug]    Destination <0f5a6232102792b2e98c19209070d4f8> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:29] [Extra]    Valid announce for <9e21f49afdaae8885663e807606387a2> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:29] [Debug]    Destination <9e21f49afdaae8885663e807606387a2> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:29] [Extra]    Valid announce for <9e21f49afdaae8885663e807606387a2> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:29] [Extra]    Valid announce for <0f5a6232102792b2e98c19209070d4f8> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:29] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:29] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:29] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:31:29] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:29] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:29] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:29] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:29] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:29] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:30] [Extra]    Valid announce for <82e03120eb2e393fdb39f4a2408e14c9> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:30] [Debug]    Destination <82e03120eb2e393fdb39f4a2408e14c9> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:32] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:32] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:32] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:32] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:33] [Extra]    Valid announce for <4762234229b7e0b83c68b857bdf245c3> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:33] [Debug]    Destination <4762234229b7e0b83c68b857bdf245c3> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:33] [Extra]    Valid announce for <93a0c32635e5bfcdcf88832c35c82298> 12 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:33] [Debug]    Destination <93a0c32635e5bfcdcf88832c35c82298> is now 12 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:33] [Extra]    Valid announce for <c3dc75b40618ae88fbf901d3d9f74c77> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:33] [Debug]    Destination <c3dc75b40618ae88fbf901d3d9f74c77> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:34] [Extra]    Valid announce for <c3dc75b40618ae88fbf901d3d9f74c77> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:34] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:34] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:34] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:34] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:34] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:34] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:34] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:34] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:31:34] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:36] [Extra]    Valid announce for <c3dc75b40618ae88fbf901d3d9f74c77> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:36] [Extra]    Valid announce for <194a0e4c77f5aaa249bf6acb49d3c58b> 56 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:36] [Extra]    Remembering ratchet <4a7a620d1aa7b05eb723> for <194a0e4c77f5aaa249bf6acb49d3c58b>
+[2026-04-13 18:31:36] [Debug]    Destination <194a0e4c77f5aaa249bf6acb49d3c58b> is now 56 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:37] [Extra]    Valid announce for <ba63d1d4afd98dfcd1b5da0b57e71cb9> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:37] [Debug]    Destination <ba63d1d4afd98dfcd1b5da0b57e71cb9> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:38] [Extra]    Valid announce for <9f233c2f8499e84df0a58c63ac2ae728> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:38] [Extra]    Remembering ratchet <9aac83482ab4ba4a0e14> for <9f233c2f8499e84df0a58c63ac2ae728>
+[2026-04-13 18:31:38] [Debug]    Destination <9f233c2f8499e84df0a58c63ac2ae728> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:39] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:39] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:39] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:39] [Debug]    Replacing destination table entry for <73400f494c8d580bd774443a5163127b> with new announce, since it was more recently emitted
+[2026-04-13 18:31:39] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:39] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:39] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: timed out
+[2026-04-13 18:31:39] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:39] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:39] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:39] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:39] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:39] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:40] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:40] [Debug]    Replacing destination table entry for <2d8a25919ea488ce008d3635d9b104c7> with new announce, since it was more recently emitted
+[2026-04-13 18:31:40] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:40] [Extra]    Valid announce for <092c7945135161264d671713c087f9ef> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:40] [Extra]    Remembering ratchet <db8ac5df90912d824df9> for <092c7945135161264d671713c087f9ef>
+[2026-04-13 18:31:40] [Debug]    Destination <092c7945135161264d671713c087f9ef> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:40] [Extra]    Valid announce for <e8ad4c4c3a855586f53ac64e2a7dfbd0> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:40] [Extra]    Remembering ratchet <b7c7fbdac534fe52042f> for <e8ad4c4c3a855586f53ac64e2a7dfbd0>
+[2026-04-13 18:31:40] [Debug]    Destination <e8ad4c4c3a855586f53ac64e2a7dfbd0> is now 11 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:41] [Extra]    Valid announce for <092c7945135161264d671713c087f9ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:43] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:43] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:43] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:43] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:43] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:43] [Debug]    Destination <5dfbf3b63e2e12556586112c7168fcd5> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:43] [Extra]    Valid announce for <34af7135b72b333aa188e348a6382f21> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:43] [Debug]    Destination <34af7135b72b333aa188e348a6382f21> is now 10 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:43] [Extra]    Valid announce for <34dff9f4a19c1d55402bbffceb92cf6c> 15 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:43] [Extra]    Remembering ratchet <745726233b9dc095f042> for <34dff9f4a19c1d55402bbffceb92cf6c>
+[2026-04-13 18:31:43] [Debug]    Destination <34dff9f4a19c1d55402bbffceb92cf6c> is now 15 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:44] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:44] [Extra]    Valid announce for <34af7135b72b333aa188e348a6382f21> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:44] [Extra]    Valid announce for <ce47fd37aea37ed1d0f4d3044cdee741> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:44] [Debug]    Destination <ce47fd37aea37ed1d0f4d3044cdee741> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:44] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:44] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:44] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:44] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:44] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:44] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: timed out
+[2026-04-13 18:31:44] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:45] [Extra]    Valid announce for <ce47fd37aea37ed1d0f4d3044cdee741> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:45] [Extra]    Valid announce for <0e3bd029c77ade1014eaab9ec0a1f91e> 35 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:45] [Debug]    Destination <0e3bd029c77ade1014eaab9ec0a1f91e> is now 35 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:46] [Extra]    Valid announce for <f240978b5ae0ea3b2bd37480f36245a3> 14 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:46] [Debug]    Destination <f240978b5ae0ea3b2bd37480f36245a3> is now 14 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:46] [Extra]    Valid announce for <55a96d3f03bcec5ad5de60c237831934> 8 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:46] [Extra]    Remembering ratchet <e6ee2015563f0b447e84> for <55a96d3f03bcec5ad5de60c237831934>
+[2026-04-13 18:31:46] [Debug]    Destination <55a96d3f03bcec5ad5de60c237831934> is now 8 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:47] [Extra]    Valid announce for <1df841511cf0a1c9695029fdfdd7ba65> 15 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:47] [Extra]    Remembering ratchet <08221b540b49cf5ed1a4> for <1df841511cf0a1c9695029fdfdd7ba65>
+[2026-04-13 18:31:47] [Debug]    Destination <1df841511cf0a1c9695029fdfdd7ba65> is now 15 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:48] [Extra]    Valid announce for <eafd40e3cbf62beab5edc9ee91932a15> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:48] [Extra]    Remembering ratchet <c0dc340cb408cdbe3084> for <eafd40e3cbf62beab5edc9ee91932a15>
+[2026-04-13 18:31:48] [Debug]    Destination <eafd40e3cbf62beab5edc9ee91932a15> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:48] [Extra]    Valid announce for <eafd40e3cbf62beab5edc9ee91932a15> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:48] [Extra]    Valid announce for <43b360bc3a398e7bf07a7b95eefa3b3b> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:48] [Debug]    Destination <43b360bc3a398e7bf07a7b95eefa3b3b> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:49] [Extra]    Valid announce for <43b360bc3a398e7bf07a7b95eefa3b3b> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:49] [Warning]  An interface error occurred for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242], the contained exception was: [Errno 60] Operation timed out
+[2026-04-13 18:31:49] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:49] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:49] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:49] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:50] [Extra]    Valid announce for <34af7135b72b333aa188e348a6382f21> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:50] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:50] [Debug]    Replacing destination table entry for <2d8a25919ea488ce008d3635d9b104c7> with new announce, since it was more recently emitted
+[2026-04-13 18:31:50] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:51] [Debug]    Replacing destination table entry for <02aaf088472435718061211d3752c8ed> with new announce, since it was more recently emitted
+[2026-04-13 18:31:51] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 6 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:52] [Extra]    Valid announce for <f240978b5ae0ea3b2bd37480f36245a3> 14 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:52] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:52] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:52] [Extra]    Valid announce for <12cb1ed29943213839f0b0d18cd42761> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:52] [Debug]    Destination <12cb1ed29943213839f0b0d18cd42761> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:53] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:53] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:53] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:53] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:54] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:54] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:54] [Extra]    Valid announce for <d8fcdfad947acf53a0f0f8ea7cc2dd07> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:54] [Debug]    Destination <d8fcdfad947acf53a0f0f8ea7cc2dd07> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:54] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:54] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:31:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:54] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:54] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:54] [Extra]    Valid announce for <d8fcdfad947acf53a0f0f8ea7cc2dd07> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:54] [Warning]  An interface error occurred for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242], the contained exception was: [Errno 60] Operation timed out
+[2026-04-13 18:31:54] [Warning]  Attempting to reconnect...
+[2026-04-13 18:31:55] [Extra]    Valid announce for <0ab6b7339dcb66088b74c18686ec2262> 10 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Remembering ratchet <fcb9b82a44993c9fb6d5> for <0ab6b7339dcb66088b74c18686ec2262>
+[2026-04-13 18:31:55] [Debug]    Destination <0ab6b7339dcb66088b74c18686ec2262> is now 10 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <ba63d1d4afd98dfcd1b5da0b57e71cb9> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <42f9397c4362faa9cf62ac6da6a41f5a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Debug]    Destination <42f9397c4362faa9cf62ac6da6a41f5a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <c1c04c5dfdb2d647a0a5e6bf54bc4b07> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Remembering ratchet <86dbe144549b583ed9e1> for <c1c04c5dfdb2d647a0a5e6bf54bc4b07>
+[2026-04-13 18:31:55] [Debug]    Destination <c1c04c5dfdb2d647a0a5e6bf54bc4b07> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <9f233c2f8499e84df0a58c63ac2ae728> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:55] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 5 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <092c7945135161264d671713c087f9ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 10 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <ce47fd37aea37ed1d0f4d3044cdee741> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <eafd40e3cbf62beab5edc9ee91932a15> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <43b360bc3a398e7bf07a7b95eefa3b3b> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <12cb1ed29943213839f0b0d18cd42761> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <d8fcdfad947acf53a0f0f8ea7cc2dd07> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Debug]    Path request for <f3a749e3b0d0e4d27a4b30a57b365911> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:55] [Debug]    Ignoring path request for <f3a749e3b0d0e4d27a4b30a57b365911> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
+[2026-04-13 18:31:55] [Extra]    Valid announce for <e3eb8a8b55dbc3ae38e4f205ed547201> 37 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:55] [Debug]    Destination <e3eb8a8b55dbc3ae38e4f205ed547201> is now 37 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 11 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <003ffb5ff7157c4f0d95568ced245293> 8 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <003ffb5ff7157c4f0d95568ced245293> 9 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:56] [Extra]    Valid announce for <2f34b0ebc6a3c6012bc824f86d19de9f> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:56] [Debug]    Destination <2f34b0ebc6a3c6012bc824f86d19de9f> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <2f34b0ebc6a3c6012bc824f86d19de9f> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <2f34b0ebc6a3c6012bc824f86d19de9f> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <f9185ec56def5a6f6ef2609087a6f1f6> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:57] [Extra]    Remembering ratchet <dcd21731f70c9b0eb4ba> for <f9185ec56def5a6f6ef2609087a6f1f6>
+[2026-04-13 18:31:57] [Debug]    Destination <f9185ec56def5a6f6ef2609087a6f1f6> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:57] [Extra]    Valid announce for <211468023df8dff70d4a12d71dba57a3> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:57] [Debug]    Destination <211468023df8dff70d4a12d71dba57a3> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:31:58] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:58] [Debug]    Replacing destination table entry for <110d7f3159c1d306851c3ec5c6d302ef> with new announce, since it was more recently emitted
+[2026-04-13 18:31:58] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:58] [Extra]    Valid announce for <211468023df8dff70d4a12d71dba57a3> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:58] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:31:59] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:59] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:31:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:31:59] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:59] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:31:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:31:59] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:59] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:31:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:31:59] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:31:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:31:59] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:00] [Extra]    Valid announce for <4b36d300c2a3afe574dc87b3442830e0> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:00] [Debug]    Destination <4b36d300c2a3afe574dc87b3442830e0> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:00] [Extra]    Valid announce for <4b36d300c2a3afe574dc87b3442830e0> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:00] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:00] [Debug]    Path request for <c42c65dadd2997b14ea8bf169bcfef39> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:00] [Debug]    Ignoring path request for <c42c65dadd2997b14ea8bf169bcfef39> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:32:01] [Extra]    Valid announce for <a231e1f786d6019ad4687b80ed4f629f> 68 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:01] [Debug]    Destination <a231e1f786d6019ad4687b80ed4f629f> is now 68 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:01] [Extra]    Valid announce for <803104a3e64b32bc926c5fa04d83f411> 59 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:01] [Debug]    Destination <803104a3e64b32bc926c5fa04d83f411> is now 59 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:01] [Extra]    Valid announce for <803104a3e64b32bc926c5fa04d83f411> 60 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:02] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:02] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:02] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:02] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:02] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:02] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:03] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:03] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:03] [Extra]    Valid announce for <8cff20546e8b3cce4d0a91b8c9ad8543> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:03] [Debug]    Destination <8cff20546e8b3cce4d0a91b8c9ad8543> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:03] [Extra]    Valid announce for <8cff20546e8b3cce4d0a91b8c9ad8543> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:03] [Extra]    Valid announce for <8cff20546e8b3cce4d0a91b8c9ad8543> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:04] [Debug]    Path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:04] [Debug]    Ignoring path request for <a3dfea289534e4b2d0f5730310eebd99> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:32:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:04] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:04] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:04] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:04] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:04] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:04] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:04] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:04] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:04] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:05] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:05] [Debug]    Destination <192eed7af8e3311445372f2a43cb63ec> is now 2 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:05] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <192eed7af8e3311445372f2a43cb63ec> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <4ee9fba93d67154c95b9c552077561b4> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Extra]    Remembering ratchet <a26605b07b272cc5d750> for <4ee9fba93d67154c95b9c552077561b4>
+[2026-04-13 18:32:06] [Debug]    Destination <4ee9fba93d67154c95b9c552077561b4> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <d6d8111a32c6e17ea123d7b8b1580924> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Debug]    Destination <d6d8111a32c6e17ea123d7b8b1580924> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <881c78221dbb3df6b1376c73acf5cdba> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Debug]    Destination <881c78221dbb3df6b1376c73acf5cdba> is now 11 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <d6d8111a32c6e17ea123d7b8b1580924> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <881c78221dbb3df6b1376c73acf5cdba> 12 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:06] [Extra]    Valid announce for <4ee9fba93d67154c95b9c552077561b4> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:07] [Extra]    Valid announce for <4ee9fba93d67154c95b9c552077561b4> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:07] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:07] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:07] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:07] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:07] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:07] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:08] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:08] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:09] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:09] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:09] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:09] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:09] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:09] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:09] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:09] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:09] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:09] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:09] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:09] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:09] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:09] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:09] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:09] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:10] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:10] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:10] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <0a89e7019c7bb4363b92e92ecf382928> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Remembering ratchet <f37f8dcc190862e90c47> for <0a89e7019c7bb4363b92e92ecf382928>
+[2026-04-13 18:32:11] [Debug]    Destination <0a89e7019c7bb4363b92e92ecf382928> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <3a5a9a4e839edefd9d0245e6b1934dcf> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Debug]    Destination <3a5a9a4e839edefd9d0245e6b1934dcf> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <48a7a8def43f50fc860a9f26c94acc90> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Debug]    Destination <48a7a8def43f50fc860a9f26c94acc90> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <75eccac6ddb60f37cfaa02d44c6deb53> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Remembering ratchet <fc58f53e45b3725d6c94> for <75eccac6ddb60f37cfaa02d44c6deb53>
+[2026-04-13 18:32:11] [Debug]    Destination <75eccac6ddb60f37cfaa02d44c6deb53> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <48a7a8def43f50fc860a9f26c94acc90> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <3a5a9a4e839edefd9d0245e6b1934dcf> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:11] [Extra]    Valid announce for <75eccac6ddb60f37cfaa02d44c6deb53> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:12] [Extra]    Valid announce for <75eccac6ddb60f37cfaa02d44c6deb53> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:12] [Extra]    Valid announce for <3a5a9a4e839edefd9d0245e6b1934dcf> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:12] [Extra]    Valid announce for <48a7a8def43f50fc860a9f26c94acc90> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:12] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:12] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:12] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:12] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:13] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:13] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:13] [Extra]    Valid announce for <541aea58038ce841a11f0c10494a251a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:13] [Debug]    Destination <541aea58038ce841a11f0c10494a251a> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:13] [Debug]    Path request for <24814fd9da8f2ed0fab179ba368e7a01> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:13] [Debug]    Ignoring path request for <24814fd9da8f2ed0fab179ba368e7a01> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:32:13] [Extra]    Valid announce for <541aea58038ce841a11f0c10494a251a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:14] [Extra]    Valid announce for <541aea58038ce841a11f0c10494a251a> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:14] [Extra]    Valid announce for <0cc65124b72a5fdec6dcc14241bb8108> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:14] [Debug]    Destination <0cc65124b72a5fdec6dcc14241bb8108> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:14] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:14] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:14] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:14] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:14] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:14] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:14] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:14] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:14] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:14] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:14] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:14] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:15] [Extra]    Valid announce for <442a781127d847a15628ffe2ffe019f6> 10 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:15] [Extra]    Remembering ratchet <2e2a7dda0aa328ffa9f4> for <442a781127d847a15628ffe2ffe019f6>
+[2026-04-13 18:32:15] [Debug]    Destination <442a781127d847a15628ffe2ffe019f6> is now 10 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:16] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:16] [Debug]    Destination <95ca807f05d258f7723d5f1f75c29159> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Extra]    Valid announce for <95ca807f05d258f7723d5f1f75c29159> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:17] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:17] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:18] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:18] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:19] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:19] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 2 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:19] [Debug]    Destination <29b2ebe588859e48aabf13e97cfe245b> is now 2 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:19] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:19] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:19] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:19] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:19] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:19] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:19] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:19] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:19] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:19] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:19] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:19] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:19] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:20] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:20] [Extra]    Valid announce for <29b2ebe588859e48aabf13e97cfe245b> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Extra]    Remembering ratchet <5284cf76c712574fd976> for <794884194914d03c4e199d9c1f090b0c>
+[2026-04-13 18:32:21] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:21] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:22] [Debug]    Path request for <1ba3f953b8e28bd2f5a5ec2e741edf65> on LocalInterface[62571]
+[2026-04-13 18:32:22] [Debug]    Forwarding path request from local client for <1ba3f953b8e28bd2f5a5ec2e741edf65> on LocalInterface[62571] to all other interfaces
+[2026-04-13 18:32:22] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:22] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:22] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:22] [Debug]    Path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:22] [Debug]    Forwarding path request for <995cc3851347f138f51af73d182d5e1d> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242] to local clients
+[2026-04-13 18:32:23] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:23] [Debug]    Destination <219a60c23a74cf1ede2ee1c56dc790d7> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <1ba3f953b8e28bd2f5a5ec2e741edf65> 3 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:23] [Debug]    Destination <1ba3f953b8e28bd2f5a5ec2e741edf65> is now 3 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:23] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <219a60c23a74cf1ede2ee1c56dc790d7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:24] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:24] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <7a5d2b33ccb97a9aacb491bf159915a8> 18 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:24] [Debug]    Destination <7a5d2b33ccb97a9aacb491bf159915a8> is now 18 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:24] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:24] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:24] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:24] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:24] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:24] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:24] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:24] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:24] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:25] [Extra]    Valid announce for <b96a9cde676e4082a335ae7ffa680072> 37 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:25] [Extra]    Remembering ratchet <4d198d0f50da99027231> for <b96a9cde676e4082a335ae7ffa680072>
+[2026-04-13 18:32:25] [Debug]    Destination <b96a9cde676e4082a335ae7ffa680072> is now 37 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:25] [Extra]    Valid announce for <7a5d2b33ccb97a9aacb491bf159915a8> 20 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:26] [Extra]    Valid announce for <b96a9cde676e4082a335ae7ffa680072> 36 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:27] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:27] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:27] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:27] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:27] [Extra]    Valid announce for <ba2780f844f711525924923e9bfb23cb> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:27] [Debug]    Destination <ba2780f844f711525924923e9bfb23cb> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:27] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:27] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:27] [Debug]    Destination <5dfbf3b63e2e12556586112c7168fcd5> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <ba2780f844f711525924923e9bfb23cb> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <5dfbf3b63e2e12556586112c7168fcd5> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:28] [Extra]    Valid announce for <93f793207919f56ff52449bcf41b244e> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:28] [Debug]    Destination <93f793207919f56ff52449bcf41b244e> is now 11 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:28] [Debug]    Path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:28] [Debug]    Ignoring path request for <3b171e0b79acf468ae1bf3a6d8515d12> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242], no path known
+[2026-04-13 18:32:29] [Extra]    Valid announce for <93f793207919f56ff52449bcf41b244e> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:29] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:29] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:29] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:29] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:29] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:29] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:29] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:29] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:29] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:29] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:30] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:30] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:30] [Extra]    Valid announce for <36a462df1aaa0832cd98deb75f937f95> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:30] [Debug]    Destination <36a462df1aaa0832cd98deb75f937f95> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:30] [Extra]    Valid announce for <dbeff5ca817f21f8fa0a45beb07bd05e> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:30] [Debug]    Destination <dbeff5ca817f21f8fa0a45beb07bd05e> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:30] [Extra]    Valid announce for <e64d9652cd3f2e8d3fef2a90f90750f0> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:30] [Debug]    Destination <e64d9652cd3f2e8d3fef2a90f90750f0> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:31] [Debug]    Path request for <60dcab5ef4e2a7fdd1154128a826c00b> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:31] [Debug]    Ignoring path request for <60dcab5ef4e2a7fdd1154128a826c00b> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242], no path known
+[2026-04-13 18:32:31] [Extra]    Valid announce for <36a462df1aaa0832cd98deb75f937f95> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:31] [Extra]    Valid announce for <e64d9652cd3f2e8d3fef2a90f90750f0> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:31] [Extra]    Valid announce for <e64d9652cd3f2e8d3fef2a90f90750f0> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:31] [Extra]    Valid announce for <7a5d2b33ccb97a9aacb491bf159915a8> 20 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:32] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:32] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:32] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:32] [Extra]    Valid announce for <7bdcba04e1e99f992a12383c380a759c> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:32] [Debug]    Destination <7bdcba04e1e99f992a12383c380a759c> is now 5 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:32] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:33] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:33] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:33] [Extra]    Valid announce for <7bdcba04e1e99f992a12383c380a759c> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:33] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:33] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:33] [Extra]    Valid announce for <7bdcba04e1e99f992a12383c380a759c> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:34] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:34] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:34] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:34] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:34] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:34] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:34] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:34] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:34] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:34] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:34] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:34] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:35] [Extra]    Valid announce for <93f793207919f56ff52449bcf41b244e> 11 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:36] [Debug]    Path request for <1ba3f953b8e28bd2f5a5ec2e741edf65> on LocalInterface[62624]
+[2026-04-13 18:32:36] [Debug]    Answering path request for <1ba3f953b8e28bd2f5a5ec2e741edf65> on LocalInterface[62624], path is known
+[2026-04-13 18:32:36] [Debug]    Rebroadcasting announce as path response for <1ba3f953b8e28bd2f5a5ec2e741edf65> with hop count 3
+[2026-04-13 18:32:36] [Extra]    Valid announce for <709a6352bcd7e3bd04d8c90e1fd1e647> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:36] [Extra]    Remembering ratchet <38014e2c9e4d12de0306> for <709a6352bcd7e3bd04d8c90e1fd1e647>
+[2026-04-13 18:32:36] [Debug]    Destination <709a6352bcd7e3bd04d8c90e1fd1e647> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:37] [Extra]    Valid announce for <36a462df1aaa0832cd98deb75f937f95> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:37] [Extra]    Valid announce for <709a6352bcd7e3bd04d8c90e1fd1e647> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:37] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:37] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:37] [Extra]    Completed announce processing for <1ba3f953b8e28bd2f5a5ec2e741edf65>, retry limit reached
+[2026-04-13 18:32:37] [Extra]    Valid announce for <709a6352bcd7e3bd04d8c90e1fd1e647> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:37] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:38] [Extra]    Valid announce for <16da0aa3a9249832c3f0a50d20c08207> 50 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Debug]    Destination <16da0aa3a9249832c3f0a50d20c08207> is now 50 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Extra]    Valid announce for <6ff4b5c262197f8ce0b5101966a1a113> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Debug]    Destination <6ff4b5c262197f8ce0b5101966a1a113> is now 6 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Extra]    Valid announce for <81c90a524787559d4a8e398359786f7f> 29 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Debug]    Destination <81c90a524787559d4a8e398359786f7f> is now 29 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:38] [Extra]    Valid announce for <6ff4b5c262197f8ce0b5101966a1a113> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:39] [Extra]    Valid announce for <7be0dd6a1b45d254f82de4039eb317e3> 11 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:39] [Debug]    Destination <7be0dd6a1b45d254f82de4039eb317e3> is now 11 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:39] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:39] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:39] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:39] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:39] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:39] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:39] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:39] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:39] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:39] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:39] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:39] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:39] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:39] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:39] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:39] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:40] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:40] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:41] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:42] [Extra]    Valid announce for <f5ac523866df5cb5f8b2233a30b5aee0> 88 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:42] [Extra]    Remembering ratchet <913e097c05e02b090f18> for <f5ac523866df5cb5f8b2233a30b5aee0>
+[2026-04-13 18:32:42] [Debug]    Destination <f5ac523866df5cb5f8b2233a30b5aee0> is now 88 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:42] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:42] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:42] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:42] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:43] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:43] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:43] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:43] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:44] [Extra]    Valid announce for <6ff4b5c262197f8ce0b5101966a1a113> 7 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:44] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:44] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:44] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:44] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:44] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:44] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:44] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:44] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:44] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:44] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:44] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:47] [Extra]    Valid announce for <eb20f84b259a4050e372e0f433565ecf> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:47] [Debug]    Destination <eb20f84b259a4050e372e0f433565ecf> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:47] [Extra]    Valid announce for <eb20f84b259a4050e372e0f433565ecf> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:47] [Extra]    Valid announce for <eb20f84b259a4050e372e0f433565ecf> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:47] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:47] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:47] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:47] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:48] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:48] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:48] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:48] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:49] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:49] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:49] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:49] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:49] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:49] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:49] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:49] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:49] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:49] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:49] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:49] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:49] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:51] [Extra]    Valid announce for <dcc78515cb0ea6745ef416ffede333e1> 2 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:51] [Debug]    Destination <dcc78515cb0ea6745ef416ffede333e1> is now 2 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:51] [Debug]    Destination <02aaf088472435718061211d3752c8ed> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:51] [Extra]    Valid announce for <dcc78515cb0ea6745ef416ffede333e1> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:51] [Extra]    Valid announce for <dcc78515cb0ea6745ef416ffede333e1> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:51] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <02aaf088472435718061211d3752c8ed> 5 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <05b68f58933a635d11e4685827769434> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:52] [Debug]    Destination <05b68f58933a635d11e4685827769434> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Debug]    Destination <e345f6220682e127cab52c3387436778> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <12cb1ed29943213839f0b0d18cd42761> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Debug]    Destination <12cb1ed29943213839f0b0d18cd42761> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <003ffb5ff7157c4f0d95568ced245293> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <05b68f58933a635d11e4685827769434> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <e345f6220682e127cab52c3387436778> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <05b68f58933a635d11e4685827769434> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:52] [Extra]    Valid announce for <12cb1ed29943213839f0b0d18cd42761> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:53] [Extra]    Valid announce for <9c1153bec96f2c966b383ecdaa6acf5d> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:53] [Extra]    Remembering ratchet <10f7317449c6d2991c1e> for <9c1153bec96f2c966b383ecdaa6acf5d>
+[2026-04-13 18:32:53] [Debug]    Destination <9c1153bec96f2c966b383ecdaa6acf5d> is now 4 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:53] [Extra]    Valid announce for <003ffb5ff7157c4f0d95568ced245293> 6 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:53] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:53] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:53] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:53] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:54] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Debug]    Destination <103eb3c7f35278ba33e7d014e341b3ec> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:54] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:54] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:54] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:54] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:54] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:54] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:54] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:54] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:54] [Extra]    Valid announce for <103eb3c7f35278ba33e7d014e341b3ec> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:55] [Debug]    Destination <110d7f3159c1d306851c3ec5c6d302ef> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:55] [Extra]    Valid announce for <110d7f3159c1d306851c3ec5c6d302ef> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:56] [Extra]    Valid announce for <6349a005f681645c1231c388519086a1> 38 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:56] [Debug]    Destination <6349a005f681645c1231c388519086a1> is now 38 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:56] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:56] [Debug]    Destination <794884194914d03c4e199d9c1f090b0c> is now 6 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:56] [Debug]    Destination <af1ec9121da534836e6a39b7d261fa65> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:56] [Extra]    Valid announce for <af1ec9121da534836e6a39b7d261fa65> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:56] [Extra]    Valid announce for <794884194914d03c4e199d9c1f090b0c> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:57] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:57] [Extra]    Valid announce for <a8bd211ee794db6f638af33d122661fb> 9 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:57] [Debug]    Destination <a8bd211ee794db6f638af33d122661fb> is now 9 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:57] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:57] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:57] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:58] [Extra]    Valid announce for <0b055a8df26d669fdd3b5d3865adeec0> 16 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:58] [Debug]    Destination <0b055a8df26d669fdd3b5d3865adeec0> is now 16 hops away via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:58] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:58] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:58] [Extra]    Remembering ratchet <835a8aa18205871295e7> for <0e9df50566390f7da1a180806ea7459a>
+[2026-04-13 18:32:58] [Debug]    Destination <0e9df50566390f7da1a180806ea7459a> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:58] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:32:59] [Extra]    Valid announce for <0e9df50566390f7da1a180806ea7459a> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:32:59] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:59] [Debug]    Destination <2d8a25919ea488ce008d3635d9b104c7> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:32:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:32:59] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:59] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
+[2026-04-13 18:32:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965]
+[2026-04-13 18:32:59] [Error]    The interface TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:59] [Warning]  The socket for TCPInterface[TCP dublin.connect.reticulum.network 4965/dublin.connect.reticulum.network:4965] was closed, attempting to reconnect...
+[2026-04-13 18:32:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:59] [Error]    Max reconnection attempts reached for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242]
+[2026-04-13 18:32:59] [Error]    The interface TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:32:59] [Error]    No interfaces could process the outbound packet
+[2026-04-13 18:32:59] [Warning]  The socket for TCPInterface[TCP rns.acehoss.net 4242/rns.acehoss.net:4242] was closed, attempting to reconnect...
+[2026-04-13 18:33:00] [Extra]    Valid announce for <4fe37a4e22f312f89f23f50d0ae30185> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:00] [Debug]    Destination <4fe37a4e22f312f89f23f50d0ae30185> is now 5 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:01] [Extra]    Valid announce for <2d8a25919ea488ce008d3635d9b104c7> 4 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:01] [Extra]    Valid announce for <4fe37a4e22f312f89f23f50d0ae30185> 6 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:02] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:02] [Debug]    Destination <3b171e0b79acf468ae1bf3a6d8515d12> is now 4 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:02] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:02] [Debug]    Destination <73400f494c8d580bd774443a5163127b> is now 3 hops away via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <3b171e0b79acf468ae1bf3a6d8515d12> 5 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Debug]    Destination <ca273d664d1a6c59a5a002670a641eff> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <b4c6f0fea4136c19de3dc1e3efe9bfb7> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Remembering ratchet <efcb72f90b2cbdc76a5f> for <b4c6f0fea4136c19de3dc1e3efe9bfb7>
+[2026-04-13 18:33:03] [Debug]    Destination <b4c6f0fea4136c19de3dc1e3efe9bfb7> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <27b2b27fc895b55d7d37c2c0f96b4e3c> 3 hops away, received via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Debug]    Destination <27b2b27fc895b55d7d37c2c0f96b4e3c> is now 3 hops away via <b1b078838eeb081d9a6a699a7580ccc6> on TCPInterface[TCP 212.233.88.164 4242/212.233.88.164:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <27b2b27fc895b55d7d37c2c0f96b4e3c> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <73400f494c8d580bd774443a5163127b> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <ca273d664d1a6c59a5a002670a641eff> 3 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <b4c6f0fea4136c19de3dc1e3efe9bfb7> 4 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:03] [Extra]    Valid announce for <27b2b27fc895b55d7d37c2c0f96b4e3c> 5 hops away, received via <56180fa4ceca6cd223d60148c01eb8c8> on TCPInterface[TCP 46.188.15.32 4242/46.188.15.32:4242]
+[2026-04-13 18:33:04] [Extra]    Valid announce for <b4c6f0fea4136c19de3dc1e3efe9bfb7> 4 hops away, received via <18b26159855e642d9e26b439f2caabe8> on TCPInterface[TCP 217.70.19.114 4242/217.70.19.114:4242]
+[2026-04-13 18:33:04] [Error]    Max reconnection attempts reached for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242]
+[2026-04-13 18:33:04] [Error]    The interface TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] experienced an unrecoverable error and is being torn down. Restart Reticulum to attempt to open this interface again.
+[2026-04-13 18:33:04] [Warning]  The socket for TCPInterface[TCP reticulum.betweentheborders.com 4242/reticulum.betweentheborders.com:4242] was closed, attempting to reconnect...
