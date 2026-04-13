@@ -23,6 +23,7 @@ tests/_logs
 tests/hand/rnsd/test1/.artifacts/
 tests/hand/rnsd/test2/.artifacts/
 tests/hand/rnsd/test3/.artifacts/
+tests/hand/rnid/test4/.artifacts/
 
 config
 storage
