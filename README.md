@@ -102,7 +102,7 @@ go run ./examples/link --help
 
 ## Parity & docs
 
-- Current parity target: Python Reticulum `1.1.4`.
+- Current parity target: Python Reticulum `1.1.5`.
 - `PARITY_*.md` files track any remaining or newly discovered parity drift vs the Python reference (no unrelated wishlists).
 - Ideally, each parity item is closed by a code change plus a test/verification step.
 - Note: the Python Reticulum supports “external interfaces” by loading `<Type>.py` modules from `interfacepath`. The Go port does not execute/load those Python modules; if such a file exists, startup will error to avoid silently running with a placeholder interface.
