@@ -3674,9 +3674,7 @@ func PacketFilter(p *Packet) bool {
 
 	if !HasPacketHash(p.PacketHash) {
 		return true
-	}
-
-	if p.Type == PacketAnnounce && p.DestinationType == DestSingle {
+	} else if p.Type == PacketAnnounce && p.DestinationType == DestSingle {
 		return true
 	}
 

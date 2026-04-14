@@ -15,6 +15,13 @@ Use the Python step in another terminal:
 ./tests/hand/rnsd/test5/step1_rnsd_py.sh
 ```
 
+After startup, you can also query the daemon status:
+
+```sh
+./tests/hand/rnsd/test5/step2_rnstatus_go.sh
+./tests/hand/rnsd/test5/step2_rnstatus_py.sh
+```
+
 The scripts start from the same `config` file in this directory and write
 runtime artifacts under:
 
