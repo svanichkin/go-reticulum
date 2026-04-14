@@ -5,7 +5,7 @@ Reticulum status utility for the Go port. It queries a local shared instance for
 ## Overview
 
 - Shows configured interfaces, their state, and basic traffic counters.
-- Can print totals, announce stats, link stats, and JSON output.
+- Can print totals, announce stats, link stats, discovered interfaces, and JSON output.
 - Supports remote status queries via Remote Management (`-R` + `-i`), if enabled in the target.
 
 ## Usage
@@ -26,6 +26,8 @@ Remote management mode:
 | `-a`, `-all` | bool | `false` | Show all interfaces (including normally hidden ones). |
 | `-A`, `-announce-stats` | bool | `false` | Show announce counters/stats. |
 | `-l`, `-link-stats` | bool | `false` | Show link stats (requires local shared instance, or remote management). |
+| `-d`, `-discovered` | bool | `false` | List discovered interfaces. |
+| `-D` | bool | `false` | Show detailed discovered-interface output and config entries. |
 | `-t`, `-totals` | bool | `false` | Print traffic totals. |
 | `-s`, `-sort` | string | `""` | Sort by one of: `rate`, `traffic`, `rx`, `tx`, `rxs`, `txs`, `announces`, `arx`, `atx`, `held`. |
 | `-r`, `-reverse` | bool | `false` | Reverse sorting. |
@@ -55,6 +57,14 @@ JSON output:
 
 `go run ./cmd/rnstatus -a -j`
 
+Discovered interfaces:
+
+`go run ./cmd/rnstatus -d`
+
+Detailed discovered interfaces and config entries:
+
+`go run ./cmd/rnstatus -D`
+
 Remote management status:
 
 `go run ./cmd/rnstatus -R <REMOTE_TRANSPORT_ID> -i ./management.id -a`
@@ -66,4 +76,3 @@ Remote management status:
 - `2`: Could not get status / missing stats.
 - `20`: Remote management / remote query errors.
 - `2` (process exit): CLI usage / unknown flag.
-

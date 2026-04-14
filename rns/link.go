@@ -1075,6 +1075,8 @@ func (l *Link) Receive(packet *Packet) {
 	// Link packet proofs: update matching receipts (Python Transport.receipts parity).
 	if packet.PacketType == PacketTypeProof && packet.Context == PacketCtxNone {
 		// Proof payload is explicit: packet_hash || signature
+		receiptsMu.Lock()
+		defer receiptsMu.Unlock()
 		for _, rc := range Receipts {
 			if rc == nil || rc.Status != ReceiptSent {
 				continue

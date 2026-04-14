@@ -69,6 +69,56 @@ func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersSourcesAndInvalidRea
 	}
 }
 
+func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersUnsupportedType(t *testing.T) {
+	prevSources := InterfaceDiscoverySources()
+	interfaceDiscoverySources = [][]byte{{0xAA, 0xBB}}
+	t.Cleanup(func() {
+		interfaceDiscoverySources = prevSources
+	})
+
+	discovery, err := newInterfaceDiscoveryWithStorage(t.TempDir(), 14, nil, false)
+	if err != nil {
+		t.Fatalf("newInterfaceDiscoveryWithStorage: %v", err)
+	}
+
+	discovery.interfaceDiscovered(map[string]any{
+		"discovery_hash": []byte{0x01},
+		"name":           "valid",
+		"type":           "BackboneInterface",
+		"transport":      true,
+		"reachable_on":   "reticulum.example",
+		"port":           4242,
+		"value":          20,
+		"network_id":     hex.EncodeToString([]byte{0xAA, 0xBB}),
+	})
+	discovery.interfaceDiscovered(map[string]any{
+		"discovery_hash": []byte{0x02},
+		"name":           "unsupported",
+		"type":           "TCPClientInterface",
+		"transport":      true,
+		"reachable_on":   "reticulum.example",
+		"port":           4243,
+		"value":          20,
+		"network_id":     hex.EncodeToString([]byte{0xAA, 0xBB}),
+	})
+
+	list := discovery.ListDiscoveredInterfaces(false, false)
+	if len(list) != 1 {
+		t.Fatalf("discovered interfaces=%d, want 1", len(list))
+	}
+	if got, _ := list[0]["name"].(string); got != "valid" {
+		t.Fatalf("name=%q, want valid", got)
+	}
+
+	files, err := os.ReadDir(filepath.Join(discovery.storagePath))
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("persisted files=%d, want 1 after filtering unsupported type", len(files))
+	}
+}
+
 func TestInterfaceDiscovery_Autoconnect_AddsInterfaceAndSkipsDuplicate(t *testing.T) {
 	prevOwner := Owner
 	prevInterfaces := Interfaces

@@ -9,6 +9,47 @@ import (
 	"time"
 )
 
+func TestWeaveIntegration_ProcessIncoming_SpawnedPeerInheritsIngressSettings(t *testing.T) {
+	ifc, err := NewWeaveInterface("w0", map[string]string{"port": "/dev/null"})
+	if err != nil {
+		t.Fatalf("NewWeaveInterface: %v", err)
+	}
+	t.Cleanup(func() { ifc.weave.Close() })
+
+	hold := 11.0
+	maxHeld := 77
+	ifc.IN = false
+	ifc.OUT = true
+	ifc.IngressControl = false
+	ifc.ICBurstHold = &hold
+	ifc.ICMaxHeldAnnounces = &maxHeld
+
+	endpoint := []byte{0, 1, 2, 3, 4, 5, 6, 7}
+	payload := []byte("hello")
+	ifc.weave.ProcessIncoming(endpoint, payload)
+
+	key := hex.EncodeToString(endpoint)
+	ifc.weave.mu.Lock()
+	peerState := ifc.weave.peers[key]
+	ifc.weave.mu.Unlock()
+	if peerState == nil || peerState.iface == nil {
+		t.Fatalf("expected peer to exist")
+	}
+	peer := peerState.iface
+	if peer.IngressControl != ifc.IngressControl {
+		t.Fatalf("peer IngressControl=%v, want %v", peer.IngressControl, ifc.IngressControl)
+	}
+	if peer.IN != ifc.IN || peer.OUT != ifc.OUT {
+		t.Fatalf("peer IN/OUT=(%v,%v), want (%v,%v)", peer.IN, peer.OUT, ifc.IN, ifc.OUT)
+	}
+	if peer.ICMaxHeldAnnounces == nil || *peer.ICMaxHeldAnnounces != maxHeld {
+		t.Fatalf("peer ICMaxHeldAnnounces=%v, want %d", peer.ICMaxHeldAnnounces, maxHeld)
+	}
+	if peer.ICBurstHold == nil || *peer.ICBurstHold != hold {
+		t.Fatalf("peer ICBurstHold=%v, want %v", peer.ICBurstHold, hold)
+	}
+}
+
 func TestWeaveIntegration_ProcessIncoming_SpawnsPeerAndDelivers(t *testing.T) {
 	// Do not run in parallel: overrides global hooks.
 	oldInbound := InboundHandler
@@ -129,4 +170,3 @@ func TestWeaveIntegration_PeerTimeout_RemovesPeer(t *testing.T) {
 		t.Fatalf("expected peer to be removed")
 	}
 }
-

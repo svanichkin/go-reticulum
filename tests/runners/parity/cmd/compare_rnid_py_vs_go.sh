@@ -6,6 +6,7 @@ PYTHON="${PYTHON:-python3}"
 CMD_TIMEOUT_SECS="${CMD_TIMEOUT_SECS:-90}"
 START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-30}"
 STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-6}"
+TWO_NODE_START_ATTEMPTS="${TWO_NODE_START_ATTEMPTS:-4}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
 export GOCACHE="$ROOT/.gocache"
@@ -142,6 +143,11 @@ maybe_skip_env() {
   fi
 }
 
+startup_had_addr_in_use() {
+  local log="$1"
+  [[ -f "$log" ]] && rg -q -i "address already in use|errno 48|bind: address already in use" "$log"
+}
+
 run_two_node_request() {
   local label="$1"
   local rnsd_cmd_a="$2"
@@ -153,48 +159,67 @@ run_two_node_request() {
   local rnid_cmd_b="$8"
   local cfg_flag_b="$9"
 
-  local base
-  base=$(( (RANDOM % 10000) + 52000 ))
-  base=$(( base / 2 * 2 ))
-  local sip_a cip_a sip_b cip_b
-  sip_a=$(( (RANDOM % 10000) + 38000 ))
-  cip_a=$(( sip_a + 1 ))
-  sip_b=$(( sip_a + 2 ))
-  cip_b=$(( sip_a + 3 ))
-
   local node_a_template="$ROOT/configs/testing/two_nodes_udp/node_a/config"
   local node_b_template="$ROOT/configs/testing/two_nodes_udp/node_b/config"
-  local node_a_dir node_b_dir
-  node_a_dir="$(new_run_dir_from_template "$node_a_template" "$sip_a" "$cip_a" "$base" "$((base+1))")"
-  node_b_dir="$(new_run_dir_from_template "$node_b_template" "$sip_b" "$cip_b" "$((base+1))" "$base")"
+  local node_a_dir node_b_dir home_a home_b log_a log_b pid_a pid_b
+  local start_attempt=1
+  while [[ "$start_attempt" -le "$TWO_NODE_START_ATTEMPTS" ]]; do
+    local base
+    base=$(( (RANDOM % 10000) + 52000 ))
+    base=$(( base / 2 * 2 ))
+    local sip_a cip_a sip_b cip_b
+    sip_a=$(( (RANDOM % 10000) + 38000 ))
+    cip_a=$(( sip_a + 1 ))
+    sip_b=$(( sip_a + 2 ))
+    cip_b=$(( sip_a + 3 ))
 
-  local home_a="$node_a_dir/home"
-  local home_b="$node_b_dir/home"
-  mkdir -p "$home_a" "$home_b"
+    node_a_dir="$(new_run_dir_from_template "$node_a_template" "$sip_a" "$cip_a" "$base" "$((base+1))")"
+    node_b_dir="$(new_run_dir_from_template "$node_b_template" "$sip_b" "$cip_b" "$((base+1))" "$base")"
 
-  local log_a="$OUT_DIR/${label}.two_node.rnsd.node_a.log"
-  local log_b="$OUT_DIR/${label}.two_node.rnsd.node_b.log"
-  env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnsd_cmd_a $cfg_flag_a "$node_a_dir" -q >"$log_a" 2>&1 &
-  local pid_a=$!
-  env HOME="$home_b" USERPROFILE="$home_b" \
-    $rnsd_cmd_b $cfg_flag_b "$node_b_dir" -q >"$log_b" 2>&1 &
-  local pid_b=$!
+    home_a="$node_a_dir/home"
+    home_b="$node_b_dir/home"
+    mkdir -p "$home_a" "$home_b"
 
-  sleep 0.5
-  maybe_skip_env "$log_a"
-  maybe_skip_env "$log_b"
+    log_a="$OUT_DIR/${label}.two_node.rnsd.node_a.log"
+    log_b="$OUT_DIR/${label}.two_node.rnsd.node_b.log"
+    : >"$log_a"
+    : >"$log_b"
 
-  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_a" "Started rnsd version"; then
-    echo "[cmp] $label: node_a did not start; see $log_a"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
+    env HOME="$home_a" USERPROFILE="$home_a" \
+      $rnsd_cmd_a $cfg_flag_a "$node_a_dir" -q >"$log_a" 2>&1 &
+    pid_a=$!
+    env HOME="$home_b" USERPROFILE="$home_b" \
+      $rnsd_cmd_b $cfg_flag_b "$node_b_dir" -q >"$log_b" 2>&1 &
+    pid_b=$!
+
+    sleep 0.5
+    maybe_skip_env "$log_a"
+    maybe_skip_env "$log_b"
+
+    if wait_for_file_contains "$START_TIMEOUT_SECS" "$log_a" "Started rnsd version" \
+      && wait_for_file_contains "$START_TIMEOUT_SECS" "$log_b" "Started rnsd version"; then
+      break
+    fi
+
+    if startup_had_addr_in_use "$log_a" || startup_had_addr_in_use "$log_b"; then
+      stop_proc "$pid_a"
+      stop_proc "$pid_b"
+      if [[ "$start_attempt" -lt "$TWO_NODE_START_ATTEMPTS" ]]; then
+        echo "[cmp] $label: startup port collision, retrying ($start_attempt/$TWO_NODE_START_ATTEMPTS)"
+        start_attempt=$((start_attempt+1))
+        continue
+      fi
+    fi
+
+    if ! wait_for_file_contains 0 "$log_a" "Started rnsd version"; then
+      echo "[cmp] $label: node_a did not start; see $log_a"
+    else
+      echo "[cmp] $label: node_b did not start; see $log_b"
+    fi
+    stop_proc "$pid_a"
+    stop_proc "$pid_b"
     return 1
-  fi
-  if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$log_b" "Started rnsd version"; then
-    echo "[cmp] $label: node_b did not start; see $log_b"
-    stop_proc "$pid_a"; stop_proc "$pid_b"
-    return 1
-  fi
+  done
 
   local status_a="$OUT_DIR/${label}.two_node.rnstatus.node_a.out"
   local status_b="$OUT_DIR/${label}.two_node.rnstatus.node_b.out"

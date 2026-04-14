@@ -37,6 +37,14 @@ func TestPrettySize_AndSpeed(t *testing.T) {
 	}
 }
 
+func TestPrettyFrequency_Zero(t *testing.T) {
+	maybeParallel(t)
+
+	if got := PrettyFrequency(0); got != "0 Hz" {
+		t.Fatalf("expected zero frequency to be rendered as 0 Hz, got %q", got)
+	}
+}
+
 func TestSetLogTimeFormat_ResetsOnEmpty(t *testing.T) {
 	maybeParallel(t)
 

@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestSpeedStr(t *testing.T) {
 	if got := speedStr(999, "bps"); got != "999.00 bps" {
@@ -42,5 +46,95 @@ func TestSortInterfaces_MissingKeys(t *testing.T) {
 	sortInterfaces(ifs, "rate", false)
 	if ifs[0]["name"] != "b" || ifs[1]["name"] != "c" || ifs[2]["name"] != "d" || ifs[3]["name"] != "a" {
 		t.Fatalf("unexpected order: %v", []any{ifs[0]["name"], ifs[1]["name"], ifs[2]["name"], ifs[3]["name"]})
+	}
+}
+
+func TestRenderDiscoveredInterfaces_JSONNormalisesBytes(t *testing.T) {
+	ifs := []map[string]any{
+		{
+			"name":  "public-tcp",
+			"stamp": []byte{0xaa, 0xbb},
+		},
+	}
+	out, err := renderDiscoveredInterfaces(ifs, nil, true, false)
+	if err != nil {
+		t.Fatalf("renderDiscoveredInterfaces: %v", err)
+	}
+	if !strings.Contains(out, `"stamp":"aabb"`) {
+		t.Fatalf("expected hex-normalised stamp in json output, got %q", out)
+	}
+}
+
+func TestRenderDiscoveredInterfaces_CompactFiltersAndPrintsPortlessRow(t *testing.T) {
+	now := time.Now()
+	ifs := []map[string]any{
+		{
+			"name":       "public-tcp-listener",
+			"type":       "TCPServerInterface",
+			"status":     "available",
+			"last_heard": now.Unix(),
+			"value":      23,
+		},
+		{
+			"name":       "backbone",
+			"type":       "BackboneInterface",
+			"status":     "unknown",
+			"last_heard": now.Add(-2 * time.Hour).Unix(),
+			"value":      7,
+		},
+	}
+	filter := "tcp"
+	out, err := renderDiscoveredInterfaces(ifs, &filter, false, false)
+	if err != nil {
+		t.Fatalf("renderDiscoveredInterfaces: %v", err)
+	}
+	if !strings.Contains(out, "public-tcp-listener") {
+		t.Fatalf("expected filtered row in output, got %q", out)
+	}
+	if strings.Contains(out, "backbone") {
+		t.Fatalf("unexpected unfiltered row in output, got %q", out)
+	}
+	if !strings.Contains(out, "✓ Available") {
+		t.Fatalf("expected compact status label, got %q", out)
+	}
+}
+
+func TestRenderDiscoveredInterfaces_DetailedUsesPortFieldAndConfigEntry(t *testing.T) {
+	now := time.Now()
+	ifs := []map[string]any{
+		{
+			"name":         "public-tcp",
+			"type":         "TCPServerInterface",
+			"status":       "available",
+			"transport":    true,
+			"hops":         2,
+			"discovered":   now.Add(-5 * time.Minute).Unix(),
+			"last_heard":   now.Add(-90 * time.Second).Unix(),
+			"reachable_on": "reticulum.example",
+			"port":         4242,
+			"value":        23,
+			"config_entry": "[[TCP public-tcp]]\nport = 4242",
+			"transport_id": "abcd",
+			"network_id":   "dcba",
+		},
+	}
+	out, err := renderDiscoveredInterfaces(ifs, nil, false, true)
+	if err != nil {
+		t.Fatalf("renderDiscoveredInterfaces: %v", err)
+	}
+	if !strings.Contains(out, "Transport ID : abcd") {
+		t.Fatalf("expected transport id in output, got %q", out)
+	}
+	if !strings.Contains(out, "Network   ID : dcba") {
+		t.Fatalf("expected network id in output, got %q", out)
+	}
+	if !strings.Contains(out, "Port         : 4242") {
+		t.Fatalf("expected port line in output, got %q", out)
+	}
+	if !strings.Contains(out, "Configuration Entry:") {
+		t.Fatalf("expected configuration entry in output, got %q", out)
+	}
+	if !strings.Contains(out, "[[TCP public-tcp]]") {
+		t.Fatalf("expected config entry lines in output, got %q", out)
 	}
 }

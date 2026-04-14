@@ -909,17 +909,25 @@ func (d *WeaveInterfaceDriver) addOrRefreshPeer(endpoint []byte) *Interface {
 		Name:              fmt.Sprintf("WeaveInterfacePeer[%s]", key),
 		Type:              "WeaveInterfacePeer",
 		Parent:            d.iface,
-		IN:                d.iface.IN,
-		OUT:               d.iface.OUT,
 		DriverImplemented: true,
 		Bitrate:           d.iface.Bitrate,
 		HWMTU:             d.iface.HWMTU,
 		FixedMTU:          d.iface.FixedMTU,
 		Created:           now,
 		Online:            true,
-		IngressControl:    false, // Python: should_ingress_limit() always false
 	}
+	peer.IN = d.iface.IN
+	peer.OUT = d.iface.OUT
 	peer.Mode = d.iface.Mode
+	peer.IngressControl = d.iface.IngressControl
+	peer.ICMaxHeldAnnounces = d.iface.ICMaxHeldAnnounces
+	peer.ICBurstHold = d.iface.ICBurstHold
+	peer.ICBurstFreqNew = d.iface.ICBurstFreqNew
+	peer.ICBurstFreq = d.iface.ICBurstFreq
+	peer.ICNewTime = d.iface.ICNewTime
+	peer.ICBurstPenalty = d.iface.ICBurstPenalty
+	peer.ICHeldReleaseInterval = d.iface.ICHeldReleaseInterval
+	peer.AnnounceCap = d.iface.AnnounceCap
 	peer.IFACSize = d.iface.IFACSize
 	peer.IFACKey = d.iface.IFACKey
 	peer.IFACIdentity = d.iface.IFACIdentity

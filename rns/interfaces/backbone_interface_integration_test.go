@@ -88,6 +88,7 @@ func TestBackboneIntegration_HandleConn_SpawnsPeerAndCleansUp(t *testing.T) {
 		Type:              "BackboneInterface",
 		IN:                true,
 		OUT:               false,
+		IngressControl:    false,
 		DriverImplemented: true,
 		HWMTU:             1 << 16,
 		Bitrate:           backboneBitrateGuess,
@@ -109,6 +110,9 @@ func TestBackboneIntegration_HandleConn_SpawnsPeerAndCleansUp(t *testing.T) {
 	}
 	if peerIface == nil || peerIface.Parent != parent || peerIface.Type != "BackboneInterfacePeer" {
 		t.Fatalf("unexpected peer iface: %#v", peerIface)
+	}
+	if peerIface.IngressControl != parent.IngressControl {
+		t.Fatalf("peer IngressControl=%v, want %v", peerIface.IngressControl, parent.IngressControl)
 	}
 	if driver.ClientCount() != 1 {
 		t.Fatalf("expected 1 client, got %d", driver.ClientCount())

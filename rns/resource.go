@@ -1770,6 +1770,9 @@ func (r *Resource) Cancel() {
 	if r.status >= ResourceComplete {
 		return
 	}
+	if r.nextSegment != nil {
+		r.nextSegment.Cancel()
+	}
 	Log(fmt.Sprintf("Cancelling resource %s (segment %d/%d, status=%d, initiator=%t)", r, r.segmentIndex, r.totalSegments, r.status, r.initiator), LOG_WARNING)
 	r.status = ResourceFailed
 

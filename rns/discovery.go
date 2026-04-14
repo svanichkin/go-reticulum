@@ -56,6 +56,15 @@ const (
 	blackholeSourceTimeout      = 25 * time.Second
 )
 
+var discoveryAllowedInterfaceTypes = map[string]struct{}{
+	"BackboneInterface":  {},
+	"TCPServerInterface": {},
+	"I2PInterface":       {},
+	"RNodeInterface":     {},
+	"WeaveInterface":     {},
+	"KISSInterface":      {},
+}
+
 type DiscoveryStamper interface {
 	StampSize() int
 	GenerateStamp(infoHash []byte, stampCost int, expandRounds int) ([]byte, int, error)
@@ -232,6 +241,9 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 	ifType := ifc.Type
 	if !ifc.SupportsDiscovery() {
 		return nil, fmt.Errorf("interface type %q does not support discovery", ifType)
+	}
+	if ifType == "TCPClientInterface" && !ifc.DiscoveryKISSFraming() {
+		return nil, fmt.Errorf("invalid interface discovery configuration for %s", ifc.Name)
 	}
 
 	flags := byte(0)
@@ -451,6 +463,9 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 	if d == nil || len(info) == 0 {
 		return
 	}
+	if !discoveryInterfaceTypeAllowed(asDiscoveryString(info["type"])) {
+		return
+	}
 	hash, _ := info["discovery_hash"].([]byte)
 	if len(hash) == 0 {
 		return
@@ -533,6 +548,10 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			_ = os.Remove(path)
 			continue
 		}
+		if !discoveryInterfaceTypeAllowed(asDiscoveryString(info["type"])) {
+			_ = os.Remove(path)
+			continue
+		}
 		if reachableOn, _ := info["reachable_on"].(string); strings.TrimSpace(reachableOn) != "" && !isDiscoveryAddress(strings.TrimSpace(reachableOn)) {
 			_ = os.Remove(path)
 			continue
@@ -590,6 +609,9 @@ func discoveryInfoFromRaw(raw map[any]any, destinationHash []byte, announcedIden
 	if ifType == "" {
 		return nil
 	}
+	if !discoveryInterfaceTypeAllowed(ifType) {
+		return nil
+	}
 	name := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldName)))
 	if name == "" {
 		name = "Discovered " + ifType
@@ -605,9 +627,21 @@ func discoveryInfoFromRaw(raw map[any]any, destinationHash []byte, announcedIden
 		"transport_id": strings.ToLower(hex.EncodeToString(transportID)),
 		"network_id":   strings.ToLower(hex.EncodeToString(announcedIdentity.Hash)),
 		"hops":         discoveryHopsTo(destinationHash),
-		"latitude":     asDiscoveryFloat(discoveryRawGet(raw, discoveryFieldLatitude)),
-		"longitude":    asDiscoveryFloat(discoveryRawGet(raw, discoveryFieldLongitude)),
-		"height":       asDiscoveryFloat(discoveryRawGet(raw, discoveryFieldHeight)),
+	}
+	if latRaw := discoveryRawGet(raw, discoveryFieldLatitude); latRaw != nil {
+		info["latitude"] = asDiscoveryFloat(latRaw)
+	} else {
+		info["latitude"] = nil
+	}
+	if lonRaw := discoveryRawGet(raw, discoveryFieldLongitude); lonRaw != nil {
+		info["longitude"] = asDiscoveryFloat(lonRaw)
+	} else {
+		info["longitude"] = nil
+	}
+	if heightRaw := discoveryRawGet(raw, discoveryFieldHeight); heightRaw != nil {
+		info["height"] = asDiscoveryFloat(heightRaw)
+	} else {
+		info["height"] = nil
 	}
 	if reachableOn := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldReachableOn))); reachableOn != "" {
 		info["reachable_on"] = reachableOn
@@ -644,6 +678,11 @@ func discoveryInfoFromRaw(raw map[any]any, destinationHash []byte, announcedIden
 	}
 	info["discovery_hash"] = FullHash([]byte(info["transport_id"].(string) + info["name"].(string)))
 	return info
+}
+
+func discoveryInterfaceTypeAllowed(ifType string) bool {
+	_, ok := discoveryAllowedInterfaceTypes[strings.TrimSpace(ifType)]
+	return ok
 }
 
 func discoveryAllowedSource(networkID string) bool {

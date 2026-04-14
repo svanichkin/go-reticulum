@@ -21,7 +21,7 @@ import (
 )
 
 // Library version mirrors python/RNS/_version.py.
-var Version = "1.1.4"
+var Version = "1.1.5"
 var compiledFlag = false
 
 const (
@@ -722,6 +722,9 @@ func PrettyFrequency(hz float64, suffix ...string) string {
 	suf := "Hz"
 	if len(suffix) > 0 && suffix[0] != "" {
 		suf = suffix[0]
+	}
+	if hz == 0 {
+		return "0 " + suf
 	}
 	num := hz * 1e6
 	units := []string{"µ", "m", "", "K", "M", "G", "T", "P", "E", "Z"}

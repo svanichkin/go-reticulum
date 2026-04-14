@@ -93,7 +93,9 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 	if p.CreateReceipt {
 		rc := NewPacketReceipt(p)
 		p.Receipt = rc
+		receiptsMu.Lock()
 		Receipts = append(Receipts, rc)
+		receiptsMu.Unlock()
 	}
 
 	in := NewPacket(nil, p.Raw)

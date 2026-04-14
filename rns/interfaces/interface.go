@@ -1402,33 +1402,29 @@ func (i *Interface) OutgoingAnnounceFrequency() float64 {
 	}
 	i.icMu.Lock()
 	defer i.icMu.Unlock()
-	if len(i.oaFreq) <= 1 {
+	n := len(i.oaFreq)
+	if n <= 1 {
 		return 0
 	}
-	delta := 0.0
-	for idx := 1; idx < len(i.oaFreq); idx++ {
-		delta += i.oaFreq[idx].Sub(i.oaFreq[idx-1]).Seconds()
-	}
-	delta += time.Since(i.oaFreq[len(i.oaFreq)-1]).Seconds()
-	if delta <= 0 {
+	oldest := i.oaFreq[0]
+	span := time.Since(oldest).Seconds()
+	if span <= 0 {
 		return 0
 	}
-	return 1.0 / (delta / float64(len(i.oaFreq)))
+	return float64(n) / span
 }
 
 func (i *Interface) incomingAnnounceFrequencyLocked(now time.Time) float64 {
-	if len(i.iaFreq) <= 1 {
+	n := len(i.iaFreq)
+	if n <= ICDequeMinSample {
 		return 0
 	}
-	delta := 0.0
-	for idx := 1; idx < len(i.iaFreq); idx++ {
-		delta += i.iaFreq[idx].Sub(i.iaFreq[idx-1]).Seconds()
-	}
-	delta += now.Sub(i.iaFreq[len(i.iaFreq)-1]).Seconds()
-	if delta <= 0 {
+	oldest := i.iaFreq[0]
+	span := now.Sub(oldest).Seconds()
+	if span <= 0 {
 		return 0
 	}
-	return 1.0 / (delta / float64(len(i.iaFreq)))
+	return float64(n) / span
 }
 
 func (i *Interface) IncomingAnnounceFrequency() float64 {

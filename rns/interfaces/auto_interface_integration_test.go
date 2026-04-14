@@ -73,14 +73,84 @@ func TestAutoInterface_DiscoveryLoop_SpawnsPeer(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		gotMu.Lock()
-		ok := got != nil
+		spawned := got
 		gotMu.Unlock()
-		if ok {
+		if spawned != nil {
+			if spawned.IngressControl != parent.IngressControl {
+				t.Fatalf("peer IngressControl=%v, want %v", spawned.IngressControl, parent.IngressControl)
+			}
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("expected peer spawn")
+}
+
+func TestAutoInterface_DiscoveryLoop_SpawnedPeerInheritsIngressControl(t *testing.T) {
+	pc, err := net.ListenPacket("udp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("udp6 not available: %v", err)
+	}
+	defer pc.Close()
+
+	parent := &Interface{Name: "AutoParent", IN: true, OUT: false, Online: true, IngressControl: false}
+
+	st := &autoState{
+		cfg:     defaultAutoConfig(parent.Name),
+		adopted: map[string]*net.Interface{},
+		llip:    map[string]net.IP{},
+		llstr:   map[string]string{},
+		llset:   map[string]bool{},
+		llrev:   map[string]string{},
+		peers:   map[string]*autoPeerState{},
+		spawned: map[string]*Interface{},
+		discPC:  map[string]net.PacketConn{},
+		dataUC:  map[string]*net.UDPConn{},
+		annStop: map[string]chan struct{}{},
+		mcastE:  map[string]time.Time{},
+		initE:   map[string]time.Time{},
+		timedOU: map[string]bool{},
+		stopCh:  make(chan struct{}),
+	}
+	st.cfg.AnnounceInterval = time.Hour
+	st.finalInitDone.Store(true)
+	parent.auto = st
+
+	gotCh := make(chan *Interface, 1)
+	prevSpawn := SpawnHandler
+	t.Cleanup(func() { SpawnHandler = prevSpawn })
+	SpawnHandler = func(ifc *Interface) {
+		select {
+		case gotCh <- ifc:
+		default:
+		}
+		close(st.stopCh)
+	}
+
+	annStop := make(chan struct{})
+	go st.autoDiscoveryLoop(parent, "lo", pc, annStop)
+
+	dst := pc.LocalAddr().(*net.UDPAddr)
+	c, err := net.DialUDP("udp6", nil, dst)
+	if err != nil {
+		t.Fatalf("DialUDP: %v", err)
+	}
+	defer c.Close()
+
+	peerStr := "::1"
+	token := sha256.Sum256(append(append([]byte{}, st.cfg.GroupID...), []byte(peerStr)...))
+	if _, err := c.Write(token[:]); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+
+	select {
+	case peer := <-gotCh:
+		if peer.IngressControl != parent.IngressControl {
+			t.Fatalf("peer IngressControl=%v, want %v", peer.IngressControl, parent.IngressControl)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("expected peer spawn")
+	}
 }
 
 func TestAutoInterface_DataLoop_DeduplicatesMultiIF(t *testing.T) {
@@ -158,4 +228,3 @@ func TestAutoInterface_DataLoop_DeduplicatesMultiIF(t *testing.T) {
 
 	close(st.stopCh)
 }
-

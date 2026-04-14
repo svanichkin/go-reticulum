@@ -2058,8 +2058,6 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 					Name:              ci.String(),
 					Type:              "TCPClientInterface",
 					Parent:            parent,
-					IN:                true,
-					OUT:               true,
 					DriverImplemented: true,
 					Online:            true,
 					Bitrate:           parent.Bitrate,
@@ -2073,6 +2071,7 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 					IFACIdentity:      parent.IFACIdentity,
 					IFACSignature:     append([]byte(nil), parent.IFACSignature...),
 				}
+				inheritInterfaceConfig(peer, parent)
 				peer.SetTCPClient(ci)
 				ci.Owner = tcpOwnerAdapter{ifc: peer}
 				AddInterface(peer)
@@ -2581,8 +2580,6 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 				Name:              ci.String(),
 				Type:              "TCPClientInterface",
 				Parent:            parent,
-				IN:                true,
-				OUT:               true,
 				DriverImplemented: true,
 				Online:            true,
 				Bitrate:           parent.Bitrate,
@@ -2596,6 +2593,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 				IFACIdentity:      parent.IFACIdentity,
 				IFACSignature:     append([]byte(nil), parent.IFACSignature...),
 			}
+			inheritInterfaceConfig(peer, parent)
 			peer.SetTCPClient(ci)
 			ci.Owner = tcpOwnerAdapter{ifc: peer}
 			AddInterface(peer)

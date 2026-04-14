@@ -9,6 +9,44 @@ import (
 	"time"
 )
 
+func TestI2PIntegration_SpawnIncoming_InheritsIngressControl(t *testing.T) {
+	prevSpawn := SpawnHandler
+	t.Cleanup(func() { SpawnHandler = prevSpawn })
+
+	parent := &Interface{Name: "i2p0", Type: "I2PInterface", IngressControl: false, Bitrate: 1234, HWMTU: 4096}
+	driver := &I2PClientDriver{iface: parent}
+
+	serverSide, clientSide := net.Pipe()
+	defer clientSide.Close()
+
+	got := make(chan *Interface, 1)
+	SpawnHandler = func(ifc *Interface) { got <- ifc }
+
+	driver.spawnIncoming(serverSide)
+
+	select {
+	case peerIface := <-got:
+		if peerIface.IngressControl != parent.IngressControl {
+			t.Fatalf("peer IngressControl=%v, want %v", peerIface.IngressControl, parent.IngressControl)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for SpawnHandler")
+	}
+}
+
+func TestI2PIntegration_NewInitiatorPeer_InheritsIngressControl(t *testing.T) {
+	parent := &Interface{Name: "i2p0", Type: "I2PInterface", IngressControl: false, Bitrate: 1234, HWMTU: 4096}
+	driver := &I2PClientDriver{iface: parent}
+
+	peerIface, err := driver.NewInitiatorPeer("peer.example.b32.i2p")
+	if err != nil {
+		t.Fatalf("NewInitiatorPeer: %v", err)
+	}
+	if peerIface.IngressControl != parent.IngressControl {
+		t.Fatalf("peer IngressControl=%v, want %v", peerIface.IngressControl, parent.IngressControl)
+	}
+}
+
 func TestI2PIntegration_Peer_ProcessOutgoing_FramesHDLC(t *testing.T) {
 	// Does not require an I2P daemon; validates framing on the wire.
 

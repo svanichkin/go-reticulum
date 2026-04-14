@@ -110,6 +110,42 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_TCPServer(t *testing.T) {
 	}
 }
 
+func TestDiscoveryInfoFromRaw_MissingLocationFieldsStayNil(t *testing.T) {
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+
+	raw := map[any]any{
+		discoveryFieldInterfaceType: "TCPServerInterface",
+		discoveryFieldName:          "public-tcp",
+		discoveryFieldTransport:     true,
+	}
+
+	info := discoveryInfoFromRaw(raw, []byte{0x01, 0x02}, id, []byte{0xaa}, 23)
+	if info == nil {
+		t.Fatal("discoveryInfoFromRaw returned nil")
+	}
+	if _, ok := info["latitude"]; !ok {
+		t.Fatal("latitude key missing")
+	}
+	if _, ok := info["longitude"]; !ok {
+		t.Fatal("longitude key missing")
+	}
+	if _, ok := info["height"]; !ok {
+		t.Fatal("height key missing")
+	}
+	if info["latitude"] != nil {
+		t.Fatalf("latitude=%v, want nil", info["latitude"])
+	}
+	if info["longitude"] != nil {
+		t.Fatalf("longitude=%v, want nil", info["longitude"])
+	}
+	if info["height"] != nil {
+		t.Fatalf("height=%v, want nil", info["height"])
+	}
+}
+
 func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T) {
 	prevStamper := DiscoveryStampProvider
 	prevTransportIdentity := TransportIdentity
@@ -227,6 +263,40 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_UsesStampCache(t *testing.T
 	}
 	if stamper.calls != 1 {
 		t.Fatalf("GenerateStamp calls=%d, want 1", stamper.calls)
+	}
+}
+
+func TestInterfaceAnnouncer_GetInterfaceAnnounceData_TCPClientWithoutKISSRejected(t *testing.T) {
+	prevStamper := DiscoveryStampProvider
+	prevTransportIdentity := TransportIdentity
+	prevNetworkIdentity := NetworkIdentity
+
+	DiscoveryStampProvider = fakeDiscoveryStamper{stamp: []byte{1, 2, 3, 4}, value: 21}
+	NetworkIdentity = nil
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	TransportIdentity = id
+
+	t.Cleanup(func() {
+		DiscoveryStampProvider = prevStamper
+		TransportIdentity = prevTransportIdentity
+		NetworkIdentity = prevNetworkIdentity
+	})
+
+	port := 4242
+	ifc := &Interface{
+		Type:                 "TCPClientInterface",
+		Name:                 "tcp-client-no-kiss",
+		Discoverable:         true,
+		DiscoveryReachableOn: "example.com",
+		DiscoveryPort:        &port,
+	}
+
+	announcer := NewInterfaceAnnouncer()
+	if _, err := announcer.GetInterfaceAnnounceData(ifc); err == nil {
+		t.Fatalf("GetInterfaceAnnounceData() error = nil, want invalid TCP discovery configuration")
 	}
 }
 

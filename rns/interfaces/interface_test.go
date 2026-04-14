@@ -66,15 +66,42 @@ func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
 	}
 }
 
-func TestInterface_IncomingAnnounceFrequency_Basic(t *testing.T) {
+func TestInterface_IncomingAnnounceFrequency_RequiresMinimumSamples(t *testing.T) {
 	t.Parallel()
 
 	iface := &Interface{Name: "if0"}
-	iface.ReceivedAnnounce()
+	for range ICDequeMinSample {
+		iface.ReceivedAnnounce()
+	}
+
+	if v := iface.IncomingAnnounceFrequency(); v != 0 {
+		t.Fatalf("expected 0 frequency below/equal min sample threshold, got %f", v)
+	}
+
 	iface.ReceivedAnnounce()
 
 	if v := iface.IncomingAnnounceFrequency(); v <= 0 {
-		t.Fatalf("expected >0 frequency, got %f", v)
+		t.Fatalf("expected >0 frequency once threshold exceeded, got %f", v)
+	}
+}
+
+func TestInterface_OutgoingAnnounceFrequency_UsesWindowSpan(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	iface := &Interface{
+		Name: "if0",
+		oaFreq: []time.Time{
+			now.Add(-4 * time.Second),
+			now.Add(-3 * time.Second),
+			now.Add(-2 * time.Second),
+			now.Add(-1 * time.Second),
+		},
+	}
+
+	got := iface.OutgoingAnnounceFrequency()
+	if got < 0.95 || got > 1.05 {
+		t.Fatalf("expected outgoing frequency close to 1.0 Hz, got %f", got)
 	}
 }
 

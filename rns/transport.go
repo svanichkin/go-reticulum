@@ -164,6 +164,8 @@ var (
 	packetHashMu    sync.RWMutex
 	pathRequestMu   sync.Mutex
 	linkMu          sync.Mutex
+	linkTableMu     sync.RWMutex
+	receiptsMu      sync.Mutex
 	announceMu      sync.Mutex
 	lastPathRequest = make(map[hashKey]time.Time)
 	announceTable   = make(map[hashKey]*announceEntry)
@@ -1942,6 +1944,12 @@ func runInterfaceJobs(now time.Time) bool {
 	}
 
 	PrioritiseInterfaces()
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogWarning, "Error while processing held per-interface announces: %v", r)
+			Log("Postponing until next job run", LogWarning)
+		}
+	}()
 	for _, ifc := range Interfaces {
 		if ifc != nil {
 			ifc.ProcessHeldAnnounces(PathfinderMaxHops)
@@ -2010,6 +2018,7 @@ func Jobs() {
 
 	// ---- receipts ----
 	if now.Sub(ReceiptsLast) > ReceiptsCheckInt {
+		receiptsMu.Lock()
 		for len(Receipts) > MaxReceipts {
 			r := Receipts[0]
 			Receipts = Receipts[1:]
@@ -2026,6 +2035,7 @@ func Jobs() {
 				i++
 			}
 		}
+		receiptsMu.Unlock()
 		ReceiptsLast = now
 	}
 
@@ -3247,7 +3257,7 @@ func cullReverseAndLinkTables(now time.Time) bool {
 	}
 	reverseTableMu.Unlock()
 
-	linkMu.Lock()
+	linkTableMu.Lock()
 	for key, entry := range linkTable {
 		if entry == nil {
 			delete(linkTable, key)
@@ -3277,7 +3287,7 @@ func cullReverseAndLinkTables(now time.Time) bool {
 			continue
 		}
 	}
-	linkMu.Unlock()
+	linkTableMu.Unlock()
 
 	return removed
 }
@@ -3497,7 +3507,9 @@ func Outbound(p *Packet) bool {
 		if genReceipt {
 			rc := NewPacketReceipt(p)
 			p.Receipt = rc
+			receiptsMu.Lock()
 			Receipts = append(Receipts, rc)
+			receiptsMu.Unlock()
 		}
 	}
 
@@ -3771,7 +3783,10 @@ func Inbound(raw []byte, ifc *Interface) {
 
 	rememberHash := true
 	if key, ok := makeHashKey(p.DestinationHash); ok {
-		if _, exists := linkTable[key]; exists {
+		linkTableMu.RLock()
+		_, exists := linkTable[key]
+		linkTableMu.RUnlock()
+		if exists {
 			rememberHash = false
 		}
 	}
@@ -3827,9 +3842,9 @@ func Inbound(raw []byte, ifc *Interface) {
 						Validated:         false,
 						ProofTimeout:      proofTimeout,
 					}
-					linkMu.Lock()
+					linkTableMu.Lock()
 					linkTable[lidKey] = le
-					linkMu.Unlock()
+					linkTableMu.Unlock()
 				}
 			}
 			Transmit(entry.RecvInterface, p.Raw)
@@ -3887,9 +3902,10 @@ func Inbound(raw []byte, ifc *Interface) {
 				link.Receive(p)
 				return
 			}
+			pendingLinks, activeLinks := snapshotLinks()
 			Logf(LogDebug, "Inbound DestLink: no local link for %x ctx=0x%02x (pending=%d active=%d)",
-				p.DestinationHash, p.Context, len(PendingLinks), len(ActiveLinks))
-			for i, pl := range PendingLinks {
+				p.DestinationHash, p.Context, len(pendingLinks), len(activeLinks))
+			for i, pl := range pendingLinks {
 				if pl != nil {
 					Logf(LogExtreme, "  PendingLink[%d]: linkID=%x status=%d", i, pl.LinkID, pl.Status)
 				}
@@ -3967,9 +3983,9 @@ func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
 		return false
 	}
 
-	linkMu.Lock()
+	linkTableMu.RLock()
 	entry := linkTable[key]
-	linkMu.Unlock()
+	linkTableMu.RUnlock()
 	if entry == nil || entry.NextHopInterface == nil || entry.ReceivedInterface == nil {
 		return false
 	}
@@ -4012,7 +4028,7 @@ func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
 	Transmit(outbound, outRaw)
 
 	now := time.Now()
-	linkMu.Lock()
+	linkTableMu.Lock()
 	if cur := linkTable[key]; cur == entry {
 		if p.Type == PacketProof && p.Context == PacketCtxLRProof {
 			entry.Validated = true
@@ -4021,7 +4037,7 @@ func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
 		entry.Timestamp = now
 		linkTable[key] = entry
 	}
-	linkMu.Unlock()
+	linkTableMu.Unlock()
 	return true
 }
 
@@ -4214,9 +4230,9 @@ func forwardTransportPacket(p *Packet, receivedOn *Interface) bool {
 				Validated:         false,
 				ProofTimeout:      proofTmo,
 			}
-			linkMu.Lock()
+			linkTableMu.Lock()
 			linkTable[lidKey] = le
-			linkMu.Unlock()
+			linkTableMu.Unlock()
 		}
 	}
 	return true
@@ -4364,10 +4380,20 @@ func findLinkByID(linkID []byte) *Link {
 	return nil
 }
 
+func snapshotLinks() (pending []*Link, active []*Link) {
+	linkMu.Lock()
+	defer linkMu.Unlock()
+	pending = append([]*Link(nil), PendingLinks...)
+	active = append([]*Link(nil), ActiveLinks...)
+	return pending, active
+}
+
 func handleInboundProof(p *Packet) bool {
 	if p == nil || len(p.DestinationHash) == 0 {
 		return false
 	}
+	receiptsMu.Lock()
+	defer receiptsMu.Unlock()
 	for _, rc := range Receipts {
 		if rc == nil || rc.Status != ReceiptSent {
 			continue
@@ -5453,7 +5479,9 @@ func SharedConnectionDisappeared() {
 	discoveryPathRequests = make(map[hashKey]*discoveryPathRequest)
 	discoveryPathRequestsMu.Unlock()
 
+	linkTableMu.Lock()
 	linkTable = make(map[hashKey]*linkEntry)
+	linkTableMu.Unlock()
 	configureControlDestinations()
 }
 

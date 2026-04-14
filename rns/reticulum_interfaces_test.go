@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	configobj "github.com/svanichkin/configobj"
+	ifaces "github.com/svanichkin/go-reticulum/rns/interfaces"
 )
 
 func TestReticulumBringUpSystemInterfaces_EnabledGating(t *testing.T) {
@@ -251,3 +252,74 @@ func TestReticulumBringUpSystemInterfaces_BackboneInterfaceAlias(t *testing.T) {
 		t.Fatalf("expected BackboneClientInterface, got %#v", Interfaces[0])
 	}
 }
+
+func TestReticulum_TCPServerAcceptedPeer_InheritsIngressControl(t *testing.T) {
+	prevInterfaces := Interfaces
+	Interfaces = nil
+	t.Cleanup(func() { Interfaces = prevInterfaces })
+
+	parent := &Interface{
+		Name:                   "tcp-server",
+		Type:                   "TCPServerInterface",
+		IN:                     true,
+		OUT:                    false,
+		IngressControl:         false,
+		ICMaxHeldAnnounces:     intPtr(123),
+		AnnounceRateTarget:     intPtr(7),
+		AnnounceRateGrace:      intPtr(8),
+		AnnounceRatePenalty:    intPtr(9),
+		AutoconfigureMTU:       true,
+		FixedMTU:               false,
+		Bitrate:                1000,
+		HWMTU:                  4096,
+		DriverImplemented:      true,
+		Online:                 true,
+	}
+
+	server := &ifaces.TCPServerInterface{}
+	server.OnNewClient = func(ci *ifaces.TCPClientInterface) {
+		if ci == nil {
+			return
+		}
+		peer := &Interface{
+			Name:              ci.String(),
+			Type:              "TCPClientInterface",
+			Parent:            parent,
+			DriverImplemented: true,
+			Online:            true,
+			Bitrate:           parent.Bitrate,
+			HWMTU:             parent.HWMTU,
+			AutoconfigureMTU:  parent.AutoconfigureMTU,
+			FixedMTU:          parent.FixedMTU,
+		}
+		inheritInterfaceConfig(peer, parent)
+		peer.SetTCPClient(ci)
+		ci.Owner = tcpOwnerAdapter{ifc: peer}
+		AddInterface(peer)
+	}
+
+	ci := ifaces.NewTCPClientFromAccepted(nil, nil, "client0", nil, false, false)
+	server.OnNewClient(ci)
+
+	if len(Interfaces) != 1 {
+		t.Fatalf("expected 1 accepted peer interface, got %d", len(Interfaces))
+	}
+	peer := Interfaces[0]
+	if peer == nil {
+		t.Fatalf("nil peer")
+	}
+	if peer.IngressControl != parent.IngressControl {
+		t.Fatalf("peer IngressControl=%v, want %v", peer.IngressControl, parent.IngressControl)
+	}
+	if peer.OUT != parent.OUT || peer.IN != parent.IN {
+		t.Fatalf("peer IN/OUT=(%v,%v), want (%v,%v)", peer.IN, peer.OUT, parent.IN, parent.OUT)
+	}
+	if peer.ICMaxHeldAnnounces == nil || *peer.ICMaxHeldAnnounces != 123 {
+		t.Fatalf("peer ICMaxHeldAnnounces=%v, want 123", peer.ICMaxHeldAnnounces)
+	}
+	if peer.AnnounceRateTarget == nil || *peer.AnnounceRateTarget != 7 {
+		t.Fatalf("peer AnnounceRateTarget=%v, want 7", peer.AnnounceRateTarget)
+	}
+}
+
+func intPtr(v int) *int { return &v }

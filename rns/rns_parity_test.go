@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func TestVersionString_MatchesPython114(t *testing.T) {
-	if got := VersionString(); got != "1.1.4" {
-		t.Fatalf("VersionString()=%q, want 1.1.4", got)
+func TestVersionString_MatchesPython115(t *testing.T) {
+	if got := VersionString(); got != "1.1.5" {
+		t.Fatalf("VersionString()=%q, want 1.1.5", got)
 	}
 }
 

@@ -885,7 +885,7 @@ func (st *autoState) addOrRefreshPeer(parent *Interface, peerIP net.IP, peerStr 
 		OUT:                   parent.OUT,
 		Mode:                  parent.Mode,
 		Bitrate:               parent.Bitrate,
-		IngressControl:        true,
+		IngressControl:        parent.IngressControl,
 		ICMaxHeldAnnounces:    parent.ICMaxHeldAnnounces,
 		ICBurstHold:           parent.ICBurstHold,
 		ICBurstFreqNew:        parent.ICBurstFreqNew,

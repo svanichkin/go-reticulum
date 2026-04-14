@@ -20,7 +20,7 @@ var rnstatusVersion = fmt.Sprintf("rnstatus %s", rns.GetVersion())
 
 type countFlag int
 
-func (c *countFlag) String() string { return fmt.Sprint(int(*c)) }
+func (c *countFlag) String() string   { return fmt.Sprint(int(*c)) }
 func (c *countFlag) IsBoolFlag() bool { return true }
 func (c *countFlag) Set(string) error {
 	*c++
@@ -41,14 +41,16 @@ func (e exitError) Error() string {
 
 func main() {
 	var (
-		configDir string
-		showAll   bool
-		astats    bool
-		lstats    bool
-		totals    bool
-		sortBy    string
-		reverse   bool
-		jsonOut   bool
+		configDir  string
+		showAll    bool
+		astats     bool
+		lstats     bool
+		discovered bool
+		configEnts bool
+		totals     bool
+		sortBy     string
+		reverse    bool
+		jsonOut    bool
 
 		remoteHash string
 		identPath  string
@@ -70,6 +72,11 @@ func main() {
 
 	fs.BoolVar(&lstats, "link-stats", false, "show link stats")
 	fs.BoolVar(&lstats, "l", false, "show link stats")
+
+	fs.BoolVar(&discovered, "discovered", false, "list discovered interfaces")
+	fs.BoolVar(&discovered, "d", false, "list discovered interfaces")
+
+	fs.BoolVar(&configEnts, "D", false, "show details and config entries for discovered interfaces")
 
 	fs.BoolVar(&totals, "totals", false, "display traffic totals")
 	fs.BoolVar(&totals, "t", false, "display traffic totals")
@@ -98,7 +105,7 @@ func main() {
 	fs.BoolVar(&help, "h", false, "show this help message and exit")
 
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: rnstatus [-h] [--config CONFIG] [--version] [-a] [-A] [-l] [-t] [-s SORT] [-r] [-j] [-R HASH] [-i PATH] [-w SECONDS] [-v] [filter]")
+		fmt.Fprintln(os.Stderr, "usage: rnstatus [-h] [--config CONFIG] [--version] [-a] [-A] [-l] [-d] [-D] [-t] [-s SORT] [-r] [-j] [-R HASH] [-i PATH] [-w SECONDS] [-v] [filter]")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "Reticulum Network Stack Status")
 		fmt.Fprintln(os.Stderr, "")
@@ -147,7 +154,7 @@ func main() {
 	}
 
 	if err := programSetup(cfg, showAll, int(verbose), nameFilter, jsonOut,
-		astats, lstats, sortBy, reverse, remoteHash, identPath, remoteTO, totals); err != nil {
+		astats, lstats, discovered, configEnts, sortBy, reverse, remoteHash, identPath, remoteTO, totals); err != nil {
 		if ee, ok := err.(exitError); ok {
 			if ee.err != nil && ee.err.Error() != "" {
 				fmt.Fprintln(os.Stderr, ee.err)
@@ -167,6 +174,8 @@ func programSetup(
 	jsonOut bool,
 	astats bool,
 	lstats bool,
+	discoveredInterfaces bool,
+	configEntries bool,
 	sorting string,
 	sortReverse bool,
 	remote string,
@@ -191,6 +200,22 @@ func programSetup(
 		stats     map[string]any
 		linkCount *int
 	)
+
+	details := false
+	if configEntries {
+		discoveredInterfaces = true
+		details = true
+	}
+
+	if discoveredInterfaces {
+		fmt.Println()
+		out, err := renderDiscoveredInterfaces(reticulum.DiscoveredInterfaces(), nameFilter, jsonOut, details)
+		if err != nil {
+			return err
+		}
+		fmt.Print(out)
+		return nil
+	}
 
 	if remote != "" {
 		// --- remote mode ---
@@ -745,6 +770,13 @@ func normaliseBytes(v any) any {
 			x[i] = normaliseBytes(vv)
 		}
 		return x
+	case []map[string]any:
+		for i := range x {
+			for k, vv := range x[i] {
+				x[i][k] = normaliseBytes(vv)
+			}
+		}
+		return x
 	default:
 		return v
 	}
@@ -851,6 +883,289 @@ func abs(x float64) float64 {
 		return -x
 	}
 	return x
+}
+
+func renderDiscoveredInterfaces(ifs []map[string]any, nameFilter *string, jsonOut bool, details bool) (string, error) {
+	if jsonOut {
+		normalised := make([]map[string]any, len(ifs))
+		for i, info := range ifs {
+			cp := make(map[string]any, len(info))
+			for k, v := range info {
+				cp[k] = normaliseBytes(v)
+			}
+			normalised[i] = cp
+		}
+		data, err := json.Marshal(normalised)
+		if err != nil {
+			return "", err
+		}
+		return string(data) + "\n", nil
+	}
+
+	filtered := filterDiscoveredInterfaces(ifs, nameFilter)
+	if details {
+		return renderDiscoveredInterfacesDetailed(filtered), nil
+	}
+	return renderDiscoveredInterfacesCompact(filtered), nil
+}
+
+func filterDiscoveredInterfaces(ifs []map[string]any, nameFilter *string) []map[string]any {
+	if nameFilter == nil || strings.TrimSpace(*nameFilter) == "" {
+		return ifs
+	}
+	filter := strings.ToLower(strings.TrimSpace(*nameFilter))
+	filtered := make([]map[string]any, 0, len(ifs))
+	for _, info := range ifs {
+		name, _ := info["name"].(string)
+		if strings.Contains(strings.ToLower(name), filter) {
+			filtered = append(filtered, info)
+		}
+	}
+	return filtered
+}
+
+func renderDiscoveredInterfacesDetailed(ifs []map[string]any) string {
+	var b strings.Builder
+	for idx, info := range ifs {
+		if idx > 0 {
+			b.WriteString("\n================================\n\n")
+		}
+
+		transportID, _ := info["transport_id"].(string)
+		networkID, _ := info["network_id"].(string)
+		if networkID != "" && networkID != transportID {
+			fmt.Fprintf(&b, "Network   ID : %s\n", networkID)
+		}
+		if transportID != "" {
+			fmt.Fprintf(&b, "Transport ID : %s\n", transportID)
+		}
+
+		name, _ := info["name"].(string)
+		ifType, _ := info["type"].(string)
+		fmt.Fprintf(&b, "Name         : %s\n", name)
+		fmt.Fprintf(&b, "Type         : %s\n", ifType)
+		fmt.Fprintf(&b, "Status       : %s\n", discoveredStatusDetailed(stringField(info, "status")))
+		fmt.Fprintf(&b, "Transport    : %s\n", discoveredTransportStatus(boolField(info, "transport")))
+
+		hops, _ := numField(info, "hops")
+		hopSuffix := "s"
+		if hops == 1 {
+			hopSuffix = ""
+		}
+		fmt.Fprintf(&b, "Distance     : %d hop%s\n", hops, hopSuffix)
+
+		if discoveredAt, ok := numField(info, "discovered"); ok {
+			dago := time.Since(time.Unix(int64(discoveredAt), 0)).Seconds()
+			fmt.Fprintf(&b, "Discovered   : %s ago\n", rns.PrettyTime(dago, false, true))
+		}
+		if lastHeard, ok := numField(info, "last_heard"); ok {
+			hago := time.Since(time.Unix(int64(lastHeard), 0)).Seconds()
+			fmt.Fprintf(&b, "Last Heard   : %s ago\n", rns.PrettyTime(hago, false, true))
+		}
+
+		fmt.Fprintf(&b, "Location     : %s\n", discoveredLocationDetailed(info))
+
+		if v, ok := numField(info, "frequency"); ok {
+			fmt.Fprintf(&b, "Frequency    : %s Hz\n", formatThousands(v))
+		}
+		if v, ok := numField(info, "bandwidth"); ok {
+			fmt.Fprintf(&b, "Bandwidth    : %s Hz\n", formatThousands(v))
+		}
+		if v, ok := numField(info, "sf"); ok {
+			fmt.Fprintf(&b, "Sprd. Factor : %d\n", v)
+		}
+		if v, ok := numField(info, "cr"); ok {
+			fmt.Fprintf(&b, "Coding Rate  : %d\n", v)
+		}
+		if modulation, _ := info["modulation"].(string); modulation != "" {
+			fmt.Fprintf(&b, "Modulation   : %s\n", modulation)
+		}
+		if reachableOn, _ := info["reachable_on"].(string); reachableOn != "" {
+			fmt.Fprintf(&b, "Address      : %s\n", reachableOn)
+		}
+		if port, ok := numField(info, "port"); ok {
+			fmt.Fprintf(&b, "Port         : %d\n", port)
+		}
+
+		if value, ok := numField(info, "value"); ok {
+			fmt.Fprintf(&b, "Stamp Value  : %d\n", value)
+		}
+
+		if entry, _ := info["config_entry"].(string); entry != "" {
+			b.WriteString("\nConfiguration Entry:\n")
+			for _, line := range strings.Split(entry, "\n") {
+				fmt.Fprintf(&b, "  %s\n", line)
+			}
+		}
+	}
+	return b.String()
+}
+
+func renderDiscoveredInterfacesCompact(ifs []map[string]any) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%-25s %-12s %-12s %-12s %-8s %-15s\n", "Name", "Type", "Status", "Last Heard", "Value", "Location")
+	b.WriteString(strings.Repeat("-", 89) + "\n")
+	for _, info := range ifs {
+		name, _ := info["name"].(string)
+		if runeCount := len([]rune(name)); runeCount > 24 {
+			runes := []rune(name)
+			name = string(runes[:24]) + "..."
+		}
+
+		ifType, _ := info["type"].(string)
+		ifType = strings.ReplaceAll(ifType, "Interface", "")
+
+		status := discoveredStatusCompact(stringField(info, "status"))
+		lastHeardDisplay := discoveredLastHeardCompact(info)
+		value := ""
+		if v, ok := numField(info, "value"); ok {
+			value = fmt.Sprintf("%d", v)
+		}
+		location := discoveredLocationCompact(info)
+		fmt.Fprintf(&b, "%-25s %-12s %-12s %-12s %-8s %-15s\n", name, ifType, status, lastHeardDisplay, value, location)
+	}
+	return b.String()
+}
+
+func stringField(m map[string]any, k string) string {
+	if m == nil {
+		return ""
+	}
+	if v, ok := m[k].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func discoveredStatusDetailed(status string) string {
+	switch status {
+	case "available":
+		return "Available"
+	case "unknown":
+		return "Unknown"
+	case "stale":
+		return "Stale"
+	default:
+		return status
+	}
+}
+
+func discoveredStatusCompact(status string) string {
+	switch status {
+	case "available":
+		return "✓ Available"
+	case "unknown":
+		return "? Unknown"
+	case "stale":
+		return "× Stale"
+	default:
+		return status
+	}
+}
+
+func discoveredTransportStatus(enabled bool) string {
+	if enabled {
+		return "Enabled"
+	}
+	return "Disabled"
+}
+
+func discoveredLocationDetailed(info map[string]any) string {
+	lat, latOK := info["latitude"]
+	lon, lonOK := info["longitude"]
+	if !latOK || !lonOK || lat == nil || lon == nil {
+		return "Unknown"
+	}
+	latf, latIsNum := floatField(lat)
+	lonf, lonIsNum := floatField(lon)
+	if !latIsNum || !lonIsNum {
+		return "Unknown"
+	}
+	location := fmt.Sprintf("%.4f, %.4f", latf, lonf)
+	if heightVal, ok := info["height"]; ok && heightVal != nil {
+		if height, ok := floatField(heightVal); ok {
+			location += fmt.Sprintf(", %gm h", height)
+		}
+	}
+	return location
+}
+
+func discoveredLocationCompact(info map[string]any) string {
+	lat, latOK := info["latitude"]
+	lon, lonOK := info["longitude"]
+	if !latOK || !lonOK || lat == nil || lon == nil {
+		return "N/A"
+	}
+	latf, latIsNum := floatField(lat)
+	lonf, lonIsNum := floatField(lon)
+	if !latIsNum || !lonIsNum {
+		return "N/A"
+	}
+	return fmt.Sprintf("%.4f, %.4f", latf, lonf)
+}
+
+func discoveredLastHeardCompact(info map[string]any) string {
+	lastHeard, ok := numField(info, "last_heard")
+	if !ok {
+		return ""
+	}
+	diff := time.Since(time.Unix(int64(lastHeard), 0))
+	switch {
+	case diff < time.Minute:
+		return "Just now"
+	case diff < time.Hour:
+		return fmt.Sprintf("%dm ago", int(diff/time.Minute))
+	case diff < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(diff/time.Hour))
+	default:
+		return fmt.Sprintf("%dd ago", int(diff/(24*time.Hour)))
+	}
+}
+
+func floatField(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		if err != nil {
+			return 0, false
+		}
+		return f, true
+	default:
+		return 0, false
+	}
+}
+
+func formatThousands(v int) string {
+	s := fmt.Sprintf("%d", v)
+	if len(s) <= 3 {
+		return s
+	}
+	var parts []string
+	for len(s) > 3 {
+		parts = append(parts, s[len(s)-3:])
+		s = s[:len(s)-3]
+	}
+	parts = append(parts, s)
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+	return strings.Join(parts, ",")
 }
 
 // sort by traffic/bitrate/announce keys
