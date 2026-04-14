@@ -6,7 +6,8 @@ PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
 export GOCACHE="$ROOT/.gocache"
-export GOTMPDIR="$ROOT/.gotmp"
+GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$ROOT/.gotmp/run.XXXXXX")}"
+export GOTMPDIR
 export GOPATH="$ROOT/.gopath"
 export GOMODCACHE="$ROOT/.gomodcache"
 
@@ -29,6 +30,7 @@ mkdir -p "$OUT_DIR"
 GO_BIN_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$GO_BIN_DIR" || true
+  rm -rf "$GOTMPDIR" || true
 }
 trap cleanup EXIT
 

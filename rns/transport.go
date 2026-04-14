@@ -2706,7 +2706,7 @@ func pathRequestHandler(data []byte, packet *Packet) {
 
 	now := time.Now()
 	if !rememberDiscoveryPathRequest(destinationHash, attached, now) {
-		Logf(LogDebug, "There is already a waiting discovery path request for %s on behalf of %s",
+		Logf(LogDebug, "There is already a waiting path request for %s on behalf of path request on %s",
 			PrettyHash(destinationHash), interfaceName(attached))
 		return
 	}
@@ -3630,7 +3630,7 @@ func PacketFilter(p *Packet) bool {
 	// foreign transport_id (except announces)
 	if p.TransportID != nil && p.Type != PacketAnnounce {
 		if TransportIdentity != nil && !bytes.Equal(p.TransportID, TransportIdentity.Hash) {
-			Logf(LogExtreme, "Ignoring packet %s for other transport instance",
+			Logf(LogExtreme, "Ignored packet %s in transport for other transport instance",
 				PrettyHash(p.PacketHash))
 			return false
 		}
@@ -3655,7 +3655,7 @@ func PacketFilter(p *Packet) bool {
 			}
 			return true
 		}
-		Log("Dropped invalid PLAIN announce", LogDebug)
+		Log("Dropped invalid PLAIN announce packet", LogDebug)
 		return false
 	}
 
@@ -3668,7 +3668,7 @@ func PacketFilter(p *Packet) bool {
 			}
 			return true
 		}
-		Log("Dropped invalid GROUP announce", LogDebug)
+		Log("Dropped invalid GROUP announce packet", LogDebug)
 		return false
 	}
 
@@ -3680,7 +3680,12 @@ func PacketFilter(p *Packet) bool {
 		return true
 	}
 
-	Logf(LogExtreme, "Filtered packet %s", PrettyHash(p.PacketHash))
+	if p.Type == PacketAnnounce {
+		Log("Dropped invalid announce packet", LogDebug)
+		return false
+	}
+
+	Logf(LogExtreme, "Filtered packet with hash %s", PrettyHash(p.PacketHash))
 	return false
 }
 
@@ -4447,8 +4452,12 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 
 	updated := updatePathFromAnnounce(p, ifc, now)
 	if updated {
-		Logf(LogDebug, "Updated path to %s via %s (%d hops)",
-			PrettyHexRep(p.DestinationHash), interfaceName(ifc), p.Hops)
+		receivedFrom := p.TransportID
+		if len(receivedFrom) == 0 {
+			receivedFrom = p.DestinationHash
+		}
+		Logf(LogDebug, "Destination %s is now %d hops away via %s on %s",
+			PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), interfaceName(ifc))
 	}
 
 	if len(LocalClientInterfaces) > 0 {
@@ -4472,7 +4481,7 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 	}
 
 	if shouldRateBlockAnnounce(*key, ifc, now, p.Context) {
-		Logf(LogDebug, "Blocking rebroadcast of announce from %s due to rate limiting",
+		Logf(LogDebug, "Blocking rebroadcast of announce from %s due to excessive announce rate",
 			PrettyHexRep(p.DestinationHash))
 		return
 	}

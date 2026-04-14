@@ -22,9 +22,15 @@ export PATH="$ROOT/tests/support/bin:$PATH"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache"
 export GOCACHE="$ROOT/.gocache"
-export GOTMPDIR="$ROOT/.gotmp"
+GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$ROOT/.gotmp/run.XXXXXX")}"
+export GOTMPDIR
 export GOPATH="$ROOT/.gopath"
 export GOMODCACHE="$ROOT/.gomodcache"
+
+cleanup() {
+  rm -rf "$GOTMPDIR" || true
+}
+trap cleanup EXIT
 
 GO_EXAMPLES_BIN="$ROOT/tests/support/bin/go_examples"
 mkdir -p "$GO_EXAMPLES_BIN"

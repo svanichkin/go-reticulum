@@ -19,9 +19,15 @@ export RNS_INTEGRATION="${RNS_INTEGRATION:-1}"
 
 mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache"
 export GOCACHE="$ROOT/.gocache"
-export GOTMPDIR="$ROOT/.gotmp"
+GOTMPDIR="$(mktemp -d "$ROOT/.gotmp/run.XXXXXX")"
+export GOTMPDIR
 export GOPATH="$ROOT/.gopath"
 export GOMODCACHE="$ROOT/.gomodcache"
+
+cleanup() {
+  rm -rf "$GOTMPDIR"
+}
+trap cleanup EXIT
 
 echo "[go] layer=go-tests"
 echo "[go] root=$ROOT"
@@ -39,8 +45,8 @@ echo
 cd "$ROOT"
 
 set -x
-go test ./... -count=1 2>&1 | tee "$OUT_DIR/output.log"
-go test ./... -json -count=1 2>/dev/null | python3 "$ROOT/tests/support/tools/go_unittest_report.py" | tee "$OUT_DIR/unittest.log"
+go test ./... -p 1 -count=1 2>&1 | tee "$OUT_DIR/output.log"
+go test ./... -json -p 1 -count=1 2>/dev/null | python3 "$ROOT/tests/support/tools/go_unittest_report.py" | tee "$OUT_DIR/unittest.log"
 set +x
 
 echo
