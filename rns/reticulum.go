@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/binary"
-	"encoding/gob"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -89,11 +88,6 @@ var (
 )
 
 func init() {
-	gob.Register(map[string]any{})
-	gob.Register([]map[string]any{})
-	gob.Register([]any{})
-	gob.Register([]byte{})
-
 	// Mirror Python's defaulting of Interface.announce_cap to Reticulum.ANNOUNCE_CAP.
 	ifaces.DefaultAnnounceCapProvider = func() float64 { return float64(ANNOUNCE_CAP) / 100.0 }
 
@@ -420,17 +414,15 @@ type RPCConn interface {
 	Close() error
 }
 
-type gobRPCListener struct {
+type msgpackRPCListener struct {
 	net.Listener
 	authKey []byte
 	cleanup func()
 	addr    string
 }
 
-type gobRPCConn struct {
+type msgpackRPCConn struct {
 	conn net.Conn
-	enc  *gob.Encoder
-	dec  *gob.Decoder
 }
 
 func NewRPCListener(network, addr string, key []byte) (RPCListener, error) {
@@ -440,7 +432,7 @@ func NewRPCListener(network, addr string, key []byte) (RPCListener, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &gobRPCListener{
+		return &msgpackRPCListener{
 			Listener: ln,
 			authKey:  append([]byte(nil), key...),
 			cleanup:  cleanup,
@@ -451,7 +443,7 @@ func NewRPCListener(network, addr string, key []byte) (RPCListener, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &gobRPCListener{
+		return &msgpackRPCListener{
 			Listener: ln,
 			authKey:  append([]byte(nil), key...),
 			addr:     ln.Addr().String(),
@@ -477,7 +469,7 @@ func dialRPC(network, addr string, key []byte) (RPCConn, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	return newGobRPCConn(conn), nil
+	return newMsgpackRPCConn(conn), nil
 }
 
 func listenUnix(addr string) (net.Listener, string, func(), error) {
@@ -540,15 +532,11 @@ func supportsAbstractUnixSockets() bool {
 	return vendor.IsLinux() || vendor.IsAndroid()
 }
 
-func newGobRPCConn(conn net.Conn) *gobRPCConn {
-	return &gobRPCConn{
-		conn: conn,
-		enc:  gob.NewEncoder(conn),
-		dec:  gob.NewDecoder(conn),
-	}
+func newMsgpackRPCConn(conn net.Conn) *msgpackRPCConn {
+	return &msgpackRPCConn{conn: conn}
 }
 
-func (l *gobRPCListener) Accept() (RPCConn, error) {
+func (l *msgpackRPCListener) Accept() (RPCConn, error) {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
@@ -559,30 +547,57 @@ func (l *gobRPCListener) Accept() (RPCConn, error) {
 			_ = conn.Close()
 			continue
 		}
-		return newGobRPCConn(conn), nil
+		return newMsgpackRPCConn(conn), nil
 	}
 }
 
-func (l *gobRPCListener) Close() error {
+func (l *msgpackRPCListener) Close() error {
 	if l.cleanup != nil {
 		defer l.cleanup()
 	}
 	return l.Listener.Close()
 }
 
-func (l *gobRPCListener) Addr() string {
+func (l *msgpackRPCListener) Addr() string {
 	return l.addr
 }
 
-func (c *gobRPCConn) Recv(v interface{}) error {
-	return c.dec.Decode(v)
+func (c *msgpackRPCConn) Recv(v interface{}) error {
+	data, err := rpcRecvBytes(c.conn, 0)
+	if err != nil {
+		Logf(LogDebug, "RPC Recv: read bytes failed: %v (data len=%d)", err, len(data))
+		return err
+	}
+	Logf(LogExtreme, "RPC Recv: got %d bytes, hex=%s", len(data), func() string {
+		if len(data) > 40 {
+			return fmt.Sprintf("%x...", data[:40])
+		}
+		return fmt.Sprintf("%x", data)
+	}())
+	result, err := vendor.PickleLoads(data)
+	if err != nil {
+		Logf(LogDebug, "RPC Recv: pickle decode failed: %v", err)
+		return fmt.Errorf("pickle decode: %w", err)
+	}
+	Logf(LogExtreme, "RPC Recv: decoded type=%T", result)
+	return vendor.PickleAssign(result, v)
 }
 
-func (c *gobRPCConn) Send(v interface{}) error {
-	return c.enc.Encode(v)
+func (c *msgpackRPCConn) Send(v interface{}) error {
+	data, err := vendor.PickleDumps(v)
+	if err != nil {
+		return err
+	}
+	Logf(LogExtreme, "RPC Send: %d bytes, hex=%s", len(data), func() string {
+		if len(data) > 40 {
+			return fmt.Sprintf("%x...", data[:40])
+		}
+		return fmt.Sprintf("%x", data)
+	}())
+	return rpcSendBytes(c.conn, data)
 }
 
-func (c *gobRPCConn) Close() error {
+func (c *msgpackRPCConn) Close() error {
 	return c.conn.Close()
 }
 
@@ -625,10 +640,20 @@ func rpcRecvBytes(conn net.Conn, maxLen int) ([]byte, error) {
 // Server: deliver_challenge.
 // Client: answer_challenge.
 func performRPCHandshake(conn net.Conn, key []byte, server bool) error {
+	// Python multiprocessing.connection uses TWO-WAY authentication:
+	//   Server accept(): deliver_challenge() then answer_challenge()
+	//   Client connect(): answer_challenge() then deliver_challenge()
+	// Both sides challenge each other, so both sides must do both halves.
 	if server {
-		return rpcDeliverChallenge(conn, key)
+		if err := rpcDeliverChallenge(conn, key); err != nil {
+			return err
+		}
+		return rpcAnswerChallenge(conn, key)
 	}
-	return rpcAnswerChallenge(conn, key)
+	if err := rpcAnswerChallenge(conn, key); err != nil {
+		return err
+	}
+	return rpcDeliverChallenge(conn, key)
 }
 
 var (
@@ -906,9 +931,25 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	// rpc key
 	if r.RPCKey == nil {
 		// Python defaults to full_hash(Transport.identity.get_private_key()).
+		// Even when connected as a client to a shared instance, Python loads
+		// the transport identity from the shared storage directory to derive
+		// the RPC key. We must do the same for cross-language compatibility.
 		if TransportIdentity != nil {
 			if pk := TransportIdentity.GetPrivateKey(); len(pk) > 0 {
 				r.RPCKey = FullHash(pk)
+			}
+		}
+		if r.RPCKey == nil {
+			// Try loading transport identity from storage (same as Python client)
+			tiPath := filepath.Join(r.StoragePath, "transport_identity")
+			if fileExists(tiPath) {
+				if idData, err := os.ReadFile(tiPath); err == nil && len(idData) > 0 {
+					if ti, err := IdentityFromBytes(idData); err == nil && ti != nil {
+						if pk := ti.GetPrivateKey(); len(pk) > 0 {
+							r.RPCKey = FullHash(pk)
+						}
+					}
+				}
 			}
 		}
 		if r.RPCKey == nil {
@@ -3116,9 +3157,9 @@ func (r *Reticulum) cleanCaches() {
 
 // ---------------- RPC loop + public methods ----------------
 
-// Local RPC uses a small auth handshake plus Go `encoding/gob` for call/response
+// Local RPC uses a small auth handshake plus msgpack for call/response
 // serialization. The `RPCListener`/`RPCConn` interfaces are kept so we can swap
-// the wire format if needed, but the current implementation targets Go↔Go.
+// the wire format if needed, but the current implementation targets Go↔Python.
 
 func (r *Reticulum) rpcLoop() {
 	if r == nil || r.rpcLn == nil {
@@ -3231,17 +3272,12 @@ func rpcBytes(value any) []byte {
 	}
 }
 
-type rpcFloatResponse struct {
-	Valid bool
-	Value float64
-}
-
 func rpcSendFloat(conn RPCConn, value *float64) {
 	if value == nil {
-		_ = conn.Send(rpcFloatResponse{})
+		_ = conn.Send(nil)
 		return
 	}
-	_ = conn.Send(rpcFloatResponse{Valid: true, Value: *value})
+	_ = conn.Send(*value)
 }
 
 func rpcSendError(conn RPCConn, err error) {
@@ -3402,6 +3438,7 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 			"status":                      ifc.Online,
 			"mode":                        ifc.Mode,
 			"autoconnect_source":          nil,
+			"clients":                     nil,
 		}
 		if cc := ifc.ClientCount(); cc != nil {
 			entry["clients"] = *cc
@@ -3696,16 +3733,40 @@ func (r *Reticulum) rpcGetFloat(kind string, packetHash []byte) (*float64, bool)
 		return nil, false
 	}
 
-	var raw rpcFloatResponse
+	var raw any
 	if err := client.Recv(&raw); err != nil {
 		Log("RPC response for "+kind+" failed: "+err.Error(), LogError)
 		return nil, false
 	}
 
-	if !raw.Valid {
+	if raw == nil {
 		return nil, true
 	}
-	return &raw.Value, true
+	switch v := raw.(type) {
+	case float64:
+		return &v, true
+	case float32:
+		f := float64(v)
+		return &f, true
+	case int:
+		f := float64(v)
+		return &f, true
+	case int64:
+		f := float64(v)
+		return &f, true
+	case uint64:
+		f := float64(v)
+		return &f, true
+	case int32:
+		f := float64(v)
+		return &f, true
+	case uint32:
+		f := float64(v)
+		return &f, true
+	default:
+		Log("RPC response for "+kind+" had unexpected type", LogError)
+		return nil, false
+	}
 }
 
 func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {

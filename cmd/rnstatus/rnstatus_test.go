@@ -35,6 +35,26 @@ func TestNumField_UnsignedCounters(t *testing.T) {
 	}
 }
 
+func TestByteField_BytesLikeValues(t *testing.T) {
+	type namedBytes []byte
+
+	m := map[string]any{
+		"raw":   []byte{0x01, 0x02, 0x03},
+		"named": namedBytes{0x04, 0x05, 0x06},
+		"text":  "abc",
+	}
+
+	if got, ok := byteField(m, "raw"); !ok || string(got) != "\x01\x02\x03" {
+		t.Fatalf("raw: got=%v ok=%v", got, ok)
+	}
+	if got, ok := byteField(m, "named"); !ok || string(got) != "\x04\x05\x06" {
+		t.Fatalf("named: got=%v ok=%v", got, ok)
+	}
+	if got, ok := byteField(m, "text"); !ok || string(got) != "abc" {
+		t.Fatalf("text: got=%q ok=%v", got, ok)
+	}
+}
+
 func TestSortInterfaces_MissingKeys(t *testing.T) {
 	ifs := []map[string]any{
 		{"name": "a", "bitrate": 200},

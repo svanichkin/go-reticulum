@@ -73,7 +73,7 @@ func TestFallbackUnixSocketPath_SanitizesAndShortens(t *testing.T) {
 	}
 }
 
-func TestRPCListener_TCP_HandshakeAndGob(t *testing.T) {
+func TestRPCListener_TCP_HandshakeAndMsgpack(t *testing.T) {
 	maybeParallel(t)
 
 	key := []byte("rpc-key")

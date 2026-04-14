@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -488,7 +489,7 @@ func programSetup(
 		if v, ok := ifstat["tunnelstate"].(string); ok && v != "" {
 			fmt.Printf("    I2P       : %s\n", v)
 		}
-		if sig, ok := ifstat["ifac_signature"].([]byte); ok && len(sig) >= 5 {
+		if sig, ok := byteField(ifstat, "ifac_signature"); ok && len(sig) >= 5 {
 			nb := intField(ifstat, "ifac_size") * 8
 			sigStr := "<…" + rns.HexRep(sig[len(sig)-5:], false) + ">"
 			fmt.Printf("    Access    : %d-bit IFAC by %s\n", nb, sigStr)
@@ -841,6 +842,32 @@ func numField(m map[string]any, k string) (int, bool) {
 		return 0, false
 	}
 	return 0, false
+}
+
+func byteField(m map[string]any, k string) ([]byte, bool) {
+	v, ok := m[k]
+	if !ok || v == nil {
+		return nil, false
+	}
+	switch b := v.(type) {
+	case []byte:
+		return b, true
+	case string:
+		return []byte(b), true
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		if rv.Type().Elem().Kind() != reflect.Uint8 {
+			return nil, false
+		}
+		out := make([]byte, rv.Len())
+		reflect.Copy(reflect.ValueOf(out), rv)
+		return out, true
+	default:
+		return nil, false
+	}
 }
 
 func intField(m map[string]any, k string) int {

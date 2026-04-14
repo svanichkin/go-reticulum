@@ -12,12 +12,14 @@ require (
 
 require (
 	github.com/JuulLabs-OSS/cbgo v0.0.2 // indirect
+	github.com/MacIt/pickle v1.0.0 // indirect
 	github.com/creack/goselect v0.1.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mgutz/logxi v0.0.0-20161027140823-aebf8a7d67ab // indirect
+	github.com/nlpodyssey/gopickle v0.3.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/raff/goble v0.0.0-20200327175727-d63360dcfd80 // indirect
 	github.com/saltosystems/winrt-go v0.0.0-20260317170058-9c2fec580d96 // indirect
@@ -28,6 +30,7 @@ require (
 	github.com/tinygo-org/cbgo v0.0.4 // indirect
 	github.com/tinygo-org/pio v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
+	golang.org/x/text v0.14.0 // indirect
 )
 
 require (

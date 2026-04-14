@@ -4,26 +4,47 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TEST_DIR="$ROOT/tests/hand/rnsd/test1"
 RUN_DIR="$TEST_DIR/.artifacts/run/py"
-CFG="$RUN_DIR"
-PIDFILE="$RUN_DIR/python-rnsd.pid"
 PYTHON="${PYTHON:-python3}"
 
 RNPATH_PY="$ROOT/python/RNS/Utilities/rnpath.py"
+GO_RUN_DIR="$TEST_DIR/.artifacts/run/go"
+GO_PIDFILE="$GO_RUN_DIR/rnsd.pid"
+PY_PIDFILE="$RUN_DIR/python-rnsd.pid"
 
-if [[ ! -f "$PIDFILE" ]]; then
-  echo "Python rnsd.pid not found, run step1_rnsd_py.sh first"
-  exit 1
-fi
+resolve_active_run_dir() {
+  local pid
 
-pid="$(cat "$PIDFILE" 2>/dev/null || true)"
-if [[ -z "${pid:-}" ]] || ! kill -0 "$pid" 2>/dev/null; then
-  echo "Python rnsd is not running, run step1_rnsd_py.sh first"
+  if [[ -f "$GO_PIDFILE" ]]; then
+    pid="$(cat "$GO_PIDFILE" 2>/dev/null || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      ACTIVE_LABEL="Go"
+      ACTIVE_PIDFILE="$GO_PIDFILE"
+      ACTIVE_RUN_DIR="$GO_RUN_DIR"
+      return 0
+    fi
+  fi
+
+  if [[ -f "$PY_PIDFILE" ]]; then
+    pid="$(cat "$PY_PIDFILE" 2>/dev/null || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      ACTIVE_LABEL="Python"
+      ACTIVE_PIDFILE="$PY_PIDFILE"
+      ACTIVE_RUN_DIR="$RUN_DIR"
+      return 0
+    fi
+  fi
+
+  echo "No running rnsd found, run step1_rnsd_go.sh or step1_rnsd_py.sh first"
   exit 1
-fi
+}
+
+resolve_active_run_dir
+CFG="$ACTIVE_RUN_DIR"
 
 DEST_HASH="${1:-}"
 
 echo "[1/4] Path table (before)"
+echo "Using $ACTIVE_LABEL rnsd"
 echo "Command: PYTHONPATH=$ROOT/python $PYTHON $RNPATH_PY --config $CFG -t"
 PYTHONPATH="$ROOT/python" "$PYTHON" "$RNPATH_PY" --config "$CFG" -t || true
 
