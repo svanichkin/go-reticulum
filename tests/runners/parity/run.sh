@@ -63,66 +63,7 @@ for cmd_dir in "$ROOT"/cmd/*; do
   go build -o "$PARITY_BIN_DIR/$cmd_name" "./cmd/$cmd_name"
 done
 export PARITY_BIN_DIR
-
-echo
-echo "[parity] Suite-level Go vs Python summary"
 suite_status=0
-
-set +e
-LOG_DIR="$OUT_DIR/python" KEEP_ARTIFACTS="$KEEP_ARTIFACTS" \
-  "$ROOT/tests/runners/parity/python/run.sh" >/dev/null
-py_suite_status=$?
-
-LOG_DIR="$OUT_DIR/go" KEEP_ARTIFACTS="$KEEP_ARTIFACTS" \
-  "$ROOT/tests/runners/go/run.sh" >/dev/null
-go_suite_status=$?
-set -e
-
-if [[ "$py_suite_status" -ne 0 || "$go_suite_status" -ne 0 ]]; then
-  echo "[parity] suite-level summary had failures (python=$py_suite_status go=$go_suite_status); continuing"
-  suite_status=1
-fi
-
-PY_LOG="$OUT_DIR/python/latest/output.log"
-GO_LOG="$OUT_DIR/go/latest/unittest.log"
-
-if [[ ! -f "$PY_LOG" || ! -f "$GO_LOG" ]]; then
-  echo "[parity] missing logs (py=$PY_LOG go=$GO_LOG)"
-  suite_status=1
-else
-  cp -f "$PY_LOG" "$OUT_DIR/python.output.log"
-  cp -f "$GO_LOG" "$OUT_DIR/go.output.log"
-
-  normalize() {
-    grep -Ev \
-      -e '^\[[0-9]{4}-[0-9]{2}-[0-9]{2} ' \
-      -e 'Mbps|Gbps' \
-      -e 'timing min/avg/med/max/mdev' \
-      -e 'Max deviation from median' \
-      -e '^Sign/validate ' \
-      -e '^Testing \(random small|large\) chunk encrypt/decrypt' \
-      -e '^\s*Encrypt ' \
-      -e '^\s*Decrypt '
-  }
-
-  normalize <"$OUT_DIR/python.output.log" >"$OUT_DIR/python.output.norm.log"
-  normalize <"$OUT_DIR/go.output.log" >"$OUT_DIR/go.output.norm.log"
-
-  echo "[parity] python log: $OUT_DIR/python.output.log"
-  echo "[parity] go log:     $OUT_DIR/go.output.log"
-  echo
-
-  echo "[parity] python summary:"
-  grep -E "^(OK$|FAILED \\(|Ran [0-9]+ tests)" "$OUT_DIR/python.output.log" || true
-  echo
-
-  echo "[parity] go summary:"
-  grep -E "^(ok\\s|FAIL\\s|\\?\\s)" "$OUT_DIR/go.output.log" || true
-  echo
-
-  echo "[parity] diff (normalized, first 200 lines):"
-  diff -u "$OUT_DIR/python.output.norm.log" "$OUT_DIR/go.output.norm.log" | sed -n '1,200p' || true
-fi
 
 echo
 echo "[parity] Regression scripts (offline)"

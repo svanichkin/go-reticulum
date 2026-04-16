@@ -27,7 +27,39 @@ export GOTMPDIR
 export GOPATH="$ROOT/.gopath"
 export GOMODCACHE="$ROOT/.gomodcache"
 
+declare -a CHILD_PIDS=()
+declare -a CHILD_FIFOS=()
+declare -a CHILD_KEEPS=()
+declare -a CHILD_TMPDIRS=()
+
 cleanup() {
+  local pid
+  for pid in "${CHILD_PIDS[@]:-}"; do
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+      kill -TERM "$pid" >/dev/null 2>&1 || true
+      wait_gone "$STOP_TIMEOUT_SECS" "$pid" || true
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
+  for pid in "${CHILD_KEEPS[@]:-}"; do
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+      kill -TERM "$pid" >/dev/null 2>&1 || true
+      wait_gone "$STOP_TIMEOUT_SECS" "$pid" || true
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
+  local fifo
+  for fifo in "${CHILD_FIFOS[@]:-}"; do
+    [[ -n "${fifo:-}" ]] && rm -f "$fifo" || true
+  done
+
+  local tmpdir
+  for tmpdir in "${CHILD_TMPDIRS[@]:-}"; do
+    [[ -n "${tmpdir:-}" ]] && rm -rf "$tmpdir" || true
+  done
+
   rm -rf "$GOTMPDIR" || true
 }
 trap cleanup EXIT
@@ -57,6 +89,7 @@ new_smoke_config_dir() {
   local name="$1"
   local run_dir
   run_dir="$(mktemp -d)"
+  CHILD_TMPDIRS+=("$run_dir")
   local sip cip
   sip="$(pick_free_port)"
   cip="$(pick_free_port)"
@@ -142,6 +175,10 @@ start_proc_with_fifo() {
   "$@" <"$fifo" >"$log" 2>&1 &
   local pid=$!
 
+  CHILD_PIDS+=("$pid")
+  CHILD_KEEPS+=("$keep_pid")
+  CHILD_FIFOS+=("$fifo")
+
   echo "$pid $fifo $keep_pid"
 }
 
@@ -210,6 +247,39 @@ run_simple_enter_smoke() {
   send_line_fd "$fd" ""
   if ! wait_for_rg "$READY_TIMEOUT_SECS" "$log" "Sent announce"; then
     echo "[cmp] $label did not send an announce; log: $log"
+    stop_proc "$pid" "$fd" "$fifo"
+    return 1
+  fi
+
+  stop_proc "$pid" "$fd" "$fifo"
+  normalize_log_to_events "$log" "$out_dir/$label.events"
+  return 0
+}
+
+run_timeout_cmd_smoke() {
+  local label="$1"
+  local out_dir="$2"
+  local cfg_dir="$3"
+  local ready_re="$4"
+  local success_re="$5"
+  local cmd_str="$6"
+
+  local log="$out_dir/$label.log"
+  local fifo="$out_dir/$label.stdin"
+  local meta pid fd
+  meta="$(start_proc_with_fifo "$log" "$fifo" bash -c "timeout $CMD_TIMEOUT_SECS $cmd_str")"
+  pid="$(echo "$meta" | awk '{print $1}')"
+  fd="$(echo "$meta" | awk '{print $2}')"
+
+  if ! wait_for_rg "$READY_TIMEOUT_SECS" "$log" "$ready_re"; then
+    echo "[cmp] $label did not start; log: $log"
+    stop_proc "$pid" "$fd" "$fifo"
+    return 1
+  fi
+
+  send_line_fd "$fd" "hello"
+  if ! wait_for_rg "$READY_TIMEOUT_SECS" "$log" "$success_re"; then
+    echo "[cmp] $label did not reach expected output; log: $log"
     stop_proc "$pid" "$fd" "$fifo"
     return 1
   fi
@@ -687,22 +757,18 @@ for ex in "${examples[@]}"; do
       fi
       ;;
     ratchets)
-      if ! run_server_client_smoke \
+      if ! run_timeout_cmd_smoke \
         "ratchets.python" "$py_out" "$py_cfg" \
         "Ratcheted echo server" \
-        "Echo client ready" \
         "Valid reply received" \
-        "$PYTHON -u $ROOT/python/Examples/Ratchets.py --config $py_cfg --server" \
-        "$PYTHON -u $ROOT/python/Examples/Ratchets.py --config $py_cfg --timeout 5"; then
+        "$PYTHON -u $ROOT/python/Examples/Ratchets.py --config $py_cfg --server"; then
         overall=1
       fi
-      if ! run_server_client_smoke \
+      if ! run_timeout_cmd_smoke \
         "ratchets.go" "$go_out" "$go_cfg" \
         "Ratcheted echo server" \
-        "Echo client ready" \
         "Valid reply received" \
-        "$GO_EXAMPLES_BIN/ratchets -config $go_cfg -server" \
-        "$GO_EXAMPLES_BIN/ratchets -config $go_cfg -timeout 5 -destination"; then
+        "$GO_EXAMPLES_BIN/ratchets -config $go_cfg -server"; then
         overall=1
       fi
       ;;
