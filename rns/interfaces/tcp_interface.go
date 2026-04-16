@@ -338,7 +338,7 @@ func (t *TCPClientInterface) reconnectLoop() {
 		time.Sleep(t.ReconnectWait)
 		attempts++
 
-		if t.MaxReconnectTry != nil && attempts > *t.MaxReconnectTry {
+		if tcpExceededMaxReconnect(attempts, t.MaxReconnectTry) {
 			if t.Log != nil {
 				t.Log.Errorf("Max reconnection attempts reached for %s", t.String())
 			}
@@ -366,6 +366,17 @@ func (t *TCPClientInterface) reconnectLoop() {
 	t.synthesizeTunnelIfNeeded()
 
 	go t.readLoop()
+}
+
+func tcpExceededMaxReconnect(attempts int, max *int) bool {
+	if max == nil {
+		return false
+	}
+	// Python parity: 0 means unlimited reconnect attempts.
+	if *max <= 0 {
+		return false
+	}
+	return attempts > *max
 }
 
 func (t *TCPClientInterface) synthesizeTunnelIfNeeded() {

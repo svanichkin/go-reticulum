@@ -160,17 +160,18 @@ var (
 	InterfaceLastJobs     time.Time
 	InterfaceJobsInterval = 5 * time.Second
 
-	pathTable       = make(map[hashKey]*PathEntry)
-	pathTableMu     sync.RWMutex
-	packetHashMu    sync.RWMutex
-	pathRequestMu   sync.Mutex
-	linkMu          sync.Mutex
-	linkTableMu     sync.RWMutex
-	receiptsMu      sync.Mutex
-	announceMu      sync.Mutex
-	lastPathRequest = make(map[hashKey]time.Time)
-	announceTable   = make(map[hashKey]*announceEntry)
-	linkTable       = make(map[hashKey]*linkEntry)
+	pathTable         = make(map[hashKey]*PathEntry)
+	pathTableMu       sync.RWMutex
+	packetHashMu      sync.RWMutex
+	pathRequestMu     sync.Mutex
+	linkMu            sync.Mutex
+	linkTableMu       sync.RWMutex
+	receiptsMu        sync.Mutex
+	announceMu        sync.Mutex
+	inboundAnnounceMu sync.Mutex
+	lastPathRequest   = make(map[hashKey]time.Time)
+	announceTable     = make(map[hashKey]*announceEntry)
+	linkTable         = make(map[hashKey]*linkEntry)
 
 	announceRateTable = make(map[hashKey]*announceRateEntry)
 	announceRateMu    sync.RWMutex
@@ -4530,8 +4531,12 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 		return
 	}
 
-	// Notify application-level announce handlers (Python parity).
-	dispatchAnnounceHandlers(p)
+	// Python keeps the full announce-ingress critical section under a single
+	// inbound_announce_lock. Without that serialization, two near-simultaneous
+	// arrivals of the same announce can both observe stale path state and
+	// re-accept the packet on TCP rings.
+	inboundAnnounceMu.Lock()
+	defer inboundAnnounceMu.Unlock()
 
 	now := time.Now()
 	recordAnnounceRebroadcast(p, now)
@@ -4549,6 +4554,13 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 		Logf(LogDebug, "Destination %s is now %d hops away via %s on %s",
 			PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), interfaceName(ifc))
 	}
+	if !updated {
+		return
+	}
+
+	// Python parity: only newly accepted announces propagate to handlers,
+	// local clients, discovery waiters, and transport rebroadcast.
+	dispatchAnnounceHandlers(p)
 
 	forwardAnnounceToLocalClients(p)
 
@@ -4662,9 +4674,13 @@ func recordAnnounceRebroadcast(p *Packet, now time.Time) {
 		return
 	}
 	expected := entry.Packet.Hops
+	Logf(LogDebug, "Announce rebroadcast check key=%s hops=%d expected=%d retries=%d next=%s now=%s",
+		PrettyHash(p.DestinationHash), p.Hops, expected, entry.Retries, entry.Next.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 	if p.Hops-1 == expected {
 		entry.LocalRebroadcasts++
+		Logf(LogDebug, "Announce rebroadcast local hit key=%s local_rebroadcasts=%d", PrettyHash(p.DestinationHash), entry.LocalRebroadcasts)
 		if entry.LocalRebroadcasts >= localRebroadcastsMax {
+			Logf(LogDebug, "Announce rebroadcast complete key=%s local rebroadcast limit reached", PrettyHash(p.DestinationHash))
 			delete(announceTable, *key)
 			return
 		}
@@ -4672,6 +4688,7 @@ func recordAnnounceRebroadcast(p *Packet, now time.Time) {
 		return
 	}
 	if p.Hops-1 == expected+1 && entry.Retries > 0 && now.Before(entry.Next) {
+		Logf(LogDebug, "Announce rebroadcast complete key=%s next-hop hit before retry deadline", PrettyHash(p.DestinationHash))
 		delete(announceTable, *key)
 	}
 }
@@ -4689,10 +4706,8 @@ func updatePathFromAnnounce(p *Packet, ifc *Interface, now time.Time) bool {
 	existing := getPathEntry(p.DestinationHash)
 
 	var blobs [][]byte
-	var prevEmitted uint64
 	if existing != nil && len(existing.RandomBlobs) > 0 {
 		blobs = copyRandomBlobSlice(existing.RandomBlobs)
-		prevEmitted = existing.AnnounceAt
 	}
 
 	blobSeen := randomBlobSeen(blobs, randomBlob)
@@ -4704,12 +4719,20 @@ func updatePathFromAnnounce(p *Packet, ifc *Interface, now time.Time) bool {
 		shouldAdd = true
 	case int(p.Hops) <= existing.Hops:
 		if !blobSeen && emitted > timebaseFromRandomBlobs(blobs) {
+			MarkPathUnknownState(p.DestinationHash)
 			shouldAdd = true
 		}
 	default:
 		expired := now.After(existing.ExpiresAt)
-		newer := emitted > prevEmitted
-		if (expired || newer) && !blobSeen {
+		pathEmitted := timebaseFromRandomBlobs(blobs)
+		newer := emitted > pathEmitted
+		if expired && !blobSeen {
+			MarkPathUnknownState(p.DestinationHash)
+			shouldAdd = true
+		} else if newer && !blobSeen {
+			MarkPathUnknownState(p.DestinationHash)
+			shouldAdd = true
+		} else if emitted == pathEmitted && PathIsUnresponsive(p.DestinationHash) {
 			shouldAdd = true
 		}
 	}
@@ -4742,7 +4765,6 @@ func updatePathFromAnnounce(p *Packet, ifc *Interface, now time.Time) bool {
 	pathTableMu.Lock()
 	pathTable[key] = entry
 	pathTableMu.Unlock()
-	_ = MarkPathResponsive(p.DestinationHash)
 
 	if ifc != nil && len(ifc.TunnelID) == HashLengthBytes {
 		tunnelsMu.Lock()
@@ -5173,6 +5195,18 @@ func MarkPathResponsive(hash []byte) bool {
 	}
 	pathStatesMu.Lock()
 	pathStates[key] = TransportStateResponsive
+	pathStatesMu.Unlock()
+	return true
+}
+
+// MarkPathUnknownState mirrors Python Transport.mark_path_unknown_state().
+func MarkPathUnknownState(hash []byte) bool {
+	key, ok := makeHashKey(hash)
+	if !ok || !HasPath(hash) {
+		return false
+	}
+	pathStatesMu.Lock()
+	pathStates[key] = TransportStateUnknown
 	pathStatesMu.Unlock()
 	return true
 }
@@ -5840,8 +5874,52 @@ func deliverCachedPacket(hash []byte) bool {
 	return true
 }
 
-func shouldAnnounceOnInterface(_ *Packet, _ *Interface, _ time.Time) bool {
-	return true
+func shouldAnnounceOnInterface(p *Packet, ifc *Interface, _ time.Time) bool {
+	if p == nil || ifc == nil {
+		return false
+	}
+
+	switch interfaceMode(ifc) {
+	case InterfaceModeAccessPoint:
+		// Python: block announce broadcast on AP interfaces unless the packet
+		// is already bound to a specific attached interface.
+		return p.AttachedInterface != nil
+
+	case InterfaceModeRoaming:
+		// Python allows roaming interfaces to carry announces only when the
+		// destination is local to this instance or the next hop is not another
+		// roaming/boundary interface.
+		if destinationByHash(p.DestinationHash) != nil {
+			return true
+		}
+		nextHop := getPathEntry(p.DestinationHash)
+		if nextHop == nil || nextHop.RecvInterface == nil {
+			return false
+		}
+		switch interfaceMode(nextHop.RecvInterface) {
+		case InterfaceModeRoaming, InterfaceModeBoundary:
+			return false
+		default:
+			return true
+		}
+
+	case InterfaceModeBoundary:
+		// Python allows boundary interfaces unless the next hop itself is a
+		// roaming interface.
+		if destinationByHash(p.DestinationHash) != nil {
+			return true
+		}
+		nextHop := getPathEntry(p.DestinationHash)
+		if nextHop == nil || nextHop.RecvInterface == nil {
+			return false
+		}
+		return interfaceMode(nextHop.RecvInterface) != InterfaceModeRoaming
+
+	default:
+		// Python's default/full-mode branch applies rate limiting and queueing
+		// later in the interface driver, so outbound transmission is allowed.
+		return true
+	}
 }
 
 func cacheLocalStats(p *Packet, _ *Interface) {

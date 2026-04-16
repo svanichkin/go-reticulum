@@ -2,6 +2,7 @@ package rns
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"testing"
 	"time"
 )
@@ -26,6 +27,68 @@ func (b *announceCaptureBackend) GetPacketRSSI(_ []byte) *float64 { return nil }
 func (b *announceCaptureBackend) GetPacketSNR(_ []byte) *float64 { return nil }
 
 func (b *announceCaptureBackend) GetPacketQ(_ []byte) *float64 { return nil }
+
+func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte, pathResponse bool, randomBlob []byte) *Packet {
+	t.Helper()
+	if dst == nil {
+		t.Fatal("destination is nil")
+	}
+	if len(randomBlob) != announceRandomHashLen {
+		t.Fatalf("random blob length=%d, want %d", len(randomBlob), announceRandomHashLen)
+	}
+	if dst.identity == nil {
+		t.Fatal("destination identity is nil")
+	}
+
+	publicKey := dst.identity.GetPublicKey()
+	nameHash := copyBytes(dst.nameHash)
+	destinationHash := copyBytes(dst.Hash())
+
+	signed := make([]byte, 0, len(destinationHash)+len(publicKey)+len(nameHash)+len(randomBlob)+len(appData))
+	signed = append(signed, destinationHash...)
+	signed = append(signed, publicKey...)
+	signed = append(signed, nameHash...)
+	signed = append(signed, randomBlob...)
+	signed = append(signed, appData...)
+
+	signature, err := dst.identity.Sign(signed)
+	if err != nil {
+		t.Fatalf("Sign(): %v", err)
+	}
+	if len(signature) != ed25519.SignatureSize {
+		t.Fatalf("signature length=%d, want %d", len(signature), ed25519.SignatureSize)
+	}
+
+	data := make([]byte, 0, len(publicKey)+len(nameHash)+len(randomBlob)+len(signature)+len(appData))
+	data = append(data, publicKey...)
+	data = append(data, nameHash...)
+	data = append(data, randomBlob...)
+	data = append(data, signature...)
+	data = append(data, appData...)
+
+	packet := NewPacket(
+		dst,
+		data,
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(func() byte {
+			if pathResponse {
+				return PacketPATH_RESPONSE
+			}
+			return PacketNONE
+		}()),
+		WithHeaderType(HeaderType1),
+		WithTransportType(Broadcast),
+		WithContextFlag(FlagUnset),
+		WithoutReceipt(),
+	)
+	if packet == nil {
+		t.Fatal("NewPacket returned nil")
+	}
+	if err := packet.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	return packet
+}
 
 func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *testing.T) {
 	resetKnownDestinationsForTest()
@@ -558,6 +621,236 @@ func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {
 	}
 	if entry := announceTable[key]; entry != nil {
 		t.Fatalf("local outbound announce unexpectedly queued: %+v", entry)
+	}
+}
+
+func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnored(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevPathTable := pathTable
+	prevDestinations := Destinations
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevHandlers := announceHandlers
+
+	transportEnabled = true
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	pathTable = make(map[hashKey]*PathEntry)
+	Destinations = nil
+	announceHandlers = nil
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	LocalClientInterfaces = []*Interface{localClient}
+	Interfaces = []*Interface{localClient, external}
+
+	t.Cleanup(func() {
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		pathTable = prevPathTable
+		Destinations = prevDestinations
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		announceHandlers = prevHandlers
+	})
+
+	handler := &legacyAnnounceHandler{}
+	RegisterAnnounceHandler(handler)
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	localAnnounce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if localAnnounce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := localAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+	localAnnounce.ReceivingInterface = localClient
+	localAnnounce.Hops = 0
+
+	handleInboundAnnounce(localAnnounce, localClient, true)
+
+	key, ok := makeHashKey(localAnnounce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+	entry := pathTable[key]
+	if entry == nil {
+		t.Fatal("expected local-client announce to populate path table")
+	}
+	if entry.RecvInterface != localClient {
+		t.Fatalf("path recv interface=%v, want local client", entry.RecvInterface)
+	}
+	if entry.Hops != 0 {
+		t.Fatalf("path hops=%d, want 0 for local client path", entry.Hops)
+	}
+	if handler.calls != 1 {
+		t.Fatalf("handler calls after local announce=%d, want 1", handler.calls)
+	}
+
+	announceTable = make(map[hashKey]*announceEntry)
+
+	returnedAnnounce := buildTransportAnnouncePacket(localAnnounce, nil, false)
+	if returnedAnnounce == nil {
+		t.Fatal("buildTransportAnnouncePacket returned nil")
+	}
+	if err := returnedAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(returned announce): %v", err)
+	}
+	returnedAnnounce.ReceivingInterface = external
+	returnedAnnounce.Hops = 1
+
+	handleInboundAnnounce(returnedAnnounce, external, false)
+
+	if got := len(announceTable); got != 0 {
+		t.Fatalf("duplicate external return queued %d announce(s), want 0", got)
+	}
+	entry = pathTable[key]
+	if entry == nil {
+		t.Fatal("path entry disappeared after duplicate external return")
+	}
+	if entry.RecvInterface != localClient {
+		t.Fatalf("path recv interface after duplicate=%v, want local client", entry.RecvInterface)
+	}
+	if entry.Hops != 0 {
+		t.Fatalf("path hops after duplicate=%d, want 0", entry.Hops)
+	}
+	if handler.calls != 1 {
+		t.Fatalf("handler calls after duplicate=%d, want still 1", handler.calls)
+	}
+}
+
+func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCallback(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevPathTable := pathTable
+	prevDestinations := Destinations
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevHandlers := announceHandlers
+
+	transportEnabled = true
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	pathTable = make(map[hashKey]*PathEntry)
+	Destinations = nil
+	announceHandlers = nil
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	LocalClientInterfaces = []*Interface{localClient}
+	Interfaces = []*Interface{localClient, external}
+
+	t.Cleanup(func() {
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		pathTable = prevPathTable
+		Destinations = prevDestinations
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		announceHandlers = prevHandlers
+	})
+
+	handler := &legacyAnnounceHandler{}
+	RegisterAnnounceHandler(handler)
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	autoPathResponse := buildAnnounceWithRandomBlob(t, dst, nil, true, bytes.Repeat([]byte{0x00}, announceRandomHashLen))
+	autoPathResponse.ReceivingInterface = localClient
+	autoPathResponse.Hops = 0
+	Destinations = nil
+	handleInboundAnnounce(autoPathResponse, localClient, true)
+
+	normalAnnounce := buildAnnounceWithRandomBlob(t, dst, []byte("payload"), false, bytes.Repeat([]byte{0xFF}, announceRandomHashLen))
+	normalAnnounce.ReceivingInterface = localClient
+	normalAnnounce.Hops = 0
+	handleInboundAnnounce(normalAnnounce, localClient, true)
+
+	key, ok := makeHashKey(normalAnnounce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+	entry := pathTable[key]
+	if entry == nil {
+		t.Fatal("expected normal announce to populate path table")
+	}
+	if entry.Hops != 0 {
+		t.Fatalf("path hops after normal announce=%d, want 0", entry.Hops)
+	}
+	if len(entry.RandomBlobs) < 1 {
+		t.Fatal("expected at least one random blob in path table")
+	}
+	if handler.calls != 1 {
+		t.Fatalf("handler calls after path response + normal announce=%d, want 1", handler.calls)
+	}
+
+	announceTable = make(map[hashKey]*announceEntry)
+
+	returnedAnnounce := buildTransportAnnouncePacket(normalAnnounce, nil, false)
+	if returnedAnnounce == nil {
+		t.Fatal("buildTransportAnnouncePacket returned nil")
+	}
+	if err := returnedAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(returned announce): %v", err)
+	}
+	returnedAnnounce.ReceivingInterface = external
+	returnedAnnounce.Hops = 2
+
+	handleInboundAnnounce(returnedAnnounce, external, false)
+
+	if got := len(announceTable); got != 0 {
+		t.Fatalf("duplicate external return queued %d announce(s), want 0", got)
+	}
+	entry = pathTable[key]
+	if entry == nil {
+		t.Fatal("path entry disappeared after duplicate external return")
+	}
+	if entry.Hops != 0 {
+		t.Fatalf("path hops after duplicate external return=%d, want 0", entry.Hops)
+	}
+	if handler.calls != 1 {
+		t.Fatalf("handler calls after duplicate external return=%d, want still 1", handler.calls)
 	}
 }
 

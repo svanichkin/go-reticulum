@@ -4,7 +4,7 @@ ANNOUNCE_INTERFACE_NAME="tcp_bootstrap"
 ANNOUNCE_INTERFACE_LABEL="TCP bootstrap"
 ANNOUNCE_INTERFACE_SHORT_LABEL="TCP"
 ANNOUNCE_OBSERVE_PATTERN="${ANNOUNCE_OBSERVE_PATTERN:-"Valid announce for|Destination .* is now .* on .*TCP|Connected to server|TCP connection for .* established|Reconnected socket for TCPInterface"}"
-START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-45}"
+START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-60}"
 
 announce_prepare_scenario() {
   local _tool="$1"

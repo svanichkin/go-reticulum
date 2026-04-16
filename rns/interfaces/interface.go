@@ -386,6 +386,15 @@ func (i *Interface) Hash() []byte {
 	return sum[:]
 }
 
+// GetMode mirrors Python Interface.mode access for parity helpers that use an
+// accessor interface instead of the raw field.
+func (i *Interface) GetMode() int {
+	if i == nil || i.Mode == 0 {
+		return InterfaceModeFull
+	}
+	return i.Mode
+}
+
 // GetHash mirrors Python Interface.get_hash().
 func (i *Interface) GetHash() []byte { return i.Hash() }
 

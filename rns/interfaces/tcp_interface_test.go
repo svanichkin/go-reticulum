@@ -112,3 +112,27 @@ func TestTCPClientInterface_TeardownDisablesInterfaceDirections(t *testing.T) {
 		t.Fatalf("teardown should disable IN/OUT, got IN=%v OUT=%v", ci.iface.IN, ci.iface.OUT)
 	}
 }
+
+func TestTCPExceededMaxReconnect(t *testing.T) {
+	t.Parallel()
+
+	if tcpExceededMaxReconnect(1, nil) {
+		t.Fatal("nil reconnect limit should mean unlimited retries")
+	}
+
+	zero := 0
+	if tcpExceededMaxReconnect(1, &zero) {
+		t.Fatal("zero reconnect limit should mean unlimited retries")
+	}
+	if tcpExceededMaxReconnect(100, &zero) {
+		t.Fatal("zero reconnect limit should not stop later retries either")
+	}
+
+	one := 1
+	if tcpExceededMaxReconnect(1, &one) {
+		t.Fatal("first retry should still be allowed when max_reconnect_tries=1")
+	}
+	if !tcpExceededMaxReconnect(2, &one) {
+		t.Fatal("second retry should exceed max_reconnect_tries=1")
+	}
+}
