@@ -166,7 +166,7 @@ func main() {
 	}
 	if ops > 1 {
 		rns.Log("only one of --encrypt, --decrypt, --sign, --validate can be used at a time", rns.LogError)
-		os.Exit(1)
+		rns.Exit(1)
 	}
 
 	// if --read is not set, derive it from encrypt/decrypt/sign flags
@@ -194,7 +194,7 @@ func main() {
 		fmt.Println()
 		flag.Usage()
 		fmt.Println()
-		os.Exit(2)
+		rns.Exit(2)
 	}
 
 	// log level
@@ -205,7 +205,7 @@ func main() {
 	}
 	if _, err := rns.NewReticulum(configPtr, &targetLogLevel, nil, nil, false, nil); err != nil {
 		rns.Log("Could not start Reticulum: "+err.Error(), rns.LogError)
-		os.Exit(101)
+		rns.Exit(101)
 	}
 	rns.SetCompactLogFormat(true)
 	if useStdout {
@@ -216,18 +216,18 @@ func main() {
 	if generatePath != "" {
 		if !force && fileExists(generatePath) {
 			rns.Log("Identity file "+generatePath+" already exists. Not overwriting.", rns.LogError)
-			os.Exit(3)
+			rns.Exit(3)
 		}
 		id, err := rns.NewIdentity()
 		if err != nil {
 			rns.Log("An error occurred while generating a new Identity.", rns.LogError)
 			rns.Log("The contained exception was: "+err.Error(), rns.LogError)
-			os.Exit(4)
+			rns.Exit(4)
 		}
 		if err := id.Save(generatePath); err != nil {
 			rns.Log("An error occurred while saving the generated Identity.", rns.LogError)
 			rns.Log("The contained exception was: "+err.Error(), rns.LogError)
-			os.Exit(4)
+			rns.Exit(4)
 		}
 		rns.Log(fmt.Sprintf("New identity %s written to %s", id.String(), generatePath), rns.LogNotice)
 		return
@@ -309,13 +309,13 @@ func importIdentity(data string, useB32, useB64 bool, writePath *string, force, 
 	}
 	if err != nil {
 		fmt.Println("Invalid identity data specified for import:", err)
-		os.Exit(41)
+		rns.Exit(41)
 	}
 
 	id, err := rns.IdentityFromBytes(raw)
 	if err != nil {
 		fmt.Println("Could not create Reticulum identity from specified data:", err)
-		os.Exit(42)
+		rns.Exit(42)
 	}
 
 	rns.Log("Identity imported", rns.LogNotice)
@@ -350,16 +350,16 @@ func importIdentity(data string, useB32, useB64 bool, writePath *string, force, 
 		if !fileExists(wp) || force {
 			if err := id.Save(wp); err != nil {
 				fmt.Println("Error while writing imported identity to file:", err)
-				os.Exit(44)
+				rns.Exit(44)
 			}
 			rns.Log("Wrote imported identity to "+*writePath, rns.LogNotice)
 		} else {
 			fmt.Println("File", wp, "already exists, not overwriting")
-			os.Exit(43)
+			rns.Exit(43)
 		}
 	}
 
-	os.Exit(0)
+	rns.Exit(0)
 }
 
 func printIdentityKeys(id *rns.Identity, printPriv, useB32, useB64 bool) {
@@ -394,7 +394,7 @@ func printIdentityKeys(id *rns.Identity, printPriv, useB32, useB64 bool) {
 func exportIdentity(id *rns.Identity, useB32, useB64 bool) {
 	if len(id.GetPrivateKey()) == 0 {
 		rns.Log("Identity doesn't hold a private key, cannot export", rns.LogError)
-		os.Exit(50)
+		rns.Exit(50)
 	}
 	prv := id.GetPrivateKey()
 	switch {
@@ -405,7 +405,7 @@ func exportIdentity(id *rns.Identity, useB32, useB64 bool) {
 	default:
 		rns.Log("Exported Identity : "+rns.HexRep(prv, false), rns.LogNotice)
 	}
-	os.Exit(0)
+	rns.Exit(0)
 }
 
 // ---------- hash / announce ----------
@@ -414,32 +414,32 @@ func doHash(id *rns.Identity, aspectsStr string) {
 	aspects := strings.Split(aspectsStr, ".")
 	if len(aspects) == 0 {
 		rns.Log("Invalid destination aspects specified", rns.LogError)
-		os.Exit(32)
+		rns.Exit(32)
 	}
 	app := aspects[0]
 	aspects = aspects[1:]
 
 	if len(id.GetPublicKey()) == 0 {
 		rns.Log("No public key known for identity", rns.LogError)
-		os.Exit(32)
+		rns.Exit(32)
 	}
 
 	dst, err := rns.NewDestination(id, rns.DestinationOUT, rns.DestinationSINGLE, app, aspects...)
 	if err != nil {
 		rns.Log("Could not create destination: "+err.Error(), rns.LogError)
-		os.Exit(32)
+		rns.Exit(32)
 	}
-	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogInfo)
-	rns.Log("The full destination specifier is "+dst.String(), rns.LogInfo)
+	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
+	rns.Log("The full destination specifier is "+dst.String(), rns.LogNotice)
 	time.Sleep(250 * time.Millisecond)
-	os.Exit(0)
+	rns.Exit(0)
 }
 
 func doAnnounce(id *rns.Identity, aspectsStr string) {
 	aspects := strings.Split(aspectsStr, ".")
 	if len(aspects) <= 1 {
 		rns.Log("Invalid destination aspects specified", rns.LogError)
-		os.Exit(32)
+		rns.Exit(32)
 	}
 	app := aspects[0]
 	aspects = aspects[1:]
@@ -448,25 +448,25 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 		dst, err := rns.NewDestination(id, rns.DestinationIN, rns.DestinationSINGLE, app, aspects...)
 		if err != nil {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
-			os.Exit(32)
+			rns.Exit(32)
 		}
-		rns.Log("Created destination "+dst.String(), rns.LogInfo)
-		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash()), rns.LogInfo)
+		rns.Log("Created destination "+dst.String(), rns.LogNotice)
+		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
 		time.Sleep(1100 * time.Millisecond)
 		dst.Announce(nil, false, nil, nil, true)
 		time.Sleep(250 * time.Millisecond)
-		os.Exit(0)
+		rns.Exit(0)
 	} else {
 		dst, err := rns.NewDestination(id, rns.DestinationOUT, rns.DestinationSINGLE, app, aspects...)
 		if err != nil {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
-			os.Exit(32)
+			rns.Exit(32)
 		}
-		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogInfo)
-		rns.Log("The full destination specifier is "+dst.String(), rns.LogInfo)
+		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
+		rns.Log("The full destination specifier is "+dst.String(), rns.LogNotice)
 		rns.Log("Cannot announce this destination, since the private key is not held", rns.LogWarning)
 		time.Sleep(250 * time.Millisecond)
-		os.Exit(33)
+		rns.Exit(33)
 	}
 }
 
@@ -482,7 +482,7 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 		b, err := hex.DecodeString(arg)
 		if err != nil {
 			rns.Log("Invalid hexadecimal hash provided", rns.LogError)
-			os.Exit(7)
+			rns.Exit(7)
 		}
 		id := rns.IdentityRecall(b, false)
 		if id == nil {
@@ -492,7 +492,7 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 			if !requestUnknown {
 				rns.Log("Could not recall Identity for "+rns.PrettyHash(b)+".", rns.LogError)
 				rns.Log("You can query the network for unknown Identities with the -R option.", rns.LogError)
-				os.Exit(5)
+				rns.Exit(5)
 			}
 			rns.TransportRequestPath(b)
 			ok := spin(func() bool {
@@ -500,7 +500,7 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 			}, "Requesting unknown Identity for "+rns.PrettyHash(b), timeout)
 			if !ok {
 				rns.Log("Identity request timed out", rns.LogError)
-				os.Exit(6)
+				rns.Exit(6)
 			}
 			id = rns.IdentityRecall(b, false)
 			if id == nil {
@@ -522,12 +522,12 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 	// file
 	if !fileExists(pathCandidate) {
 		rns.Log("Specified Identity file not found", rns.LogError)
-		os.Exit(8)
+		rns.Exit(8)
 	}
 	id, err := rns.IdentityFromFile(pathCandidate)
 	if err != nil {
 		rns.Log("Could not decode Identity from specified file", rns.LogError)
-		os.Exit(9)
+		rns.Exit(9)
 	}
 	rns.Log("Loaded Identity "+id.String()+" from "+pathCandidate, rns.LogInfo)
 	return id
@@ -550,14 +550,14 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		if !fileExists(sigPath) {
 			// Python message uses args.read here (looks like a bug upstream); keep parity.
 			rns.Log("Signature file "+*readPath+" not found", rns.LogError)
-			os.Exit(10)
+			rns.Exit(10)
 		}
 		validatePath = sigPath
 
 		// Python parity: validate also requires an input file (exit 11).
 		if *readPath == "" || !fileExists(expandUser(*readPath)) {
 			rns.Log("Input file "+*readPath+" not found", rns.LogError)
-			os.Exit(11)
+			rns.Exit(11)
 		}
 	}
 
@@ -571,20 +571,20 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		path := expandUser(*readPath)
 		if !fileExists(path) {
 			rns.Log("Input file "+path+" not found", rns.LogError)
-			os.Exit(12)
+			rns.Exit(12)
 		}
 		in, err = os.Open(path)
 		if err != nil {
 			rns.Log("Could not open input file for reading", rns.LogError)
 			rns.Log("The contained exception was: "+err.Error(), rns.LogError)
-			os.Exit(13)
+			rns.Exit(13)
 		}
 		*readPath = path
 	}
 	if validatePath != "" && in == nil {
 		// Should not happen due to the validate pre-check above, but keep Python parity.
 		rns.Log("Signature verification requested, but no input data specified", rns.LogError)
-		os.Exit(20)
+		rns.Exit(20)
 	}
 
 	// derive default output
@@ -602,20 +602,20 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 	// sign requires private key
 	if doSign && len(id.GetPrivateKey()) == 0 {
 		rns.Log("Specified Identity does not hold a private key. Cannot sign.", rns.LogError)
-		os.Exit(14)
+		rns.Exit(14)
 	}
 
 	if *writePath != "" && !useStdout {
 		outPath := expandUser(*writePath)
 		if !force && fileExists(outPath) {
 			rns.Log("Output file "+outPath+" already exists. Not overwriting.", rns.LogError)
-			os.Exit(15)
+			rns.Exit(15)
 		}
 		out, err = os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			rns.Log("Could not open output file for writing", rns.LogError)
 			rns.Log("The contained exception was: "+err.Error(), rns.LogError)
-			os.Exit(15)
+			rns.Exit(15)
 		}
 		*writePath = outPath
 	}
@@ -633,11 +633,11 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 	if doSign {
 		if in == nil {
 			rns.Log("Signing requested, but no input data specified", rns.LogError)
-			os.Exit(17)
+			rns.Exit(17)
 		}
 		if out == nil && !useStdout {
 			rns.Log("Signing requested, but no output specified", rns.LogError)
-			os.Exit(18)
+			rns.Exit(18)
 		}
 		if !useStdout {
 			rns.Log("Signing "+inputName, rns.LogInfo)
@@ -649,7 +649,7 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		sig, err := id.Sign(data)
 		if err != nil {
 			rns.Log("Signing failed: "+err.Error(), rns.LogError)
-			os.Exit(19)
+			rns.Exit(19)
 		}
 		if useStdout {
 			if _, err := os.Stdout.Write(sig); err != nil {
@@ -667,20 +667,20 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		if !useStdout {
 			rns.Log("File "+inputName+" signed with "+id.String()+" to "+outputName, rns.LogInfo)
 		}
-		os.Exit(0)
+		rns.Exit(0)
 	}
 
 	// VALIDATE
 	if validatePath != "" {
 		if in == nil {
 			rns.Log("Signature verification requested, but no input data specified", rns.LogError)
-			os.Exit(20)
+			rns.Exit(20)
 		}
 		sigFile, err := os.Open(validatePath)
 		if err != nil {
 			rns.Log("An error occurred while opening "+validatePath+".", rns.LogError)
 			rns.Log("The contained exception was: "+err.Error(), rns.LogError)
-			os.Exit(21)
+			rns.Exit(21)
 		}
 		sigData, _ := io.ReadAll(sigFile)
 		data, _ := io.ReadAll(in)
@@ -690,21 +690,21 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		ok := id.Validate(sigData, data)
 		if !ok {
 			rns.Log("Signature "+validatePath+" for file "+inputName+" is invalid", rns.LogError)
-			os.Exit(22)
+			rns.Exit(22)
 		}
 		rns.Log("Signature "+validatePath+" for file "+inputName+" made by Identity "+id.String()+" is valid", rns.LogInfo)
-		os.Exit(0)
+		rns.Exit(0)
 	}
 
 	// ENCRYPT
 	if doEnc {
 		if in == nil {
 			rns.Log("Encryption requested, but no input data specified", rns.LogError)
-			os.Exit(24)
+			rns.Exit(24)
 		}
 		if out == nil && !useStdout {
 			rns.Log("Encryption requested, but no output specified", rns.LogError)
-			os.Exit(25)
+			rns.Exit(25)
 		}
 		if !useStdout {
 			rns.Log("Encrypting "+inputName, rns.LogInfo)
@@ -717,22 +717,22 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 		if !useStdout {
 			rns.Log("File "+inputName+" encrypted for "+id.String()+" to "+outputName, rns.LogInfo)
 		}
-		os.Exit(0)
+		rns.Exit(0)
 	}
 
 	// DECRYPT
 	if doDec {
 		if len(id.GetPrivateKey()) == 0 {
 			rns.Log("Specified Identity does not hold a private key. Cannot decrypt.", rns.LogError)
-			os.Exit(27)
+			rns.Exit(27)
 		}
 		if in == nil {
 			rns.Log("Decryption requested, but no input data specified", rns.LogError)
-			os.Exit(28)
+			rns.Exit(28)
 		}
 		if out == nil && !useStdout {
 			rns.Log("Decryption requested, but no output specified", rns.LogError)
-			os.Exit(29)
+			rns.Exit(29)
 		}
 		if !useStdout {
 			rns.Log("Decrypting "+inputName+"...", rns.LogInfo)
@@ -754,19 +754,19 @@ func doIO(id *rns.Identity, doEnc, doDec, doSign bool, validatePath string,
 				if !useStdout {
 					rns.Log("Data could not be decrypted with the specified Identity", rns.LogError)
 				}
-				os.Exit(30)
+				rns.Exit(30)
 			}
 			failIO(err, in, out, "decrypting data", 31)
 		}
 		if !useStdout {
 			rns.Log("File "+inputName+" decrypted with "+id.String()+" to "+outputName, rns.LogInfo)
 		}
-		os.Exit(0)
+		rns.Exit(0)
 	}
 
 	// if nothing was selected
 	flag.Usage()
-	os.Exit(0)
+	rns.Exit(0)
 }
 
 func streamTransform(in io.ReadCloser, out io.WriteCloser, fn func([]byte) ([]byte, error)) error {
@@ -812,7 +812,7 @@ func failIO(err error, in io.ReadCloser, out io.WriteCloser, what string, code i
 	if in != nil {
 		in.Close()
 	}
-	os.Exit(code)
+	rns.Exit(code)
 }
 
 // ---------- utils ----------

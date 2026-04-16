@@ -3,6 +3,7 @@ package interfaces
 import (
 	"bytes"
 	"crypto/sha256"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -47,10 +48,10 @@ func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
 	defer clientSide.Close()
 
 	iface := &Interface{
-		Name:      "local0",
-		Type:      "LocalInterface",
-		Online:    true,
-		Bitrate:   62500,
+		Name:        "local0",
+		Type:        "LocalInterface",
+		Online:      true,
+		Bitrate:     62500,
 		AnnounceCap: 0, // should default via provider
 	}
 	iface.setLocalConn(serverSide)
@@ -63,6 +64,77 @@ func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
 	n, err := clientSide.Read(buf)
 	if err != nil || n == 0 {
 		t.Fatalf("expected framed bytes written, got n=%d err=%v", n, err)
+	}
+}
+
+func TestInterface_ProcessAnnounceRaw_LocalAnnounceBypassesCap(t *testing.T) {
+	serverSide, clientSide := net.Pipe()
+	defer serverSide.Close()
+	defer clientSide.Close()
+
+	iface := &Interface{
+		Name:        "local0",
+		Type:        "LocalInterface",
+		Online:      true,
+		Bitrate:     62500,
+		AnnounceCap: 0.25,
+	}
+	iface.setLocalConn(serverSide)
+	iface.SetAnnounceAllowedAt(time.Now().Add(time.Hour))
+
+	raw := []byte("local-announce")
+	done := make(chan struct{})
+	go func() {
+		iface.ProcessAnnounceRaw(raw, 0)
+		close(done)
+	}()
+
+	_ = clientSide.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	buf := make([]byte, 256)
+	n, err := clientSide.Read(buf)
+	if err != nil || n == 0 {
+		t.Fatalf("expected immediate framed bytes written, got n=%d err=%v", n, err)
+	}
+	select {
+	case <-done:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("ProcessAnnounceRaw did not return after local announce send")
+	}
+	if iface.HasQueuedAnnounces() {
+		t.Fatal("local announce unexpectedly entered announce queue")
+	}
+}
+
+func TestInterface_ReadLocalFramesLoop_ProcessesDataReturnedWithEOF(t *testing.T) {
+	prevInbound := InboundHandler
+	prevHeader := HeaderMinSize
+	t.Cleanup(func() {
+		InboundHandler = prevInbound
+		HeaderMinSize = prevHeader
+	})
+
+	payload := []byte("eof-frame")
+	framed := append([]byte{hdlcFlag}, hdlcEscape(payload)...)
+	framed = append(framed, hdlcFlag)
+
+	got := make(chan []byte, 1)
+	InboundHandler = func(raw []byte, _ *Interface) {
+		got <- append([]byte(nil), raw...)
+	}
+	HeaderMinSize = 0
+
+	iface := &Interface{Name: "local0", Type: "LocalInterface"}
+	iface.setLocalConn(&eofDataConn{data: framed})
+
+	iface.readLocalFramesLoop()
+
+	select {
+	case raw := <-got:
+		if !bytes.Equal(raw, payload) {
+			t.Fatalf("inbound payload=%x, want %x", raw, payload)
+		}
+	default:
+		t.Fatal("expected frame to be delivered before EOF")
 	}
 }
 
@@ -115,3 +187,30 @@ func TestInterface_Hash_MatchesSHA256OfString(t *testing.T) {
 		t.Fatalf("unexpected hash: want %x got %x", want[:], got)
 	}
 }
+
+type eofDataConn struct {
+	data []byte
+	read bool
+}
+
+func (c *eofDataConn) Read(p []byte) (int, error) {
+	if c.read {
+		return 0, io.EOF
+	}
+	c.read = true
+	n := copy(p, c.data)
+	return n, io.EOF
+}
+
+func (c *eofDataConn) Write(p []byte) (int, error)      { return len(p), nil }
+func (c *eofDataConn) Close() error                     { return nil }
+func (c *eofDataConn) LocalAddr() net.Addr              { return eofAddr("local") }
+func (c *eofDataConn) RemoteAddr() net.Addr             { return eofAddr("remote") }
+func (c *eofDataConn) SetDeadline(time.Time) error      { return nil }
+func (c *eofDataConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *eofDataConn) SetWriteDeadline(time.Time) error { return nil }
+
+type eofAddr string
+
+func (a eofAddr) Network() string { return "test" }
+func (a eofAddr) String() string  { return string(a) }

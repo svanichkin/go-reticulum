@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 LAYER_DIR="${LOG_DIR:-"$ROOT/tests/artifacts/logs/parity"}"
 TS="${TS:-"$(date +"%Y%m%d-%H%M%S")"}"
 KEEP_ARTIFACTS="${KEEP_ARTIFACTS:-0}"
+PARITY_BIN_DIR="${PARITY_BIN_DIR:-"$ROOT/tests/runners/parity/bin"}"
 
 if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
   rm -rf "$LAYER_DIR"
@@ -50,6 +51,18 @@ echo "[parity] RUN_NETWORK=$RUN_NETWORK"
 echo "[parity] out=$OUT_DIR"
 echo "[parity] layer_dir=$LAYER_DIR"
 echo "[parity] KEEP_ARTIFACTS=$KEEP_ARTIFACTS"
+echo "[parity] bin_dir=$PARITY_BIN_DIR"
+
+echo
+echo "[parity] Building Go cmd binaries"
+mkdir -p "$PARITY_BIN_DIR"
+for cmd_dir in "$ROOT"/cmd/*; do
+  [[ -d "$cmd_dir" ]] || continue
+  cmd_name="$(basename "$cmd_dir")"
+  echo "[parity]   go build $cmd_name"
+  go build -o "$PARITY_BIN_DIR/$cmd_name" "./cmd/$cmd_name"
+done
+export PARITY_BIN_DIR
 
 echo
 echo "[parity] Suite-level Go vs Python summary"

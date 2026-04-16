@@ -517,12 +517,10 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 			announceData = append(announceData, appData...)
 		}
 
-		if pathResponse {
-			key := string(tag)
-			d.pathResponses[key] = &pathResponseEntry{
-				Timestamp: now,
-				Data:      announceData,
-			}
+		key := string(tag)
+		d.pathResponses[key] = &pathResponseEntry{
+			Timestamp: now,
+			Data:      announceData,
 		}
 	}
 

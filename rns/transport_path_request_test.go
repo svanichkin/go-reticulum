@@ -1,6 +1,8 @@
 package rns
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -231,5 +233,183 @@ func TestRequestPathOnInterface_UsesProvidedTagAndRecursive(t *testing.T) {
 	}
 	if ifc.AnnounceAllowedAt().IsZero() {
 		t.Fatal("recursive request did not update announce_allowed_at")
+	}
+}
+
+func TestRequestPathOnInterface_SendsEvenWhenPathExists(t *testing.T) {
+	prevTransport := Transport
+	prevTransportEnabled := transportEnabled
+	prevPathTable := pathTable
+
+	backend := &pathRequestCaptureBackend{}
+	Transport = backend
+	transportEnabled = false
+	pathTable = make(map[hashKey]*PathEntry)
+
+	t.Cleanup(func() {
+		Transport = prevTransport
+		transportEnabled = prevTransportEnabled
+		pathTable = prevPathTable
+	})
+
+	destHash := []byte("request-path-api")
+	key, ok := makeHashKey(destHash)
+	if !ok {
+		t.Fatal("makeHashKey() = false")
+	}
+	pathTable[key] = &PathEntry{
+		NextHop:       []byte("next-hop-desthash"),
+		RecvInterface: &Interface{Name: "known0"},
+		Hops:          1,
+		Timestamp:     time.Now(),
+		ExpiresAt:     time.Now().Add(time.Minute),
+	}
+
+	tag := []byte("refresh-path-tag")
+	ifc := &Interface{Name: "peer0"}
+
+	if sent := RequestPathOnInterface(destHash, ifc, tag, false); !sent {
+		t.Fatal("RequestPathOnInterface() = false, want true")
+	}
+	if got := len(backend.packets); got != 1 {
+		t.Fatalf("outbound packets=%d, want 1", got)
+	}
+	if backend.packets[0].AttachedInterface != ifc {
+		t.Fatal("request was not sent on specified interface")
+	}
+}
+
+func TestAnswerPathRequest_LocalClientCasesQueueImmediateResponse(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransport := Transport
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+	prevPathTable := pathTable
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+
+	cacheRoot := t.TempDir()
+	Owner = &Reticulum{
+		StoragePath: filepath.Join(cacheRoot, "storage"),
+		CachePath:   filepath.Join(cacheRoot, "storage", "cache"),
+	}
+	if err := os.MkdirAll(filepath.Join(Owner.CachePath, "announces"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(announces): %v", err)
+	}
+
+	backend := &pathRequestCaptureBackend{}
+	Transport = backend
+	transportEnabled = true
+	pathTable = make(map[hashKey]*PathEntry)
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	external := &Interface{Name: "peer0", Type: "TCPClientInterface"}
+	localClient := &Interface{Name: "client0", Type: "LocalInterface"}
+	detachedShared := &Interface{Name: "Shared Instance[default]", Type: "LocalInterface"}
+	detachedLocalClient := &Interface{Name: "client-detached", Type: "LocalInterface", Parent: detachedShared}
+	Interfaces = []*Interface{external, localClient}
+	LocalClientInterfaces = []*Interface{localClient}
+	Owner.SharedInstanceInterface = detachedShared
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		Transport = prevTransport
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+		pathTable = prevPathTable
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce(nil, false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce() returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+	announce.ReceivingInterface = external
+	announce.Hops = 1
+	Cache(announce, true)
+
+	key, ok := makeHashKey(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+
+	cases := []struct {
+		name     string
+		attached *Interface
+		recv     *Interface
+	}{
+		{
+			name:     "request from local client",
+			attached: localClient,
+			recv:     external,
+		},
+		{
+			name:     "destination on local client",
+			attached: external,
+			recv:     localClient,
+		},
+		{
+			name:     "destination on detached local client",
+			attached: external,
+			recv:     detachedLocalClient,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pathTable[key] = &PathEntry{
+				NextHop:       copyBytes(announce.DestinationHash),
+				RecvInterface: tc.recv,
+				Hops:          1,
+				Timestamp:     time.Now(),
+				ExpiresAt:     time.Now().Add(time.Minute),
+				PacketHash:    copyBytes(announce.PacketHash),
+			}
+			announceTable = make(map[hashKey]*announceEntry)
+			heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+			if ok := answerPathRequest(announce.DestinationHash, tc.attached, nil, bytesRepeat(0xA0, truncatedHashBytes)); !ok {
+				t.Fatal("answerPathRequest() = false, want true")
+			}
+
+			entry := announceTable[key]
+			if entry == nil {
+				t.Fatal("expected queued PATH_RESPONSE announce")
+			}
+			if entry.AttachedInterface != tc.attached {
+				t.Fatalf("attached interface=%p, want %p", entry.AttachedInterface, tc.attached)
+			}
+			if entry.Next.After(time.Now().Add(100 * time.Millisecond)) {
+				t.Fatalf("queued response was not immediate: next=%v", entry.Next)
+			}
+		})
 	}
 }

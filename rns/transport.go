@@ -142,6 +142,7 @@ var (
 	Receipts []*PacketReceipt
 
 	LocalClientInterfaces []*Interface
+	interfacesMu          sync.RWMutex
 
 	// jobsMu serialises Jobs() (write-lock) against Inbound/Outbound
 	// (read-lock).  This replaces the old JobsLocked/JobsRunning booleans
@@ -468,10 +469,69 @@ func EnableBlackholeUpdater() {
 	}
 }
 
+func interfacesSnapshot() []*Interface {
+	interfacesMu.RLock()
+	defer interfacesMu.RUnlock()
+	return append([]*Interface(nil), Interfaces...)
+}
+
+func localClientInterfacesSnapshot() []*Interface {
+	interfacesMu.RLock()
+	defer interfacesMu.RUnlock()
+
+	seen := make(map[*Interface]struct{}, len(LocalClientInterfaces))
+	out := make([]*Interface, 0, len(LocalClientInterfaces))
+	add := func(ifc *Interface) {
+		if ifc == nil {
+			return
+		}
+		if _, ok := seen[ifc]; ok {
+			return
+		}
+		seen[ifc] = struct{}{}
+		out = append(out, ifc)
+	}
+
+	for _, cif := range LocalClientInterfaces {
+		add(cif)
+	}
+	for _, ifc := range interfacesSnapshot() {
+		if ifc != nil && ifc.Parent != nil && InterfaceToSharedInstance(ifc.Parent) {
+			add(ifc)
+		}
+	}
+
+	return out
+}
+
+func localClientInterfaceCount() int {
+	return len(localClientInterfacesSnapshot())
+}
+
+func hasLocalClientInterfaces() bool {
+	return localClientInterfaceCount() > 0
+}
+
+func addLocalClientInterface(ifc *Interface) {
+	if ifc == nil {
+		return
+	}
+	interfacesMu.Lock()
+	defer interfacesMu.Unlock()
+	for _, existing := range LocalClientInterfaces {
+		if existing == ifc {
+			return
+		}
+	}
+	LocalClientInterfaces = append(LocalClientInterfaces, ifc)
+}
+
 func removeLocalClientInterface(ifc *Interface) {
 	if ifc == nil {
 		return
 	}
+	interfacesMu.Lock()
+	defer interfacesMu.Unlock()
 	for idx, existing := range LocalClientInterfaces {
 		if existing == ifc {
 			LocalClientInterfaces = append(LocalClientInterfaces[:idx], LocalClientInterfaces[idx+1:]...)
@@ -488,6 +548,14 @@ func removeInterface(ifc *Interface) {
 		VoidTunnelInterface(ifc.TunnelID)
 	}
 	ifc.Detach()
+	interfacesMu.Lock()
+	defer interfacesMu.Unlock()
+	for idx, existing := range LocalClientInterfaces {
+		if existing == ifc {
+			LocalClientInterfaces = append(LocalClientInterfaces[:idx], LocalClientInterfaces[idx+1:]...)
+			break
+		}
+	}
 	for idx, existing := range Interfaces {
 		if existing == ifc {
 			Interfaces = append(Interfaces[:idx], Interfaces[idx+1:]...)
@@ -562,13 +630,15 @@ func AddInterface(ifc *Interface) {
 	if ifc == nil {
 		return
 	}
+	interfacesMu.Lock()
+	defer interfacesMu.Unlock()
 	Interfaces = append(Interfaces, ifc)
-	PrioritiseInterfaces()
+	prioritiseInterfacesLocked()
 }
 
 // DetachInterfaces best-effort detaches all interfaces.
 func DetachInterfaces() {
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil {
 			continue
 		}
@@ -660,8 +730,7 @@ type linkEntry struct {
 }
 
 type heldAnnounce struct {
-	Entry   *announceEntry
-	Release time.Time
+	Entry *announceEntry
 }
 
 type announceRateEntry struct {
@@ -703,6 +772,8 @@ type tunnelPathEntry struct {
 type announceEnqueueOptions struct {
 	delay            time.Duration
 	delaySet         bool
+	initialRetries   int
+	initialRetrySet  bool
 	blockRebroadcast bool
 	attached         *Interface
 }
@@ -723,6 +794,16 @@ func WithAnnounceImmediate() AnnounceOption {
 	return func(o *announceEnqueueOptions) {
 		o.delay = 0
 		o.delaySet = true
+	}
+}
+
+// WithAnnounceInitialRetries mirrors Python's announce_table insertion for
+// local-client announces, where retries is pre-seeded before the first jobs()
+// retransmit pass.
+func WithAnnounceInitialRetries(retries int) AnnounceOption {
+	return func(o *announceEnqueueOptions) {
+		o.initialRetries = retries
+		o.initialRetrySet = true
 	}
 }
 
@@ -761,7 +842,7 @@ func Start(owner *Reticulum) {
 	PrioritiseInterfaces()
 
 	// Python parity: Synthesize tunnels for any interfaces wanting it.
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil {
 			continue
 		}
@@ -788,7 +869,7 @@ func findInterfaceFromHash(hash []byte) *Interface {
 	if len(hash) == 0 {
 		return nil
 	}
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil {
 			continue
 		}
@@ -869,7 +950,7 @@ func readCachedPacketRaw(packetHash []byte) ([]byte, *Interface, error) {
 	if len(cached) > 1 {
 		if ref, ok := cached[1].(string); ok && ref != "" {
 			// Best-effort: match by Interface.String().
-			for _, ifc := range Interfaces {
+			for _, ifc := range interfacesSnapshot() {
 				if ifc != nil && ifc.String() == ref {
 					recvIf = ifc
 					break
@@ -1874,6 +1955,12 @@ func PrioritiseInterfaces() {
 		}
 	}()
 
+	interfacesMu.Lock()
+	defer interfacesMu.Unlock()
+	prioritiseInterfacesLocked()
+}
+
+func prioritiseInterfacesLocked() {
 	// sort by bitrate descending
 	sort.SliceStable(Interfaces, func(i, j int) bool {
 		return Interfaces[i].Bitrate > Interfaces[j].Bitrate
@@ -1893,7 +1980,7 @@ func CountTrafficLoop() {
 			var rxb, txb uint64
 			var rxs, txs float64
 
-			for _, ifc := range Interfaces {
+			for _, ifc := range interfacesSnapshot() {
 				if ifc.Parent != nil {
 					continue
 				}
@@ -1950,7 +2037,7 @@ func runInterfaceJobs(now time.Time) bool {
 			Log("Postponing until next job run", LogWarning)
 		}
 	}()
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc != nil {
 			ifc.ProcessHeldAnnounces(PathfinderMaxHops)
 		}
@@ -1974,13 +2061,11 @@ func Jobs() {
 	var mgmtAnnouncements []*Destination
 	var culled bool
 
-	// TryLock: if Inbound/Outbound is active, skip this job cycle rather
-	// than blocking.  This preserves the original semantics where Jobs()
-	// yielded to IO traffic (the old "if JobsLocked { return }" pattern)
-	// and avoids writer-starvation of the RWMutex blocking all new readers.
-	if !jobsMu.TryLock() {
-		return
-	}
+	// Python parity: jobs() takes the lock and waits rather than silently
+	// skipping a cycle while IO is active. Skipped cycles can strand
+	// short-lived local-client announces in announceTable long enough for
+	// their associated path entries to disappear before rebroadcast.
+	jobsMu.Lock()
 	defer func() {
 		jobsMu.Unlock()
 
@@ -1993,7 +2078,7 @@ func Jobs() {
 			if blocked == nil {
 				RequestPath(dst[:], nil)
 			} else {
-				for _, ifc := range Interfaces {
+				for _, ifc := range interfacesSnapshot() {
 					if ifc != blocked {
 						RequestPath(dst[:], ifc)
 					}
@@ -2110,9 +2195,6 @@ func Jobs() {
 	// Similarly here: pending_local_path_requests, discovery_pr_tags, table culling
 	// reverse_table, link_table, path_table, discovery_path_requests, tunnels, path_states
 	// and interface.process_held_announces().
-	if len(heldAnnounces) > 0 {
-		processHeldAnnounces(now, &outgoing)
-	}
 	runInterfaceJobs(now)
 
 	if due := dueManagementDestinations(now); len(due) > 0 {
@@ -2182,7 +2264,7 @@ func handleAnnounceRetransmit(now time.Time, outgoing *[]*Packet) {
 		if entry.Next.After(now) {
 			continue
 		}
-		if entry.Retries >= pathfinderRetryLimit {
+		if entry.Retries > pathfinderRetryLimit {
 			delete(announceTable, key)
 			continue
 		}
@@ -2192,26 +2274,18 @@ func handleAnnounceRetransmit(now time.Time, outgoing *[]*Packet) {
 			continue
 		}
 		*outgoing = append(*outgoing, send)
+		if held := heldAnnounces[key]; held != nil {
+			delete(heldAnnounces, key)
+			if held.Entry != nil {
+				announceTable[key] = held.Entry
+				Logf(LogDebug, "Reinserting held announce into table")
+				continue
+			}
+		}
 
 		entry.Retries++
 		entry.Next = now.Add(pathfinderRetryGrace + randAnnounceDelay())
 		announceTable[key] = entry
-	}
-}
-
-func processHeldAnnounces(now time.Time, outgoing *[]*Packet) {
-	announceMu.Lock()
-	defer announceMu.Unlock()
-	for key, entry := range heldAnnounces {
-		if entry == nil || entry.Entry == nil {
-			delete(heldAnnounces, key)
-			continue
-		}
-		if entry.Release.After(now) {
-			continue
-		}
-		announceTable[key] = entry.Entry
-		delete(heldAnnounces, key)
 	}
 }
 
@@ -2310,6 +2384,9 @@ func QueueAnnounce(p *Packet, opts ...AnnounceOption) {
 		BlockRebroadcasts: params.blockRebroadcast,
 		AttachedInterface: params.attached,
 	}
+	if params.initialRetrySet {
+		entry.Retries = params.initialRetries
+	}
 
 	key := *keyHash
 	announceMu.Lock()
@@ -2330,7 +2407,7 @@ func DropAnnounceQueues() int {
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
 	announceMu.Unlock()
 
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil {
 			continue
 		}
@@ -2661,10 +2738,12 @@ func pathRequestHandler(data []byte, packet *Packet) {
 		attached = packet.ReceivingInterface
 	}
 
+	Logf(LogDebug, "Path request for %s on %s", PrettyHash(destinationHash), interfaceName(attached))
+
 	// Python parity: If the destination exists on a local client, but it has not been
 	// announced yet, the shared instance should still forward PATH_REQUEST packets to
 	// local clients so they can answer with a PATH_RESPONSE.
-	if attached != nil && len(LocalClientInterfaces) > 0 && !IsLocalClientInterface(attached) {
+	if attached != nil && hasLocalClientInterfaces() && !IsLocalClientInterface(attached) {
 		if key, ok := makeHashKey(destinationHash); ok {
 			pendingLocalPathRequestsMu.Lock()
 			if _, exists := pendingLocalPathRequests[key]; !exists {
@@ -2689,7 +2768,7 @@ func pathRequestHandler(data []byte, packet *Packet) {
 	}
 	if IsLocalClientInterface(attached) {
 		requestTag := IdentityGetRandomHash()
-		for _, ifc := range Interfaces {
+		for _, ifc := range interfacesSnapshot() {
 			if ifc == nil || ifc == attached {
 				continue
 			}
@@ -2711,7 +2790,7 @@ func pathRequestHandler(data []byte, packet *Packet) {
 		return
 	}
 
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil || ifc == attached {
 			continue
 		}
@@ -2762,11 +2841,12 @@ func answerWaitingDiscoveryPathRequest(packet *Packet, now time.Time) {
 }
 
 func forwardPathRequestToLocalClients(raw []byte) {
-	if len(raw) == 0 || len(LocalClientInterfaces) == 0 {
+	localClients := localClientInterfacesSnapshot()
+	if len(raw) == 0 || len(localClients) == 0 {
 		return
 	}
 	send := append([]byte(nil), raw...)
-	for _, cif := range LocalClientInterfaces {
+	for _, cif := range localClients {
 		if cif == nil {
 			continue
 		}
@@ -2984,23 +3064,26 @@ func restoreTunnelPaths(te *tunnelEntry, ifc *Interface) {
 func answerPathRequest(destinationHash []byte, attachedInterface *Interface, requestorTransportID []byte, tag []byte) bool {
 	// Local destination? Answer by emitting a path response announce.
 	if dst := destinationByHash(destinationHash); dst != nil {
+		Logf(LogDebug, "Answering path request for %s on %s, destination is local to this system", PrettyHash(destinationHash), interfaceName(attachedInterface))
 		dst.Announce(nil, true, attachedInterface, tag, true)
 		return true
 	}
 
 	// Known path? Re-announce cached announce as path response.
 	if !TransportEnabled() {
+		Logf(LogDebug, "Ignoring path request for %s on %s, transport disabled", PrettyHash(destinationHash), interfaceName(attachedInterface))
 		return false
 	}
 	entry := getPathEntry(destinationHash)
 	if entry == nil {
+		Logf(LogDebug, "Ignoring path request for %s on %s, no path known", PrettyHash(destinationHash), interfaceName(attachedInterface))
 		return false
 	}
 
 	// Python parity: If the destination exists on a local client interface, remember which
 	// external interface desires the path so a subsequent PATH_RESPONSE from the local client
 	// can be forwarded.
-	if attachedInterface != nil && len(LocalClientInterfaces) > 0 && IsLocalClientInterface(entry.RecvInterface) {
+	if attachedInterface != nil && IsLocalClientInterface(entry.RecvInterface) {
 		if key, ok := makeHashKey(destinationHash); ok {
 			pendingLocalPathRequestsMu.Lock()
 			pendingLocalPathRequests[key] = attachedInterface
@@ -3010,16 +3093,19 @@ func answerPathRequest(destinationHash []byte, attachedInterface *Interface, req
 
 	// Don't answer path requests on roaming interfaces if next hop is on the same roaming interface.
 	if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming && entry.RecvInterface == attachedInterface {
+		Logf(LogDebug, "Not answering path request for %s on %s, next hop is on same roaming interface", PrettyHash(destinationHash), interfaceName(attachedInterface))
 		return true
 	}
 
 	// If requestor transport id is the next hop, skip (Python behaviour).
 	if len(requestorTransportID) == truncatedHashBytes && len(entry.NextHop) == truncatedHashBytes && bytes.Equal(entry.NextHop, requestorTransportID) {
+		Logf(LogDebug, "Not answering path request for %s on %s, next hop is the requestor", PrettyHash(destinationHash), interfaceName(attachedInterface))
 		return true
 	}
 
 	raw := getCachedAnnounceRaw(entry.PacketHash)
 	if len(raw) == 0 {
+		Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
 		return false
 	}
 	cached := NewPacket(nil, raw)
@@ -3047,6 +3133,7 @@ func answerPathRequest(destinationHash []byte, attachedInterface *Interface, req
 		WithoutReceipt(),
 	)
 	if resp == nil {
+		Logf(LogDebug, "Could not construct path response packet for %s", PrettyHash(destinationHash))
 		return false
 	}
 	h := entry.Hops
@@ -3061,18 +3148,26 @@ func answerPathRequest(destinationHash []byte, attachedInterface *Interface, req
 	resp.DestinationType = byte(DestinationSINGLE)
 
 	delay := pathRequestGrace
-	if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming {
+	switch {
+	case attachedInterface != nil && IsLocalClientInterface(attachedInterface):
+		// Python parity: replies to local-client PATH_REQUEST packets are queued immediately.
+		delay = 0
+	case entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface):
+		// Python parity: if the destination lives on a local client, answer immediately.
+		delay = 0
+	case attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming:
 		delay += pathRequestRoamingGrace
 	}
 	if key, ok := makeHashKey(destinationHash); ok {
 		announceMu.Lock()
 		if existing := announceTable[key]; existing != nil {
-			heldAnnounces[key] = &heldAnnounce{Entry: existing, Release: time.Now().Add(delay)}
+			heldAnnounces[key] = &heldAnnounce{Entry: existing}
 			delete(announceTable, key)
 		}
 		announceMu.Unlock()
 	}
 	QueueAnnounce(resp, WithAnnounceDelay(delay), WithAnnounceBlockRebroadcasts(true), WithAnnounceAttachedInterface(attachedInterface))
+	Logf(LogDebug, "Answering path request for %s on %s, path is known", PrettyHash(destinationHash), interfaceName(attachedInterface))
 	return true
 }
 
@@ -3348,6 +3443,8 @@ func interfacePresent(ifc *Interface) bool {
 	if ifc == nil {
 		return false
 	}
+	interfacesMu.RLock()
+	defer interfacesMu.RUnlock()
 	for _, existing := range Interfaces {
 		if existing == ifc {
 			return true
@@ -3573,7 +3670,7 @@ func Outbound(p *Packet) bool {
 		// path unknown: broadcast via all OUT interfaces
 		storedHash := false
 
-		for _, ifc := range Interfaces {
+		for _, ifc := range interfacesSnapshot() {
 			if !ifc.OUT {
 				continue
 			}
@@ -3613,9 +3710,6 @@ func Outbound(p *Packet) bool {
 		}
 	}
 
-	if sent && p.Type == PacketAnnounce && p.Context != PacketPATH_RESPONSE {
-		QueueAnnounce(p, WithAnnounceAttachedInterface(p.AttachedInterface))
-	}
 	return sent
 }
 
@@ -3772,10 +3866,8 @@ func Inbound(raw []byte, ifc *Interface) {
 	cacheLocalStats(p, ifc)
 
 	// hop correction for local clients / shared instance
-	if len(LocalClientInterfaces) > 0 {
-		if IsLocalClientInterface(ifc) {
-			p.Hops--
-		}
+	if IsLocalClientInterface(ifc) {
+		p.Hops--
 	} else if InterfaceToSharedInstance(ifc) {
 		p.Hops--
 	}
@@ -3870,13 +3962,13 @@ func Inbound(raw []byte, ifc *Interface) {
 		p.TransportType == Broadcast {
 
 		if fromLocal {
-			for _, oif := range Interfaces {
+			for _, oif := range interfacesSnapshot() {
 				if oif != ifc {
 					Transmit(oif, p.Raw)
 				}
 			}
 		} else {
-			for _, cif := range LocalClientInterfaces {
+			for _, cif := range localClientInterfacesSnapshot() {
 				Transmit(cif, p.Raw)
 			}
 		}
@@ -3929,8 +4021,8 @@ func Inbound(raw []byte, ifc *Interface) {
 		if forwardProofViaReverseTable(p, ifc) {
 			return
 		}
-		if proofForLocalClient && len(LocalClientInterfaces) > 0 {
-			for _, cif := range LocalClientInterfaces {
+		if proofForLocalClient {
+			for _, cif := range localClientInterfacesSnapshot() {
 				if cif != nil && cif != ifc {
 					Transmit(cif, p.Raw)
 				}
@@ -3952,8 +4044,8 @@ func Inbound(raw []byte, ifc *Interface) {
 		// generic destination routing. In shared-instance mode, the active link can
 		// live in a local client rather than in this transport process, so forward
 		// unmatched resource proofs to local clients.
-		if p.Type == PacketProof && p.Context == PacketCtxResourcePrf && !fromLocal && len(LocalClientInterfaces) > 0 {
-			for _, cif := range LocalClientInterfaces {
+		if p.Type == PacketProof && p.Context == PacketCtxResourcePrf && !fromLocal {
+			for _, cif := range localClientInterfacesSnapshot() {
 				if cif != nil && cif != ifc {
 					Transmit(cif, p.Raw)
 				}
@@ -4458,9 +4550,7 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 			PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), interfaceName(ifc))
 	}
 
-	if len(LocalClientInterfaces) > 0 {
-		forwardAnnounceToLocalClients(p)
-	}
+	forwardAnnounceToLocalClients(p)
 
 	answerWaitingDiscoveryPathRequest(p, now)
 
@@ -4486,29 +4576,32 @@ func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
 
 	opts := []AnnounceOption{}
 	if fromLocal {
-		opts = append(opts, WithAnnounceImmediate())
+		opts = append(opts, WithAnnounceImmediate(), WithAnnounceInitialRetries(pathfinderRetryLimit))
 	}
 	if p.Context == PacketPATH_RESPONSE {
-		opts = append(opts, WithAnnounceBlockRebroadcasts(true))
-		attachedIF := p.AttachedInterface
-		if attachedIF == nil {
-			attachedIF = ifc
+		// Python only queues local-client PATH_RESPONSE announces when an
+		// external path request is pending. These are rebroadcast as normal
+		// announces, not as PATH_RESPONSE packets, and are not pinned to the
+		// requesting interface.
+		if !fromLocal {
+			return
 		}
-		// Python parity: For PATH_RESPONSE from local clients, prefer any pending external
-		// interface that requested the path.
-		if fromLocal {
-			if key, ok := makeHashKey(p.DestinationHash); ok {
-				pendingLocalPathRequestsMu.Lock()
-				if desired, exists := pendingLocalPathRequests[key]; exists {
-					delete(pendingLocalPathRequests, key)
-					attachedIF = desired
-				}
-				pendingLocalPathRequestsMu.Unlock()
+
+		queuePathResponse := false
+		if key, ok := makeHashKey(p.DestinationHash); ok {
+			pendingLocalPathRequestsMu.Lock()
+			if _, exists := pendingLocalPathRequests[key]; exists {
+				delete(pendingLocalPathRequests, key)
+				queuePathResponse = true
 			}
+			pendingLocalPathRequestsMu.Unlock()
 		}
-		if attachedIF != nil {
-			opts = append(opts, WithAnnounceAttachedInterface(attachedIF))
+		if !queuePathResponse {
+			return
 		}
+
+		QueueAnnounce(p, WithAnnounceImmediate(), WithAnnounceInitialRetries(pathfinderRetryLimit))
+		return
 	}
 
 	QueueAnnounce(p, opts...)
@@ -4527,10 +4620,11 @@ func destinationByHash(hash []byte) *Destination {
 }
 
 func forwardAnnounceToLocalClients(p *Packet) {
-	if p == nil || len(LocalClientInterfaces) == 0 {
+	localClients := localClientInterfacesSnapshot()
+	if p == nil || len(localClients) == 0 {
 		return
 	}
-	for _, cif := range LocalClientInterfaces {
+	for _, cif := range localClients {
 		if cif == nil {
 			continue
 		}
@@ -5325,13 +5419,11 @@ func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Inter
 }
 
 // RequestPathOnInterface mirrors Python Transport.request_path().
-// It exposes the same public transport surface while preserving the existing
-// Go rate-limiting on duplicate path requests.
+// Python does not suppress explicit request_path() calls just because a local
+// path entry already exists. Callers like rnid rely on this to refresh an
+// identity from the network when a path is known but the announce data is not.
 func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
 	if _, ok := makeHashKey(hash); !ok {
-		return false
-	}
-	if HasPath(hash) && !PathIsUnresponsive(hash) {
 		return false
 	}
 
@@ -5344,9 +5436,6 @@ func RequestPath(hash []byte, blocked *Interface) {
 	if _, ok := makeHashKey(hash); !ok {
 		return
 	}
-	if HasPath(hash) && !PathIsUnresponsive(hash) {
-		return
-	}
 
 	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
 
@@ -5356,7 +5445,7 @@ func RequestPath(hash []byte, blocked *Interface) {
 		return
 	}
 	// Send on all interfaces except the blocked one (Python: discovery forwarding behaviour).
-	for _, ifc := range Interfaces {
+	for _, ifc := range interfacesSnapshot() {
 		if ifc == nil || ifc == blocked {
 			continue
 		}
@@ -5710,7 +5799,7 @@ func sendLinkPacketDirect(packet *Packet, ifc *Interface) bool {
 		} else if packet.AttachedInterface != nil {
 			ifc = packet.AttachedInterface
 		} else {
-			for _, candidate := range Interfaces {
+			for _, candidate := range interfacesSnapshot() {
 				if candidate != nil && candidate.OUT {
 					ifc = candidate
 					break
@@ -5809,10 +5898,19 @@ func IsLocalClientInterface(ifc *Interface) bool {
 	if ifc == nil {
 		return false
 	}
+	interfacesMu.RLock()
 	for _, cif := range LocalClientInterfaces {
 		if cif == ifc {
+			interfacesMu.RUnlock()
 			return true
 		}
+	}
+	interfacesMu.RUnlock()
+	// Python parity: local-client status is a property of the spawned interface
+	// object itself via its parent shared-instance interface, not just whether it
+	// is still present in the live local_client_interfaces list.
+	if ifc.Parent != nil && InterfaceToSharedInstance(ifc.Parent) {
+		return true
 	}
 	return false
 }
@@ -5827,7 +5925,7 @@ func isForLocalClient(p *Packet) bool {
 }
 
 func isProofForLocal(p *Packet) bool {
-	if p == nil || len(LocalClientInterfaces) == 0 || len(p.DestinationHash) == 0 {
+	if p == nil || len(p.DestinationHash) == 0 {
 		return false
 	}
 	key, ok := makeHashKey(p.DestinationHash)

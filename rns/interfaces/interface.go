@@ -1230,6 +1230,14 @@ func (i *Interface) ProcessAnnounceRaw(raw []byte, hops int) {
 	if i == nil || len(raw) == 0 {
 		return
 	}
+
+	// Python bypasses announce caps for locally-originating announces.
+	if hops <= 0 {
+		i.ProcessOutgoing(raw)
+		i.SentAnnounce()
+		return
+	}
+
 	now := time.Now()
 
 	cap := i.AnnounceCap
@@ -1655,36 +1663,38 @@ func (i *Interface) readLocalFramesLoop() {
 	var frameBuf []byte
 	for {
 		n, err := conn.Read(buf)
+		if n > 0 {
+			frameBuf = append(frameBuf, buf[:n]...)
+			for {
+				start := indexByte(frameBuf, hdlcFlag)
+				if start < 0 {
+					frameBuf = nil
+					break
+				}
+				end := indexByteFrom(frameBuf, hdlcFlag, start+1)
+				if end < 0 {
+					if start > 0 {
+						frameBuf = frameBuf[start:]
+					}
+					break
+				}
+				frame := frameBuf[start+1 : end]
+				frameBuf = frameBuf[end:]
+				unescaped := hdlcUnescape(frame)
+				if HeaderMinSize > 0 && len(unescaped) <= HeaderMinSize {
+					continue
+				}
+				if len(unescaped) > 0 && len(unescaped) <= MaxFrameLength {
+					atomic.AddUint64(&i.RXB, uint64(len(unescaped)))
+					if parent := i.Parent; parent != nil {
+						atomic.AddUint64(&parent.RXB, uint64(len(unescaped)))
+					}
+					InboundHandler(unescaped, i)
+				}
+			}
+		}
 		if err != nil || n <= 0 {
 			return
-		}
-		frameBuf = append(frameBuf, buf[:n]...)
-		for {
-			start := indexByte(frameBuf, hdlcFlag)
-			if start < 0 {
-				frameBuf = nil
-				break
-			}
-			end := indexByteFrom(frameBuf, hdlcFlag, start+1)
-			if end < 0 {
-				if start > 0 {
-					frameBuf = frameBuf[start:]
-				}
-				break
-			}
-			frame := frameBuf[start+1 : end]
-			frameBuf = frameBuf[end:]
-			unescaped := hdlcUnescape(frame)
-			if HeaderMinSize > 0 && len(unescaped) <= HeaderMinSize {
-				continue
-			}
-			if len(unescaped) > 0 && len(unescaped) <= MaxFrameLength {
-				atomic.AddUint64(&i.RXB, uint64(len(unescaped)))
-				if parent := i.Parent; parent != nil {
-					atomic.AddUint64(&parent.RXB, uint64(len(unescaped)))
-				}
-				InboundHandler(unescaped, i)
-			}
 		}
 	}
 }

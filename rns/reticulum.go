@@ -1135,13 +1135,14 @@ func exitWaitTimeoutFromEnv() time.Duration {
 func waitForLocalClientsToDisconnect(timeout time.Duration) bool {
 	started := time.Now()
 	reported := false
-	for len(LocalClientInterfaces) > 0 {
+	for localClientInterfaceCount() > 0 {
+		remaining := localClientInterfaceCount()
 		if !reported {
-			Logf(LogDebug, "Waiting for %d local client(s) to disconnect before exiting", len(LocalClientInterfaces))
+			Logf(LogDebug, "Waiting for %d local client(s) to disconnect before exiting", remaining)
 			reported = true
 		}
 		if timeout > 0 && time.Since(started) > timeout {
-			Logf(LogWarning, "Timed out waiting for local clients to disconnect (%d remaining)", len(LocalClientInterfaces))
+			Logf(LogWarning, "Timed out waiting for local clients to disconnect (%d remaining)", remaining)
 			return false
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -1508,7 +1509,7 @@ func (r *Reticulum) startLocalInterface() error {
 		},
 	}, func(cif *ifaces.Interface) {
 		AddInterface(cif)
-		LocalClientInterfaces = append(LocalClientInterfaces, cif)
+		addLocalClientInterface(cif)
 	})
 	if serverErr == nil {
 		if r.RequireShared {
@@ -1520,7 +1521,7 @@ func (r *Reticulum) startLocalInterface() error {
 		sharedIfc.OptimiseMTU()
 		AddInterface(sharedIfc)
 		sharedIfc.SetClientCountFunc(func() int {
-			return len(LocalClientInterfaces)
+			return localClientInterfaceCount()
 		})
 		r.SharedInstanceInterface = sharedIfc
 		r.IsSharedInstance = true

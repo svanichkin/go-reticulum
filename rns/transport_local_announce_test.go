@@ -27,7 +27,68 @@ func (b *announceCaptureBackend) GetPacketSNR(_ []byte) *float64 { return nil }
 
 func (b *announceCaptureBackend) GetPacketQ(_ []byte) *float64 { return nil }
 
-func TestHandleInboundAnnounce_LocalClientPathResponseTargetsRequestingInterface(t *testing.T) {
+func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevTransportEnabled := transportEnabled
+	prevPending := pendingLocalPathRequests
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevLocalClients := LocalClientInterfaces
+	prevInterfaces := Interfaces
+	prevDestinations := Destinations
+
+	transportEnabled = true
+	pendingLocalPathRequests = make(map[hashKey]*Interface)
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	LocalClientInterfaces = []*Interface{localClient}
+	Interfaces = []*Interface{localClient}
+
+	t.Cleanup(func() {
+		transportEnabled = prevTransportEnabled
+		pendingLocalPathRequests = prevPending
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		LocalClientInterfaces = prevLocalClients
+		Interfaces = prevInterfaces
+		Destinations = prevDestinations
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce(nil, true, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+	announce.ReceivingInterface = localClient
+	announce.Hops = 0
+
+	key, ok := makeHashKey(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+
+	handleInboundAnnounce(announce, localClient, true)
+
+	if entry := announceTable[key]; entry != nil {
+		t.Fatalf("local PATH_RESPONSE without pending request unexpectedly queued: %+v", entry)
+	}
+}
+
+func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhenPending(t *testing.T) {
 	resetKnownDestinationsForTest()
 
 	prevTransport := Transport
@@ -101,11 +162,14 @@ func TestHandleInboundAnnounce_LocalClientPathResponseTargetsRequestingInterface
 	if entry == nil {
 		t.Fatal("expected local PATH_RESPONSE announce to be queued")
 	}
-	if entry.AttachedInterface != external {
-		t.Fatalf("queued attached interface=%p, want requester %p", entry.AttachedInterface, external)
+	if entry.AttachedInterface != nil {
+		t.Fatalf("queued attached interface=%p, want nil for Python parity", entry.AttachedInterface)
 	}
-	if !entry.BlockRebroadcasts {
-		t.Fatal("queued local PATH_RESPONSE announce must block rebroadcasts")
+	if entry.BlockRebroadcasts {
+		t.Fatal("queued local PATH_RESPONSE announce must not force PATH_RESPONSE context")
+	}
+	if entry.Retries != pathfinderRetryLimit {
+		t.Fatalf("queued retries=%d, want %d", entry.Retries, pathfinderRetryLimit)
 	}
 
 	var outgoing []*Packet
@@ -114,19 +178,19 @@ func TestHandleInboundAnnounce_LocalClientPathResponseTargetsRequestingInterface
 		t.Fatalf("outgoing packets=%d, want 1", len(outgoing))
 	}
 	packet := outgoing[0]
-	if packet.Context != PacketPATH_RESPONSE {
-		t.Fatalf("packet context=%d, want PATH_RESPONSE", packet.Context)
+	if packet.Context != PacketNONE {
+		t.Fatalf("packet context=%d, want NONE", packet.Context)
 	}
-	if packet.AttachedInterface != external {
-		t.Fatalf("packet attached interface=%p, want requester %p", packet.AttachedInterface, external)
+	if packet.AttachedInterface != nil {
+		t.Fatalf("packet attached interface=%p, want nil", packet.AttachedInterface)
 	}
 
 	_ = packet.Send()
 	if got := len(backend.packets); got != 1 {
 		t.Fatalf("backend packets=%d, want 1", got)
 	}
-	if backend.packets[0].AttachedInterface != external {
-		t.Fatalf("sent attached interface=%p, want requester %p", backend.packets[0].AttachedInterface, external)
+	if backend.packets[0].AttachedInterface != nil {
+		t.Fatalf("sent attached interface=%p, want nil", backend.packets[0].AttachedInterface)
 	}
 	if !bytes.Equal(backend.packets[0].TransportID, TransportIdentity.Hash) {
 		t.Fatal("sent packet transport id mismatch")
@@ -198,6 +262,9 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 	if !entry.Next.IsZero() && entry.Next.After(time.Now().Add(100*time.Millisecond)) {
 		t.Fatalf("local announce next send too late: %v", entry.Next)
 	}
+	if entry.Retries != pathfinderRetryLimit {
+		t.Fatalf("queued retries=%d, want %d", entry.Retries, pathfinderRetryLimit)
+	}
 
 	var outgoing []*Packet
 	handleAnnounceRetransmit(time.Now().Add(time.Second), &outgoing)
@@ -213,5 +280,390 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 	}
 	if !bytes.Equal(packet.TransportID, TransportIdentity.Hash) {
 		t.Fatal("packet transport id mismatch")
+	}
+}
+
+func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevTransport := Transport
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevInterfaces := Interfaces
+	prevDestinations := Destinations
+	prevAnnLast := AnnLast
+
+	backend := &announceCaptureBackend{}
+	Transport = backend
+	transportEnabled = true
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+	AnnLast = time.Now().Add(-2 * time.Second)
+
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	Interfaces = []*Interface{localClient, external}
+
+	t.Cleanup(func() {
+		Transport = prevTransport
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		Interfaces = prevInterfaces
+		Destinations = prevDestinations
+		AnnLast = prevAnnLast
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+	announce.ReceivingInterface = localClient
+	announce.Hops = 0
+
+	handleInboundAnnounce(announce, localClient, true)
+
+	jobsMu.RLock()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Jobs()
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("Jobs returned while transport read lock was still held")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	jobsMu.RUnlock()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Jobs did not complete after releasing read lock")
+	}
+
+	if len(backend.packets) == 0 {
+		t.Fatal("expected queued announce to be transmitted once Jobs acquired the lock")
+	}
+}
+
+func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	t.Cleanup(func() {
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+
+	key, ok := makeHashKey(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+
+	heldEntry := &announceEntry{
+		Packet:            cloneAnnouncePacket(announce),
+		Next:              time.Now().Add(time.Minute),
+		Timestamp:         time.Now(),
+		Expires:           time.Now().Add(time.Hour),
+		AttachedInterface: &Interface{Name: "held-if"},
+	}
+	pathResponseEntry := &announceEntry{
+		Packet:            cloneAnnouncePacket(announce),
+		Next:              time.Now().Add(-time.Second),
+		Timestamp:         time.Now(),
+		Expires:           time.Now().Add(time.Hour),
+		BlockRebroadcasts: true,
+		AttachedInterface: &Interface{Name: "resp-if"},
+	}
+
+	announceTable[key] = pathResponseEntry
+	heldAnnounces[key] = &heldAnnounce{Entry: heldEntry}
+
+	var outgoing []*Packet
+	handleAnnounceRetransmit(time.Now(), &outgoing)
+
+	if len(outgoing) != 1 {
+		t.Fatalf("outgoing packets=%d, want 1", len(outgoing))
+	}
+	if outgoing[0].Context != PacketPATH_RESPONSE {
+		t.Fatalf("packet context=%d, want PATH_RESPONSE", outgoing[0].Context)
+	}
+	if announceTable[key] != heldEntry {
+		t.Fatal("held announce was not restored after path response retransmit")
+	}
+	if _, exists := heldAnnounces[key]; exists {
+		t.Fatal("held announce entry was not cleared")
+	}
+}
+
+func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	t.Cleanup(func() {
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+	})
+
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	dst, err := NewDestination(id, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+
+	key, ok := makeHashKey(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+
+	announceTable[key] = &announceEntry{
+		Packet:    cloneAnnouncePacket(announce),
+		Next:      time.Now().Add(-time.Second),
+		Timestamp: time.Now(),
+		Expires:   time.Now().Add(time.Hour),
+	}
+
+	var first []*Packet
+	handleAnnounceRetransmit(time.Now(), &first)
+	if len(first) != 1 {
+		t.Fatalf("first outgoing packets=%d, want 1", len(first))
+	}
+	entry := announceTable[key]
+	if entry == nil {
+		t.Fatal("announce entry disappeared after first retry")
+	}
+	if entry.Retries != 1 {
+		t.Fatalf("retries after first send=%d, want 1", entry.Retries)
+	}
+
+	var second []*Packet
+	handleAnnounceRetransmit(entry.Next.Add(time.Millisecond), &second)
+	if len(second) != 1 {
+		t.Fatalf("second outgoing packets=%d, want 1", len(second))
+	}
+}
+
+func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevAnnounceTable := announceTable
+	prevInterfaces := Interfaces
+	prevDestinations := Destinations
+
+	announceTable = make(map[hashKey]*announceEntry)
+	Interfaces = []*Interface{
+		{
+			Name:        "if0",
+			Type:        "Test",
+			OUT:         true,
+			AnnounceCap: 1.0,
+		},
+	}
+
+	t.Cleanup(func() {
+		announceTable = prevAnnounceTable
+		Interfaces = prevInterfaces
+		Destinations = prevDestinations
+	})
+
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	dst, err := NewDestination(id, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+
+	if !Outbound(announce) {
+		t.Fatal("Outbound returned false")
+	}
+
+	key, ok := makeHashKey(dst.Hash())
+	if !ok {
+		t.Fatal("destination hash invalid")
+	}
+	if entry := announceTable[key]; entry != nil {
+		t.Fatalf("local outbound announce unexpectedly queued: %+v", entry)
+	}
+}
+
+func TestLocalClientInterfacesSnapshot_FallsBackToParentInterface(t *testing.T) {
+	prevOwner := Owner
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface"}
+	local := &Interface{Name: "LocalInterface[12345]", Type: "LocalInterface", Parent: shared}
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	Interfaces = []*Interface{shared, local}
+	LocalClientInterfaces = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+	})
+
+	snapshot := localClientInterfacesSnapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("local client snapshot size=%d, want 1", len(snapshot))
+	}
+	if snapshot[0] != local {
+		t.Fatalf("snapshot local client=%p, want %p", snapshot[0], local)
+	}
+	if !IsLocalClientInterface(local) {
+		t.Fatal("IsLocalClientInterface() = false, want true for parent-derived local client")
+	}
+	if got := localClientInterfaceCount(); got != 1 {
+		t.Fatalf("local client count=%d, want 1", got)
+	}
+}
+
+func TestInbound_LocalClientHopCorrectionDoesNotDependOnRegistrySlice(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransportIdentity := TransportIdentity
+	prevTransportEnabled := transportEnabled
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface"}
+	local := &Interface{Name: "LocalInterface[12345]", Type: "LocalInterface", Parent: shared}
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	TransportIdentity = transportID
+	transportEnabled = true
+	Interfaces = []*Interface{shared, local}
+	LocalClientInterfaces = nil
+	Destinations = nil
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		TransportIdentity = prevTransportIdentity
+		transportEnabled = prevTransportEnabled
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+
+	Inbound(append([]byte(nil), announce.Raw...), local)
+
+	key, ok := makeHashKey(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+	entry := announceTable[key]
+	if entry == nil {
+		t.Fatal("expected local announce to be queued")
+	}
+	if entry.Packet == nil {
+		t.Fatal("queued announce packet is nil")
+	}
+	if entry.Packet.Hops != 0 {
+		t.Fatalf("queued announce hops=%d, want 0 after local-client hop correction", entry.Packet.Hops)
 	}
 }

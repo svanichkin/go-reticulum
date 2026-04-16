@@ -45,6 +45,37 @@ func buildRNID(t *testing.T, binDir string) string {
 	return cmdtest.Build(t, binDir, "rnid", "./cmd/rnid")
 }
 
+func buildRNIDFresh(t *testing.T, binDir string) string {
+	t.Helper()
+
+	repoRoot := cmdtest.RepoRoot(t)
+	out := filepath.Join(binDir, "rnid-fresh")
+	gocache := filepath.Join(binDir, ".gocache")
+	gotmp := filepath.Join(binDir, ".gotmp")
+	gopath := filepath.Join(binDir, ".gopath")
+	gomodcache := filepath.Join(binDir, ".gomodcache")
+	for _, dir := range []string{gocache, gotmp, gopath, gomodcache} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir fresh build dir %s: %v", dir, err)
+		}
+	}
+
+	cmd := exec.Command("go", "build", "-o", out, "./cmd/rnid")
+	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(),
+		"GOCACHE="+gocache,
+		"GOTMPDIR="+gotmp,
+		"GOPATH="+gopath,
+		"GOMODCACHE="+gomodcache,
+		"GOFLAGS=-modcacherw",
+	)
+	buildOut, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("fresh build rnid: %v\n%s", err, string(buildOut))
+	}
+	return out
+}
+
 func writeMinimalReticulumConfigRNID(t *testing.T, configDir string) {
 	t.Helper()
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
@@ -961,6 +992,67 @@ func TestRNIDIntegration_AnnounceSuccess(t *testing.T) {
 	}
 	if !strings.Contains(out, "Created destination") || !strings.Contains(out, "Announcing destination") {
 		t.Fatalf("unexpected announce output:\n%s", out)
+	}
+}
+
+func TestRNIDIntegration_HashQuietStillPrintsDestination(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNIDFresh(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNID(t, cfg)
+
+	identityPath := filepath.Join(root, "id")
+	out, code := runRNID(t, ctx, bin, cfg, root, "--config", cfg, "--generate", identityPath)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("generate exit=%d\n%s", code, out)
+	}
+
+	out, code = runRNID(t, ctx, bin, cfg, root,
+		"--config", cfg,
+		"--identity", identityPath,
+		"--hash", "app.aspect",
+		"-q",
+	)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("hash exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "The app.aspect destination for this Identity is") ||
+		!strings.Contains(out, "The full destination specifier is") {
+		t.Fatalf("unexpected quiet hash output:\n%s", out)
+	}
+}
+
+func TestRNIDIntegration_AnnounceQuietStillPrintsDestination(t *testing.T) {
+	root := t.TempDir()
+	bin := buildRNIDFresh(t, root)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	cfg := filepath.Join(root, "cfg")
+	writeMinimalReticulumConfigRNID(t, cfg)
+
+	identityPath := filepath.Join(root, "id")
+	out, code := runRNID(t, ctx, bin, cfg, root, "--config", cfg, "--generate", identityPath)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("generate exit=%d\n%s", code, out)
+	}
+
+	out, code = runRNID(t, ctx, bin, cfg, root,
+		"--config", cfg,
+		"--identity", identityPath,
+		"--announce", "app.aspect",
+		"-q",
+	)
+	skipIfReticulumUnavailable(t, out, code)
+	if code != 0 {
+		t.Fatalf("announce exit=%d\n%s", code, out)
+	}
+	if !strings.Contains(out, "Created destination") || !strings.Contains(out, "Announcing destination") {
+		t.Fatalf("unexpected quiet announce output:\n%s", out)
 	}
 }
 
