@@ -68,7 +68,7 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 		PacketHash:    packetHash,
 	}
 
-	TransportExitHandler()
+	ExitHandler()
 
 	if _, err := os.Stat(filepath.Join(Owner.StoragePath, "packet_hashlist")); err != nil {
 		t.Fatalf("expected packet_hashlist file: %v", err)

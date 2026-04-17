@@ -565,10 +565,10 @@ func removeInterface(ifc *Interface) {
 	}
 }
 
-// TransportRegisterDestination registers a destination with the transport.
+// RegisterDestination registers a destination with the transport.
 // The Python implementation maintains multiple internal maps; for now we keep
 // a simple list and ensure uniqueness.
-func TransportRegisterDestination(d *Destination) {
+func RegisterDestination(d *Destination) {
 	if d == nil {
 		return
 	}
@@ -602,9 +602,9 @@ func TransportRegisterDestination(d *Destination) {
 	}(d)
 }
 
-// TransportDeregisterDestination removes a destination from the transport registry.
+// DeregisterDestination removes a destination from the transport registry.
 // Mirrors Python Transport.deregister_destination().
-func TransportDeregisterDestination(d *Destination) bool {
+func DeregisterDestination(d *Destination) bool {
 	if d == nil {
 		return false
 	}
@@ -634,7 +634,7 @@ func AddInterface(ifc *Interface) {
 	interfacesMu.Lock()
 	defer interfacesMu.Unlock()
 	Interfaces = append(Interfaces, ifc)
-	prioritiseInterfacesLocked()
+	prioritizeInterfacesLocked()
 }
 
 // DetachInterfaces best-effort detaches all interfaces.
@@ -840,7 +840,7 @@ func Start(owner *Reticulum) {
 	// loading identities, tables, probe destination, etc.
 
 	// sort interfaces by bitrate
-	PrioritiseInterfaces()
+	PrioritizeInterfaces()
 
 	// Python parity: Synthesize tunnels for any interfaces wanting it.
 	for _, ifc := range interfacesSnapshot() {
@@ -1696,16 +1696,16 @@ func loadPacketHashlist() {
 	packetHashMu.Unlock()
 }
 
-// TransportExitHandler best-effort persistence hook mirroring Transport.exit_handler() in Python.
-func TransportExitHandler() {
+// ExitHandler best-effort persistence hook mirroring Transport.exit_handler() in Python.
+func ExitHandler() {
 	_ = savePacketHashlist()
 	_ = saveDestinationTable()
 	_ = saveTunnelTable()
 }
 
-// TransportPersistData persists transport tables, mirroring Python's
+// PersistData persists transport tables, mirroring Python's
 // Transport.persist_data() / Reticulum.__persist_data() behaviour.
-func TransportPersistData() {
+func PersistData() {
 	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
 		return
 	}
@@ -1847,6 +1847,14 @@ func saveDestinationTable() error {
 	return os.WriteFile(path, buf, 0o600)
 }
 
+// SavePathTable mirrors Python Transport.save_path_table().
+// Persists the current path table to storage.
+func SavePathTable() {
+	if err := saveDestinationTable(); err != nil {
+		Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
+	}
+}
+
 func saveTunnelTable() error {
 	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
 		return nil
@@ -1949,7 +1957,7 @@ func saveTunnelTable() error {
 
 // -------- prioritisation and traffic counters --------
 
-func PrioritiseInterfaces() {
+func PrioritizeInterfaces() {
 	defer func() {
 		if r := recover(); r != nil {
 			Logf(LogError, "Could not prioritise interfaces: %v", r)
@@ -1958,10 +1966,10 @@ func PrioritiseInterfaces() {
 
 	interfacesMu.Lock()
 	defer interfacesMu.Unlock()
-	prioritiseInterfacesLocked()
+	prioritizeInterfacesLocked()
 }
 
-func prioritiseInterfacesLocked() {
+func prioritizeInterfacesLocked() {
 	// sort by bitrate descending
 	sort.SliceStable(Interfaces, func(i, j int) bool {
 		return Interfaces[i].Bitrate > Interfaces[j].Bitrate
@@ -2031,7 +2039,7 @@ func runInterfaceJobs(now time.Time) bool {
 		return false
 	}
 
-	PrioritiseInterfaces()
+	PrioritizeInterfaces()
 	defer func() {
 		if r := recover(); r != nil {
 			Logf(LogWarning, "Error while processing held per-interface announces: %v", r)
@@ -2077,11 +2085,11 @@ func Jobs() {
 		// path requests
 		for dst, blocked := range pathRequests {
 			if blocked == nil {
-				RequestPath(dst[:], nil)
+				requestPathAllExcept(dst[:], nil)
 			} else {
 				for _, ifc := range interfacesSnapshot() {
 					if ifc != blocked {
-						RequestPath(dst[:], ifc)
+						requestPathAllExcept(dst[:], ifc)
 					}
 				}
 			}
@@ -2444,7 +2452,7 @@ func ensureProbeDestination() {
 	}
 	if !TransportEnabled() || !ProbeDestinationEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
 		if ProbeDestination != nil {
-			TransportDeregisterDestination(ProbeDestination)
+			DeregisterDestination(ProbeDestination)
 		}
 		ProbeDestination = nil
 		return
@@ -2691,7 +2699,7 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 		if len(destHash) == 0 {
 			return nil
 		}
-		TransportRequestPath(destHash)
+		requestPathAllExcept(destHash, nil)
 		return true
 	default:
 		return nil
@@ -3926,7 +3934,7 @@ func Inbound(raw []byte, ifc *Interface) {
 				linkID := linkIDFromLinkRequestPacket(p)
 				if lidKey, ok := makeHashKey(linkID); ok {
 					now := time.Now()
-					proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, entry.Hops))*time.Second + TransportExtraLinkProofTimeout(entry.RecvInterface))
+					proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, entry.Hops))*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
 					le := &linkEntry{
 						Timestamp:         now,
 						NextHopID:         copyBytes(entry.NextHop),
@@ -4190,7 +4198,7 @@ func forwardDesignatedTransportPacket(p *Packet, receivedOn *Interface) bool {
 		linkID := linkIDFromLinkRequestPacket(p)
 		if lidKey, ok := makeHashKey(linkID); ok {
 			now := time.Now()
-			proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, remainingHops))*time.Second + TransportExtraLinkProofTimeout(entry.RecvInterface))
+			proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, remainingHops))*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
 			le := &linkEntry{
 				Timestamp:         now,
 				NextHopID:         copyBytes(nextHop),
@@ -4314,7 +4322,7 @@ func forwardTransportPacket(p *Packet, receivedOn *Interface) bool {
 	if p.PacketType == PacketTypeLinkRequest {
 		linkID := linkIDFromLinkRequestPacket(p)
 		if lidKey, ok := makeHashKey(linkID); ok {
-			proofTmo := time.Now().Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT)*time.Second*time.Duration(maxInt(1, remainingHops)) + TransportExtraLinkProofTimeout(entry.RecvInterface))
+			proofTmo := time.Now().Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT)*time.Second*time.Duration(maxInt(1, remainingHops)) + ExtraLinkProofTimeout(entry.RecvInterface))
 			le := &linkEntry{
 				Timestamp:         time.Now(),
 				NextHopID:         copyBytes(entry.NextHop),
@@ -5037,6 +5045,22 @@ func timebaseFromRandomBlobs(blobs [][]byte) uint64 {
 	return max
 }
 
+// TimebaseFromRandomBlob mirrors Python Transport.timebase_from_random_blob().
+func TimebaseFromRandomBlob(blob []byte) uint64 {
+	return timebaseFromRandomBlob(blob)
+}
+
+// TimebaseFromRandomBlobs mirrors Python Transport.timebase_from_random_blobs().
+func TimebaseFromRandomBlobs(blobs [][]byte) uint64 {
+	return timebaseFromRandomBlobs(blobs)
+}
+
+// AnnounceEmitted mirrors Python Transport.announce_emitted().
+// Returns the emission timebase encoded in the announce packet's random blob.
+func AnnounceEmitted(p *Packet) uint64 {
+	return timebaseFromRandomBlob(announceRandomBlob(p))
+}
+
 func copyRandomBlobSlice(in [][]byte) [][]byte {
 	if len(in) == 0 {
 		return nil
@@ -5068,7 +5092,7 @@ func handlePendingAndActiveLinks(pathReqs map[hashKey]*Interface) {
 					if Owner != nil && Owner.IsConnectedToSharedInstance {
 						// Shared instance will handle path request.
 					} else {
-						RequestPath(destHash, nil)
+						requestPathAllExcept(destHash, nil)
 					}
 				}
 			}
@@ -5223,6 +5247,18 @@ func PathIsUnresponsive(hash []byte) bool {
 	return ok && state == TransportStateUnresponsive
 }
 
+// MarkPathUnresponsive mirrors Python Transport.mark_path_unresponsive().
+func MarkPathUnresponsive(hash []byte) bool {
+	key, ok := makeHashKey(hash)
+	if !ok || !HasPath(hash) {
+		return false
+	}
+	pathStatesMu.Lock()
+	pathStates[key] = TransportStateUnresponsive
+	pathStatesMu.Unlock()
+	return true
+}
+
 func announceHash(p *Packet) *hashKey {
 	if p == nil {
 		return nil
@@ -5337,18 +5373,14 @@ func evictOldestAnnounceLocked() {
 	}
 }
 
-func TransportHasPath(hash []byte) bool {
-	return HasPath(hash)
-}
-
-func TransportHopsTo(hash []byte) int {
+func HopsTo(hash []byte) int {
 	if entry := getPathEntry(hash); entry != nil {
 		return entry.Hops
 	}
 	return PathfinderMaxHops
 }
 
-func TransportNextHopInterfaceBitrate(destinationHash []byte) *int {
+func NextHopInterfaceBitrate(destinationHash []byte) *int {
 	entry := getPathEntry(destinationHash)
 	if entry == nil || entry.RecvInterface == nil {
 		return nil
@@ -5365,8 +5397,8 @@ func TransportNextHopInterfaceBitrate(destinationHash []byte) *int {
 	return nil
 }
 
-func TransportNextHopPerBitLatency(destinationHash []byte) *float64 {
-	br := TransportNextHopInterfaceBitrate(destinationHash)
+func NextHopPerBitLatency(destinationHash []byte) *float64 {
+	br := NextHopInterfaceBitrate(destinationHash)
 	if br == nil || *br <= 0 {
 		return nil
 	}
@@ -5374,8 +5406,8 @@ func TransportNextHopPerBitLatency(destinationHash []byte) *float64 {
 	return &v
 }
 
-func TransportNextHopPerByteLatency(destinationHash []byte) *float64 {
-	perBit := TransportNextHopPerBitLatency(destinationHash)
+func NextHopPerByteLatency(destinationHash []byte) *float64 {
+	perBit := NextHopPerBitLatency(destinationHash)
 	if perBit == nil {
 		return nil
 	}
@@ -5383,8 +5415,8 @@ func TransportNextHopPerByteLatency(destinationHash []byte) *float64 {
 	return &v
 }
 
-func TransportFirstHopTimeout(destinationHash []byte) time.Duration {
-	perByte := TransportNextHopPerByteLatency(destinationHash)
+func FirstHopTimeout(destinationHash []byte) time.Duration {
+	perByte := NextHopPerByteLatency(destinationHash)
 	if perByte == nil {
 		return time.Duration(DEFAULT_PER_HOP_TIMEOUT * float64(time.Second))
 	}
@@ -5395,8 +5427,8 @@ func TransportFirstHopTimeout(destinationHash []byte) time.Duration {
 	return time.Duration(timeout * float64(time.Second))
 }
 
-// TransportExtraLinkProofTimeout mirrors Python Transport.extra_link_proof_timeout().
-func TransportExtraLinkProofTimeout(ifc *Interface) time.Duration {
+// ExtraLinkProofTimeout mirrors Python Transport.extra_link_proof_timeout().
+func ExtraLinkProofTimeout(ifc *Interface) time.Duration {
 	if ifc == nil {
 		return 0
 	}
@@ -5452,11 +5484,11 @@ func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Inter
 	return HasPath(destinationHash)
 }
 
-// RequestPathOnInterface mirrors Python Transport.request_path().
+// RequestPath mirrors Python Transport.request_path().
 // Python does not suppress explicit request_path() calls just because a local
 // path entry already exists. Callers like rnid rely on this to refresh an
 // identity from the network when a path is known but the announce data is not.
-func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
+func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
 	if _, ok := makeHashKey(hash); !ok {
 		return false
 	}
@@ -5466,7 +5498,10 @@ func RequestPathOnInterface(hash []byte, onInterface *Interface, tag []byte, rec
 	return true
 }
 
-func RequestPath(hash []byte, blocked *Interface) {
+// requestPathAllExcept broadcasts a path request on all interfaces except
+// the blocked one. This is an internal helper used by the discovery layer;
+// it is not part of the public Python-mirrored API.
+func requestPathAllExcept(hash []byte, blocked *Interface) {
 	if _, ok := makeHashKey(hash); !ok {
 		return
 	}
@@ -5485,10 +5520,6 @@ func RequestPath(hash []byte, blocked *Interface) {
 		}
 		requestPathOnInterface(hash, ifc, tag, false)
 	}
-}
-
-func TransportRequestPath(hash []byte) {
-	RequestPath(hash, nil)
 }
 
 func requestPathOnInterface(destinationHash []byte, onInterface *Interface, tag []byte, recursive bool) {
@@ -5637,11 +5668,11 @@ func (defaultTransportBackend) Outbound(p *Packet) bool {
 }
 
 func (defaultTransportBackend) HopsTo(hash []byte) int {
-	return TransportHopsTo(hash)
+	return HopsTo(hash)
 }
 
 func (defaultTransportBackend) GetFirstHopTimeout(hash []byte) time.Duration {
-	return TransportFirstHopTimeout(hash)
+	return FirstHopTimeout(hash)
 }
 
 func (defaultTransportBackend) GetPacketRSSI(hash []byte) *float64 {
@@ -5993,6 +6024,15 @@ func IsLocalClientInterface(ifc *Interface) bool {
 	return false
 }
 
+// FromLocalClient mirrors Python Transport.from_local_client().
+// Returns true if the packet was received from a local client interface.
+func FromLocalClient(p *Packet) bool {
+	if p == nil {
+		return false
+	}
+	return IsLocalClientInterface(p.ReceivingInterface)
+}
+
 func isForLocalClient(p *Packet) bool {
 	if p == nil || p.Type == PacketAnnounce {
 		return false
@@ -6145,4 +6185,14 @@ func NextHopInterfaceHWMTU(hash []byte) int {
 		return entry.RecvInterface.HWMTU
 	}
 	return 0
+}
+
+// NextHopInterface mirrors Python Transport.next_hop_interface().
+// Returns the interface for the next hop to the specified destination, or nil
+// if the interface is unknown.
+func NextHopInterface(hash []byte) *Interface {
+	if entry := getPathEntry(hash); entry != nil {
+		return entry.RecvInterface
+	}
+	return nil
 }

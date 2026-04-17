@@ -217,8 +217,8 @@ func TestRequestPathOnInterface_UsesProvidedTagAndRecursive(t *testing.T) {
 	tag := []byte("custom-path-tag!")
 	ifc := &Interface{Name: "peer0", Bitrate: 1000000, AnnounceCap: 0.5}
 
-	if sent := RequestPathOnInterface(destHash, ifc, tag, true); !sent {
-		t.Fatal("RequestPathOnInterface() = false, want true")
+	if sent := RequestPath(destHash, ifc, tag, true); !sent {
+		t.Fatal("RequestPath() = false, want true")
 	}
 	if got := len(backend.packets); got != 1 {
 		t.Fatalf("outbound packets=%d, want 1", got)
@@ -268,8 +268,8 @@ func TestRequestPathOnInterface_SendsEvenWhenPathExists(t *testing.T) {
 	tag := []byte("refresh-path-tag")
 	ifc := &Interface{Name: "peer0"}
 
-	if sent := RequestPathOnInterface(destHash, ifc, tag, false); !sent {
-		t.Fatal("RequestPathOnInterface() = false, want true")
+	if sent := RequestPath(destHash, ifc, tag, false); !sent {
+		t.Fatal("RequestPath() = false, want true")
 	}
 	if got := len(backend.packets); got != 1 {
 		t.Fatalf("outbound packets=%d, want 1", got)

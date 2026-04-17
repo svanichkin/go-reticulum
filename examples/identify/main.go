@@ -142,10 +142,10 @@ func runClient(configDir *string, destinationHexHash string) error {
 	}
 	rns.Log("Client created new identity "+clientID.String(), rns.LogInfo)
 
-	if !rns.TransportHasPath(destinationHash) {
+	if !rns.HasPath(destinationHash) {
 		rns.Log("Destination is not yet known. Requesting path and waiting for announce to arrive...", rns.LogInfo)
-		rns.TransportRequestPath(destinationHash)
-		for !rns.TransportHasPath(destinationHash) {
+		rns.RequestPath(destinationHash, nil, nil, false)
+		for !rns.HasPath(destinationHash) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}

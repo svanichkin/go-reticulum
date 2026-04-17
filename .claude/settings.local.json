@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"MarkPathUnresponsive\\\\|mark_path_unresponsive\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(grep -rn \"mtu_from_lr_packet\\\\|MTUFromLRPacket\\\\|MtuFromLRPacket\\\\|LINK_MTU_SIZE\\\\|LinkMTUSize\\\\|PathMTU\\\\|path_mtu\\\\|clamped_mtu\\\\|signalling_bytes\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(grep -n \"TransportStateUnresponsive\\\\b\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(grep -n \"func.*AnnounceEmitted\\\\|func.*announce_emitted\\\\|AnnounceEmitted\\\\b\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(awk -F: '$2 > 1769')",
+      "Bash(awk 'NR>=1769 && /^func / {print NR\": \"$0}' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/transport.go)",
+      "Bash(go build *)",
+      "Bash(xargs perl *)"
+    ]
+  }
+}

@@ -266,17 +266,17 @@ func requestExpectNoResponse(link *rns.Link, path string, data any, timeout floa
 }
 
 func awaitReqPath(destHash []byte, timeout time.Duration) bool {
-	if !rns.TransportHasPath(destHash) {
-		rns.TransportRequestPath(destHash)
+	if !rns.HasPath(destHash) {
+		rns.RequestPath(destHash, nil, nil, false)
 	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if rns.TransportHasPath(destHash) {
+		if rns.HasPath(destHash) {
 			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return rns.TransportHasPath(destHash)
+	return rns.HasPath(destHash)
 }
 
 func loadOrCreateReqIdentity(path string) (*rns.Identity, error) {

@@ -265,14 +265,14 @@ func runClient(configDir *string, destinationHexHash string, outDir string) erro
 		return fmt.Errorf("NewReticulum: %w", err)
 	}
 
-	if !rns.TransportHasPath(destinationHash) {
+	if !rns.HasPath(destinationHash) {
 		rns.Log("Destination is not yet known. Requesting path and waiting for announce to arrive...", rns.LogInfo)
-		rns.TransportRequestPath(destinationHash)
+		rns.RequestPath(destinationHash, nil, nil, false)
 		deadline := time.Now().Add(appTimeout)
-		for time.Now().Before(deadline) && !rns.TransportHasPath(destinationHash) {
+		for time.Now().Before(deadline) && !rns.HasPath(destinationHash) {
 			time.Sleep(100 * time.Millisecond)
 		}
-		if !rns.TransportHasPath(destinationHash) {
+		if !rns.HasPath(destinationHash) {
 			return errors.New("timed out waiting for path to destination")
 		}
 	}

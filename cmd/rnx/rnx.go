@@ -693,9 +693,9 @@ func execute(
 		}
 	}
 
-	if !rns.TransportHasPath(destHash) {
-		rns.TransportRequestPath(destHash)
-		ok := spin(func() bool { return rns.TransportHasPath(destHash) },
+	if !rns.HasPath(destHash) {
+		rns.RequestPath(destHash, nil, nil, false)
+		ok := spin(func() bool { return rns.HasPath(destHash) },
 			"Path to "+rns.PrettyHex(destHash)+" requested",
 			timeout)
 		if !ok {

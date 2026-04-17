@@ -600,14 +600,14 @@ func programSetup(
 // -------- remote status --------
 
 func getRemoteStatus(destHash []byte, includeLstats bool, identity *rns.Identity, noOutput bool, timeout float64) (map[string]any, *int, error) {
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if !noOutput {
 			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested ")
 			os.Stdout.Sync()
 		}
-		rns.TransportRequestPath(destHash)
+		rns.RequestPath(destHash, nil, nil, false)
 		start := time.Now()
-		for !rns.TransportHasPath(destHash) {
+		for !rns.HasPath(destHash) {
 			time.Sleep(100 * time.Millisecond)
 			if time.Since(start).Seconds() > timeout {
 				if !noOutput {

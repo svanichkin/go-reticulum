@@ -127,7 +127,7 @@ func runClient(configDir *string, destinationHexHash string, timeout *time.Durat
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
-		if rns.TransportHasPath(destinationHash) {
+		if rns.HasPath(destinationHash) {
 			serverID := rns.IdentityRecall(destinationHash)
 			if serverID == nil {
 				return errors.New("could not recall server identity")
@@ -179,7 +179,7 @@ func runClient(configDir *string, destinationHexHash string, timeout *time.Durat
 		} else {
 			rns.Log("Destination is not yet known. Requesting path...", rns.LogInfo)
 			rns.Log("Hit enter to manually retry once an announce is received.", rns.LogInfo)
-			rns.TransportRequestPath(destinationHash)
+			rns.RequestPath(destinationHash, nil, nil, false)
 		}
 	}
 	return in.Err()

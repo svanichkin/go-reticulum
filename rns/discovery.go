@@ -1208,7 +1208,7 @@ func fetchRemoteBlackholeList(sourceHash []byte, timeout time.Duration) (any, er
 	if err != nil {
 		return nil, err
 	}
-	defer TransportDeregisterDestination(destination)
+	defer DeregisterDestination(destination)
 
 	establishedCh := make(chan *Link, 1)
 	link, err := NewOutgoingLink(destination, LinkModeDefault, func(l *Link) {

@@ -192,8 +192,8 @@ func programSetup(
 		return err
 	}
 
-	if !rns.TransportHasPath(destinationHash) {
-		rns.TransportRequestPath(destinationHash)
+	if !rns.HasPath(destinationHash) {
+		rns.RequestPath(destinationHash, nil, nil, false)
 		fmt.Print("Path to " + rns.PrettyHex(destinationHash) + " requested  ")
 		os.Stdout.Sync()
 	}
@@ -205,14 +205,14 @@ func programSetup(
 	syms := []rune("⢄⢂⢁⡁⡈⡐⡠")
 	spinnerIdx := 0
 
-	for !rns.TransportHasPath(destinationHash) && time.Now().Before(deadline) {
+	for !rns.HasPath(destinationHash) && time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)
 		fmt.Printf("\b\b%c ", syms[spinnerIdx])
 		os.Stdout.Sync()
 		spinnerIdx = (spinnerIdx + 1) % len(syms)
 	}
 
-	if !rns.TransportHasPath(destinationHash) {
+	if !rns.HasPath(destinationHash) {
 		fmt.Print("\r                                                          \rPath request timed out\n")
 		return exitError{code: 1, msg: ""}
 	}
@@ -287,7 +287,7 @@ func programSetup(
 			if receipt.GetStatus() == rns.ReceiptDelivered {
 				replies++
 
-				hops := rns.TransportHopsTo(destinationHash)
+				hops := rns.HopsTo(destinationHash)
 				suffix := ""
 				if hops != 1 {
 					suffix = "s"

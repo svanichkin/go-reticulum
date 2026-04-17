@@ -509,8 +509,8 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 		return err
 	}
 
-	if !rns.TransportHasPath(destHash) {
-		rns.TransportRequestPath(destHash)
+	if !rns.HasPath(destHash) {
+		rns.RequestPath(destHash, nil, nil, false)
 		if silent {
 			fmt.Println("Path to " + rns.PrettyHex(destHash) + " requested")
 		} else {
@@ -522,7 +522,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	i := 0
 	estabTimeout := time.Now().Add(time.Duration(timeout * float64(time.Second)))
 
-	for !rns.TransportHasPath(destHash) && time.Now().Before(estabTimeout) {
+	for !rns.HasPath(destHash) && time.Now().Before(estabTimeout) {
 		if !silent {
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("\b\b%c ", syms[i])
@@ -530,7 +530,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 		}
 	}
 
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if silent {
 			fmt.Println("Path not found")
 		} else {
@@ -587,7 +587,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 		}
 		return errors.New("link establishment timeout")
 	}
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if silent {
 			fmt.Println("No path found to " + rns.PrettyHex(destHash))
 		} else {
@@ -717,8 +717,8 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		return err
 	}
 
-	if !rns.TransportHasPath(destHash) {
-		rns.TransportRequestPath(destHash)
+	if !rns.HasPath(destHash) {
+		rns.RequestPath(destHash, nil, nil, false)
 		if silent {
 			fmt.Println("Path to " + rns.PrettyHex(destHash) + " requested")
 		} else {
@@ -730,7 +730,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	i := 0
 	estabTimeout := time.Now().Add(time.Duration(timeout * float64(time.Second)))
 
-	for !rns.TransportHasPath(destHash) && time.Now().Before(estabTimeout) {
+	for !rns.HasPath(destHash) && time.Now().Before(estabTimeout) {
 		if !silent {
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("\b\b%c ", syms[i])
@@ -738,7 +738,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		}
 	}
 
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if silent {
 			fmt.Println("Path not found")
 		} else {
@@ -786,7 +786,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		}
 	}
 
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if silent {
 			fmt.Println("Could not establish link with " + rns.PrettyHex(destHash))
 		} else {

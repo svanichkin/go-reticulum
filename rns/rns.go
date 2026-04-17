@@ -1153,15 +1153,15 @@ func resolvedPhyLayerParams() PhyLayerParams {
 
 // ---------- panic / exit ----------
 
-// ExitHandler can be set by Reticulum to mirror Python's exit_handler().
-var ExitHandler func()
+// exitCallback is the process-level exit callback set via SetExitHandler.
+var exitCallback func()
 
 // SetExitHandler registers a callback invoked before the process terminates via Exit().
 // It mirrors the behaviour of RNS.exit_handler in the Python implementation.
 func SetExitHandler(handler func()) {
 	exitMu.Lock()
 	defer exitMu.Unlock()
-	ExitHandler = handler
+	exitCallback = handler
 }
 
 func Panic() {
@@ -1175,7 +1175,7 @@ func Exit(code ...int) {
 		return
 	}
 	exitCalled = true
-	handler := ExitHandler
+	handler := exitCallback
 	exitMu.Unlock()
 
 	if handler != nil {

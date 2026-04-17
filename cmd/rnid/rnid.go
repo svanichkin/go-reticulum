@@ -494,7 +494,7 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 				rns.Log("You can query the network for unknown Identities with the -R option.", rns.LogError)
 				rns.Exit(5)
 			}
-			rns.TransportRequestPath(b)
+			rns.RequestPath(b, nil, nil, false)
 			ok := spin(func() bool {
 				return rns.IdentityRecall(b, false) != nil || rns.IdentityRecall(b, true) != nil
 			}, "Requesting unknown Identity for "+rns.PrettyHash(b), timeout)

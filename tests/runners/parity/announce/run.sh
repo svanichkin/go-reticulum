@@ -26,19 +26,49 @@ fi
 
 echo "[parity-announce] dir=$ANNOUNCE_DIR"
 
-found=0
-for script in "$ANNOUNCE_DIR"/*.sh; do
+scripts=()
+while IFS= read -r script; do
   name="$(basename "$script")"
-  if [[ "$name" == "run.sh" || "$name" == _* ]]; then
+  parent="$(basename "$(dirname "$script")")"
+  if [[ "$name" != "run.sh" ]]; then
     continue
   fi
-  [[ -f "$script" ]] || continue
-  found=1
-  echo "[parity-announce] $name"
-  bash "$script"
-done
+  if [[ "$parent" == "common" || "$parent" == "." ]]; then
+    continue
+  fi
+  scripts+=("$script")
+done < <(find "$ANNOUNCE_DIR" -mindepth 2 -maxdepth 3 -name run.sh | sort)
 
-if [[ "$found" -eq 0 ]]; then
+if [[ "${#scripts[@]}" -eq 0 ]]; then
   echo "[parity-announce] no announce parity scripts yet"
+  exit 0
 fi
 
+log_dir="$ROOT/tests/artifacts/logs/$(date +"%Y%m%d-%H%M%S")/parity_announce_runner"
+mkdir -p "$log_dir"
+status=0
+pids=()
+names=()
+logs=()
+
+for script in "${scripts[@]}"; do
+  name="$(basename "$(dirname "$script")")"
+  log="$log_dir/${name}.log"
+  echo "[parity-announce] start $name/run.sh -> $log"
+  (bash "$script") >"$log" 2>&1 &
+  pids+=("$!")
+  names+=("$name")
+  logs+=("$log")
+done
+
+for i in "${!pids[@]}"; do
+  if wait "${pids[$i]}"; then
+    code=0
+  else
+    code="$?"
+    status=1
+  fi
+  echo "[parity-announce] ${names[$i]}/run.sh exit=$code log=${logs[$i]}"
+done
+
+exit "$status"

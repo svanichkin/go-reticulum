@@ -314,13 +314,13 @@ func programSetup(
 // -------- remote link ----------
 
 func connectRemote(destHash []byte, auth *rns.Identity, timeout float64, noOutput bool) error {
-	if !rns.TransportHasPath(destHash) {
+	if !rns.HasPath(destHash) {
 		if !noOutput {
 			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested ")
 		}
-		rns.TransportRequestPath(destHash)
+		rns.RequestPath(destHash, nil, nil, false)
 		start := time.Now()
-		for !rns.TransportHasPath(destHash) {
+		for !rns.HasPath(destHash) {
 			time.Sleep(100 * time.Millisecond)
 			if time.Since(start).Seconds() > timeout {
 				if !noOutput {
@@ -825,8 +825,8 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 		return err
 	}
 
-	if !rns.TransportHasPath(destHash) {
-		rns.TransportRequestPath(destHash)
+	if !rns.HasPath(destHash) {
+		rns.RequestPath(destHash, nil, nil, false)
 		// Python prints: "requested  " with end=" ", so there is one space
 		// before the 2-char spinner field.
 		fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested   ")
@@ -835,13 +835,13 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 	i := 0
 	limit := time.Now().Add(time.Duration(timeout * float64(time.Second)))
 
-	for !rns.TransportHasPath(destHash) && time.Now().Before(limit) {
+	for !rns.HasPath(destHash) && time.Now().Before(limit) {
 		time.Sleep(100 * time.Millisecond)
 		fmt.Printf("\b\b%c ", syms[i])
 		i = (i + 1) % len(syms)
 	}
 
-	if rns.TransportHasPath(destHash) {
+	if rns.HasPath(destHash) {
 		nextHopBytes := reticulum.GetNextHop(destHash)
 		if nextHopBytes == nil {
 			fmt.Print("\r                                                       \r")
@@ -849,7 +849,7 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 			return exitError{code: 1, msg: ""}
 		}
 		nextHop := rns.PrettyHex(nextHopBytes)
-		hops := rns.TransportHopsTo(destHash)
+		hops := rns.HopsTo(destHash)
 		ifName := reticulum.GetNextHopIfName(destHash)
 
 		// The path entry can become visible before hop count is finalised.
@@ -858,7 +858,7 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 			stableDeadline := time.Now().Add(750 * time.Millisecond)
 			for hops == 0 && time.Now().Before(stableDeadline) {
 				time.Sleep(50 * time.Millisecond)
-				hops = rns.TransportHopsTo(destHash)
+				hops = rns.HopsTo(destHash)
 			}
 		}
 

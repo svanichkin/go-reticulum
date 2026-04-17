@@ -979,7 +979,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		// Python parity: Transport.start() synthesizes tunnels after interfaces
 		// are registered. Our Transport.Start() runs before bringUpSystemInterfaces(),
 		// so do the tunnel synthesis pass here.
-		PrioritiseInterfaces()
+		PrioritizeInterfaces()
 		for _, ifc := range Interfaces {
 			if ifc == nil {
 				continue
@@ -1099,7 +1099,7 @@ func exitHandler() {
 		DetachInterfaces()
 	}
 	// Transport/Identity persistence hooks (best-effort).
-	TransportExitHandler()
+	ExitHandler()
 	IdentityExitHandler()
 
 	if ProfilerRan() {
@@ -3107,7 +3107,7 @@ func (r *Reticulum) ShouldPersistData() {
 
 func (r *Reticulum) persistData() {
 	IdentityPersistData()
-	TransportPersistData()
+	PersistData()
 	r.lastDataPersist = time.Now()
 }
 

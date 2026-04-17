@@ -283,7 +283,7 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 	d.hexhash = PrettyHexRep(hash) // or hex.EncodeToString(hash)
 
 	// registration
-	TransportRegisterDestination(d)
+	RegisterDestination(d)
 
 	return d, nil
 }
