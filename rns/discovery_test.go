@@ -49,6 +49,7 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_TCPServer(t *testing.T) {
 	prevStamper := DiscoveryStampProvider
 	prevTransportIdentity := TransportIdentity
 	prevNetworkIdentity := NetworkIdentity
+	prevDestinations := Destinations
 
 	DiscoveryStampProvider = fakeDiscoveryStamper{stamp: []byte{1, 2, 3, 4}, value: 21}
 	NetworkIdentity = nil
@@ -62,7 +63,9 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_TCPServer(t *testing.T) {
 		DiscoveryStampProvider = prevStamper
 		TransportIdentity = prevTransportIdentity
 		NetworkIdentity = prevNetworkIdentity
+		Destinations = prevDestinations
 	})
+	Destinations = nil
 
 	port := 4242
 	ifc := &Interface{
@@ -195,9 +198,29 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	discoveryDest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := DestinationExpandName(TransportIdentity, TransportAppName, "discovery", "interface")
 	if err != nil {
-		t.Fatalf("NewDestination: %v", err)
+		t.Fatalf("DestinationExpandName(identity): %v", err)
+	}
+	nameWithoutIdentity, err := DestinationExpandName(nil, TransportAppName, "discovery", "interface")
+	if err != nil {
+		t.Fatalf("DestinationExpandName(nil): %v", err)
+	}
+	discoveryHash, err := DestinationHash(TransportIdentity, TransportAppName, "discovery", "interface")
+	if err != nil {
+		t.Fatalf("DestinationHash: %v", err)
+	}
+	discoveryDest := &Destination{
+		Type:            DestinationSINGLE,
+		Direction:       DestinationIN,
+		identity:        TransportIdentity,
+		name:            nameWithIdentity,
+		hash:            discoveryHash,
+		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
+		hexhash:         PrettyHexRep(discoveryHash),
+		pathResponses:   make(map[string]*pathResponseEntry),
+		requestHandlers: make(map[string]*RequestHandler),
+		links:           []*Link{},
 	}
 	packet := discoveryDest.Announce(appData, false, nil, nil, false)
 	if packet == nil {
@@ -206,10 +229,20 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 	if err := packet.Pack(); err != nil {
 		t.Fatalf("Pack(): %v", err)
 	}
+	if ok := ValidateAnnounce(packet, false); !ok {
+		t.Fatal("ValidateAnnounce returned false for discovery test packet")
+	}
 
-	NotifyAnnounceHandlers(packet)
-
-	list := discovery.ListDiscoveredInterfaces(false, false)
+	notifyAnnounceHandlersForTest(packet)
+	deadline := time.Now().Add(2 * time.Second)
+	var list []map[string]any
+	for time.Now().Before(deadline) {
+		list = discovery.ListDiscoveredInterfaces(false, false)
+		if len(list) == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if len(list) != 1 {
 		t.Fatalf("discovered interfaces=%d, want 1", len(list))
 	}
@@ -359,6 +392,7 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 	prevOwner := Owner
 	prevHandlers := announceHandlers
 	prevSources := InterfaceDiscoverySources()
+	prevDestinations := Destinations
 
 	DiscoveryStampProvider = fakeDiscoveryStamper{stamp: []byte{9, 9, 9, 9}, value: 22}
 	announceHandlers = nil
@@ -375,10 +409,12 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 		DiscoveryStampProvider = prevStamper
 		TransportIdentity = prevTransportIdentity
 		NetworkIdentity = prevNetworkIdentity
+		Destinations = prevDestinations
 		Owner = prevOwner
 		announceHandlers = prevHandlers
 		interfaceDiscoverySources = prevSources
 	})
+	Destinations = nil
 
 	discovery, err := NewInterfaceDiscovery(14, nil, true)
 	if err != nil {
@@ -408,9 +444,29 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	discoveryDest, err := NewDestination(remoteID, DestinationIN, DestinationSINGLE, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := DestinationExpandName(remoteID, TransportAppName, "discovery", "interface")
 	if err != nil {
-		t.Fatalf("NewDestination: %v", err)
+		t.Fatalf("DestinationExpandName(identity): %v", err)
+	}
+	nameWithoutIdentity, err := DestinationExpandName(nil, TransportAppName, "discovery", "interface")
+	if err != nil {
+		t.Fatalf("DestinationExpandName(nil): %v", err)
+	}
+	discoveryHash, err := DestinationHash(remoteID, TransportAppName, "discovery", "interface")
+	if err != nil {
+		t.Fatalf("DestinationHash: %v", err)
+	}
+	discoveryDest := &Destination{
+		Type:            DestinationSINGLE,
+		Direction:       DestinationIN,
+		identity:        remoteID,
+		name:            nameWithIdentity,
+		hash:            discoveryHash,
+		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
+		hexhash:         PrettyHexRep(discoveryHash),
+		pathResponses:   make(map[string]*pathResponseEntry),
+		requestHandlers: make(map[string]*RequestHandler),
+		links:           []*Link{},
 	}
 	packet := discoveryDest.Announce(appData, false, nil, nil, false)
 	if packet == nil {
@@ -419,9 +475,12 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 	if err := packet.Pack(); err != nil {
 		t.Fatalf("Pack(): %v", err)
 	}
+	if ok := ValidateAnnounce(packet, false); !ok {
+		t.Fatal("ValidateAnnounce returned false for discovery test packet")
+	}
 
-	NotifyAnnounceHandlers(packet)
-
+	notifyAnnounceHandlersForTest(packet)
+	time.Sleep(20 * time.Millisecond)
 	list := discovery.ListDiscoveredInterfaces(false, false)
 	if len(list) != 0 {
 		t.Fatalf("discovered interfaces=%d, want 0 for unauthorized source", len(list))

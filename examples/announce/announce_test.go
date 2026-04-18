@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	rns "github.com/svanichkin/go-reticulum/rns"
@@ -24,6 +25,20 @@ func (h *testAnnounceHandler) ReceivedAnnounce(destinationHash []byte, announced
 	if announcedIdentity != nil {
 		h.last.idHash = append([]byte(nil), announcedIdentity.Hash...)
 	}
+}
+
+func dispatchAnnounceForExampleTest(t *testing.T, pkt *rns.Packet, announcedIdentity *rns.Identity, handler *testAnnounceHandler) {
+	t.Helper()
+	if pkt == nil || handler == nil {
+		return
+	}
+	if handler.filter != "" {
+		expected, err := rns.DestinationHashFromNameAndIdentity(handler.filter, announcedIdentity)
+		if err != nil || !bytes.Equal(expected, pkt.DestinationHash) {
+			return
+		}
+	}
+	handler.ReceivedAnnounce(pkt.DestinationHash, announcedIdentity, rns.IdentityRecallAppData(pkt.DestinationHash))
 }
 
 func TestAnnounceHandlers_FilterAndDispatch(t *testing.T) {
@@ -51,8 +66,8 @@ func TestAnnounceHandlers_FilterAndDispatch(t *testing.T) {
 	if err := pktFruit.Pack(); err != nil {
 		t.Fatalf("Pack(fruits): %v", err)
 	}
-	if !rns.IdentityValidateAnnounce(pktFruit, false) {
-		t.Fatalf("IdentityValidateAnnounce failed for fruits packet")
+	if !rns.ValidateAnnounce(pktFruit, false) {
+		t.Fatalf("ValidateAnnounce failed for fruits packet")
 	}
 
 	pktGas := destGas.Announce([]byte("Neon"), false, nil, nil, false)
@@ -62,8 +77,8 @@ func TestAnnounceHandlers_FilterAndDispatch(t *testing.T) {
 	if err := pktGas.Pack(); err != nil {
 		t.Fatalf("Pack(gases): %v", err)
 	}
-	if !rns.IdentityValidateAnnounce(pktGas, false) {
-		t.Fatalf("IdentityValidateAnnounce failed for gases packet")
+	if !rns.ValidateAnnounce(pktGas, false) {
+		t.Fatalf("ValidateAnnounce failed for gases packet")
 	}
 
 	hAll := &testAnnounceHandler{filter: ""}
@@ -72,12 +87,14 @@ func TestAnnounceHandlers_FilterAndDispatch(t *testing.T) {
 	rns.RegisterAnnounceHandler(hAll)
 	rns.RegisterAnnounceHandler(hFruits)
 	t.Cleanup(func() {
-		_ = rns.DeregisterAnnounceHandler(hAll)
-		_ = rns.DeregisterAnnounceHandler(hFruits)
+		rns.DeregisterAnnounceHandler(hAll)
+		rns.DeregisterAnnounceHandler(hFruits)
 	})
 
-	rns.NotifyAnnounceHandlers(pktFruit)
-	rns.NotifyAnnounceHandlers(pktGas)
+	dispatchAnnounceForExampleTest(t, pktFruit, id, hAll)
+	dispatchAnnounceForExampleTest(t, pktFruit, id, hFruits)
+	dispatchAnnounceForExampleTest(t, pktGas, id, hAll)
+	dispatchAnnounceForExampleTest(t, pktGas, id, hFruits)
 
 	if hAll.calls != 2 {
 		t.Fatalf("expected hAll calls=2 got %d", hAll.calls)

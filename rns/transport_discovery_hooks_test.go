@@ -43,7 +43,7 @@ func TestSetNetworkIdentity_OnlySetsOnce(t *testing.T) {
 	}
 }
 
-func TestEnsureNetworkDestinations_AddsManagementDestinations(t *testing.T) {
+func TestSharedConnectionDisappeared_AddsManagementDestinations(t *testing.T) {
 	prevOwner := Owner
 	prevNetworkIdentity := NetworkIdentity
 	prevInstanceDestination := instanceDestination
@@ -53,6 +53,12 @@ func TestEnsureNetworkDestinations_AddsManagementDestinations(t *testing.T) {
 	prevRemoteManagementDest := remoteManagementDest
 	prevRemoteManagementActive := remoteManagementActive
 	prevDestinations := Destinations
+	prevAnnounceTable := announceTable
+	prevPathTable := pathTable
+	prevReverseTable := reverseTable
+	prevLinkTable := linkTable
+	prevHeldAnnounces := heldAnnounces
+	prevTunnels := tunnels
 
 	Owner = &Reticulum{}
 	NetworkIdentity = nil
@@ -63,6 +69,20 @@ func TestEnsureNetworkDestinations_AddsManagementDestinations(t *testing.T) {
 	remoteManagementDest = nil
 	remoteManagementActive = false
 	Destinations = nil
+	announceTable = make(map[hashKey]*announceEntry)
+	pathTable = make(map[hashKey]*PathEntry)
+	reverseTable = make(map[hashKey]*reverseEntry)
+	linkTable = make(map[hashKey]*linkEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	tunnels = make(map[string]*tunnelEntry)
+	var junkKey hashKey
+	junkKey[0] = 1
+	announceTable[junkKey] = &announceEntry{}
+	pathTable[junkKey] = &PathEntry{}
+	reverseTable[junkKey] = &reverseEntry{}
+	linkTable[junkKey] = &linkEntry{}
+	heldAnnounces[junkKey] = &heldAnnounce{}
+	tunnels["junk"] = &tunnelEntry{}
 
 	t.Cleanup(func() {
 		Owner = prevOwner
@@ -74,6 +94,12 @@ func TestEnsureNetworkDestinations_AddsManagementDestinations(t *testing.T) {
 		remoteManagementDest = prevRemoteManagementDest
 		remoteManagementActive = prevRemoteManagementActive
 		Destinations = prevDestinations
+		announceTable = prevAnnounceTable
+		pathTable = prevPathTable
+		reverseTable = prevReverseTable
+		linkTable = prevLinkTable
+		heldAnnounces = prevHeldAnnounces
+		tunnels = prevTunnels
 	})
 
 	networkID, err := NewIdentity()
@@ -82,20 +108,34 @@ func TestEnsureNetworkDestinations_AddsManagementDestinations(t *testing.T) {
 	}
 	NetworkIdentity = networkID
 
-	ensureNetworkDestinations()
-	refreshManagementDestinations()
+	SharedConnectionDisappeared()
 
-	if instanceDestination == nil {
-		t.Fatal("instanceDestination was not created")
+	if len(announceTable) != 0 {
+		t.Fatalf("announceTable len=%d, want 0", len(announceTable))
 	}
-	if networkDestination == nil {
-		t.Fatal("networkDestination was not created")
+	if len(pathTable) != 0 {
+		t.Fatalf("pathTable len=%d, want 0", len(pathTable))
 	}
-	if len(mgmtDestinations) != 2 {
-		t.Fatalf("mgmtDestinations len=%d, want 2", len(mgmtDestinations))
+	if len(reverseTable) != 0 {
+		t.Fatalf("reverseTable len=%d, want 0", len(reverseTable))
 	}
-	if mgmtDestinations[0] != instanceDestination || mgmtDestinations[1] != networkDestination {
-		t.Fatal("network management destinations missing or misordered")
+	if len(linkTable) != 0 {
+		t.Fatalf("linkTable len=%d, want 0", len(linkTable))
+	}
+	if len(heldAnnounces) != 0 {
+		t.Fatalf("heldAnnounces len=%d, want 0", len(heldAnnounces))
+	}
+	if len(tunnels) != 0 {
+		t.Fatalf("tunnels len=%d, want 0", len(tunnels))
+	}
+	if instanceDestination != nil {
+		t.Fatal("instanceDestination should not be created by shared_connection_disappeared")
+	}
+	if networkDestination != nil {
+		t.Fatal("networkDestination should not be created by shared_connection_disappeared")
+	}
+	if len(mgmtDestinations) != 0 {
+		t.Fatalf("mgmtDestinations len=%d, want 0", len(mgmtDestinations))
 	}
 }
 

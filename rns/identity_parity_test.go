@@ -44,16 +44,23 @@ func TestIdentityValidateAnnounce_RejectsBlackholedIdentity(t *testing.T) {
 		t.Fatalf("Pack: %v", err)
 	}
 
-	key, ok := makeHashKey(id.Hash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(id.Hash)
 	if !ok {
-		t.Fatalf("makeHashKey(%x) failed", id.Hash)
+		t.Fatalf("hash key conversion failed for %x", id.Hash)
 	}
 	blackholeMu.Lock()
 	blackholedIdentities[key] = &blackholeEntry{Source: []byte("test-blackhole")}
 	blackholeMu.Unlock()
 
-	if ok := IdentityValidateAnnounce(ap, false); ok {
-		t.Fatal("IdentityValidateAnnounce() = true, want false for blackholed identity")
+	if ok := ValidateAnnounce(ap, false); ok {
+		t.Fatal("ValidateAnnounce() = true, want false for blackholed identity")
 	}
 }
 
@@ -105,8 +112,8 @@ func TestIdentityValidateAnnounce_LoadsPersistedKnownDestinationsBeforeCollision
 	knownDestinationsLoadMu.Unlock()
 	t.Cleanup(resetKnownDestinationsForTest)
 
-	if ok := IdentityValidateAnnounce(ap, false); ok {
-		t.Fatal("IdentityValidateAnnounce() = true, want false for persisted key collision")
+	if ok := ValidateAnnounce(ap, false); ok {
+		t.Fatal("ValidateAnnounce() = true, want false for persisted key collision")
 	}
 }
 
@@ -136,7 +143,10 @@ func TestIdentityRecall_FollowsAnnounceDispatch(t *testing.T) {
 	knownDestinationsLoadAttempted.Store(true)
 	knownDestinationsLoadMu.Unlock()
 
-	NotifyAnnounceHandlers(packet)
+	if ok := ValidateAnnounce(packet, false); !ok {
+		t.Fatal("ValidateAnnounce() returned false for test packet")
+	}
+	notifyAnnounceHandlersForTest(packet)
 	if got := IdentityRecall(packet.DestinationHash); got == nil {
 		t.Fatal("IdentityRecall() returned nil after announce dispatch")
 	}

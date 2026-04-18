@@ -43,6 +43,9 @@ func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 	Owner = &Reticulum{StoragePath: dir}
 	TransportIdentity, _ = NewIdentity()
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	if err := os.MkdirAll(filepath.Join(dir, "blackhole"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(blackhole): %v", err)
+	}
 
 	t.Cleanup(func() {
 		Owner = prevOwner
@@ -58,12 +61,19 @@ func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 
 	reason := "local-api"
 	until := time.Now().Add(time.Hour)
-	if ok := r.BlackholeIdentity(victim.Hash, &until, &reason); !ok {
-		t.Fatal("BlackholeIdentity() = false, want true")
+	if ok := r.BlackholeIdentity(victim.Hash, &until, &reason); ok != true {
+		t.Fatalf("BlackholeIdentity() = %#v, want true", ok)
 	}
 
 	snapshot := r.GetBlackholedIdentities()
-	key, _ := makeHashKey(victim.Hash)
+	key, _ := func(hash []byte) (hashKey, bool) {
+	if len(hash) < truncatedHashBytes {
+		return hashKey{}, false
+	}
+	var key hashKey
+	copy(key[:], hash[:truncatedHashBytes])
+	return key, true
+}(victim.Hash)
 	entry, exists := snapshot[key]
 	if !exists {
 		t.Fatal("expected blackholed identity in snapshot")
@@ -72,8 +82,11 @@ func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 		t.Fatalf("snapshot reason=%q, want local-api", got)
 	}
 
-	if ok := r.UnblackholeIdentity(victim.Hash); !ok {
-		t.Fatal("UnblackholeIdentity() = false, want true")
+	if ok := r.UnblackholeIdentity(victim.Hash); ok != true {
+		t.Fatalf("UnblackholeIdentity() = %#v, want true", ok)
+	}
+	if ok := r.UnblackholeIdentity(victim.Hash); ok != nil {
+		t.Fatalf("UnblackholeIdentity() duplicate = %#v, want nil", ok)
 	}
 	if len(r.GetBlackholedIdentities()) != 0 {
 		t.Fatalf("expected empty blackhole snapshot after unblackhole, got %#v", r.GetBlackholedIdentities())
@@ -100,6 +113,9 @@ func TestReticulumHandleRPC_BlackholeSurface(t *testing.T) {
 	Owner = &Reticulum{StoragePath: t.TempDir()}
 	TransportIdentity, _ = NewIdentity()
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	if err := os.MkdirAll(filepath.Join(Owner.StoragePath, "blackhole"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(blackhole): %v", err)
+	}
 
 	t.Cleanup(func() {
 		Owner = prevOwner
@@ -122,7 +138,7 @@ func TestReticulumHandleRPC_BlackholeSurface(t *testing.T) {
 	if len(blackholeConn.sent) != 1 {
 		t.Fatalf("blackhole RPC sent %d responses, want 1", len(blackholeConn.sent))
 	}
-	if got, ok := blackholeConn.sent[0].(bool); !ok || !got {
+	if got := blackholeConn.sent[0]; got != true {
 		t.Fatalf("blackhole RPC response=%#v, want true", blackholeConn.sent[0])
 	}
 
@@ -135,7 +151,14 @@ func TestReticulumHandleRPC_BlackholeSurface(t *testing.T) {
 	if !ok {
 		t.Fatalf("get RPC response type=%T, want map[hashKey]map[string]any", getConn.sent[0])
 	}
-	key, _ := makeHashKey(victim.Hash)
+	key, _ := func(hash []byte) (hashKey, bool) {
+	if len(hash) < truncatedHashBytes {
+		return hashKey{}, false
+	}
+	var key hashKey
+	copy(key[:], hash[:truncatedHashBytes])
+	return key, true
+}(victim.Hash)
 	if _, exists := snapshot[key]; !exists {
 		t.Fatal("expected blackholed identity in RPC snapshot")
 	}

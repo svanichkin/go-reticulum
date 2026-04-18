@@ -28,8 +28,8 @@ func TestLink_ValidateAnnounce_Valid(t *testing.T) {
 	if err := ap.Pack(); err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
-	if ok := IdentityValidateAnnounce(ap, false); !ok {
-		if sigOK := IdentityValidateAnnounce(ap, true); !sigOK {
+	if ok := ValidateAnnounce(ap, false); !ok {
+		if sigOK := ValidateAnnounce(ap, true); !sigOK {
 			t.Fatalf("expected valid announce (signature validation failed)")
 		}
 		t.Fatalf("expected valid announce (destination/hash validation failed)")
@@ -70,7 +70,7 @@ func TestLink_ValidateAnnounce_InvalidDestination(t *testing.T) {
 	if err := ap.Pack(); err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
-	if ok := IdentityValidateAnnounce(ap, false); ok {
+	if ok := ValidateAnnounce(ap, false); ok {
 		t.Fatalf("expected invalid announce")
 	}
 }

@@ -216,16 +216,11 @@ const trafficTimeoutMin = 5 * time.Second
 // ===== Minimal transport interface =====
 
 type TransportBackend interface {
-	Outbound(p *Packet) bool
-	HopsTo(dstHash []byte) int
-	GetFirstHopTimeout(dstHash []byte) time.Duration
-	GetPacketRSSI(hash []byte) *float64
-	GetPacketSNR(hash []byte) *float64
-	GetPacketQ(hash []byte) *float64
 }
 
-// Must be initialised externally.
-var Transport TransportBackend
+// Default transport backend is wired at package init time via the concrete
+// zero-value backend, matching Python module-level static state.
+var Transport TransportBackend = defaultTransportBackend{}
 
 // ===== Packet =====
 
@@ -579,7 +574,7 @@ func (p *Packet) Send() *PacketReceipt {
 		return nil
 	}
 
-	if Transport.Outbound(p) {
+	if Outbound(p) {
 		return p.Receipt
 	}
 
@@ -605,7 +600,7 @@ func (p *Packet) Resend() *PacketReceipt {
 		return nil
 	}
 
-	if Transport.Outbound(p) {
+	if Outbound(p) {
 		return p.Receipt
 	}
 
@@ -690,30 +685,39 @@ func (p *Packet) GetRSSI() *float64 {
 	if p.RSSI != nil {
 		return p.RSSI
 	}
-	if Transport == nil {
-		return nil
+	localStatsMu.RLock()
+	v, ok := localRSSICache[string(p.PacketHash)]
+	localStatsMu.RUnlock()
+	if ok {
+		return &v
 	}
-	return Transport.GetPacketRSSI(p.PacketHash)
+	return nil
 }
 
 func (p *Packet) GetSNR() *float64 {
 	if p.SNR != nil {
 		return p.SNR
 	}
-	if Transport == nil {
-		return nil
+	localStatsMu.RLock()
+	v, ok := localSNRCache[string(p.PacketHash)]
+	localStatsMu.RUnlock()
+	if ok {
+		return &v
 	}
-	return Transport.GetPacketSNR(p.PacketHash)
+	return nil
 }
 
 func (p *Packet) GetQ() *float64 {
 	if p.Q != nil {
 		return p.Q
 	}
-	if Transport == nil {
-		return nil
+	localStatsMu.RLock()
+	v, ok := localQCache[string(p.PacketHash)]
+	localStatsMu.RUnlock()
+	if ok {
+		return &v
 	}
-	return Transport.GetPacketQ(p.PacketHash)
+	return nil
 }
 
 // ===== PacketReceipt =====
@@ -768,8 +772,11 @@ func NewPacketReceipt(p *Packet) *PacketReceipt {
 	if p.Link != nil {
 		r.Timeout = maxFloat(p.Link.RTT.Seconds()*p.Link.TrafficTimeoutFactor, trafficTimeoutMin.Seconds())
 	} else if Transport != nil && p.Destination != nil {
-		base := Transport.GetFirstHopTimeout(p.Destination.hash).Seconds()
-		hops := Transport.HopsTo(p.Destination.hash)
+		base := FirstHopTimeout(p.Destination.hash).Seconds()
+		if Owner != nil {
+			base = Owner.GetFirstHopTimeout(p.Destination.hash)
+		}
+		hops := HopsTo(p.Destination.hash)
 		if hops <= 0 {
 			hops = 1
 		}

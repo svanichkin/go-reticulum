@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -716,8 +717,8 @@ func IdentityCurrentRatchetID(destinationHash []byte) []byte {
 	return IdentityGetRatchetID(ratchet)
 }
 
-// IdentityValidateAnnounce validates an announce packet against Destination generation.
-func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
+// ValidateAnnounce mirrors Python's validate_announce().
+func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	if packet == nil || packet.PacketType != PacketTypeAnnounce {
 		return false
 	}
@@ -728,9 +729,7 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	nameHashLen := IdentityNameHashLength / 8
 	sigLen := ed25519.SignatureSize
 	ratchetLen := x25519KeyLen
-	minLen := keySize + nameHashLen + announceRandomHashLen + sigLen
-	if len(data) < minLen {
-		Logf(LogDebug, "Received invalid announce: payload too short (%d bytes)", len(data))
+	if len(data) < keySize+nameHashLen+announceRandomHashLen+sigLen {
 		return false
 	}
 
@@ -744,7 +743,6 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	var ratchet []byte
 	if packet.ContextFlag == FlagSet {
 		if len(data) < offset+ratchetLen+sigLen {
-			Log("Received invalid announce: missing ratchet or signature", LogDebug)
 			return false
 		}
 		ratchet = data[offset : offset+ratchetLen]
@@ -752,7 +750,6 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	}
 
 	if len(data) < offset+sigLen {
-		Log("Received invalid announce: signature truncated", LogDebug)
 		return false
 	}
 
@@ -761,7 +758,10 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 
 	var appData []byte
 	if len(data) > offset {
-		appData = data[offset:]
+		appData = append([]byte(nil), data[offset:]...)
+	}
+	if len(data) <= keySize+nameHashLen+announceRandomHashLen+sigLen {
+		appData = nil
 	}
 
 	signed := make([]byte, 0, len(packet.DestinationHash)+len(publicKey)+len(nameHash)+len(randomHash)+len(ratchet)+len(appData))
@@ -779,9 +779,21 @@ func IdentityValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 		Logf(LogDebug, "Received invalid announce for %s: %v", PrettyHexRep(packet.DestinationHash), err)
 		return false
 	}
-	if isBlackholedIdentity(announced.Hash) {
-		Logf(LogExtreme, "Invalidated and dropped announce from blackholed identity %s", PrettyHexRep(announced.Hash))
-		return false
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announced.Hash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if blackholed {
+			Logf(LogExtreme, "Invalidated and dropped announce from blackholed identity %s", PrettyHexRep(announced.Hash))
+			return false
+		}
 	}
 
 	if !announced.Validate(signature, signed) {
@@ -1182,7 +1194,11 @@ func IdentityCleanRatchets() {
 			if len(rec.Ratchet) != x25519KeyLen {
 				remove = true
 			} else {
-				stored := timeFromFloatSeconds(rec.Received)
+				sec, frac := math.Modf(rec.Received)
+				stored := time.Unix(int64(sec), int64(frac*1e9))
+				if sec < 0 {
+					stored = time.Unix(0, 0)
+				}
 				if now.Sub(stored) > ratchetExpiry {
 					remove = true
 				}
@@ -1264,7 +1280,12 @@ func loadRatchetFromDisk(destHash []byte) ([]byte, error) {
 	if rec.Received == 0 {
 		rec.Received = float64(time.Now().UnixNano()) / 1e9
 	}
-	if time.Since(timeFromFloatSeconds(rec.Received)) > ratchetExpiry {
+	sec, frac := math.Modf(rec.Received)
+	stored := time.Unix(int64(sec), int64(frac*1e9))
+	if sec < 0 {
+		stored = time.Unix(0, 0)
+	}
+	if time.Since(stored) > ratchetExpiry {
 		_ = os.Remove(path)
 		return nil, nil
 	}

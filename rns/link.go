@@ -77,6 +77,24 @@ var (
 	}
 )
 
+func linkIDFromLinkRequestPacket(p *Packet) []byte {
+	if p == nil {
+		return nil
+	}
+	hashable := p.getHashablePart()
+	if len(p.Data) > linkEcPubSize {
+		diff := len(p.Data) - linkEcPubSize
+		if diff >= len(hashable) {
+			return nil
+		}
+		hashable = hashable[:len(hashable)-diff]
+	}
+	if len(hashable) == 0 {
+		return nil
+	}
+	return TruncatedHash(hashable)
+}
+
 type LinkCallbacks struct {
 	LinkEstablished   func(*Link)
 	LinkClosed        func(*Link)
@@ -212,7 +230,7 @@ func (l *Link) noteInbound(context byte, size int) {
 	}
 	l.mu.Unlock()
 	if activate {
-		activateLinkInTransport(l)
+		activateLink(l)
 	}
 }
 
@@ -295,23 +313,27 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	l.watchdogStop = make(chan struct{})
 	if l.Initiator {
 		if destination != nil && len(destination.hash) > 0 {
-			l.expectedHops = Transport.HopsTo(destination.hash)
+			l.expectedHops = HopsTo(destination.hash)
 			if l.expectedHops <= 0 {
 				l.expectedHops = 1
 			}
 			// Python: get_first_hop_timeout + ESTABLISHMENT_TIMEOUT_PER_HOP*hops
-			l.estTimeout = Transport.GetFirstHopTimeout(destination.hash) + linkDefaultPerHop*time.Duration(l.expectedHops)
+			baseTimeout := FirstHopTimeout(destination.hash)
+			if Owner != nil {
+				baseTimeout = time.Duration(Owner.GetFirstHopTimeout(destination.hash) * float64(time.Second))
+			}
+			l.estTimeout = baseTimeout + linkDefaultPerHop*time.Duration(l.expectedHops)
 		}
 		l.startWatchdog()
 		// Python parity: register the outgoing link before sending LINKREQUEST so
 		// an early LRPROOF can be resolved back to this pending initiator link.
-		registerLinkWithTransport(l)
+		registerLink(l)
 		if err := l.sendLinkRequest(); err != nil {
 			Log(fmt.Sprintf("Could not send link request: %v", err), LOG_ERROR)
 			unregisterLinkWithTransport(l)
 		}
 	} else {
-		registerLinkWithTransport(l)
+		registerLink(l)
 	}
 	return l, nil
 }
@@ -341,8 +363,8 @@ func (l *Link) sendLinkRequest() error {
 	// Python: if link_mtu_discovery() and next-hop hw mtu is known -> signal that MTU, else signal Reticulum MTU.
 	mtu := defaultLinkMTU()
 	if LinkMTUDiscovery() && l.destination != nil {
-		if nh := NextHopInterfaceHWMTU(l.destination.hash); nh > 0 {
-			mtu = nh
+		if nh := NextHopInterfaceHWMTU(l.destination.hash); nh != nil {
+			mtu = *nh
 		}
 	}
 	signalling, err := linkSignallingBytes(mtu, l.Mode)
@@ -1054,7 +1076,7 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	}
 	link.prove()
 	link.requestTime = time.Now()
-	registerLinkWithTransport(link)
+	registerLink(link)
 	link.lastInbound = time.Now()
 	link.updatePhyStatsForce(packet)
 
@@ -1400,7 +1422,7 @@ func (l *Link) handleLRProof(packet *Packet) {
 	l.Status = LinkActive
 	l.activatedAt = now
 	l.lastProof = now
-	activateLinkInTransport(l)
+	activateLink(l)
 	l.updateKeepalive()
 
 	// Send RTT packet to the destination side.
@@ -1447,7 +1469,7 @@ func (l *Link) handleLRRTT(packet *Packet) {
 	l.Status = LinkActive
 	l.activatedAt = time.Now()
 	l.lastProof = l.activatedAt
-	activateLinkInTransport(l)
+	activateLink(l)
 	l.updateKeepalive()
 
 	if l.RTT > 0 && l.EstablishmentCost > 0 {
@@ -2337,41 +2359,6 @@ func defaultLinkMTU() int {
 		return phyParamsSnapshot.PhysicalLayerMTU
 	}
 	return MTU
-}
-
-func registerLinkWithTransport(l *Link) {
-	if l == nil {
-		return
-	}
-	linkMu.Lock()
-	defer linkMu.Unlock()
-	if l.Initiator {
-		if !linkSliceContains(PendingLinks, l) {
-			PendingLinks = append(PendingLinks, l)
-			Logf(LogDebug, "registerLinkWithTransport: added initiator link %x to PendingLinks (now %d)", l.LinkID, len(PendingLinks))
-		}
-	} else {
-		if !linkSliceContains(ActiveLinks, l) {
-			ActiveLinks = append(ActiveLinks, l)
-		}
-	}
-}
-
-func activateLinkInTransport(l *Link) {
-	if l == nil {
-		return
-	}
-	linkMu.Lock()
-	defer linkMu.Unlock()
-	for i, existing := range PendingLinks {
-		if existing == l {
-			PendingLinks = append(PendingLinks[:i], PendingLinks[i+1:]...)
-			break
-		}
-	}
-	if !linkSliceContains(ActiveLinks, l) {
-		ActiveLinks = append(ActiveLinks, l)
-	}
 }
 
 func unregisterLinkWithTransport(l *Link) {

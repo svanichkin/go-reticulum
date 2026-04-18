@@ -165,7 +165,10 @@ func TestReticulumApplyConfig_RemoteManagementAllowed_AddsHash(t *testing.T) {
 	if err := r.applyConfig(); err != nil {
 		t.Fatalf("applyConfig: %v", err)
 	}
-	if !RemoteManagementAllowedContains(raw) {
+	remoteManagementAllowedMu.RLock()
+	_, ok := remoteManagementAllowed[string(raw)]
+	remoteManagementAllowedMu.RUnlock()
+	if !ok {
 		t.Fatalf("expected hash to be in remote management ACL")
 	}
 }

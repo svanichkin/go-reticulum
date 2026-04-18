@@ -55,7 +55,7 @@ func TestIntegration_Announce_InboundDispatchesHandlers(t *testing.T) {
 
 	h := &testAnnounceHandler{filter: "example_utilities.announcesample.fruits"}
 	rns.RegisterAnnounceHandler(h)
-	t.Cleanup(func() { _ = rns.DeregisterAnnounceHandler(h) })
+	t.Cleanup(func() { rns.DeregisterAnnounceHandler(h) })
 
 	ifc := &rns.Interface{Name: "if0", IN: true, OUT: true, IngressControl: false}
 	rns.Inbound(append([]byte(nil), announce.Raw...), ifc)

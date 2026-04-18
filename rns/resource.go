@@ -838,15 +838,41 @@ func (r *Resource) HashmapUpdatePacket(plaintext []byte) {
 	if len(update) < 2 {
 		return
 	}
-	seg, ok := asIntValue(update[0])
-	if !ok {
+	seg := 0
+	switch v := update[0].(type) {
+	case int:
+		seg = v
+	case int8:
+		seg = int(v)
+	case int16:
+		seg = int(v)
+	case int32:
+		seg = int(v)
+	case int64:
+		seg = int(v)
+	case uint:
+		seg = int(v)
+	case uint8:
+		seg = int(v)
+	case uint16:
+		seg = int(v)
+	case uint32:
+		seg = int(v)
+	case uint64:
+		seg = int(v)
+	case float32:
+		seg = int(v)
+	case float64:
+		seg = int(v)
+	default:
 		return
 	}
-	hm, ok := asBytesValue(update[1])
-	if !ok {
-		return
+	switch hm := update[1].(type) {
+	case []byte:
+		r.HashmapUpdate(seg, hm)
+	case string:
+		r.HashmapUpdate(seg, []byte(hm))
 	}
-	r.HashmapUpdate(seg, hm)
 }
 
 func (r *Resource) HashmapUpdate(segment int, hashmap []byte) {
@@ -1790,9 +1816,9 @@ func (r *Resource) Cancel() {
 		if r.link != nil {
 			r.link.CancelOutgoingResource(r)
 		}
-		} else if r.link != nil {
-			r.link.CancelIncomingResource(r)
-		}
+	} else if r.link != nil {
+		r.link.CancelIncomingResource(r)
+	}
 
 	if r.callback != nil {
 		if r.link != nil {
@@ -2047,9 +2073,15 @@ func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
 		}
 		// Some decoders use []byte keys for msgpack "str" types.
 		for k, v := range dictAny {
-			ks, ok := asStringValue(k)
-			if ok && ks == key {
-				return v, true
+			switch ks := k.(type) {
+			case string:
+				if ks == key {
+					return v, true
+				}
+			case []byte:
+				if string(ks) == key {
+					return v, true
+				}
 			}
 		}
 		return nil, false
@@ -2057,23 +2089,72 @@ func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
 
 	readInt := func(key string) int {
 		if v, ok := get(key); ok {
-			if i, ok := asIntValue(v); ok {
+			switch i := v.(type) {
+			case int:
 				return i
+			case int8:
+				return int(i)
+			case int16:
+				return int(i)
+			case int32:
+				return int(i)
+			case int64:
+				return int(i)
+			case uint:
+				return int(i)
+			case uint8:
+				return int(i)
+			case uint16:
+				return int(i)
+			case uint32:
+				return int(i)
+			case uint64:
+				return int(i)
+			case float32:
+				return int(i)
+			case float64:
+				return int(i)
 			}
 		}
 		return 0
 	}
 	readBytes := func(key string) []byte {
 		if v, ok := get(key); ok {
-			if b, ok := asBytesValue(v); ok {
+			switch b := v.(type) {
+			case []byte:
 				return append([]byte(nil), b...)
+			case string:
+				return append([]byte(nil), []byte(b)...)
 			}
 		}
 		return nil
 	}
 	readByte := func(key string) byte {
 		if v, ok := get(key); ok {
-			if i, ok := asIntValue(v); ok {
+			switch i := v.(type) {
+			case int:
+				return byte(i)
+			case int8:
+				return byte(i)
+			case int16:
+				return byte(i)
+			case int32:
+				return byte(i)
+			case int64:
+				return byte(i)
+			case uint:
+				return byte(i)
+			case uint8:
+				return byte(i)
+			case uint16:
+				return byte(i)
+			case uint32:
+				return byte(i)
+			case uint64:
+				return byte(i)
+			case float32:
+				return byte(i)
+			case float64:
 				return byte(i)
 			}
 		}

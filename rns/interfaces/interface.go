@@ -51,6 +51,10 @@ var InboundHandler func(raw []byte, ifc *Interface)
 // interfaces without importing the transport layer.
 var RemoveInterfaceHandler func(ifc *Interface)
 
+// LocalInterfaceTeardownHandler is set by the rns package so local client
+// teardown can mirror Python's LocalInterface.teardown() without import cycles.
+var LocalInterfaceTeardownHandler func(ifc *Interface)
+
 // WeaveIdentityProvider is set by the rns package so WeaveInterface can
 // use the same persisted Identity semantics as Python (sig_pub_bytes/sign)
 // without creating import cycles.
@@ -237,19 +241,20 @@ type Interface struct {
 
 	// ForceBitrateLatency simulates transmit time for interfaces where Python
 	// intentionally sleeps based on bitrate (eg. LocalInterface with forced bitrate).
-	ForceBitrateLatency bool
-	LocalIsSharedClient bool
+	ForceBitrateLatency   bool
+	LocalIsSharedClient   bool
+	LocalIsSharedInstance bool
 
-	icMu              sync.Mutex
+	ICMu              sync.Mutex
 	icBurstActive     bool
 	icBurstActivated  time.Time
 	icHeldRelease     time.Time
 	heldAnnounces     map[string]heldAnnounce
 	iaFreq            []time.Time
 	oaFreq            []time.Time
-	announceAllowedAt time.Time
-	announceQueue     []announceQueueEntry
-	announceRunning   bool
+	AnnounceAllowedAt time.Time
+	AnnounceQueue     []AnnounceQueueEntry
+	AnnounceRunning   bool
 
 	auto              *autoState
 	ax25              *AX25KISSDriver
@@ -296,17 +301,15 @@ type heldAnnounce struct {
 	destHash []byte
 }
 
-type announceQueueEntry struct {
-	enqueuedAt time.Time
-	hops       int
-	raw        []byte
+type AnnounceQueueEntry struct {
+	Time        time.Time
+	Destination []byte
+	Hops        int
+	Emitted     uint64
+	Raw         []byte
 }
 
-type TrafficCounter struct {
-	TS  time.Time
-	RXB uint64
-	TXB uint64
-}
+type TrafficCounter map[string]any
 
 func (i *Interface) String() string {
 	if i == nil {
@@ -483,6 +486,19 @@ func (i *Interface) Detach() {
 		if i.detachFn != nil {
 			i.detachFn()
 		}
+	}
+}
+
+// Teardown mirrors Python LocalInterface.teardown() for local-client interfaces.
+// It performs the low-level detach first, then lets the transport layer remove
+// the interface from its registries and persist data.
+func (i *Interface) Teardown() {
+	if i == nil {
+		return
+	}
+	i.Detach()
+	if LocalInterfaceTeardownHandler != nil {
+		LocalInterfaceTeardownHandler(i)
 	}
 }
 
@@ -1233,151 +1249,118 @@ func (i *Interface) ProcessOutgoing(data []byte) {
 	}
 }
 
-// ProcessAnnounceRaw implements Python Interface.process_announce_queue behaviour:
-// rate-limit outgoing announces according to announce_cap, preferring lowest hop count.
-func (i *Interface) ProcessAnnounceRaw(raw []byte, hops int) {
-	if i == nil || len(raw) == 0 {
-		return
-	}
-
-	// Python bypasses announce caps for locally-originating announces.
-	if hops <= 0 {
-		i.ProcessOutgoing(raw)
-		i.SentAnnounce()
-		return
-	}
-
-	now := time.Now()
-
-	cap := i.AnnounceCap
-	if cap <= 0 && DefaultAnnounceCapProvider != nil {
-		cap = DefaultAnnounceCapProvider()
-	}
-
-	if cap <= 0 {
-		i.ProcessOutgoing(raw)
-		i.SentAnnounce()
-		return
-	}
-
-	i.icMu.Lock()
-	i.announceQueue = append(i.announceQueue, announceQueueEntry{
-		enqueuedAt: now,
-		hops:       hops,
-		raw:        append([]byte(nil), raw...),
-	})
-	alreadyRunning := i.announceRunning
-	if !alreadyRunning {
-		i.announceRunning = true
-	}
-	i.icMu.Unlock()
-
-	if !alreadyRunning {
-		go i.processAnnounceQueueLoop()
-	}
-}
-
-func (i *Interface) processAnnounceQueueLoop() {
+func (i *Interface) ProcessAnnounceQueue() {
 	defer func() {
 		if r := recover(); r != nil {
-			i.icMu.Lock()
-			i.announceQueue = nil
-			i.announceRunning = false
-			i.icMu.Unlock()
+			i.ICMu.Lock()
+			i.AnnounceQueue = nil
+			i.AnnounceRunning = false
+			i.ICMu.Unlock()
 			if DiagLogf != nil {
 				DiagLogf(LogError, "Error while processing announce queue on %s. The contained exception was: %v", i, r)
 				DiagLogf(LogError, "The announce queue for this interface has been cleared.")
 			}
 		}
 	}()
-
-	for {
-		var (
-			entry   announceQueueEntry
-			hasWork bool
-			waitFor time.Duration
-		)
-
-		now := time.Now()
-		i.icMu.Lock()
-		// TTL cleanup, like Python.
-		if QueuedAnnounceLife > 0 && len(i.announceQueue) > 0 {
-			kept := i.announceQueue[:0]
-			for _, e := range i.announceQueue {
-				if now.After(e.enqueuedAt.Add(QueuedAnnounceLife)) {
-					continue
-				}
-				kept = append(kept, e)
+	now := time.Now()
+	i.ICMu.Lock()
+	if QueuedAnnounceLife > 0 && len(i.AnnounceQueue) > 0 {
+		kept := i.AnnounceQueue[:0]
+		for _, e := range i.AnnounceQueue {
+			if now.After(e.Time.Add(QueuedAnnounceLife)) {
+				continue
 			}
-			i.announceQueue = kept
+			kept = append(kept, e)
 		}
-		if len(i.announceQueue) == 0 {
-			i.announceRunning = false
-			i.icMu.Unlock()
-			return
+		i.AnnounceQueue = kept
+	}
+	if len(i.AnnounceQueue) == 0 {
+		i.AnnounceRunning = false
+		i.ICMu.Unlock()
+		return
+	}
+	if !i.AnnounceAllowedAt.IsZero() && now.Before(i.AnnounceAllowedAt) {
+		waitFor := time.Until(i.AnnounceAllowedAt)
+		i.ICMu.Unlock()
+		if waitFor < 0 {
+			waitFor = 0
 		}
+		time.AfterFunc(waitFor, func() {
+			i.ProcessAnnounceQueue()
+		})
+		return
+	}
 
-		if !i.announceAllowedAt.IsZero() && now.Before(i.announceAllowedAt) {
-			waitFor = time.Until(i.announceAllowedAt)
-			i.icMu.Unlock()
-			time.Sleep(waitFor)
-			continue
+	selectedIdx := -1
+	minHops := int(^uint(0) >> 1)
+	var oldest time.Time
+	for idx, e := range i.AnnounceQueue {
+		if e.Hops < minHops {
+			minHops = e.Hops
+			oldest = e.Time
+			selectedIdx = idx
+		} else if e.Hops == minHops && (selectedIdx < 0 || e.Time.Before(oldest)) {
+			oldest = e.Time
+			selectedIdx = idx
 		}
+	}
+	entry := i.AnnounceQueue[selectedIdx]
+	i.AnnounceQueue = append(i.AnnounceQueue[:selectedIdx], i.AnnounceQueue[selectedIdx+1:]...)
+	hasMore := len(i.AnnounceQueue) > 0
+	i.ICMu.Unlock()
 
-		// Select lowest-hop, oldest entry among those.
-		selectedIdx := -1
-		minHops := int(^uint(0) >> 1)
-		var oldest time.Time
-		for idx, e := range i.announceQueue {
-			if e.hops < minHops {
-				minHops = e.hops
-				oldest = e.enqueuedAt
-				selectedIdx = idx
-			} else if e.hops == minHops && (selectedIdx < 0 || e.enqueuedAt.Before(oldest)) {
-				oldest = e.enqueuedAt
-				selectedIdx = idx
-			}
+	if len(entry.Raw) == 0 {
+		if hasMore {
+			time.AfterFunc(0, func() {
+				i.ProcessAnnounceQueue()
+			})
 		}
-		if selectedIdx >= 0 {
-			entry = i.announceQueue[selectedIdx]
-			i.announceQueue = append(i.announceQueue[:selectedIdx], i.announceQueue[selectedIdx+1:]...)
-			hasWork = true
-		}
-		i.icMu.Unlock()
+		return
+	}
 
-		if !hasWork || len(entry.raw) == 0 {
-			continue
-		}
-
-		cap := i.AnnounceCap
-		if cap <= 0 && DefaultAnnounceCapProvider != nil {
-			cap = DefaultAnnounceCapProvider()
-		}
-		if cap <= 0 {
-			i.ProcessOutgoing(entry.raw)
-			i.SentAnnounce()
-			continue
-		}
-
+	cap := i.AnnounceCap
+	if cap <= 0 && DefaultAnnounceCapProvider != nil {
+		cap = DefaultAnnounceCapProvider()
+	}
+	if cap <= 0 {
+		i.ProcessOutgoing(entry.Raw)
+		i.SentAnnounce()
+	} else {
 		br := i.Bitrate
 		if br <= 0 {
 			br = 62500
 		}
-		// tx_time = (len(raw)*8) / bitrate; wait_time = tx_time / announce_cap
-		txTime := (float64(len(entry.raw)) * 8.0) / float64(br)
+		txTime := (float64(len(entry.Raw)) * 8.0) / float64(br)
 		waitTime := txTime / cap
 		if waitTime < 0 {
 			waitTime = 0
 		}
-		i.icMu.Lock()
-		i.announceAllowedAt = time.Now().Add(time.Duration(waitTime * float64(time.Second)))
-		i.icMu.Unlock()
+		i.ICMu.Lock()
+		i.AnnounceAllowedAt = time.Now().Add(time.Duration(waitTime * float64(time.Second)))
+		hasMore = len(i.AnnounceQueue) > 0
+		i.ICMu.Unlock()
 
-		i.ProcessOutgoing(entry.raw)
+		i.ProcessOutgoing(entry.Raw)
 		i.SentAnnounce()
 
-		// Python uses a timer to re-run processing after wait_time if queue still has items.
-		// Our loop continues, but sleep is governed by announceAllowedAt, which is equivalent.
+		if hasMore {
+			time.AfterFunc(time.Duration(waitTime*float64(time.Second)), func() {
+				i.ProcessAnnounceQueue()
+			})
+			return
+		}
+	}
+
+	i.ICMu.Lock()
+	hasMore = len(i.AnnounceQueue) > 0
+	if !hasMore {
+		i.AnnounceRunning = false
+	}
+	i.ICMu.Unlock()
+	if hasMore {
+		time.AfterFunc(0, func() {
+			i.ProcessAnnounceQueue()
+		})
 	}
 }
 
@@ -1386,12 +1369,12 @@ func (i *Interface) ReceivedAnnounce() {
 		return
 	}
 	now := time.Now()
-	i.icMu.Lock()
+	i.ICMu.Lock()
 	i.iaFreq = append(i.iaFreq, now)
 	if len(i.iaFreq) > IAFreqSamples {
 		i.iaFreq = i.iaFreq[len(i.iaFreq)-IAFreqSamples:]
 	}
-	i.icMu.Unlock()
+	i.ICMu.Unlock()
 	if i.Parent != nil {
 		i.Parent.ReceivedAnnounce()
 	}
@@ -1402,12 +1385,12 @@ func (i *Interface) SentAnnounce() {
 		return
 	}
 	now := time.Now()
-	i.icMu.Lock()
+	i.ICMu.Lock()
 	i.oaFreq = append(i.oaFreq, now)
 	if len(i.oaFreq) > OAFreqSamples {
 		i.oaFreq = i.oaFreq[len(i.oaFreq)-OAFreqSamples:]
 	}
-	i.icMu.Unlock()
+	i.ICMu.Unlock()
 	if i.Parent != nil {
 		i.Parent.SentAnnounce()
 	}
@@ -1417,8 +1400,8 @@ func (i *Interface) OutgoingAnnounceFrequency() float64 {
 	if i == nil {
 		return 0
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 	n := len(i.oaFreq)
 	if n <= 1 {
 		return 0
@@ -1449,8 +1432,8 @@ func (i *Interface) IncomingAnnounceFrequency() float64 {
 		return 0
 	}
 	now := time.Now()
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 	return i.incomingAnnounceFrequencyLocked(now)
 }
 
@@ -1509,8 +1492,8 @@ func (i *Interface) ShouldIngressLimit() bool {
 	if i == nil {
 		return false
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 	return i.shouldIngressLimitLocked(time.Now())
 }
 
@@ -1518,8 +1501,8 @@ func (i *Interface) HoldAnnounce(raw []byte, recvIf *Interface, destinationHash 
 	if i == nil || len(raw) == 0 || len(destinationHash) == 0 {
 		return
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 	if i.heldAnnounces == nil {
 		i.heldAnnounces = make(map[string]heldAnnounce)
 	}
@@ -1545,8 +1528,8 @@ func (i *Interface) ProcessHeldAnnounces(maxHops int) {
 	}
 	now := time.Now()
 
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 
 	if i.shouldIngressLimitLocked(now) {
 		return
@@ -1620,26 +1603,26 @@ func (i *Interface) HasQueuedAnnounces() bool {
 	if i == nil {
 		return false
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
-	return len(i.announceQueue) > 0 || i.announceRunning
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
+	return len(i.AnnounceQueue) > 0 || i.AnnounceRunning
 }
 
-func (i *Interface) AnnounceAllowedAt() time.Time {
+func (i *Interface) AnnounceAllowedAtTime() time.Time {
 	if i == nil {
 		return time.Time{}
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
-	return i.announceAllowedAt
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
+	return i.AnnounceAllowedAt
 }
 
 func (i *Interface) HeldAnnouncesCount() int {
 	if i == nil {
 		return 0
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
 	return len(i.heldAnnounces)
 }
 
@@ -1647,18 +1630,41 @@ func (i *Interface) AnnounceQueueCount() int {
 	if i == nil {
 		return 0
 	}
-	i.icMu.Lock()
-	defer i.icMu.Unlock()
-	return len(i.announceQueue)
+	i.ICMu.Lock()
+	defer i.ICMu.Unlock()
+	return len(i.AnnounceQueue)
+}
+
+// DropAnnounceQueue mirrors Python Interface.process_announce_queue() cleanup
+// when Reticulum drops interface announce queues.
+func (i *Interface) DropAnnounceQueue() int {
+	if i == nil {
+		return 0
+	}
+	i.ICMu.Lock()
+	dropped := len(i.AnnounceQueue)
+	if dropped > 0 {
+		i.AnnounceQueue = nil
+	}
+	i.AnnounceRunning = false
+	i.ICMu.Unlock()
+	if dropped > 0 && DiagLogf != nil {
+		if dropped == 1 {
+			DiagLogf(LogVerbose, "Dropped 1 announce on %s", i)
+		} else {
+			DiagLogf(LogVerbose, "Dropped %d announces on %s", dropped, i)
+		}
+	}
+	return dropped
 }
 
 func (i *Interface) SetAnnounceAllowedAt(t time.Time) {
 	if i == nil {
 		return
 	}
-	i.icMu.Lock()
-	i.announceAllowedAt = t
-	i.icMu.Unlock()
+	i.ICMu.Lock()
+	i.AnnounceAllowedAt = t
+	i.ICMu.Unlock()
 }
 
 func (i *Interface) readLocalFramesLoop() {

@@ -47,6 +47,7 @@ func TestPathRequestHandler_DuplicateDiscoveryRequestDoesNotReflood(t *testing.T
 	prevDiscoveryPRTagFIFO := discoveryPRTagFIFO
 	prevDiscoveryPathRequests := discoveryPathRequests
 	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
 
 	backend := &discoveryPathRequestCaptureBackend{}
 	Transport = backend
@@ -58,6 +59,11 @@ func TestPathRequestHandler_DuplicateDiscoveryRequestDoesNotReflood(t *testing.T
 	discoveryPRTags = make(map[string]struct{})
 	discoveryPRTagFIFO = nil
 	discoveryPathRequests = make(map[hashKey]*discoveryPathRequest)
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
 
 	t.Cleanup(func() {
 		Transport = prevTransport
@@ -69,6 +75,7 @@ func TestPathRequestHandler_DuplicateDiscoveryRequestDoesNotReflood(t *testing.T
 		discoveryPRTagFIFO = prevDiscoveryPRTagFIFO
 		discoveryPathRequests = prevDiscoveryPathRequests
 		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
 	})
 
 	attached := &Interface{Name: "ap0", Mode: InterfaceModeAccessPoint}
@@ -174,7 +181,14 @@ func TestHandleInboundAnnounce_AnswersWaitingDiscoveryPathRequest(t *testing.T) 
 		t.Fatalf("path discovery outbound=%d, want 2", got)
 	}
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
@@ -182,7 +196,7 @@ func TestHandleInboundAnnounce_AnswersWaitingDiscoveryPathRequest(t *testing.T) 
 		t.Fatal("expected discovery path request to be stored")
 	}
 
-	handleInboundAnnounce(announce, source, false)
+	Inbound(announce.Raw, source)
 
 	if got := len(backend.packets); got != 3 {
 		t.Fatalf("outbound packets=%d, want 3 including PATH_RESPONSE", got)
@@ -217,6 +231,16 @@ func TestHandleInboundAnnounce_AnswersWaitingDiscoveryPathRequest(t *testing.T) 
 
 func TestCullDiscoveryPathRequests_RemovesExpiredEntries(t *testing.T) {
 	prevDiscoveryPathRequests := discoveryPathRequests
+	prevPendingLocalPathRequests := pendingLocalPathRequests
+	prevPendingPRsLastChecked := pendingPRsLastChecked
+	prevLinksLastChecked := LinksLastChecked
+	prevReceiptsLast := ReceiptsLast
+	prevAnnLast := AnnLast
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevLastTablesPersisted := lastTablesPersisted
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevBlackholeLastChecked := blackholeLastChecked
 
 	expiredKey := hashKey{1}
 	liveKey := hashKey{2}
@@ -225,14 +249,32 @@ func TestCullDiscoveryPathRequests_RemovesExpiredEntries(t *testing.T) {
 		expiredKey: {Timeout: now.Add(-time.Second), RequestingInterface: &Interface{Name: "expired"}},
 		liveKey:    {Timeout: now.Add(time.Second), RequestingInterface: &Interface{Name: "live"}},
 	}
+	pendingLocalPathRequests = make(map[hashKey]*Interface)
+	pendingPRsLastChecked = now.Add(-pendingPRsCheckInterval - time.Second)
+	LinksLastChecked = now
+	ReceiptsLast = now
+	AnnLast = now
+	TablesLastCulled = now
+	LastCacheCleaned = now
+	lastTablesPersisted = now
+	InterfaceLastJobs = now
+	blackholeLastChecked = now
 
 	t.Cleanup(func() {
 		discoveryPathRequests = prevDiscoveryPathRequests
+		pendingLocalPathRequests = prevPendingLocalPathRequests
+		pendingPRsLastChecked = prevPendingPRsLastChecked
+		LinksLastChecked = prevLinksLastChecked
+		ReceiptsLast = prevReceiptsLast
+		AnnLast = prevAnnLast
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		lastTablesPersisted = prevLastTablesPersisted
+		InterfaceLastJobs = prevInterfaceLastJobs
+		blackholeLastChecked = prevBlackholeLastChecked
 	})
 
-	if removed := cullDiscoveryPathRequests(now); !removed {
-		t.Fatal("expected expired discovery path request to be removed")
-	}
+	Jobs()
 	if _, exists := discoveryPathRequests[expiredKey]; exists {
 		t.Fatal("expired discovery path request was not removed")
 	}

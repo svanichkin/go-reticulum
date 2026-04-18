@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,7 +43,14 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 	for i := range dst {
 		dst[i] = byte(i + 1)
 	}
-	key, ok := makeHashKey(dst)
+	key, ok := func(hash []byte) (hashKey, bool) {
+	if len(hash) < truncatedHashBytes {
+		return hashKey{}, false
+	}
+	var key hashKey
+	copy(key[:], hash[:truncatedHashBytes])
+	return key, true
+}(dst)
 	if !ok {
 		t.Fatalf("makeHashKey failed")
 	}
@@ -55,7 +63,8 @@ func TestIntegration_TransportExitHandler_PersistsTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pack cached announce: %v", err)
 	}
-	if err := os.WriteFile(announceCachePath(packetHash), buf, 0o600); err != nil {
+	announcePath := filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
+	if err := os.WriteFile(announcePath, buf, 0o600); err != nil {
 		t.Fatalf("write cached announce: %v", err)
 	}
 	pathTable[key] = &PathEntry{

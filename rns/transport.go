@@ -2,12 +2,12 @@ package rns
 
 import (
 	"bytes"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	Cryptography "github.com/svanichkin/go-reticulum/rns/cryptography"
+	ifaces "github.com/svanichkin/go-reticulum/rns/interfaces"
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 	"io"
 	"io/fs"
@@ -73,16 +73,6 @@ var (
 	announceQueueTTL = time.Duration(QUEUED_ANNOUNCE_LIFE) * time.Second
 )
 
-func timeFromFloatSeconds(ts float64) time.Time {
-	// Python stores timestamps as time.time() floats (seconds with fractional part).
-	sec, frac := math.Modf(ts)
-	if sec < 0 {
-		// Keep behaviour sane for invalid negative timestamps.
-		return time.Unix(0, 0)
-	}
-	return time.Unix(int64(sec), int64(frac*1e9))
-}
-
 type hashKey [truncatedHashBytes]byte
 
 type transportBackgroundWorker interface {
@@ -97,7 +87,7 @@ func (noopTransportWorker) Start() {}
 // If AspectFilter returns a non-empty string, only announces whose NAME_HASH
 // matches the filter will be delivered.
 type AnnounceHandler interface {
-	AspectFilter() string
+	AspectFilter() any
 	ReceivedAnnounce(destinationHash []byte, announcedIdentity *Identity, appData []byte)
 }
 
@@ -259,168 +249,55 @@ var (
 	localRSSICache = make(map[string]float64)
 	localSNRCache  = make(map[string]float64)
 	localQCache    = make(map[string]float64)
-	localStatsFIFO []string
+	localRSSIFIFO  []string
+	localSNRFIFO   []string
+	localQFIFO     []string
 	localStatsMax  = 512
 
 	announceHandlersMu sync.RWMutex
-	announceHandlers   []AnnounceHandler
+	announceHandlers   []any
 
 	// Store additional transport tables here as well:
 	// AnnounceTable, PathTable, ReverseTable, LinkTable, DiscoveryPathRequests, ...
 )
 
 // RegisterAnnounceHandler registers an announce handler with the transport.
-// This is the Go equivalent of `RNS.Transport.register_announce_handler()`.
-func RegisterAnnounceHandler(handler AnnounceHandler) {
+// This mirrors Python's runtime check for the required announce callback shape.
+func RegisterAnnounceHandler(handler any) {
 	if handler == nil {
 		return
 	}
-	announceHandlersMu.Lock()
-	for _, existing := range announceHandlers {
-		if existing == handler {
-			announceHandlersMu.Unlock()
-			return
-		}
+	val := reflect.ValueOf(handler)
+	if val.Kind() == reflect.Pointer && val.IsNil() {
+		return
 	}
+	if !val.MethodByName("AspectFilter").IsValid() {
+		return
+	}
+	if !val.MethodByName("ReceivedAnnounce").IsValid() {
+		return
+	}
+	announceHandlersMu.Lock()
 	announceHandlers = append(announceHandlers, handler)
 	announceHandlersMu.Unlock()
 }
 
 // DeregisterAnnounceHandler removes a previously registered announce handler.
-func DeregisterAnnounceHandler(handler AnnounceHandler) bool {
+func DeregisterAnnounceHandler(handler any) {
 	if handler == nil {
-		return false
+		return
 	}
 	announceHandlersMu.Lock()
-	defer announceHandlersMu.Unlock()
-	for i, existing := range announceHandlers {
+	filtered := make([]any, 0, len(announceHandlers))
+	for _, existing := range announceHandlers {
 		if existing == handler {
-			announceHandlers = append(announceHandlers[:i], announceHandlers[i+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
-func announceNameHashAndAppData(packet *Packet) (nameHash []byte, appData []byte, announced *Identity, ok bool) {
-	if packet == nil || packet.PacketType != PacketTypeAnnounce {
-		return nil, nil, nil, false
-	}
-	data := packet.Data
-	nameHashLen := IdentityNameHashLength / 8
-	minLen := identityPubKeyLen + nameHashLen + announceRandomHashLen + ed25519.SignatureSize
-	if len(data) < minLen {
-		return nil, nil, nil, false
-	}
-
-	publicKey := data[:identityPubKeyLen]
-	offset := identityPubKeyLen
-	nameHash = data[offset : offset+nameHashLen]
-	offset += nameHashLen
-	offset += announceRandomHashLen
-
-	if packet.ContextFlag == FlagSet {
-		if len(data) < offset+x25519KeyLen+ed25519.SignatureSize {
-			return nil, nil, nil, false
-		}
-		offset += x25519KeyLen
-	}
-	if len(data) < offset+ed25519.SignatureSize {
-		return nil, nil, nil, false
-	}
-	offset += ed25519.SignatureSize
-	if len(data) > offset {
-		appData = data[offset:]
-	}
-
-	announced = &Identity{curve: ecdh.X25519()}
-	if err := announced.LoadPublicKey(publicKey); err != nil {
-		return nil, nil, nil, false
-	}
-	return append([]byte(nil), nameHash...), append([]byte(nil), appData...), announced, true
-}
-
-func announceHandlerWants(handler AnnounceHandler, announceNameHash []byte) bool {
-	if handler == nil {
-		return false
-	}
-	filter := strings.TrimSpace(handler.AspectFilter())
-	if filter == "" {
-		return true
-	}
-	want := FullHash([]byte(filter))[:IdentityNameHashLength/8]
-	return bytes.Equal(want, announceNameHash)
-}
-
-func announceHandlerWantsPathResponses(handler AnnounceHandler) bool {
-	if handler == nil {
-		return false
-	}
-	prHandler, ok := any(handler).(PathResponseAnnounceHandler)
-	return ok && prHandler.ReceivePathResponses()
-}
-
-func dispatchAnnounceHandlers(packet *Packet) {
-	if packet == nil {
-		return
-	}
-	nameHash, appData, announced, ok := announceNameHashAndAppData(packet)
-	if !ok {
-		return
-	}
-
-	announceHandlersMu.RLock()
-	handlers := append([]AnnounceHandler(nil), announceHandlers...)
-	announceHandlersMu.RUnlock()
-
-	for _, h := range handlers {
-		if !announceHandlerWants(h, nameHash) {
 			continue
 		}
-		if packet.Context == PacketPATH_RESPONSE && !announceHandlerWantsPathResponses(h) {
-			continue
-		}
-		func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					Logf(LogError, "Announce handler panic: %v", rec)
-				}
-			}()
-
-			packetHash := copyBytes(packet.PacketHash)
-			if len(packetHash) == 0 {
-				packetHash = copyBytes(packet.GetHash())
-			}
-
-			switch handler := any(h).(type) {
-			case AnnounceHandlerWithPacketInfo:
-				handler.ReceivedAnnounceWithPacketInfo(
-					copyBytes(packet.DestinationHash),
-					announced,
-					appData,
-					packetHash,
-					packet.Context == PacketPATH_RESPONSE,
-				)
-			case AnnounceHandlerWithPacketHash:
-				handler.ReceivedAnnounceWithPacketHash(
-					copyBytes(packet.DestinationHash),
-					announced,
-					appData,
-					packetHash,
-				)
-			default:
-				h.ReceivedAnnounce(copyBytes(packet.DestinationHash), announced, appData)
-			}
-		}()
+		filtered = append(filtered, existing)
 	}
-}
-
-// NotifyAnnounceHandlers triggers delivery to registered announce handlers for
-// a decoded announce packet. This is primarily useful for applications/tests
-// that already have a parsed announce packet and want to reuse the handler
-// mechanism without going through full transport ingress.
-func NotifyAnnounceHandlers(packet *Packet) {
-	dispatchAnnounceHandlers(packet)
+	announceHandlers = filtered
+	announceHandlersMu.Unlock()
+	runtime.GC()
 }
 
 // SetNetworkIdentity mirrors Python Transport.set_network_identity().
@@ -430,9 +307,6 @@ func SetNetworkIdentity(identity *Identity) {
 		return
 	}
 	NetworkIdentity = identity
-	if Owner != nil {
-		configureControlDestinations()
-	}
 }
 
 // HasNetworkIdentity mirrors Python Transport.has_network_identity().
@@ -470,129 +344,31 @@ func EnableBlackholeUpdater() {
 	}
 }
 
-func interfacesSnapshot() []*Interface {
-	interfacesMu.RLock()
-	defer interfacesMu.RUnlock()
-	return append([]*Interface(nil), Interfaces...)
-}
-
-func localClientInterfacesSnapshot() []*Interface {
-	interfacesMu.RLock()
-	defer interfacesMu.RUnlock()
-
-	seen := make(map[*Interface]struct{}, len(LocalClientInterfaces))
-	out := make([]*Interface, 0, len(LocalClientInterfaces))
-	add := func(ifc *Interface) {
-		if ifc == nil {
-			return
-		}
-		if _, ok := seen[ifc]; ok {
-			return
-		}
-		seen[ifc] = struct{}{}
-		out = append(out, ifc)
-	}
-
-	for _, cif := range LocalClientInterfaces {
-		add(cif)
-	}
-	for _, ifc := range interfacesSnapshot() {
-		if ifc != nil && ifc.Parent != nil && InterfaceToSharedInstance(ifc.Parent) {
-			add(ifc)
-		}
-	}
-
-	return out
-}
-
-func localClientInterfaceCount() int {
-	return len(localClientInterfacesSnapshot())
-}
-
-func hasLocalClientInterfaces() bool {
-	return localClientInterfaceCount() > 0
-}
-
-func addLocalClientInterface(ifc *Interface) {
-	if ifc == nil {
-		return
-	}
-	interfacesMu.Lock()
-	defer interfacesMu.Unlock()
-	for _, existing := range LocalClientInterfaces {
-		if existing == ifc {
-			return
-		}
-	}
-	LocalClientInterfaces = append(LocalClientInterfaces, ifc)
-}
-
-func removeLocalClientInterface(ifc *Interface) {
-	if ifc == nil {
-		return
-	}
-	interfacesMu.Lock()
-	defer interfacesMu.Unlock()
-	for idx, existing := range LocalClientInterfaces {
-		if existing == ifc {
-			LocalClientInterfaces = append(LocalClientInterfaces[:idx], LocalClientInterfaces[idx+1:]...)
-			return
-		}
-	}
-}
-
-func removeInterface(ifc *Interface) {
-	if ifc == nil {
-		return
-	}
-	if len(ifc.TunnelID) == HashLengthBytes {
-		VoidTunnelInterface(ifc.TunnelID)
-	}
-	ifc.Detach()
-	interfacesMu.Lock()
-	defer interfacesMu.Unlock()
-	for idx, existing := range LocalClientInterfaces {
-		if existing == ifc {
-			LocalClientInterfaces = append(LocalClientInterfaces[:idx], LocalClientInterfaces[idx+1:]...)
-			break
-		}
-	}
-	for idx, existing := range Interfaces {
-		if existing == ifc {
-			Interfaces = append(Interfaces[:idx], Interfaces[idx+1:]...)
-			return
-		}
-	}
-}
-
 // RegisterDestination registers a destination with the transport.
 // The Python implementation maintains multiple internal maps; for now we keep
 // a simple list and ensure uniqueness.
-func RegisterDestination(d *Destination) {
+func RegisterDestination(d *Destination) error {
 	if d == nil {
-		return
+		return nil
 	}
-	var registered bool
+	d.mtu = MTU
+	if d.Direction != DestinationIN {
+		return nil
+	}
+
 	destinationsMu.Lock()
+	defer destinationsMu.Unlock()
 	for _, existing := range Destinations {
-		if existing == d {
-			destinationsMu.Unlock()
-			return
-		}
 		if existing != nil && len(existing.Hash()) > 0 && bytes.Equal(existing.Hash(), d.Hash()) {
-			destinationsMu.Unlock()
-			return
+			return errors.New("Attempt to register an already registered destination.")
 		}
 	}
 	Destinations = append(Destinations, d)
-	registered = true
-	destinationsMu.Unlock()
-
-	if !registered || Owner == nil || !Owner.IsConnectedToSharedInstance {
-		return
+	if Owner == nil || !Owner.IsConnectedToSharedInstance {
+		return nil
 	}
 	if d.Direction != DestinationIN || d.Type != DestinationSINGLE {
-		return
+		return nil
 	}
 	go func(dst *Destination) {
 		time.Sleep(250 * time.Millisecond)
@@ -600,84 +376,127 @@ func RegisterDestination(d *Destination) {
 			dst.Announce(nil, true, nil, nil, true)
 		}
 	}(d)
+	return nil
 }
 
 // DeregisterDestination removes a destination from the transport registry.
 // Mirrors Python Transport.deregister_destination().
-func DeregisterDestination(d *Destination) bool {
+func DeregisterDestination(d *Destination) {
 	if d == nil {
-		return false
+		return
 	}
 	destinationsMu.Lock()
-	removed := false
-	for i := 0; i < len(Destinations); i++ {
-		existing := Destinations[i]
-		if existing == d || (existing != nil && len(existing.Hash()) > 0 && bytes.Equal(existing.Hash(), d.Hash())) {
+	for i, existing := range Destinations {
+		if existing == d {
 			Destinations = append(Destinations[:i], Destinations[i+1:]...)
-			removed = true
-			i--
+			break
 		}
 	}
 	destinationsMu.Unlock()
-	if removed && Owner != nil && !Owner.IsConnectedToSharedInstance {
-		Owner.ShouldPersistData()
-	}
-	return removed
 }
 
-// AddInterface appends an interface to the transport interface list.
-// The Go port currently supports only the shared in-memory representation.
-func AddInterface(ifc *Interface) {
-	if ifc == nil {
+func registerLink(l *Link) {
+	if l == nil {
 		return
 	}
-	interfacesMu.Lock()
-	defer interfacesMu.Unlock()
-	Interfaces = append(Interfaces, ifc)
-	prioritizeInterfacesLocked()
+	Logf(LogExtreme, "Registering link %v", l)
+	linkMu.Lock()
+	defer linkMu.Unlock()
+	if l.Initiator {
+		if !linkSliceContains(PendingLinks, l) {
+			PendingLinks = append(PendingLinks, l)
+		}
+	} else {
+		if !linkSliceContains(ActiveLinks, l) {
+			ActiveLinks = append(ActiveLinks, l)
+		}
+	}
 }
 
-// DetachInterfaces best-effort detaches all interfaces.
+func activateLink(l *Link) {
+	if l == nil {
+		return
+	}
+	Logf(LogExtreme, "Activating link %v", l)
+	linkMu.Lock()
+	defer linkMu.Unlock()
+	if !linkSliceContains(PendingLinks, l) {
+		Log("Attempted to activate a link that was not in the pending table", LogError)
+		return
+	}
+	if l.Status != LinkActive {
+		panic(fmt.Errorf("Invalid link state for link activation: %d", l.Status))
+	}
+	for i, existing := range PendingLinks {
+		if existing == l {
+			PendingLinks = append(PendingLinks[:i], PendingLinks[i+1:]...)
+			break
+		}
+	}
+	if !linkSliceContains(ActiveLinks, l) {
+		ActiveLinks = append(ActiveLinks, l)
+	}
+	l.Status = LinkActive
+}
+
+// DetachInterfaces mirrors Python Transport.detach_interfaces().
 func DetachInterfaces() {
-	for _, ifc := range interfacesSnapshot() {
+	detachableInterfaces := make([]*Interface, 0, len(Interfaces)+len(LocalClientInterfaces))
+	for _, ifc := range Interfaces {
+		if ifc != nil && !ifc.Detached {
+			detachableInterfaces = append(detachableInterfaces, ifc)
+		}
+	}
+	for _, ifc := range LocalClientInterfaces {
+		if ifc != nil && !ifc.Detached {
+			detachableInterfaces = append(detachableInterfaces, ifc)
+		}
+	}
+
+	sharedInstanceMaster := (*Interface)(nil)
+	localInterfaces := make([]*Interface, 0, len(detachableInterfaces))
+	detachThreads := make([]chan struct{}, 0, len(detachableInterfaces))
+
+	Log("Detaching interfaces", LogDebug)
+	for _, ifc := range detachableInterfaces {
 		if ifc == nil {
 			continue
 		}
-		ifc.Detach()
+		switch {
+		case strings.EqualFold(ifc.Type, "LocalInterface") && ifc.Parent == nil && !ifc.LocalIsSharedClient:
+			sharedInstanceMaster = ifc
+		case strings.EqualFold(ifc.Type, "LocalInterface") && (ifc.Parent != nil || ifc.LocalIsSharedClient):
+			localInterfaces = append(localInterfaces, ifc)
+		default:
+			wgDone := make(chan struct{})
+			detachThreads = append(detachThreads, wgDone)
+			go func(interfaceToDetach *Interface, done chan struct{}) {
+				defer close(done)
+				Logf(LogExtreme, "Detaching %s", interfaceToDetach)
+				interfaceToDetach.Detach()
+			}(ifc, wgDone)
+		}
 	}
-}
 
-// AddRemoteManagementAllowed adds an identity hash to the remote-management ACL.
-func AddRemoteManagementAllowed(hash []byte) {
-	if len(hash) == 0 {
-		return
+	for _, done := range detachThreads {
+		<-done
 	}
-	remoteManagementAllowedMu.Lock()
-	if _, ok := remoteManagementAllowed[string(hash)]; !ok {
-		remoteManagementAllowed[string(hash)] = append([]byte(nil), hash...)
-	}
-	remoteManagementAllowedMu.Unlock()
-}
 
-// RemoteManagementAllowedContains reports whether the hash exists in the ACL.
-func RemoteManagementAllowedContains(hash []byte) bool {
-	if len(hash) == 0 {
-		return false
+	Log("Detaching local clients", LogDebug)
+	for _, li := range localInterfaces {
+		if li != nil {
+			li.Detach()
+		}
 	}
-	remoteManagementAllowedMu.RLock()
-	_, ok := remoteManagementAllowed[string(hash)]
-	remoteManagementAllowedMu.RUnlock()
-	return ok
-}
 
-func remoteManagementAllowedList() [][]byte {
-	remoteManagementAllowedMu.RLock()
-	defer remoteManagementAllowedMu.RUnlock()
-	out := make([][]byte, 0, len(remoteManagementAllowed))
-	for _, v := range remoteManagementAllowed {
-		out = append(out, append([]byte(nil), v...))
+	Log("Detaching shared instance", LogDebug)
+	if sharedInstanceMaster != nil {
+		sharedInstanceMaster.Detach()
 	}
-	return out
+
+	ifaces.DeregisterListeners()
+
+	Log("All interfaces detached", LogDebug)
 }
 
 const (
@@ -752,6 +571,59 @@ type blackholeEntry struct {
 	Reason *string
 }
 
+// Python parity: Transport.path_table entry indices.
+const (
+	IdxPTDstHash   = 0
+	IdxPTTimestamp = 1
+	IdxPTNextHop   = 2
+	IdxPTHops      = 3
+	IdxPTExpires   = 4
+	IdxPTRandBlobs = 5
+	IdxPTRcvdIf    = 6
+	IdxPTPacket    = 7
+)
+
+// Python parity: Transport.reverse_table entry indices.
+const (
+	IdxRTRcvdIf    = 0
+	IdxRTOutbIf    = 1
+	IdxRTTimestamp = 2
+)
+
+// Python parity: Transport.announce_table entry indices.
+const (
+	IdxATTimestamp = 0
+	IdxATRtrnsTmo  = 1
+	IdxATRetries   = 2
+	IdxATRcvdIf    = 3
+	IdxATHops      = 4
+	IdxATPacket    = 5
+	IdxATLclRbrd   = 6
+	IdxATBlckRbrd  = 7
+	IdxATAttchdIf  = 8
+)
+
+// Python parity: Transport.link_table entry indices.
+const (
+	IdxLTTimestamp = 0
+	IdxLTNhTrid    = 1
+	IdxLTNhIf      = 2
+	IdxLTRemHops   = 3
+	IdxLTRcvdIf    = 4
+	IdxLTHops      = 5
+	IdxLTDstHash   = 6
+	IdxLTValidated = 7
+	IdxLTProofTmo  = 8
+)
+
+// Python parity: Transport.tunnels entry indices.
+const (
+	IdxTTTunnelID = 0
+	IdxTTIf       = 1
+	IdxTTPaths    = 2
+	IdxTTExpires  = 3
+)
+
 type tunnelEntry struct {
 	ID        []byte
 	Interface *Interface
@@ -768,688 +640,704 @@ type tunnelPathEntry struct {
 	PacketHash   []byte
 }
 
-// -------- announce queue helpers --------
-
-type announceEnqueueOptions struct {
-	delay            time.Duration
-	delaySet         bool
-	initialRetries   int
-	initialRetrySet  bool
-	blockRebroadcast bool
-	attached         *Interface
-}
-
-// AnnounceOption configures how QueueAnnounce behaves.
-type AnnounceOption func(*announceEnqueueOptions)
-
-// WithAnnounceDelay schedules announce retransmission after a fixed delay.
-func WithAnnounceDelay(d time.Duration) AnnounceOption {
-	return func(o *announceEnqueueOptions) {
-		o.delay = d
-		o.delaySet = true
-	}
-}
-
-// WithAnnounceImmediate schedules the announce for immediate retransmission.
-func WithAnnounceImmediate() AnnounceOption {
-	return func(o *announceEnqueueOptions) {
-		o.delay = 0
-		o.delaySet = true
-	}
-}
-
-// WithAnnounceInitialRetries mirrors Python's announce_table insertion for
-// local-client announces, where retries is pre-seeded before the first jobs()
-// retransmit pass.
-func WithAnnounceInitialRetries(retries int) AnnounceOption {
-	return func(o *announceEnqueueOptions) {
-		o.initialRetries = retries
-		o.initialRetrySet = true
-	}
-}
-
-// WithAnnounceBlockRebroadcasts forces queued packets to use PATH_RESPONSE context.
-func WithAnnounceBlockRebroadcasts(block bool) AnnounceOption {
-	return func(o *announceEnqueueOptions) {
-		o.blockRebroadcast = block
-	}
-}
-
-// WithAnnounceAttachedInterface tags the retransmission with a specific interface.
-func WithAnnounceAttachedInterface(ifc *Interface) AnnounceOption {
-	return func(o *announceEnqueueOptions) {
-		o.attached = ifc
-	}
-}
-
 func Start(owner *Reticulum) {
-	StartTime = time.Now()
 	Owner = owner
 	// jobsMu is initialized at declaration; no special startup needed.
 	// Python: Transport.cache_last_cleaned = time.time() + 60
 	LastCacheCleaned = time.Now().Add(60 * time.Second)
-	ensureTransportIdentity()
-	loadPacketHashlist()
+	if TransportIdentity == nil && Owner != nil {
+		identityPath := filepath.Join(Owner.StoragePath, "transport_identity")
+		if fileExists(identityPath) {
+			if id, err := IdentityFromFile(identityPath); err == nil {
+				TransportIdentity = id
+				Log("Loaded Transport Identity from storage", LogVerbose)
+			}
+		}
+		if TransportIdentity == nil {
+			Log("No valid Transport Identity in storage, creating...", LogVerbose)
+			if id, err := NewIdentity(); err == nil {
+				TransportIdentity = id
+				_ = os.MkdirAll(Owner.StoragePath, 0o755)
+				_ = TransportIdentity.Save(identityPath)
+			}
+		}
+	}
+
+	if Owner != nil && !Owner.IsConnectedToSharedInstance {
+		packetHashlistPath := filepath.Join(Owner.StoragePath, "packet_hashlist")
+		if fileExists(packetHashlistPath) {
+			data, err := os.ReadFile(packetHashlistPath)
+			if err != nil {
+				Logf(LogError, "Could not load packet hashlist from storage: %v", err)
+			} else {
+				var hashes [][]byte
+				if err := umsgpack.Unpackb(data, &hashes); err != nil {
+					if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+						backupPath := fmt.Sprintf("%s.corrupt.%d", packetHashlistPath, time.Now().UnixNano())
+						if renameErr := os.Rename(packetHashlistPath, backupPath); renameErr != nil {
+							_ = os.Remove(packetHashlistPath)
+						} else {
+							Logf(LogWarning, "Packet hashlist storage was truncated; moved to %s", backupPath)
+						}
+					} else {
+						Logf(LogError, "Could not decode packet hashlist from storage: %v", err)
+					}
+				} else {
+					packetHashMu.Lock()
+					for _, h := range hashes {
+						if len(h) != truncatedHashBytes {
+							continue
+						}
+						var k hashKey
+						copy(k[:], h)
+						PacketHashSet[k] = struct{}{}
+					}
+					packetHashMu.Unlock()
+				}
+			}
+		}
+	}
 	reloadBlackhole()
-	loadDestinationTable()
-	loadTunnelTable()
-	configureControlDestinations()
+
+	if pathRequestDest == nil {
+		dest, err := NewDestination(nil, DestinationIN, DestinationPLAIN, "rnstransport", "path", "request")
+		if err == nil {
+			pathRequestDest = dest
+			pathRequestDest.SetPacketCallback(pathRequestHandler)
+			controlDestinations = append(controlDestinations, dest)
+			controlHashesMu.Lock()
+			controlHashes[string(dest.Hash())] = struct{}{}
+			controlHashesMu.Unlock()
+		} else {
+			Logf(LogError, "Could not create path request destination: %v", err)
+		}
+	}
+	if tunnelSynthesizeDest == nil {
+		dest, err := NewDestination(nil, DestinationIN, DestinationPLAIN, "rnstransport", "tunnel", "synthesize")
+		if err == nil {
+			tunnelSynthesizeDest = dest
+			tunnelSynthesizeDest.SetPacketCallback(tunnelSynthesizeHandler)
+			controlDestinations = append(controlDestinations, dest)
+			controlHashesMu.Lock()
+			controlHashes[string(dest.Hash())] = struct{}{}
+			controlHashesMu.Unlock()
+		} else {
+			Logf(LogError, "Could not create tunnel synthesize destination: %v", err)
+		}
+	}
+
+	remoteManagementActive = false
+	if RemoteManagementEnabled() && Owner != nil && !Owner.IsConnectedToSharedInstance && TransportIdentity != nil {
+		if remoteManagementDest == nil {
+			dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, "rnstransport", "remote", "management")
+			if err != nil {
+				Logf(LogError, "Could not create remote management destination: %v", err)
+			} else {
+				remoteManagementDest = dest
+				controlDestinations = append(controlDestinations, dest)
+			}
+		}
+		if remoteManagementDest != nil {
+			remoteManagementAllowedMu.RLock()
+			allowed := make([][]byte, 0, len(remoteManagementAllowed))
+			for _, v := range remoteManagementAllowed {
+				allowed = append(allowed, append([]byte(nil), v...))
+			}
+			remoteManagementAllowedMu.RUnlock()
+
+			if err := remoteManagementDest.RegisterRequestHandler("/status", remoteStatusHandler, DestinationALLOW_LIST, allowed); err != nil {
+				Logf(LogError, "Could not register remote status handler: %v", err)
+			} else if err := remoteManagementDest.RegisterRequestHandler("/path", remotePathHandler, DestinationALLOW_LIST, allowed); err != nil {
+				Logf(LogError, "Could not register remote path handler: %v", err)
+				remoteManagementDest.DeregisterRequestHandler("/status")
+			} else {
+				controlHashesMu.Lock()
+				controlHashes[string(remoteManagementDest.Hash())] = struct{}{}
+				controlHashesMu.Unlock()
+				Logf(LogNotice, "Enabled remote management on %s", remoteManagementDest)
+				remoteManagementActive = true
+			}
+		}
+	}
+
+	if !PublishBlackholeEnabled() || Owner == nil || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
+		if blackholeDestination != nil {
+			blackholeDestination.DeregisterRequestHandler("/list")
+		}
+		blackholeDestination = nil
+	} else {
+		if blackholeDestination == nil {
+			dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "info", "blackhole")
+			if err != nil {
+				Logf(LogError, "Could not create blackhole destination: %v", err)
+			} else {
+				blackholeDestination = dest
+			}
+		}
+		if blackholeDestination != nil {
+			if err := blackholeDestination.RegisterRequestHandler("/list", blackholeListHandler, DestinationALLOW_ALL, nil); err != nil {
+				Logf(LogError, "Could not register blackhole list handler: %v", err)
+			}
+		}
+	}
+
+	if Owner != nil && !Owner.IsConnectedToSharedInstance && NetworkIdentity != nil {
+		if instanceDestination == nil {
+			dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network", "instance", strings.ToLower(hex.EncodeToString(NetworkIdentity.Hash)))
+			if err != nil {
+				Logf(LogError, "Could not create network instance destination: %v", err)
+			} else {
+				instanceDestination = dest
+			}
+		}
+		if networkDestination == nil {
+			dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network")
+			if err != nil {
+				Logf(LogError, "Could not create network destination: %v", err)
+			} else {
+				networkDestination = dest
+			}
+		}
+	}
+
+	mgmtDestinations = mgmtDestinations[:0]
+	if remoteManagementActive && remoteManagementDest != nil {
+		mgmtDestinations = append(mgmtDestinations, remoteManagementDest)
+	}
+	if blackholeDestination != nil {
+		mgmtDestinations = append(mgmtDestinations, blackholeDestination)
+	}
+	if Owner != nil && !Owner.IsConnectedToSharedInstance && NetworkIdentity != nil {
+		if instanceDestination != nil {
+			mgmtDestinations = append(mgmtDestinations, instanceDestination)
+		}
+		if networkDestination != nil {
+			mgmtDestinations = append(mgmtDestinations, networkDestination)
+		}
+	}
 	LastMgmtAnnounce = time.Now().Add(-(mgmtAnnounceInterval - initialMgmtAnnounceWait))
 
-	// ... the rest of start() is ported here:
-	// loading identities, tables, probe destination, etc.
+	// start background loops
+	go JobLoop()
+	go CountTrafficLoop()
+
+	if TransportEnabled() && Owner != nil && !Owner.IsConnectedToSharedInstance {
+		pathTablePath := filepath.Join(Owner.StoragePath, "destination_table")
+		if fileExists(pathTablePath) {
+			data, err := os.ReadFile(pathTablePath)
+			if err != nil {
+				Logf(LogError, "Could not load destination table from storage: %v", err)
+			} else {
+				var rawEntries [][]any
+				if err := umsgpack.Unpackb(data, &rawEntries); err != nil {
+					if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+						backupPath := fmt.Sprintf("%s.corrupt.%d", pathTablePath, time.Now().UnixNano())
+						if renameErr := os.Rename(pathTablePath, backupPath); renameErr != nil {
+							_ = os.Remove(pathTablePath)
+						} else {
+							Logf(LogWarning, "Destination table storage was truncated; moved to %s", backupPath)
+						}
+					} else {
+						Logf(LogError, "Could not decode destination table from storage: %v", err)
+					}
+				} else {
+					loaded := 0
+					for _, re := range rawEntries {
+						if len(re) <= IdxPTPacket {
+							continue
+						}
+						dst, _ := re[IdxPTDstHash].([]byte)
+						if len(dst) != truncatedHashBytes {
+							continue
+						}
+						ts := 0.0
+						switch v := re[IdxPTTimestamp].(type) {
+						case float64:
+							ts = v
+						case float32:
+							ts = float64(v)
+						case int:
+							ts = float64(v)
+						case int8:
+							ts = float64(v)
+						case int16:
+							ts = float64(v)
+						case int32:
+							ts = float64(v)
+						case int64:
+							ts = float64(v)
+						case uint:
+							ts = float64(v)
+						case uint8:
+							ts = float64(v)
+						case uint16:
+							ts = float64(v)
+						case uint32:
+							ts = float64(v)
+						case uint64:
+							ts = float64(v)
+						}
+						nextHop, _ := re[IdxPTNextHop].([]byte)
+						hops := 0
+						switch v := re[IdxPTHops].(type) {
+						case int:
+							hops = v
+						case int8:
+							hops = int(v)
+						case int16:
+							hops = int(v)
+						case int32:
+							hops = int(v)
+						case int64:
+							hops = int(v)
+						case uint:
+							hops = int(v)
+						case uint8:
+							hops = int(v)
+						case uint16:
+							hops = int(v)
+						case uint32:
+							hops = int(v)
+						case uint64:
+							hops = int(v)
+						case float32:
+							hops = int(v)
+						case float64:
+							hops = int(v)
+						}
+						exp := 0.0
+						switch v := re[IdxPTExpires].(type) {
+						case float64:
+							exp = v
+						case float32:
+							exp = float64(v)
+						case int:
+							exp = float64(v)
+						case int8:
+							exp = float64(v)
+						case int16:
+							exp = float64(v)
+						case int32:
+							exp = float64(v)
+						case int64:
+							exp = float64(v)
+						case uint:
+							exp = float64(v)
+						case uint8:
+							exp = float64(v)
+						case uint16:
+							exp = float64(v)
+						case uint32:
+							exp = float64(v)
+						case uint64:
+							exp = float64(v)
+						}
+
+						var randomBlobs [][]byte
+						if rb, ok := re[IdxPTRandBlobs].([]any); ok {
+							for _, item := range rb {
+								if b, ok := item.([]byte); ok && len(b) > 0 {
+									randomBlobs = append(randomBlobs, b)
+								}
+							}
+						}
+
+						ifHash, _ := re[IdxPTRcvdIf].([]byte)
+						recvIf := findInterfaceFromHash(ifHash)
+						packetHash, _ := re[IdxPTPacket].([]byte)
+
+						path := ""
+						if Owner != nil && len(packetHash) > 0 {
+							path = filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
+						}
+						if path == "" {
+							continue
+						}
+						data, err := os.ReadFile(path)
+						if err != nil || len(data) == 0 || recvIf == nil {
+							continue
+						}
+						var cached []any
+						if err := umsgpack.Unpackb(data, &cached); err != nil || len(cached) < 1 {
+							continue
+						}
+						rawAnnounce, ok := cached[0].([]byte)
+						if !ok || len(rawAnnounce) == 0 {
+							continue
+						}
+						if identity := IdentityRecall(dst); identity != nil {
+							key, ok := func(hash []byte) (hashKey, bool) {
+								if len(hash) < truncatedHashBytes {
+									return hashKey{}, false
+								}
+								var key hashKey
+								copy(key[:], hash[:truncatedHashBytes])
+								return key, true
+							}(identity.Hash)
+							if ok {
+								blackholeMu.RLock()
+								_, blackholed := blackholedIdentities[key]
+								blackholeMu.RUnlock()
+								if blackholed {
+									continue
+								}
+							}
+						}
+
+						announce := NewPacket(nil, rawAnnounce)
+						if announce == nil || !announce.Unpack() {
+							continue
+						}
+						announce.Hops += 1
+
+						key, ok := func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}(dst)
+						if !ok {
+							continue
+						}
+						entry := &PathEntry{
+							NextHop:       append([]byte(nil), nextHop...),
+							RecvInterface: recvIf,
+							Hops:          hops,
+							Timestamp: func() time.Time {
+								sec, frac := math.Modf(ts)
+								if sec < 0 {
+									return time.Unix(0, 0)
+								}
+								return time.Unix(int64(sec), int64(frac*1e9))
+							}(),
+							ExpiresAt: func() time.Time {
+								sec, frac := math.Modf(exp)
+								if sec < 0 {
+									return time.Unix(0, 0)
+								}
+								return time.Unix(int64(sec), int64(frac*1e9))
+							}(),
+							RandomBlobs: randomBlobs,
+							PacketHash:  append([]byte(nil), packetHash...),
+						}
+
+						pathTableMu.Lock()
+						pathTable[key] = entry
+						pathTableMu.Unlock()
+						loaded++
+					}
+					if loaded > 0 {
+						Logf(LogVerbose, "Loaded %d path table entries from storage", loaded)
+					}
+				}
+			}
+		}
+
+		tunnelTablePath := filepath.Join(Owner.StoragePath, "tunnels")
+		if fileExists(tunnelTablePath) {
+			data, err := os.ReadFile(tunnelTablePath)
+			if err != nil {
+				Logf(LogError, "Could not load tunnel table from storage: %v", err)
+			} else {
+				var rawTunnels []any
+				if err := umsgpack.Unpackb(data, &rawTunnels); err != nil {
+					if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+						backupPath := fmt.Sprintf("%s.corrupt.%d", tunnelTablePath, time.Now().UnixNano())
+						if renameErr := os.Rename(tunnelTablePath, backupPath); renameErr != nil {
+							_ = os.Remove(tunnelTablePath)
+						} else {
+							Logf(LogWarning, "Tunnel table storage was truncated; moved to %s", backupPath)
+						}
+					} else {
+						Logf(LogError, "Could not decode tunnel table from storage: %v", err)
+					}
+				} else {
+					loaded := 0
+					for _, t := range rawTunnels {
+						tlist, ok := t.([]any)
+						if !ok || len(tlist) <= IdxTTExpires {
+							continue
+						}
+						tunnelID, _ := tlist[IdxTTTunnelID].([]byte)
+						if len(tunnelID) != HashLengthBytes {
+							continue
+						}
+						ifHash, _ := tlist[IdxTTIf].([]byte)
+						serialisedPathsAny := tlist[IdxTTPaths]
+						expires := 0.0
+						switch v := tlist[IdxTTExpires].(type) {
+						case float64:
+							expires = v
+						case float32:
+							expires = float64(v)
+						case int:
+							expires = float64(v)
+						case int8:
+							expires = float64(v)
+						case int16:
+							expires = float64(v)
+						case int32:
+							expires = float64(v)
+						case int64:
+							expires = float64(v)
+						case uint:
+							expires = float64(v)
+						case uint8:
+							expires = float64(v)
+						case uint16:
+							expires = float64(v)
+						case uint32:
+							expires = float64(v)
+						case uint64:
+							expires = float64(v)
+						}
+						ifc := findInterfaceFromHash(ifHash)
+
+						te := &tunnelEntry{
+							ID:        append([]byte(nil), tunnelID...),
+							Interface: ifc,
+							ExpiresAt: func() time.Time {
+								sec, frac := math.Modf(expires)
+								if sec < 0 {
+									return time.Unix(0, 0)
+								}
+								return time.Unix(int64(sec), int64(frac*1e9))
+							}(),
+							Paths: make(map[string]*tunnelPathEntry),
+						}
+
+						if serialisedPaths, ok := serialisedPathsAny.([]any); ok && len(serialisedPaths) > 0 {
+							for _, sp := range serialisedPaths {
+								elist, ok := sp.([]any)
+								if !ok || len(elist) <= IdxPTPacket {
+									continue
+								}
+								dstHash, _ := elist[IdxPTDstHash].([]byte)
+								if len(dstHash) != truncatedHashBytes {
+									continue
+								}
+								ts := 0.0
+								switch v := elist[IdxPTTimestamp].(type) {
+								case float64:
+									ts = v
+								case float32:
+									ts = float64(v)
+								case int:
+									ts = float64(v)
+								case int8:
+									ts = float64(v)
+								case int16:
+									ts = float64(v)
+								case int32:
+									ts = float64(v)
+								case int64:
+									ts = float64(v)
+								case uint:
+									ts = float64(v)
+								case uint8:
+									ts = float64(v)
+								case uint16:
+									ts = float64(v)
+								case uint32:
+									ts = float64(v)
+								case uint64:
+									ts = float64(v)
+								}
+								receivedFrom, _ := elist[IdxPTNextHop].([]byte)
+								hops := 0
+								switch v := elist[IdxPTHops].(type) {
+								case int:
+									hops = v
+								case int8:
+									hops = int(v)
+								case int16:
+									hops = int(v)
+								case int32:
+									hops = int(v)
+								case int64:
+									hops = int(v)
+								case uint:
+									hops = int(v)
+								case uint8:
+									hops = int(v)
+								case uint16:
+									hops = int(v)
+								case uint32:
+									hops = int(v)
+								case uint64:
+									hops = int(v)
+								case float32:
+									hops = int(v)
+								case float64:
+									hops = int(v)
+								}
+								exp := 0.0
+								switch v := elist[IdxPTExpires].(type) {
+								case float64:
+									exp = v
+								case float32:
+									exp = float64(v)
+								case int:
+									exp = float64(v)
+								case int8:
+									exp = float64(v)
+								case int16:
+									exp = float64(v)
+								case int32:
+									exp = float64(v)
+								case int64:
+									exp = float64(v)
+								case uint:
+									exp = float64(v)
+								case uint8:
+									exp = float64(v)
+								case uint16:
+									exp = float64(v)
+								case uint32:
+									exp = float64(v)
+								case uint64:
+									exp = float64(v)
+								}
+
+								blobs := make([][]byte, 0)
+								if blobsAny, ok := elist[IdxPTRandBlobs].([]any); ok {
+									seen := make(map[string]struct{})
+									for _, b := range blobsAny {
+										bb, ok := b.([]byte)
+										if !ok || len(bb) == 0 {
+											continue
+										}
+										key := string(bb)
+										if _, exists := seen[key]; exists {
+											continue
+										}
+										seen[key] = struct{}{}
+										blobs = append(blobs, append([]byte(nil), bb...))
+									}
+								}
+
+								packetHash, _ := elist[IdxPTPacket].([]byte)
+								if len(packetHash) == 0 {
+									continue
+								}
+
+								te.Paths[string(dstHash)] = &tunnelPathEntry{
+									Timestamp: func() time.Time {
+										sec, frac := math.Modf(ts)
+										if sec < 0 {
+											return time.Unix(0, 0)
+										}
+										return time.Unix(int64(sec), int64(frac*1e9))
+									}(),
+									ReceivedFrom: append([]byte(nil), receivedFrom...),
+									Hops:         hops,
+									ExpiresAt: func() time.Time {
+										sec, frac := math.Modf(exp)
+										if sec < 0 {
+											return time.Unix(0, 0)
+										}
+										return time.Unix(int64(sec), int64(frac*1e9))
+									}(),
+									RandomBlobs: blobs,
+									PacketHash:  append([]byte(nil), packetHash...),
+								}
+							}
+							if len(te.Paths) == 0 {
+								continue
+							}
+						} else {
+							te.Paths = nil
+						}
+
+						tunnelsMu.Lock()
+						tunnels[string(tunnelID)] = te
+						tunnelsMu.Unlock()
+						if ifc != nil {
+							ifc.TunnelID = append([]byte(nil), tunnelID...)
+						}
+						loaded++
+					}
+					if loaded > 0 {
+						Logf(LogVerbose, "Loaded %d tunnel table entries from storage", loaded)
+					}
+				}
+			}
+		}
+	}
+
+	if TransportEnabled() && ProbeDestinationEnabled() && Owner != nil && !Owner.IsConnectedToSharedInstance && TransportIdentity != nil {
+		if ProbeDestination == nil {
+			dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "probe")
+			if err == nil {
+				ProbeDestination = dest
+			} else {
+				Logf(LogError, "Could not create probe destination: %v", err)
+			}
+		}
+		if ProbeDestination != nil {
+			ProbeDestination.AcceptsLinks(false)
+			_ = ProbeDestination.SetProofStrategy(DestinationPROVE_ALL)
+			ProbeDestination.Announce(nil, false, nil, nil, true)
+			Logf(LogNotice, "Transport Instance will respond to probe requests on %s", ProbeDestination)
+		}
+	} else if ProbeDestination != nil {
+		DeregisterDestination(ProbeDestination)
+		ProbeDestination = nil
+	}
+	mgmtDestinations = mgmtDestinations[:0]
+	if remoteManagementActive && remoteManagementDest != nil {
+		mgmtDestinations = append(mgmtDestinations, remoteManagementDest)
+	}
+	if blackholeDestination != nil {
+		mgmtDestinations = append(mgmtDestinations, blackholeDestination)
+	}
+	if Owner != nil && !Owner.IsConnectedToSharedInstance && NetworkIdentity != nil {
+		if instanceDestination != nil {
+			mgmtDestinations = append(mgmtDestinations, instanceDestination)
+		}
+		if networkDestination != nil {
+			mgmtDestinations = append(mgmtDestinations, networkDestination)
+		}
+	}
+	if ProbeDestination != nil {
+		mgmtDestinations = append(mgmtDestinations, ProbeDestination)
+	}
+	if TransportIdentity != nil {
+		Logf(LogVerbose, "Transport instance %s started", TransportIdentity)
+	}
+	if TransportEnabled() {
+		StartTime = time.Now()
+	}
 
 	// sort interfaces by bitrate
 	PrioritizeInterfaces()
 
 	// Python parity: Synthesize tunnels for any interfaces wanting it.
-	for _, ifc := range interfacesSnapshot() {
-		if ifc == nil {
-			continue
-		}
-		ifc.TunnelID = nil
+	for _, ifc := range Interfaces {
 		if ifc.WantsTunnel {
 			SynthesizeTunnel(ifc)
-			ifc.WantsTunnel = false
 		}
 	}
 
-	// start background loops
-	go JobLoop()
-	go CountTrafficLoop()
-}
-
-func interfaceHash(ifc *Interface) []byte {
-	if ifc == nil {
-		return nil
-	}
-	return FullHash([]byte(ifc.String()))
+	runtime.GC()
 }
 
 func findInterfaceFromHash(hash []byte) *Interface {
-	if len(hash) == 0 {
-		return nil
-	}
-	for _, ifc := range interfacesSnapshot() {
-		if ifc == nil {
-			continue
-		}
-		if bytes.Equal(interfaceHash(ifc), hash) {
+	for _, ifc := range Interfaces {
+		if ifc != nil && bytes.Equal(ifc.GetHash(), hash) {
 			return ifc
 		}
 	}
 	return nil
 }
 
-func announceCachePath(packetHash []byte) string {
-	if Owner == nil || len(packetHash) == 0 {
-		return ""
-	}
-	return filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
-}
-
-func packetCachePath(packetHash []byte) string {
-	if Owner == nil || len(packetHash) == 0 {
-		return ""
-	}
-	return filepath.Join(Owner.CachePath, hex.EncodeToString(packetHash))
-}
-
-// readCachedAnnounceRaw loads an announce packet from cache in Python format:
-// umsgpack([raw_bytes, interface_reference]).
-func readCachedAnnounceRaw(packetHash []byte) ([]byte, error) {
-	path := announceCachePath(packetHash)
-	if path == "" {
-		return nil, fs.ErrInvalid
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(data) == 0 {
-		return nil, io.EOF
-	}
-
-	var cached []any
-	if err := umsgpack.Unpackb(data, &cached); err != nil {
-		return nil, err
-	}
-	if len(cached) < 1 {
-		return nil, errors.New("invalid cached announce format")
-	}
-	raw, ok := asBytesValue(cached[0])
-	if !ok || len(raw) == 0 {
-		return nil, errors.New("invalid cached announce raw bytes")
-	}
-	return raw, nil
-}
-
-func readCachedPacketRaw(packetHash []byte) ([]byte, *Interface, error) {
-	path := packetCachePath(packetHash)
-	if path == "" {
-		return nil, nil, fs.ErrInvalid
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(data) == 0 {
-		return nil, nil, io.EOF
-	}
-	var cached []any
-	if err := umsgpack.Unpackb(data, &cached); err != nil {
-		return nil, nil, err
-	}
-	if len(cached) < 1 {
-		return nil, nil, errors.New("invalid cached packet format")
-	}
-	raw, ok := asBytesValue(cached[0])
-	if !ok || len(raw) == 0 {
-		return nil, nil, errors.New("invalid cached packet raw bytes")
-	}
-	var recvIf *Interface
-	if len(cached) > 1 {
-		if ref, ok := cached[1].(string); ok && ref != "" {
-			// Best-effort: match by Interface.String().
-			for _, ifc := range interfacesSnapshot() {
-				if ifc != nil && ifc.String() == ref {
-					recvIf = ifc
-					break
-				}
-			}
-		}
-	}
-	return raw, recvIf, nil
-}
-
-func loadDestinationTable() {
-	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
-		return
-	}
-	path := filepath.Join(Owner.StoragePath, "destination_table")
-	if !fileExists(path) {
-		return
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		Logf(LogError, "Could not load destination table from storage: %v", err)
-		return
-	}
-
-	var rawEntries [][]any
-	if err := umsgpack.Unpackb(data, &rawEntries); err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			backupPath := fmt.Sprintf("%s.corrupt.%d", path, time.Now().UnixNano())
-			if renameErr := os.Rename(path, backupPath); renameErr != nil {
-				_ = os.Remove(path)
-			} else {
-				Logf(LogWarning, "Destination table storage was truncated; moved to %s", backupPath)
-			}
-			return
-		}
-		Logf(LogError, "Could not decode destination table from storage: %v", err)
-		return
-	}
-
-	loaded := 0
-	for _, re := range rawEntries {
-		if len(re) < 8 {
-			continue
-		}
-		dst, _ := asBytesValue(re[0])
-		if len(dst) != truncatedHashBytes {
-			continue
-		}
-		ts, _ := asFloatValue(re[1])
-		nextHop, _ := asBytesValue(re[2])
-		hops, _ := asIntValue(re[3])
-		exp, _ := asFloatValue(re[4])
-
-		var randomBlobs [][]byte
-		if rb, ok := re[5].([]any); ok {
-			for _, item := range rb {
-				if b, ok := asBytesValue(item); ok && len(b) > 0 {
-					randomBlobs = append(randomBlobs, b)
-				}
-			}
-		}
-
-		ifHash, _ := asBytesValue(re[6])
-		recvIf := findInterfaceFromHash(ifHash)
-		packetHash, _ := asBytesValue(re[7])
-
-		rawAnnounce, err := readCachedAnnounceRaw(packetHash)
-		if err != nil || len(rawAnnounce) == 0 || recvIf == nil {
-			continue
-		}
-		if identity := IdentityRecall(dst); identity != nil && isBlackholedIdentity(identity.Hash) {
-			continue
-		}
-
-		announce := NewPacket(nil, rawAnnounce)
-		if announce == nil || !announce.Unpack() {
-			continue
-		}
-		announce.Hops += 1
-
-		key, ok := makeHashKey(dst)
-		if !ok {
-			continue
-		}
-		entry := &PathEntry{
-			NextHop:       append([]byte(nil), nextHop...),
-			RecvInterface: recvIf,
-			Hops:          hops,
-			Timestamp:     timeFromFloatSeconds(ts),
-			ExpiresAt:     timeFromFloatSeconds(exp),
-			RandomBlobs:   randomBlobs,
-			PacketHash:    append([]byte(nil), packetHash...),
-		}
-
-		pathTableMu.Lock()
-		pathTable[key] = entry
-		pathTableMu.Unlock()
-		loaded++
-	}
-	if loaded > 0 {
-		Logf(LogVerbose, "Loaded %d path table entries from storage", loaded)
-	}
-}
-
-func loadTunnelTable() {
-	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
-		return
-	}
-	path := filepath.Join(Owner.StoragePath, "tunnels")
-	if !fileExists(path) {
-		return
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		Logf(LogError, "Could not load tunnel table from storage: %v", err)
-		return
-	}
-
-	var rawTunnels []any
-	if err := umsgpack.Unpackb(data, &rawTunnels); err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			backupPath := fmt.Sprintf("%s.corrupt.%d", path, time.Now().UnixNano())
-			if renameErr := os.Rename(path, backupPath); renameErr != nil {
-				_ = os.Remove(path)
-			} else {
-				Logf(LogWarning, "Tunnel table storage was truncated; moved to %s", backupPath)
-			}
-			return
-		}
-		Logf(LogError, "Could not decode tunnel table from storage: %v", err)
-		return
-	}
-
-	loaded := 0
-	for _, t := range rawTunnels {
-		tlist, ok := t.([]any)
-		if !ok || len(tlist) < 4 {
-			continue
-		}
-		tunnelID, _ := asBytesValue(tlist[0])
-		if len(tunnelID) != HashLengthBytes {
-			// Python uses full hash (32 bytes) for tunnel_id
-			continue
-		}
-		ifHash, _ := asBytesValue(tlist[1])
-		serialisedPathsAny := tlist[2]
-		expires, _ := asFloatValue(tlist[3])
-		ifc := findInterfaceFromHash(ifHash)
-
-		te := &tunnelEntry{
-			ID:        append([]byte(nil), tunnelID...),
-			Interface: ifc,
-			ExpiresAt: timeFromFloatSeconds(expires),
-			Paths:     make(map[string]*tunnelPathEntry),
-		}
-
-		if serialisedPaths, ok := serialisedPathsAny.([]any); ok && len(serialisedPaths) > 0 {
-			for _, sp := range serialisedPaths {
-				elist, ok := sp.([]any)
-				if !ok || len(elist) < 8 {
-					continue
-				}
-				dstHash, _ := asBytesValue(elist[0])
-				if len(dstHash) != truncatedHashBytes {
-					continue
-				}
-				ts, _ := asFloatValue(elist[1])
-				receivedFrom, _ := asBytesValue(elist[2])
-				hops, _ := asIntValue(elist[3])
-				exp, _ := asFloatValue(elist[4])
-
-				blobs := make([][]byte, 0)
-				if blobsAny, ok := elist[5].([]any); ok {
-					seen := make(map[string]struct{})
-					for _, b := range blobsAny {
-						bb, ok := asBytesValue(b)
-						if !ok || len(bb) == 0 {
-							continue
-						}
-						key := string(bb)
-						if _, exists := seen[key]; exists {
-							continue
-						}
-						seen[key] = struct{}{}
-						blobs = append(blobs, append([]byte(nil), bb...))
-					}
-				}
-
-				packetHash, _ := asBytesValue(elist[7])
-				if len(packetHash) == 0 {
-					continue
-				}
-
-				te.Paths[string(dstHash)] = &tunnelPathEntry{
-					Timestamp:    timeFromFloatSeconds(ts),
-					ReceivedFrom: append([]byte(nil), receivedFrom...),
-					Hops:         hops,
-					ExpiresAt:    timeFromFloatSeconds(exp),
-					RandomBlobs:  blobs,
-					PacketHash:   append([]byte(nil), packetHash...),
-				}
-			}
-			if len(te.Paths) == 0 {
-				// Match Python: only keep tunnel entries with at least one path.
-				continue
-			}
-		} else {
-			// Keep empty path table entries.
-			te.Paths = nil
-		}
-
-		tunnelsMu.Lock()
-		tunnels[string(tunnelID)] = te
-		tunnelsMu.Unlock()
-		if ifc != nil {
-			ifc.TunnelID = append([]byte(nil), tunnelID...)
-		}
-		loaded++
-	}
-	if loaded > 0 {
-		Logf(LogVerbose, "Loaded %d tunnel table entries from storage", loaded)
-	}
-}
-
-func blackholeStoragePath() string {
-	if Owner == nil || strings.TrimSpace(Owner.StoragePath) == "" {
-		return ""
-	}
-	return filepath.Join(Owner.StoragePath, "blackhole")
-}
-
-func blackholeLocalPath() string {
-	base := blackholeStoragePath()
-	if base == "" {
-		return ""
-	}
-	return filepath.Join(base, "local")
-}
-
-func isBlackholedIdentity(identityHash []byte) bool {
-	key, ok := makeHashKey(identityHash)
-	if !ok {
-		return false
-	}
-	blackholeMu.RLock()
-	_, exists := blackholedIdentities[key]
-	blackholeMu.RUnlock()
-	return exists
-}
-
-func serialisableBlackholeEntry(entry *blackholeEntry) map[string]any {
-	if entry == nil {
-		return map[string]any{"source": nil, "until": nil, "reason": nil}
-	}
-	out := map[string]any{
-		"source": copyBytes(entry.Source),
-		"until":  nil,
-		"reason": nil,
-	}
-	if entry.Until != nil && !entry.Until.IsZero() {
-		out["until"] = float64(entry.Until.UnixNano()) / 1e9
-	}
-	if entry.Reason != nil {
-		out["reason"] = *entry.Reason
-	}
-	return out
-}
-
-func blackholeListSnapshot() map[hashKey]map[string]any {
-	blackholeMu.RLock()
-	defer blackholeMu.RUnlock()
-	out := make(map[hashKey]map[string]any, len(blackholedIdentities))
-	for key, entry := range blackholedIdentities {
-		out[key] = serialisableBlackholeEntry(entry)
-	}
-	return out
-}
-
-// BlackholedIdentities returns a snapshot of the current blackhole table.
-// The snapshot mirrors Python Transport.blackholed_identities semantics while
-// keeping Go callers insulated from internal state mutation.
-func BlackholedIdentities() map[hashKey]map[string]any {
-	return blackholeListSnapshot()
-}
-
-func blackholeKeyFromValue(value any) (hashKey, bool) {
-	switch v := value.(type) {
-	case string:
-		return makeHashKey([]byte(v))
-	case umsgpack.BinaryKey:
-		return makeHashKey([]byte(string(v)))
-	case []byte:
-		return makeHashKey(v)
-	default:
-		return hashKey{}, false
-	}
-}
-
-func blackholeEntryFromValue(value any, sourceOverride []byte, now time.Time) *blackholeEntry {
-	raw, ok := value.(map[any]any)
-	if !ok {
-		if typed, ok := value.(map[string]any); ok {
-			raw = make(map[any]any, len(typed))
-			for k, v := range typed {
-				raw[k] = v
-			}
-		} else {
-			return nil
-		}
-	}
-
-	entry := &blackholeEntry{Source: copyBytes(sourceOverride)}
-	if len(entry.Source) == 0 {
-		if source, ok := asBytesValue(raw["source"]); ok && len(source) > 0 {
-			entry.Source = source
-		}
-	}
-	if untilVal, exists := raw["until"]; exists && untilVal != nil {
-		if untilUnix, ok := asFloatValue(untilVal); ok && untilUnix > 0 {
-			until := timeFromFloatSeconds(untilUnix)
-			if now.After(until) {
-				return nil
-			}
-			entry.Until = &until
-		}
-	}
-	if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
-		if reason, ok := asStringValue(reasonVal); ok {
-			entry.Reason = &reason
-		}
-	}
-	return entry
-}
-
-func blackholeListFromValue(value any, sourceOverride []byte, now time.Time) map[hashKey]*blackholeEntry {
-	out := make(map[hashKey]*blackholeEntry)
-	switch typed := value.(type) {
-	case map[hashKey]map[string]any:
-		for key, entryValue := range typed {
-			entry := blackholeEntryFromValue(entryValue, sourceOverride, now)
-			if entry != nil {
-				out[key] = entry
-			}
-		}
-	case map[hashKey]any:
-		for key, entryValue := range typed {
-			entry := blackholeEntryFromValue(entryValue, sourceOverride, now)
-			if entry != nil {
-				out[key] = entry
-			}
-		}
-	case map[any]any:
-		for rawKey, rawValue := range typed {
-			key, ok := blackholeKeyFromValue(rawKey)
-			if !ok {
-				continue
-			}
-			entry := blackholeEntryFromValue(rawValue, sourceOverride, now)
-			if entry != nil {
-				out[key] = entry
-			}
-		}
-	case map[string]any:
-		for rawKey, rawValue := range typed {
-			key, ok := blackholeKeyFromValue(rawKey)
-			if !ok {
-				continue
-			}
-			entry := blackholeEntryFromValue(rawValue, sourceOverride, now)
-			if entry != nil {
-				out[key] = entry
-			}
-		}
-	}
-	return out
-}
-
-func blackholeSourcePath(sourceIdentityHash []byte) string {
-	basePath := blackholeStoragePath()
-	if basePath == "" {
-		return ""
-	}
-	if TransportIdentity != nil && bytesEqual(sourceIdentityHash, TransportIdentity.Hash) {
-		return filepath.Join(basePath, "local")
-	}
-	if len(sourceIdentityHash) != truncatedHashBytes {
-		return ""
-	}
-	return filepath.Join(basePath, hex.EncodeToString(sourceIdentityHash))
-}
-
-func persistBlackholeSource(sourceIdentityHash []byte, entries map[hashKey]map[string]any) error {
-	path := blackholeSourcePath(sourceIdentityHash)
-	if path == "" {
-		return nil
-	}
-	payload := make(map[any]any, len(entries))
-	for key, entry := range entries {
-		payload[umsgpack.BinaryKey(string(key[:]))] = entry
-	}
-	packed, err := umsgpack.Packb(payload)
-	if err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	if fileExists(path) {
-		_ = os.Remove(path)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	return nil
-}
-
-func mergeRemoteBlackhole(sourceIdentityHash []byte, value any, now time.Time) int {
-	if len(sourceIdentityHash) != truncatedHashBytes {
-		return 0
-	}
-	decoded := blackholeListFromValue(value, sourceIdentityHash, now)
-	if len(decoded) == 0 {
-		return 0
-	}
-
-	added := 0
-	serialisable := make(map[hashKey]map[string]any, len(decoded))
-	blackholeMu.Lock()
-	for key, entry := range decoded {
-		if entry == nil {
-			continue
-		}
-		serialisable[key] = serialisableBlackholeEntry(entry)
-		if _, exists := blackholedIdentities[key]; exists {
-			continue
-		}
-		blackholedIdentities[key] = entry
-		added++
-	}
-	blackholeMu.Unlock()
-
-	if added > 0 {
-		removeBlackholedPaths()
-		if err := persistBlackholeSource(sourceIdentityHash, serialisable); err != nil {
-			Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceIdentityHash), err)
-		}
-	}
-	return added
-}
-
-func persistBlackhole() error {
-	localPath := blackholeLocalPath()
-	if localPath == "" || TransportIdentity == nil {
-		return nil
-	}
-
-	blackholeMu.RLock()
-	localBlackhole := make(map[hashKey]map[string]any)
-	for key, entry := range blackholedIdentities {
-		if entry == nil || !bytesEqual(entry.Source, TransportIdentity.Hash) {
-			continue
-		}
-		localBlackhole[key] = serialisableBlackholeEntry(entry)
-	}
-	blackholeMu.RUnlock()
-
-	payload := make(map[any]any, len(localBlackhole))
-	for key, entry := range localBlackhole {
-		payload[umsgpack.BinaryKey(string(key[:]))] = entry
-	}
-	packed, err := umsgpack.Packb(payload)
-	if err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	_ = os.MkdirAll(filepath.Dir(localPath), 0o755)
-	tmpPath := localPath + ".tmp"
-	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	if fileExists(localPath) {
-		_ = os.Remove(localPath)
-	}
-	if err := os.Rename(tmpPath, localPath); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
-		return err
-	}
-	return nil
-}
-
 func reloadBlackhole() {
-	basePath := blackholeStoragePath()
+	basePath := ""
+	if Owner != nil && strings.TrimSpace(Owner.StoragePath) != "" {
+		basePath = filepath.Join(Owner.StoragePath, "blackhole")
+	}
 	if basePath == "" {
 		return
 	}
@@ -1459,8 +1347,6 @@ func reloadBlackhole() {
 	}
 
 	now := time.Now()
-	loaded := make(map[hashKey]*blackholeEntry)
-	enabledSources := BlackholeSources()
 	for _, entry := range entries {
 		if entry == nil || entry.IsDir() {
 			continue
@@ -1468,18 +1354,27 @@ func reloadBlackhole() {
 		name := entry.Name()
 		var sourceIdentityHash []byte
 		if name == "local" {
-			if TransportIdentity == nil {
+			if TransportIdentity != nil {
+				sourceIdentityHash = TransportIdentity.Hash
+			}
+		} else {
+			if len(name) != truncatedHashBytes*2 {
+				err := fmt.Errorf("Identity hash length for blackhole source %s is invalid", name)
+				Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+				TraceException(err)
 				continue
 			}
-			sourceIdentityHash = copyBytes(TransportIdentity.Hash)
-		} else {
 			decoded, err := hex.DecodeString(name)
 			if err != nil || len(decoded) != truncatedHashBytes {
-				Logf(LogError, "Could not load blackholed identities from source file %s: invalid source identity hash", name)
+				if err == nil {
+					err = fmt.Errorf("Identity hash length for blackhole source %s is invalid", name)
+				}
+				Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+				TraceException(err)
 				continue
 			}
 			enabled := false
-			for _, source := range enabledSources {
+			for _, source := range BlackholeSources() {
 				if bytesEqual(source, decoded) {
 					enabled = true
 					break
@@ -1496,46 +1391,164 @@ func reloadBlackhole() {
 		packed, err := os.ReadFile(path)
 		if err != nil {
 			Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+			TraceException(err)
 			continue
 		}
 		raw := map[any]any{}
 		if err := umsgpack.Unpackb(packed, &raw); err != nil {
 			Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+			TraceException(err)
 			continue
 		}
+		blackholeMu.Lock()
 		for rawKey, rawValue := range raw {
-			key, ok := blackholeKeyFromValue(rawKey)
+			var key hashKey
+			var ok bool
+			switch v := rawKey.(type) {
+			case string:
+				if len(v) != truncatedHashBytes {
+					continue
+				}
+				key, ok = func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}([]byte(v))
+			case umsgpack.BinaryKey:
+				if len(v) != truncatedHashBytes {
+					continue
+				}
+				key, ok = func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}([]byte(string(v)))
+			case []byte:
+				if len(v) != truncatedHashBytes {
+					continue
+				}
+				key, ok = func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(v)
+			default:
+				ok = false
+			}
 			if !ok {
 				continue
 			}
-			if existing := loaded[key]; existing != nil && TransportIdentity != nil && bytesEqual(existing.Source, TransportIdentity.Hash) {
+			if existing := blackholedIdentities[key]; existing != nil && TransportIdentity != nil && bytesEqual(existing.Source, TransportIdentity.Hash) {
 				continue
 			}
-			decodedEntry := blackholeEntryFromValue(rawValue, sourceIdentityHash, now)
-			if decodedEntry == nil {
+			raw, ok := rawValue.(map[any]any)
+			if !ok {
 				continue
 			}
-			loaded[key] = decodedEntry
+			decodedEntry := &blackholeEntry{Source: copyBytes(sourceIdentityHash)}
+			if untilVal, exists := raw["until"]; exists && untilVal != nil {
+				untilUnix := 0.0
+				switch v := untilVal.(type) {
+				case float64:
+					untilUnix = v
+				case float32:
+					untilUnix = float64(v)
+				case int:
+					untilUnix = float64(v)
+				case int8:
+					untilUnix = float64(v)
+				case int16:
+					untilUnix = float64(v)
+				case int32:
+					untilUnix = float64(v)
+				case int64:
+					untilUnix = float64(v)
+				case uint:
+					untilUnix = float64(v)
+				case uint8:
+					untilUnix = float64(v)
+				case uint16:
+					untilUnix = float64(v)
+				case uint32:
+					untilUnix = float64(v)
+				case uint64:
+					untilUnix = float64(v)
+				case *float64:
+					if v != nil {
+						untilUnix = *v
+					}
+				}
+				if untilUnix > 0 {
+					sec, frac := math.Modf(untilUnix)
+					until := time.Unix(int64(sec), int64(frac*1e9))
+					if sec < 0 {
+						until = time.Unix(0, 0)
+					}
+					if now.After(until) {
+						continue
+					}
+					decodedEntry.Until = &until
+				}
+			}
+			if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+				switch reason := reasonVal.(type) {
+				case string:
+					decodedEntry.Reason = &reason
+				case []byte:
+					if len(reason) > 0 {
+						reasonStr := string(reason)
+						decodedEntry.Reason = &reasonStr
+					}
+				}
+			}
+			if decodedEntry.Until == nil || now.Before(*decodedEntry.Until) {
+				blackholedIdentities[key] = decodedEntry
+			}
 		}
+		blackholeMu.Unlock()
 	}
 
-	blackholeMu.Lock()
-	blackholedIdentities = loaded
-	blackholeMu.Unlock()
 	removeBlackholedPaths()
 }
 
 func removeBlackholedPaths() {
-	drop := make([]hashKey, 0)
 	pathTableMu.RLock()
+	keys := make([]hashKey, 0, len(pathTable))
 	for key := range pathTable {
-		identity := IdentityRecall(key[:])
-		if identity == nil || !isBlackholedIdentity(identity.Hash) {
-			continue
-		}
-		drop = append(drop, key)
+		keys = append(keys, key)
 	}
 	pathTableMu.RUnlock()
+
+	drop := make([]hashKey, 0)
+	for _, key := range keys {
+		identity := IdentityRecall(key[:])
+		if identity != nil {
+			if hashKey, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(identity.Hash); ok {
+				blackholeMu.RLock()
+				_, blackholed := blackholedIdentities[hashKey]
+				blackholeMu.RUnlock()
+				if blackholed {
+					drop = append(drop, key)
+				}
+			}
+		}
+	}
 
 	if len(drop) == 0 {
 		return
@@ -1545,40 +1558,31 @@ func removeBlackholedPaths() {
 		delete(pathTable, key)
 	}
 	pathTableMu.Unlock()
-	Logf(LogInfo, "Removed %d destination(s) associated with blackholed identities from path table", len(drop))
+	ms := ""
+	if len(drop) != 1 {
+		ms = "s"
+	}
+	Logf(LogInfo, "Removed %d destination%s associated with blackholed identities from path table", len(drop), ms)
 }
 
-func cullBlackholedIdentities(now time.Time) bool {
-	removed := 0
-	persist := false
-	blackholeMu.Lock()
-	for key, entry := range blackholedIdentities {
-		if entry == nil {
-			delete(blackholedIdentities, key)
-			removed++
-			continue
+func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) (result any) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "Error while blackholing identity: %v", err)
+			TraceException(err)
+			result = false
 		}
-		if entry.Until != nil && !entry.Until.IsZero() && now.After(*entry.Until) {
-			if TransportIdentity != nil && bytesEqual(entry.Source, TransportIdentity.Hash) {
-				persist = true
-			}
-			delete(blackholedIdentities, key)
-			removed++
+	}()
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
 		}
-	}
-	blackholeMu.Unlock()
-	if persist {
-		_ = persistBlackhole()
-	}
-	if removed > 0 {
-		Logf(LogVerbose, "Removed %d blackholed identities", removed)
-	}
-	return removed > 0
-}
-
-func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bool {
-	key, ok := makeHashKey(identityHash)
-	if !ok || TransportIdentity == nil {
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(identityHash)
+	if !ok {
 		return false
 	}
 
@@ -1595,19 +1599,34 @@ func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bo
 	blackholeMu.Lock()
 	if _, exists := blackholedIdentities[key]; exists {
 		blackholeMu.Unlock()
-		return false
+		return nil
 	}
 	blackholedIdentities[key] = entry
 	blackholeMu.Unlock()
 
-	_ = persistBlackhole()
+	persist_blackhole()
 	removeBlackholedPaths()
 	Logf(LogInfo, "Blackholed identity %s", PrettyHexRep(identityHash))
 	return true
 }
 
-func UnblackholeIdentity(identityHash []byte) bool {
-	key, ok := makeHashKey(identityHash)
+func UnblackholeIdentity(identityHash []byte) (result any) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "Error while unblackholing identity: %v", err)
+			TraceException(err)
+			result = false
+		}
+	}()
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(identityHash)
 	if !ok {
 		return false
 	}
@@ -1615,92 +1634,71 @@ func UnblackholeIdentity(identityHash []byte) bool {
 	blackholeMu.Lock()
 	if _, exists := blackholedIdentities[key]; !exists {
 		blackholeMu.Unlock()
-		return false
+		return nil
 	}
 	delete(blackholedIdentities, key)
 	blackholeMu.Unlock()
 
-	_ = persistBlackhole()
+	persist_blackhole()
 	Logf(LogInfo, "Lifted blackhole for identity %s", PrettyHexRep(identityHash))
 	return true
 }
 
-func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, _ *Identity, _ time.Time) any {
-	return blackholeListSnapshot()
-}
-
-func ensureTransportIdentity() {
-	if TransportIdentity != nil || Owner == nil {
-		return
-	}
-	identityPath := filepath.Join(Owner.StoragePath, "transport_identity")
-	if fileExists(identityPath) {
-		if id, err := IdentityFromFile(identityPath); err == nil {
-			TransportIdentity = id
-			Log("Loaded Transport Identity from storage", LogVerbose)
-			return
-		}
-	}
-
-	Log("No valid Transport Identity in storage, creating...", LogVerbose)
-	if id, err := NewIdentity(); err == nil {
-		TransportIdentity = id
-		_ = os.MkdirAll(Owner.StoragePath, 0o755)
-		_ = TransportIdentity.Save(identityPath)
-	}
-}
-
-func loadPacketHashlist() {
-	if Owner == nil || Owner.IsConnectedToSharedInstance {
-		return
-	}
-	if !TransportEnabled() {
-		packetHashMu.Lock()
-		PacketHashSet = make(map[hashKey]struct{})
-		PacketHashSet2 = make(map[hashKey]struct{})
-		packetHashMu.Unlock()
-		return
-	}
-	path := filepath.Join(Owner.StoragePath, "packet_hashlist")
-	if !fileExists(path) {
-		return
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		Logf(LogError, "Could not load packet hashlist from storage: %v", err)
-		return
-	}
-	var hashes [][]byte
-	if err := umsgpack.Unpackb(data, &hashes); err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			backupPath := fmt.Sprintf("%s.corrupt.%d", path, time.Now().UnixNano())
-			if renameErr := os.Rename(path, backupPath); renameErr != nil {
-				_ = os.Remove(path)
-			} else {
-				Logf(LogWarning, "Packet hashlist storage was truncated; moved to %s", backupPath)
-			}
-			return
-		}
-		Logf(LogError, "Could not decode packet hashlist from storage: %v", err)
-		return
-	}
-	packetHashMu.Lock()
-	for _, h := range hashes {
-		if len(h) != truncatedHashBytes {
+func persist_blackhole() {
+	blackholeMu.RLock()
+	localBlackhole := make(map[any]any)
+	for key, entry := range blackholedIdentities {
+		if entry == nil || TransportIdentity == nil || !bytesEqual(entry.Source, TransportIdentity.Hash) {
 			continue
 		}
-		var k hashKey
-		copy(k[:], h)
-		PacketHashSet[k] = struct{}{}
+		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+		serialised["source"] = copyBytes(entry.Source)
+		if entry.Until != nil && !entry.Until.IsZero() {
+			serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+		}
+		if entry.Reason != nil {
+			serialised["reason"] = *entry.Reason
+		}
+		localBlackhole[umsgpack.BinaryKey(string(key[:]))] = serialised
 	}
-	packetHashMu.Unlock()
+	blackholeMu.RUnlock()
+	packed, err := umsgpack.Packb(localBlackhole)
+	if err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		TraceException(err)
+		return
+	}
+	if Owner == nil || len(Owner.StoragePath) == 0 {
+		return
+	}
+	localPath := filepath.Join(Owner.StoragePath, "blackhole", "local")
+	tmpPath := localPath + ".tmp"
+	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		TraceException(err)
+		return
+	}
+	if _, err := os.Stat(localPath); err == nil {
+		_ = os.Remove(localPath)
+	}
+	if err := os.Rename(tmpPath, localPath); err != nil {
+		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		TraceException(err)
+		return
+	}
+}
+
+func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, _ *Identity, _ time.Time) any {
+	blackholeMu.RLock()
+	defer blackholeMu.RUnlock()
+	return blackholedIdentities
 }
 
 // ExitHandler best-effort persistence hook mirroring Transport.exit_handler() in Python.
 func ExitHandler() {
-	_ = savePacketHashlist()
-	_ = saveDestinationTable()
-	_ = saveTunnelTable()
+	if inst := GetInstance(); inst != nil && !inst.IsConnectedToSharedInstance {
+		PersistData()
+	}
 }
 
 // PersistData persists transport tables, mirroring Python's
@@ -1709,29 +1707,20 @@ func PersistData() {
 	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
 		return
 	}
-	if err := savePacketHashlist(); err != nil {
-		Logf(LogError, "Error while saving packet hashlist to disk: %v", err)
-	}
-	if err := saveDestinationTable(); err != nil {
-		Logf(LogError, "Error while saving destination table to disk: %v", err)
-	}
-	if err := saveTunnelTable(); err != nil {
-		Logf(LogError, "Error while saving tunnel table to disk: %v", err)
-	}
-	if err := persistBlackhole(); err != nil {
-		Logf(LogError, "Error while saving blackhole list to disk: %v", err)
-	}
+	savePacketHashlist()
+	SavePathTable()
+	saveTunnelTable()
 	lastTablesPersisted = time.Now()
 }
 
-func savePacketHashlist() error {
+func savePacketHashlist() {
 	if Owner == nil || Owner.IsConnectedToSharedInstance {
-		return nil
+		return
 	}
 	packetHashlistSaveMu.Lock()
 	if savingPacketHashlist {
 		packetHashlistSaveMu.Unlock()
-		return nil
+		return
 	}
 	savingPacketHashlist = true
 	packetHashlistSaveMu.Unlock()
@@ -1759,16 +1748,18 @@ func savePacketHashlist() error {
 
 	buf, err := umsgpack.Packb(hashes)
 	if err != nil {
-		return err
+		Logf(LogError, "Could not save packet hashlist to storage, the contained exception was: %v", err)
+		return
 	}
-	_ = os.MkdirAll(Owner.StoragePath, 0o755)
 	path := filepath.Join(Owner.StoragePath, "packet_hashlist")
-	return os.WriteFile(path, buf, 0o600)
+	if err := os.WriteFile(path, buf, 0o600); err != nil {
+		Logf(LogError, "Could not save packet hashlist to storage, the contained exception was: %v", err)
+	}
 }
 
-func saveDestinationTable() error {
+func SavePathTable() {
 	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
-		return nil
+		return
 	}
 
 	// Python parity: serialize concurrent saves via a flag with a bounded wait.
@@ -1787,7 +1778,8 @@ func saveDestinationTable() error {
 				break
 			}
 			if time.Since(start) > waitTimeout {
-				return errors.New("could not save path table to storage, waiting for previous save operation timed out")
+				Logf(LogError, "Could not save path table to storage, waiting for previous save operation timed out.")
+				return
 			}
 		}
 		pathTableSaveMu.Lock()
@@ -1816,13 +1808,10 @@ func saveDestinationTable() error {
 		dst := make([]byte, truncatedHashBytes)
 		copy(dst, key[:])
 
-		ifHash := interfaceHash(entry.RecvInterface)
-		if len(ifHash) == 0 {
+		if entry.RecvInterface == nil {
 			continue
 		}
-		if len(entry.PacketHash) == 0 {
-			continue
-		}
+		ifHash := entry.RecvInterface.GetHash()
 
 		entries = append(entries, []any{
 			dst,
@@ -1831,7 +1820,16 @@ func saveDestinationTable() error {
 			entry.Hops,
 			float64(entry.ExpiresAt.UnixNano()) / 1e9,
 			// Python save_path_table() persists the full random_blobs slice.
-			copyRandomBlobSlice(entry.RandomBlobs),
+			func(in [][]byte) [][]byte {
+				if len(in) == 0 {
+					return nil
+				}
+				out := make([][]byte, len(in))
+				for i, blob := range in {
+					out[i] = append([]byte(nil), blob...)
+				}
+				return out
+			}(entry.RandomBlobs),
 			ifHash,
 			append([]byte(nil), entry.PacketHash...),
 		})
@@ -1840,25 +1838,25 @@ func saveDestinationTable() error {
 
 	buf, err := umsgpack.Packb(entries)
 	if err != nil {
-		return err
+		Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
+		return
 	}
-	_ = os.MkdirAll(Owner.StoragePath, 0o755)
 	path := filepath.Join(Owner.StoragePath, "destination_table")
-	return os.WriteFile(path, buf, 0o600)
-}
-
-// SavePathTable mirrors Python Transport.save_path_table().
-// Persists the current path table to storage.
-func SavePathTable() {
-	if err := saveDestinationTable(); err != nil {
+	if err := os.WriteFile(path, buf, 0o600); err != nil {
 		Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
 	}
 }
 
-func saveTunnelTable() error {
+func saveTunnelTable() {
 	if Owner == nil || Owner.IsConnectedToSharedInstance || !TransportEnabled() {
-		return nil
+		return
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", r)
+			TraceException(fmt.Errorf("%v", r))
+		}
+	}()
 	// Python parity: serialize concurrent saves via a flag with a bounded wait.
 	tunnelTableSaveMu.Lock()
 	if savingTunnelTable {
@@ -1875,7 +1873,8 @@ func saveTunnelTable() error {
 				break
 			}
 			if time.Since(start) > waitTimeout {
-				return errors.New("could not save tunnel table to storage, waiting for previous save operation timed out")
+				Logf(LogError, "Could not save tunnel table to storage, waiting for previous save operation timed out.")
+				return
 			}
 		}
 		tunnelTableSaveMu.Lock()
@@ -1893,30 +1892,24 @@ func saveTunnelTable() error {
 	serialised := make([][]any, 0)
 
 	tunnelsMu.RLock()
-	for _, te := range tunnels {
-		if te == nil || len(te.ID) == 0 {
-			continue
-		}
+	snapshot := make(map[string]*tunnelEntry, len(tunnels))
+	for k, v := range tunnels {
+		snapshot[k] = v
+	}
+	tunnelsMu.RUnlock()
+
+	for _, te := range snapshot {
 		if !te.ExpiresAt.IsZero() && te.ExpiresAt.Before(now) {
 			continue
 		}
 		var ifHash []byte
 		if te.Interface != nil {
-			ifHash = interfaceHash(te.Interface)
+			ifHash = te.Interface.GetHash()
 		}
 		serialisedPaths := make([][]any, 0)
 		for dstKey, pe := range te.Paths {
-			if pe == nil {
-				continue
-			}
 			dstHash := []byte(dstKey)
-			if len(dstHash) != truncatedHashBytes {
-				continue
-			}
 			if !pe.ExpiresAt.IsZero() && pe.ExpiresAt.Before(now) {
-				continue
-			}
-			if len(pe.PacketHash) == 0 {
 				continue
 			}
 
@@ -1931,12 +1924,20 @@ func saveTunnelTable() error {
 				append([]byte(nil), pe.ReceivedFrom...),
 				pe.Hops,
 				float64(pe.ExpiresAt.UnixNano()) / 1e9,
-				copyRandomBlobSlice(blobs),
+				func(in [][]byte) [][]byte {
+					if len(in) == 0 {
+						return nil
+					}
+					out := make([][]byte, len(in))
+					for i, blob := range in {
+						out[i] = append([]byte(nil), blob...)
+					}
+					return out
+				}(blobs),
 				ifHash,
 				append([]byte(nil), pe.PacketHash...),
 			})
 		}
-
 		serialised = append(serialised, []any{
 			append([]byte(nil), te.ID...),
 			ifHash,
@@ -1944,15 +1945,16 @@ func saveTunnelTable() error {
 			float64(te.ExpiresAt.UnixNano()) / 1e9,
 		})
 	}
-	tunnelsMu.RUnlock()
 
 	buf, err := umsgpack.Packb(serialised)
 	if err != nil {
-		return err
+		Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", err)
+		return
 	}
-	_ = os.MkdirAll(Owner.StoragePath, 0o755)
 	path := filepath.Join(Owner.StoragePath, "tunnels")
-	return os.WriteFile(path, buf, 0o600)
+	if err := os.WriteFile(path, buf, 0o600); err != nil {
+		Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", err)
+	}
 }
 
 // -------- prioritisation and traffic counters --------
@@ -1966,10 +1968,6 @@ func PrioritizeInterfaces() {
 
 	interfacesMu.Lock()
 	defer interfacesMu.Unlock()
-	prioritizeInterfacesLocked()
-}
-
-func prioritizeInterfacesLocked() {
 	// sort by bitrate descending
 	sort.SliceStable(Interfaces, func(i, j int) bool {
 		return Interfaces[i].Bitrate > Interfaces[j].Bitrate
@@ -1989,25 +1987,29 @@ func CountTrafficLoop() {
 			var rxb, txb uint64
 			var rxs, txs float64
 
-			for _, ifc := range interfacesSnapshot() {
+			for _, ifc := range Interfaces {
 				if ifc.Parent != nil {
 					continue
 				}
 				now := time.Now()
 
 				if ifc.TrafficCounter == nil {
-					ifc.TrafficCounter = &TrafficCounter{
-						TS:  now,
-						RXB: ifc.RXB,
-						TXB: ifc.TXB,
+					tc := TrafficCounter{
+						"ts":  now,
+						"rxb": ifc.RXB,
+						"txb": ifc.TXB,
 					}
+					ifc.TrafficCounter = &tc
 					continue
 				}
 
-				tc := ifc.TrafficCounter
-				rxDiff := ifc.RXB - tc.RXB
-				txDiff := ifc.TXB - tc.TXB
-				tsDiff := now.Sub(tc.TS).Seconds()
+				tc := *ifc.TrafficCounter
+				tcTS, _ := tc["ts"].(time.Time)
+				tcRXB, _ := tc["rxb"].(uint64)
+				tcTXB, _ := tc["txb"].(uint64)
+				rxDiff := ifc.RXB - tcRXB
+				txDiff := ifc.TXB - tcTXB
+				tsDiff := now.Sub(tcTS).Seconds()
 				if tsDiff <= 0 {
 					continue
 				}
@@ -2021,9 +2023,9 @@ func CountTrafficLoop() {
 				rxs += crxs
 				txs += ctxs
 
-				tc.RXB = ifc.RXB
-				tc.TXB = ifc.TXB
-				tc.TS = now
+				tc["rxb"] = ifc.RXB
+				tc["txb"] = ifc.TXB
+				tc["ts"] = now
 			}
 
 			TrafficRXB += rxb
@@ -2032,27 +2034,6 @@ func CountTrafficLoop() {
 			SpeedTX = txs
 		}()
 	}
-}
-
-func runInterfaceJobs(now time.Time) bool {
-	if !InterfaceLastJobs.IsZero() && now.Sub(InterfaceLastJobs) <= InterfaceJobsInterval {
-		return false
-	}
-
-	PrioritizeInterfaces()
-	defer func() {
-		if r := recover(); r != nil {
-			Logf(LogWarning, "Error while processing held per-interface announces: %v", r)
-			Log("Postponing until next job run", LogWarning)
-		}
-	}()
-	for _, ifc := range interfacesSnapshot() {
-		if ifc != nil {
-			ifc.ProcessHeldAnnounces(PathfinderMaxHops)
-		}
-	}
-	InterfaceLastJobs = now
-	return true
 }
 
 // -------- main job loop --------
@@ -2084,18 +2065,39 @@ func Jobs() {
 		}
 		// path requests
 		for dst, blocked := range pathRequests {
-			if blocked == nil {
-				requestPathAllExcept(dst[:], nil)
-			} else {
-				for _, ifc := range interfacesSnapshot() {
-					if ifc != blocked {
-						requestPathAllExcept(dst[:], ifc)
-					}
+			if _, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
 				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(dst[:]); !ok {
+				continue
+			}
+
+			tag := IdentityGetRandomHash()
+			if blocked == nil {
+				RequestPath(dst[:], nil, tag, false)
+				continue
+			}
+			for _, ifc := range Interfaces {
+				if ifc == nil || ifc == blocked {
+					continue
+				}
+				RequestPath(dst[:], ifc, tag, false)
 			}
 		}
 		if len(mgmtAnnouncements) > 0 {
-			go announceManagementDestinations(mgmtAnnouncements)
+			announcements := append([]*Destination(nil), mgmtAnnouncements...)
+			go func() {
+				for _, dest := range announcements {
+					if dest == nil {
+						continue
+					}
+					dest.Announce(nil, false, nil, nil, true)
+				}
+			}()
 		}
 	}()
 	shouldGC := false
@@ -2106,7 +2108,89 @@ func Jobs() {
 	if now.Sub(LinksLastChecked) > LinksCheckInt {
 		// pending_links / active_links mirror Python closely:
 		// check status, remove CLOSED, rediscover paths, etc.
-		handlePendingAndActiveLinks(pathRequests)
+		linkMu.Lock()
+		nowLinks := time.Now()
+
+		filterPending := PendingLinks[:0]
+		for _, link := range PendingLinks {
+			if link == nil {
+				continue
+			}
+			if link.Status == LinkClosed {
+				// Python parity: if a pending link closes without being activated on a
+				// non-transport instance, expire the associated path and try rediscovery.
+				if !TransportEnabled() && link.destination != nil {
+					destHash := link.destination.Hash()
+					if ExpirePath(destHash) {
+						if Owner == nil || !Owner.IsConnectedToSharedInstance {
+							if key, ok := func(hash []byte) (hashKey, bool) {
+								if len(hash) < truncatedHashBytes {
+									return hashKey{}, false
+								}
+								var key hashKey
+								copy(key[:], hash[:truncatedHashBytes])
+								return key, true
+							}(destHash); ok {
+								pathRequestMu.Lock()
+								lastRequest, hasLast := lastPathRequest[key]
+								pathRequestMu.Unlock()
+								if !hasLast || lastRequest.IsZero() || nowLinks.Sub(lastRequest) > pathRequestMinInterval {
+									if pathRequests != nil {
+										if _, exists := pathRequests[key]; !exists {
+											pathRequests[key] = nil
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				continue
+			}
+			if link.destination != nil && len(link.destination.Hash()) >= truncatedHashBytes {
+				if key, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(link.destination.Hash()); ok {
+					pathRequests[key] = nil
+				}
+			}
+			filterPending = append(filterPending, link)
+		}
+		PendingLinks = filterPending
+
+		filterActive := ActiveLinks[:0]
+		for _, link := range ActiveLinks {
+			if link == nil || link.Status == LinkClosed {
+				continue
+			}
+			if !link.lastInbound.IsZero() && nowLinks.Sub(link.lastInbound) > link.StaleTime {
+				// Teardown in a goroutine: this function runs under jobsMu
+				// write lock, and Teardown → sendTeardownPacket → Outbound
+				// needs jobsMu read lock — calling it here would deadlock.
+				go link.Teardown()
+				continue
+			}
+			if link.destination != nil && !HasPath(link.destination.Hash()) {
+				if key, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(link.destination.Hash()); ok {
+					pathRequests[key] = nil
+				}
+			}
+			filterActive = append(filterActive, link)
+		}
+		ActiveLinks = filterActive
+		linkMu.Unlock()
 		LinksLastChecked = now
 	}
 
@@ -2135,7 +2219,74 @@ func Jobs() {
 
 	// ---- announces retransmit ----
 	if now.Sub(AnnLast) > AnnCheckInt {
-		handleAnnounceRetransmit(now, &outgoing)
+		announceMu.Lock()
+		for key, entry := range announceTable {
+			if entry == nil || entry.Packet == nil {
+				delete(announceTable, key)
+				continue
+			}
+			if now.After(entry.Expires) {
+				delete(announceTable, key)
+				continue
+			}
+			if entry.Next.After(now) {
+				continue
+			}
+			if entry.Retries > pathfinderRetryLimit {
+				delete(announceTable, key)
+				continue
+			}
+			announceIdentity := IdentityRecall(entry.Packet.DestinationHash)
+			announceDestination := &Destination{
+				Type:      DestinationSINGLE,
+				Direction: DestinationOUT,
+				identity:  announceIdentity,
+				hash:      copyBytes(entry.Packet.DestinationHash),
+				hexhash:   PrettyHexRep(entry.Packet.DestinationHash),
+			}
+			announceContext := byte(PacketNONE)
+			if entry.BlockRebroadcasts {
+				announceContext = byte(PacketPATH_RESPONSE)
+			}
+			send := NewPacket(
+				announceDestination,
+				copyBytes(entry.Packet.Data),
+				WithPacketType(PacketANNOUNCE),
+				WithPacketContext(announceContext),
+				WithHeaderType(HeaderType2),
+				WithTransportType(TransportDirect),
+				WithAttachedInterface(entry.AttachedInterface),
+				WithContextFlag(entry.Packet.ContextFlag),
+			)
+			if send == nil {
+				delete(announceTable, key)
+				continue
+			}
+			if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
+				send.TransportID = copyBytes(TransportIdentity.Hash)
+			}
+			send.Hops = entry.Packet.Hops
+			send.DestinationHash = copyBytes(entry.Packet.DestinationHash)
+			send.DestinationType = byte(DestinationSINGLE)
+			outgoing = append(outgoing, send)
+			if held := heldAnnounces[key]; held != nil {
+				delete(heldAnnounces, key)
+				if held.Entry != nil {
+					announceTable[key] = held.Entry
+					Logf(LogDebug, "Reinserting held announce into table")
+					continue
+				}
+			}
+
+			entry.Retries++
+			if pathfinderRandomWindow <= 0 {
+				entry.Next = now.Add(pathfinderRetryGrace + pathfinderRetryGrace)
+			} else {
+				entry.Next = now.Add(pathfinderRetryGrace + time.Duration(Rand()*float64(pathfinderRandomWindow)))
+			}
+			announceTable[key] = entry
+		}
+		announceMu.Unlock()
 		AnnLast = now
 	}
 
@@ -2149,13 +2300,42 @@ func Jobs() {
 	if now.Sub(pendingPRsLastChecked) > pendingPRsCheckInterval {
 		pendingLocalPathRequestsMu.Lock()
 		for key, desired := range pendingLocalPathRequests {
-			if desired != nil && interfacePresent(desired) {
-				continue
+			if desired != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == desired {
+						present = true
+						break
+					}
+				}
+				if present {
+					continue
+				}
 			}
 			delete(pendingLocalPathRequests, key)
 		}
 		pendingLocalPathRequestsMu.Unlock()
-		cullDiscoveryPathRequests(now)
+
+		removed := 0
+		discoveryPathRequestsMu.Lock()
+		staleDiscovery := make([]hashKey, 0)
+		for key, entry := range discoveryPathRequests {
+			if entry == nil || (!entry.Timeout.IsZero() && !now.Before(entry.Timeout)) {
+				staleDiscovery = append(staleDiscovery, key)
+			}
+		}
+		for _, key := range staleDiscovery {
+			delete(discoveryPathRequests, key)
+			removed++
+		}
+		discoveryPathRequestsMu.Unlock()
+		if removed > 0 {
+			if removed == 1 {
+				Logf(LogExtreme, "Removed %d waiting path request", removed)
+			} else {
+				Logf(LogExtreme, "Removed %d waiting path requests", removed)
+			}
+		}
 		pendingPRsLastChecked = now
 	}
 
@@ -2172,14 +2352,238 @@ func Jobs() {
 
 	// periodic culling of tables (Python: tables_last_culled / tables_cull_interval)
 	if now.Sub(TablesLastCulled) > tablesCullInterval {
-		cullTunnels(now)
-		if cullReverseAndLinkTables(now) {
+		tunnelsMu.Lock()
+		removedTunnels := 0
+		for key, te := range tunnels {
+			if te == nil {
+				delete(tunnels, key)
+				removedTunnels++
+				continue
+			}
+			if te.Interface == nil || (!te.ExpiresAt.IsZero() && now.After(te.ExpiresAt)) {
+				delete(tunnels, key)
+				removedTunnels++
+			}
+		}
+		tunnelsMu.Unlock()
+		if removedTunnels > 0 {
+			Logf(LogExtreme, "Removed %d tunnels", removedTunnels)
+		}
+		removed := false
+
+		reverseTableMu.Lock()
+		for key, entry := range reverseTable {
+			if entry == nil {
+				delete(reverseTable, key)
+				removed = true
+				continue
+			}
+			if now.Sub(entry.Timestamp) > reverseTimeout {
+				delete(reverseTable, key)
+				removed = true
+				continue
+			}
+			// Python removes entries if interfaces disappear.
+			if entry.OutboundIf != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == entry.OutboundIf {
+						present = true
+						break
+					}
+				}
+				if !present {
+					delete(reverseTable, key)
+					removed = true
+					continue
+				}
+			}
+			if entry.ReceivedIf != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == entry.ReceivedIf {
+						present = true
+						break
+					}
+				}
+				if !present {
+					delete(reverseTable, key)
+					removed = true
+				}
+			}
+		}
+		reverseTableMu.Unlock()
+
+		linkTableMu.Lock()
+		for key, entry := range linkTable {
+			if entry == nil {
+				delete(linkTable, key)
+				removed = true
+				continue
+			}
+			if entry.NextHopInterface != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == entry.NextHopInterface {
+						present = true
+						break
+					}
+				}
+				if !present {
+					delete(linkTable, key)
+					removed = true
+					continue
+				}
+			}
+			if entry.ReceivedInterface != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == entry.ReceivedInterface {
+						present = true
+						break
+					}
+				}
+				if !present {
+					delete(linkTable, key)
+					removed = true
+					continue
+				}
+			}
+			// Validated links have a timeout separate from path table expiration.
+			if entry.Validated && !entry.Timestamp.IsZero() && now.Sub(entry.Timestamp) > linkTimeout {
+				delete(linkTable, key)
+				removed = true
+				continue
+			}
+			// Proof timeouts expire pending links.
+			if !entry.ProofTimeout.IsZero() && now.After(entry.ProofTimeout) {
+				if len(entry.DestinationHash) > 0 {
+					var blockedIf *Interface
+					pathRequestConditions := false
+					pathRequestThrottle := false
+					if dstKey, ok := func(hash []byte) (hashKey, bool) {
+						if len(hash) < truncatedHashBytes {
+							return hashKey{}, false
+						}
+						var key hashKey
+						copy(key[:], hash[:truncatedHashBytes])
+						return key, true
+					}(entry.DestinationHash); ok {
+						pathRequestMu.Lock()
+						lastRequest, hasLast := lastPathRequest[dstKey]
+						pathRequestMu.Unlock()
+						if hasLast && !lastRequest.IsZero() && now.Sub(lastRequest) < pathRequestMinInterval {
+							pathRequestThrottle = true
+						}
+					}
+
+					switch {
+					case !HasPath(entry.DestinationHash):
+						pathRequestConditions = true
+					case !pathRequestThrottle && entry.Hops == 0:
+						pathRequestConditions = true
+						blockedIf = entry.ReceivedInterface
+					case !pathRequestThrottle && HopsTo(entry.DestinationHash) == 1:
+						pathRequestConditions = true
+						blockedIf = entry.ReceivedInterface
+						if TransportEnabled() && entry.ReceivedInterface != nil && entry.ReceivedInterface.Mode != InterfaceModeBoundary {
+							MarkPathUnresponsive(entry.DestinationHash)
+						}
+					case !pathRequestThrottle && entry.Hops == 1:
+						pathRequestConditions = true
+						blockedIf = entry.ReceivedInterface
+						if TransportEnabled() && entry.ReceivedInterface != nil && entry.ReceivedInterface.Mode != InterfaceModeBoundary {
+							MarkPathUnresponsive(entry.DestinationHash)
+						}
+					}
+
+					if pathRequestConditions {
+						if pathRequests != nil {
+							if dstKey, ok := func(hash []byte) (hashKey, bool) {
+								if len(hash) < truncatedHashBytes {
+									return hashKey{}, false
+								}
+								var key hashKey
+								copy(key[:], hash[:truncatedHashBytes])
+								return key, true
+							}(entry.DestinationHash); ok {
+								if _, exists := pathRequests[dstKey]; !exists {
+									pathRequests[dstKey] = blockedIf
+								}
+							}
+						}
+
+						if !TransportEnabled() {
+							ExpirePath(entry.DestinationHash)
+						}
+					}
+				}
+				delete(linkTable, key)
+				removed = true
+				continue
+			}
+		}
+		linkTableMu.Unlock()
+		if removed {
 			culled = true
 		}
-		if cullPathTable(now) {
+		pathTableMu.Lock()
+		removedPathTable := false
+		for key, entry := range pathTable {
+			if entry == nil {
+				delete(pathTable, key)
+				removedPathTable = true
+				continue
+			}
+			expires := entry.ExpiresAt
+			if entry.RecvInterface != nil {
+				switch entry.RecvInterface.Mode {
+				case InterfaceModeAccessPoint:
+					if !entry.Timestamp.IsZero() {
+						expires = entry.Timestamp.Add(apPathTime)
+					}
+				case InterfaceModeRoaming:
+					if !entry.Timestamp.IsZero() {
+						expires = entry.Timestamp.Add(roamingPathTime)
+					}
+				}
+			}
+			if !expires.IsZero() && expires.Before(now) {
+				delete(pathTable, key)
+				removedPathTable = true
+				continue
+			}
+			if entry.RecvInterface != nil {
+				present := false
+				for _, existing := range Interfaces {
+					if existing == entry.RecvInterface {
+						present = true
+						break
+					}
+				}
+				if !present {
+					delete(pathTable, key)
+					removedPathTable = true
+				}
+			}
+		}
+		pathTableMu.Unlock()
+		if removedPathTable {
 			culled = true
 		}
-		if cullPathStates() {
+		pathTableMu.RLock()
+		pathStatesMu.Lock()
+		removedPathStates := false
+		for key := range pathStates {
+			if _, ok := pathTable[key]; ok {
+				continue
+			}
+			delete(pathStates, key)
+			removedPathStates = true
+		}
+		pathStatesMu.Unlock()
+		pathTableMu.RUnlock()
+		if removedPathStates {
 			culled = true
 		}
 		TablesLastCulled = now
@@ -2187,31 +2591,87 @@ func Jobs() {
 
 	// periodic cleanup of reverse/link tables and caches
 	if now.Sub(LastCacheCleaned) > cacheCleanInterval {
-		if cleanAnnounceCache(now) {
-			culled = true
-		}
-		LastCacheCleaned = now
+		cleanCache()
+		culled = true
 	}
 
 	// Periodic persistence of transport tables (Python persist_data()).
 	if now.Sub(lastTablesPersisted) > tablesPersistInterval {
-		_ = saveDestinationTable()
-		_ = savePacketHashlist()
-		_ = saveTunnelTable()
+		SavePathTable()
+		savePacketHashlist()
+		saveTunnelTable()
 		lastTablesPersisted = now
 	}
 
 	// Similarly here: pending_local_path_requests, discovery_pr_tags, table culling
 	// reverse_table, link_table, path_table, discovery_path_requests, tunnels, path_states
 	// and interface.process_held_announces().
-	runInterfaceJobs(now)
+	if !InterfaceLastJobs.IsZero() && now.Sub(InterfaceLastJobs) <= InterfaceJobsInterval {
+	} else {
+		PrioritizeInterfaces()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logf(LogWarning, "Error while processing held per-interface announces: %v", r)
+					Log("Postponing until next job run", LogWarning)
+				}
+			}()
+			for _, ifc := range Interfaces {
+				if ifc != nil {
+					ifc.ProcessHeldAnnounces(PathfinderMaxHops)
+				}
+			}
+			InterfaceLastJobs = now
+		}()
+	}
 
-	if due := dueManagementDestinations(now); len(due) > 0 {
-		mgmtAnnouncements = due
+	if len(mgmtDestinations) > 0 && (LastMgmtAnnounce.IsZero() || now.Sub(LastMgmtAnnounce) > mgmtAnnounceInterval) {
+		LastMgmtAnnounce = now
+		mgmtAnnouncements = append([]*Destination(nil), mgmtDestinations...)
 	}
 
 	if now.Sub(blackholeLastChecked) > blackholeCheckInterval {
-		if cullBlackholedIdentities(now) {
+		blackholeMu.RLock()
+		keys := make([]hashKey, 0, len(blackholedIdentities))
+		for key := range blackholedIdentities {
+			keys = append(keys, key)
+		}
+		blackholeMu.RUnlock()
+
+		stale := make([]hashKey, 0, len(keys))
+		for _, key := range keys {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						err := fmt.Errorf("%v", r)
+						Logf(LogError, "Error while checking blackhole expiry for %s: %v", PrettyHexRep(key[:]), err)
+						TraceException(err)
+					}
+				}()
+				blackholeMu.RLock()
+				entry := blackholedIdentities[key]
+				blackholeMu.RUnlock()
+				if entry.Until != nil && !entry.Until.IsZero() && now.After(*entry.Until) {
+					stale = append(stale, key)
+				}
+			}()
+		}
+
+		removed := 0
+		blackholeMu.Lock()
+		for _, key := range stale {
+			if _, exists := blackholedIdentities[key]; exists {
+				delete(blackholedIdentities, key)
+				removed++
+			}
+		}
+		blackholeMu.Unlock()
+		if removed > 0 {
+			if removed == 1 {
+				Logf(LogVerbose, "Removed 1 blackholed identity")
+			} else {
+				Logf(LogVerbose, "Removed %d blackholed identities", removed)
+			}
 			culled = true
 		}
 		blackholeLastChecked = now
@@ -2222,31 +2682,8 @@ func Jobs() {
 	}
 }
 
-func cullTunnels(now time.Time) {
-	tunnelsMu.Lock()
-	defer tunnelsMu.Unlock()
-	removed := 0
-	for key, te := range tunnels {
-		if te == nil {
-			delete(tunnels, key)
-			removed++
-			continue
-		}
-		if te.Interface == nil || (!te.ExpiresAt.IsZero() && now.After(te.ExpiresAt)) {
-			delete(tunnels, key)
-			removed++
-		}
-	}
-	if removed > 0 {
-		Logf(LogExtreme, "Removed %d tunnels", removed)
-	}
-}
-
 // VoidTunnelInterface mirrors Python Transport.void_tunnel_interface().
 func VoidTunnelInterface(tunnelID []byte) {
-	if len(tunnelID) != HashLengthBytes {
-		return
-	}
 	key := string(tunnelID)
 	tunnelsMu.Lock()
 	if te := tunnels[key]; te != nil {
@@ -2257,388 +2694,37 @@ func VoidTunnelInterface(tunnelID []byte) {
 	tunnelsMu.Unlock()
 }
 
-func handleAnnounceRetransmit(now time.Time, outgoing *[]*Packet) {
-	announceMu.Lock()
-	defer announceMu.Unlock()
-
-	for key, entry := range announceTable {
-		if entry == nil || entry.Packet == nil {
-			delete(announceTable, key)
-			continue
-		}
-		if now.After(entry.Expires) {
-			delete(announceTable, key)
-			continue
-		}
-		if entry.Next.After(now) {
-			continue
-		}
-		if entry.Retries > pathfinderRetryLimit {
-			delete(announceTable, key)
-			continue
-		}
-		send := buildTransportAnnouncePacket(entry.Packet, entry.AttachedInterface, entry.BlockRebroadcasts)
-		if send == nil {
-			delete(announceTable, key)
-			continue
-		}
-		*outgoing = append(*outgoing, send)
-		if held := heldAnnounces[key]; held != nil {
-			delete(heldAnnounces, key)
-			if held.Entry != nil {
-				announceTable[key] = held.Entry
-				Logf(LogDebug, "Reinserting held announce into table")
-				continue
-			}
-		}
-
-		entry.Retries++
-		entry.Next = now.Add(pathfinderRetryGrace + randAnnounceDelay())
-		announceTable[key] = entry
-	}
-}
-
-func rememberDiscoveryPathRequest(destinationHash []byte, requestingInterface *Interface, now time.Time) bool {
-	key, ok := makeHashKey(destinationHash)
-	if !ok || requestingInterface == nil {
-		return false
-	}
-
-	discoveryPathRequestsMu.Lock()
-	defer discoveryPathRequestsMu.Unlock()
-
-	if entry := discoveryPathRequests[key]; entry != nil && now.Before(entry.Timeout) {
-		return false
-	}
-
-	discoveryPathRequests[key] = &discoveryPathRequest{
-		Timeout:             now.Add(time.Duration(TransportPathRequestTimeout * float64(time.Second))),
-		RequestingInterface: requestingInterface,
-	}
-	return true
-}
-
-func popDiscoveryPathRequest(destinationHash []byte, now time.Time) *discoveryPathRequest {
-	key, ok := makeHashKey(destinationHash)
-	if !ok {
-		return nil
-	}
-
-	discoveryPathRequestsMu.Lock()
-	defer discoveryPathRequestsMu.Unlock()
-
-	entry := discoveryPathRequests[key]
-	if entry == nil {
-		return nil
-	}
-	if !entry.Timeout.IsZero() && !now.Before(entry.Timeout) {
-		delete(discoveryPathRequests, key)
-		return nil
-	}
-
-	delete(discoveryPathRequests, key)
-	return entry
-}
-
-func cullDiscoveryPathRequests(now time.Time) bool {
-	discoveryPathRequestsMu.Lock()
-	defer discoveryPathRequestsMu.Unlock()
-
-	removed := false
-	for key, entry := range discoveryPathRequests {
-		if entry == nil || (!entry.Timeout.IsZero() && !now.Before(entry.Timeout)) {
-			delete(discoveryPathRequests, key)
-			removed = true
-		}
-	}
-	return removed
-}
-
-// QueueAnnounce schedules a packet for rebroadcast, mirroring the behaviour of
-// the Python transport announce table. Only ANNOUNCE packets are queued.
-func QueueAnnounce(p *Packet, opts ...AnnounceOption) {
-	if p == nil || p.Type != PacketANNOUNCE {
-		return
-	}
-	keyHash := announceHash(p)
-	if keyHash == nil {
-		return
-	}
-
-	params := announceEnqueueOptions{}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(&params)
-		}
-	}
-
-	clone := cloneAnnouncePacket(p)
-	if clone == nil {
-		return
-	}
-
-	now := time.Now()
-	delay := params.delay
-	if !params.delaySet {
-		delay = randAnnounceDelay()
-	}
-
-	entry := &announceEntry{
-		Packet:            clone,
-		Next:              now.Add(delay),
-		Retries:           0,
-		Timestamp:         now,
-		Expires:           now.Add(announceQueueTTL),
-		LocalRebroadcasts: 0,
-		BlockRebroadcasts: params.blockRebroadcast,
-		AttachedInterface: params.attached,
-	}
-	if params.initialRetrySet {
-		entry.Retries = params.initialRetries
-	}
-
-	key := *keyHash
-	announceMu.Lock()
-	if len(announceTable) >= MAX_QUEUED_ANNOUNCES {
-		evictOldestAnnounceLocked()
-	}
-	announceTable[key] = entry
-	announceMu.Unlock()
-}
-
-// DropAnnounceQueues clears queued announces and returns the number of entries removed.
-func DropAnnounceQueues() int {
-	dropped := 0
-	announceMu.Lock()
-	dropped += len(announceTable)
-	announceTable = make(map[hashKey]*announceEntry)
-	dropped += len(heldAnnounces)
-	heldAnnounces = make(map[hashKey]*heldAnnounce)
-	announceMu.Unlock()
-
-	for _, ifc := range interfacesSnapshot() {
+// DropAnnounceQueues mirrors Python Transport.drop_announce_queues().
+func DropAnnounceQueues() {
+	for _, ifc := range Interfaces {
 		if ifc == nil {
 			continue
 		}
-		if dropper, ok := any(ifc).(interface{ DropAnnounceQueue() int }); ok {
-			dropped += dropper.DropAnnounceQueue()
-		}
+		ifc.DropAnnounceQueue()
 	}
-	return dropped
-}
-
-// -------- remote management --------
-
-func configureControlDestinations() {
-	if Owner == nil {
-		return
-	}
-	ensureCoreControlDestinations()
-	ensureProbeDestination()
-	ensureNetworkDestinations()
-	ensureBlackholeDestination()
-	if !RemoteManagementEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
-		disableRemoteManagementDestination()
-		refreshManagementDestinations()
-		return
-	}
-	enableRemoteManagementDestination()
-	refreshManagementDestinations()
-}
-
-func ensureProbeDestination() {
-	if Owner == nil {
-		return
-	}
-	if !TransportEnabled() || !ProbeDestinationEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
-		if ProbeDestination != nil {
-			DeregisterDestination(ProbeDestination)
-		}
-		ProbeDestination = nil
-		return
-	}
-	if ProbeDestination != nil {
-		return
-	}
-	dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "probe")
-	if err != nil {
-		Logf(LogError, "Could not create probe destination: %v", err)
-		return
-	}
-	dest.AcceptsLinks(false)
-	_ = dest.SetProofStrategy(DestinationPROVE_ALL)
-	dest.Announce(nil, false, nil, nil, true)
-	ProbeDestination = dest
-	Logf(LogNotice, "Transport Instance will respond to probe requests on %s", dest)
-}
-
-func ensureNetworkDestinations() {
-	if Owner == nil || Owner.IsConnectedToSharedInstance || NetworkIdentity == nil {
-		return
-	}
-	if instanceDestination == nil {
-		dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network", "instance", strings.ToLower(hex.EncodeToString(NetworkIdentity.Hash)))
-		if err != nil {
-			Logf(LogError, "Could not create network instance destination: %v", err)
-		} else {
-			instanceDestination = dest
-		}
-	}
-	if networkDestination == nil {
-		dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network")
-		if err != nil {
-			Logf(LogError, "Could not create network destination: %v", err)
-		} else {
-			networkDestination = dest
-		}
-	}
-}
-
-func ensureBlackholeDestination() {
-	if Owner == nil {
-		return
-	}
-	if !PublishBlackholeEnabled() || Owner.IsConnectedToSharedInstance || TransportIdentity == nil {
-		if blackholeDestination != nil {
-			blackholeDestination.DeregisterRequestHandler("/list")
-		}
-		blackholeDestination = nil
-		return
-	}
-	if blackholeDestination == nil {
-		dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "info", "blackhole")
-		if err != nil {
-			Logf(LogError, "Could not create blackhole destination: %v", err)
-			return
-		}
-		blackholeDestination = dest
-	}
-	if err := blackholeDestination.RegisterRequestHandler("/list", blackholeListHandler, DestinationALLOW_ALL, nil); err != nil {
-		Logf(LogError, "Could not register blackhole list handler: %v", err)
-		return
-	}
-}
-
-func ensureCoreControlDestinations() {
-	if pathRequestDest == nil {
-		dest, err := NewDestination(nil, DestinationIN, DestinationPLAIN, "rnstransport", "path", "request")
-		if err == nil {
-			pathRequestDest = dest
-			pathRequestDest.SetPacketCallback(pathRequestHandler)
-			controlDestinations = append(controlDestinations, dest)
-			registerControlHash(dest.Hash())
-		} else {
-			Logf(LogError, "Could not create path request destination: %v", err)
-		}
-	}
-
-	if tunnelSynthesizeDest == nil {
-		dest, err := NewDestination(nil, DestinationIN, DestinationPLAIN, "rnstransport", "tunnel", "synthesize")
-		if err == nil {
-			tunnelSynthesizeDest = dest
-			tunnelSynthesizeDest.SetPacketCallback(tunnelSynthesizeHandler)
-			controlDestinations = append(controlDestinations, dest)
-			registerControlHash(dest.Hash())
-		} else {
-			Logf(LogError, "Could not create tunnel synthesize destination: %v", err)
-		}
-	}
-}
-
-func enableRemoteManagementDestination() {
-	if remoteManagementDest == nil {
-		dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, "rnstransport", "remote", "management")
-		if err != nil {
-			Logf(LogError, "Could not create remote management destination: %v", err)
-			return
-		}
-		remoteManagementDest = dest
-		controlDestinations = append(controlDestinations, dest)
-	}
-
-	allowed := remoteManagementAllowedList()
-	if err := remoteManagementDest.RegisterRequestHandler("/status", remoteStatusHandler,
-		DestinationALLOW_LIST, allowed); err != nil {
-		Logf(LogError, "Could not register remote status handler: %v", err)
-		return
-	}
-	if err := remoteManagementDest.RegisterRequestHandler("/path", remotePathHandler,
-		DestinationALLOW_LIST, allowed); err != nil {
-		Logf(LogError, "Could not register remote path handler: %v", err)
-		remoteManagementDest.DeregisterRequestHandler("/status")
-		return
-	}
-
-	if !remoteManagementActive {
-		registerControlHash(remoteManagementDest.Hash())
-		Logf(LogNotice, "Enabled remote management on %s", remoteManagementDest)
-	}
-	remoteManagementActive = true
-}
-
-func disableRemoteManagementDestination() {
-	if remoteManagementDest == nil || !remoteManagementActive {
-		return
-	}
-	remoteManagementDest.DeregisterRequestHandler("/status")
-	remoteManagementDest.DeregisterRequestHandler("/path")
-	unregisterControlHash(remoteManagementDest.Hash())
-	remoteManagementActive = false
-}
-
-func refreshManagementDestinations() {
-	dests := make([]*Destination, 0, 4)
-	if remoteManagementActive && remoteManagementDest != nil {
-		dests = append(dests, remoteManagementDest)
-	}
-	if blackholeDestination != nil {
-		dests = append(dests, blackholeDestination)
-	}
-	if Owner != nil && !Owner.IsConnectedToSharedInstance && NetworkIdentity != nil {
-		if instanceDestination != nil {
-			dests = append(dests, instanceDestination)
-		}
-		if networkDestination != nil {
-			dests = append(dests, networkDestination)
-		}
-	}
-	if ProbeDestination != nil {
-		dests = append(dests, ProbeDestination)
-	}
-	mgmtDestinations = dests
-}
-
-func dueManagementDestinations(now time.Time) []*Destination {
-	if len(mgmtDestinations) == 0 {
-		return nil
-	}
-	if !LastMgmtAnnounce.IsZero() && now.Sub(LastMgmtAnnounce) <= mgmtAnnounceInterval {
-		return nil
-	}
-	LastMgmtAnnounce = now
-	return append([]*Destination(nil), mgmtDestinations...)
-}
-
-func announceManagementDestinations(dests []*Destination) {
-	for _, dest := range dests {
-		if dest == nil {
-			continue
-		}
-		dest.Announce(nil, false, nil, nil, true)
-	}
+	runtime.GC()
 }
 
 func remoteStatusHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *Identity, _ time.Time) any {
 	if remoteIdentity == nil || Owner == nil {
 		return nil
 	}
-	args, ok := toInterfaceSlice(data)
+	var response []any
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "An error occurred while processing remote status request from %v", remoteIdentity)
+			Logf(LogError, "The contained exception was: %v", err)
+			TraceException(err)
+			response = nil
+		}
+	}()
+	args, ok := data.([]any)
 	if !ok || len(args) == 0 {
 		return nil
 	}
-	includeLinks, _ := asBoolValue(args[0])
-	response := []any{Owner.GetInterfaceStats()}
-	if includeLinks {
+	response = []any{Owner.GetInterfaceStats()}
+	if includeLinks, ok := args[0].(bool); ok && includeLinks {
 		response = append(response, Owner.GetLinkCount())
 	}
 	return response
@@ -2648,65 +2734,103 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 	if remoteIdentity == nil || Owner == nil {
 		return nil
 	}
-	args, ok := toInterfaceSlice(data)
+	var response any
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "An error occurred while processing remote status request from %v", remoteIdentity)
+			Logf(LogError, "The contained exception was: %v", err)
+			TraceException(err)
+			response = nil
+		}
+	}()
+	args, ok := data.([]any)
 	if !ok || len(args) == 0 {
 		return nil
 	}
-	command, ok := asStringValue(args[0])
+	command, ok := args[0].(string)
 	if !ok {
 		return nil
 	}
-	command = strings.ToLower(command)
 
 	var destHash []byte
 	if len(args) > 1 {
-		if hash, ok := asBytesValue(args[1]); ok {
+		if hash, ok := args[1].([]byte); ok {
 			destHash = hash
 		}
 	}
 
 	maxHops := -1
 	if len(args) > 2 {
-		if mh, ok := asIntValue(args[2]); ok {
-			maxHops = mh
+		switch v := args[2].(type) {
+		case int:
+			maxHops = v
+		case int8:
+			maxHops = int(v)
+		case int16:
+			maxHops = int(v)
+		case int32:
+			maxHops = int(v)
+		case int64:
+			maxHops = int(v)
+		case uint:
+			maxHops = int(v)
+		case uint8:
+			maxHops = int(v)
+		case uint16:
+			maxHops = int(v)
+		case uint32:
+			maxHops = int(v)
+		case uint64:
+			maxHops = int(v)
+		case float32:
+			maxHops = int(v)
+		case float64:
+			maxHops = int(v)
 		}
 	}
 
 	switch command {
 	case "table":
 		table := Owner.GetPathTable(maxHops)
-		return filterTableByHash(table, destHash)
+		if len(destHash) == 0 {
+			response = table
+			break
+		}
+		filtered := make([]map[string]any, 0, len(table))
+		for _, entry := range table {
+			raw, _ := entry["hash"].([]byte)
+			if len(raw) > 0 && bytes.Equal(raw, destHash) {
+				filtered = append(filtered, entry)
+			}
+		}
+		response = filtered
 	case "rates":
 		table := Owner.GetRateTable()
-		return filterTableByHash(table, destHash)
-	case "drop_announces", "drop_queues":
-		// Mirrors rnpath --drop-announces, but executed on the remote instance.
-		return Owner.DropAnnounceQueues()
-	case "drop":
-		// Mirrors rnpath --drop, but executed on the remote instance.
 		if len(destHash) == 0 {
-			return nil
+			response = table
+			break
 		}
-		return Owner.DropPath(destHash)
-	case "drop_via":
-		// Mirrors rnpath --drop-via, but executed on the remote instance.
-		if len(destHash) == 0 {
-			return nil
+		filtered := make([]map[string]any, 0, len(table))
+		for _, entry := range table {
+			raw, _ := entry["hash"].([]byte)
+			if len(raw) > 0 && bytes.Equal(raw, destHash) {
+				filtered = append(filtered, entry)
+			}
 		}
-		return Owner.DropAllVia(destHash)
-	case "discover", "request_path":
-		// Requests a path on the remote instance.
-		if len(destHash) == 0 {
-			return nil
-		}
-		requestPathAllExcept(destHash, nil)
-		return true
-	default:
-		return nil
+		response = filtered
 	}
+	return response
 }
 
 func pathRequestHandler(data []byte, packet *Packet) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "Error while handling path request. The contained exception was: %v", err)
+			TraceException(err)
+		}
+	}()
 	if len(data) < truncatedHashBytes {
 		return
 	}
@@ -2746,131 +2870,283 @@ func pathRequestHandler(data []byte, packet *Packet) {
 	if packet != nil {
 		attached = packet.ReceivingInterface
 	}
+	pathRequest(destinationHash, FromLocalClient(packet), attached, requestingTransportID, tagBytes)
+}
 
-	Logf(LogDebug, "Path request for %s on %s", PrettyHash(destinationHash), interfaceName(attached))
+func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterface *Interface, requestorTransportID []byte, tag []byte) {
+	shouldSearchForUnknown := false
+	if attachedInterface != nil {
+		if TransportEnabled() {
+			switch attachedInterface.Mode {
+			case InterfaceModeAccessPoint, InterfaceModeGateway, InterfaceModeRoaming:
+				shouldSearchForUnknown = true
+			}
+		}
+	}
 
-	// Python parity: If the destination exists on a local client, but it has not been
-	// announced yet, the shared instance should still forward PATH_REQUEST packets to
-	// local clients so they can answer with a PATH_RESPONSE.
-	if attached != nil && hasLocalClientInterfaces() && !IsLocalClientInterface(attached) {
-		if key, ok := makeHashKey(destinationHash); ok {
+	Logf(LogDebug, "Path request for %s%s", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+
+	// Python parity: If the destination exists on a local client, but it has not
+	// been announced yet, remember which external interface wants it so the later
+	// PATH_RESPONSE can be forwarded to that interface.
+	var pathEntry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destinationHash); ok {
+		pathTableMu.RLock()
+		pathEntry = pathTable[key]
+		pathTableMu.RUnlock()
+	}
+	if len(LocalClientInterfaces) > 0 && pathEntry != nil && pathEntry.RecvInterface != nil && IsLocalClientInterface(pathEntry.RecvInterface) {
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(destinationHash); ok {
 			pendingLocalPathRequestsMu.Lock()
 			if _, exists := pendingLocalPathRequests[key]; !exists {
-				pendingLocalPathRequests[key] = attached
+				pendingLocalPathRequests[key] = attachedInterface
 			}
 			pendingLocalPathRequestsMu.Unlock()
 		}
-		if packet != nil && len(packet.Raw) > 0 {
-			forwardPathRequestToLocalClients(packet.Raw)
+	}
+
+	var dst *Destination
+	for _, candidate := range Destinations {
+		if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), destinationHash) {
+			dst = candidate
+			break
 		}
 	}
-
-	if answerPathRequest(destinationHash, attached, requestingTransportID, tagBytes) {
+	if dst != nil {
+		Logf(LogDebug, "Answering path request for %s on %s, destination is local to this system", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		dst.Announce(nil, true, attachedInterface, tag, true)
 		return
 	}
 
-	// Python parity: local clients forward path requests to all other interfaces
-	// using a fresh request tag.
-	if attached == nil {
-		requestPathOnInterface(destinationHash, nil, tagBytes, true)
+	if (TransportEnabled() || isFromLocalClient) && pathEntry != nil {
+		entry := pathEntry
+
+		if attachedInterface != nil && IsLocalClientInterface(entry.RecvInterface) {
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(destinationHash); ok {
+				pendingLocalPathRequestsMu.Lock()
+				if _, exists := pendingLocalPathRequests[key]; !exists {
+					pendingLocalPathRequests[key] = attachedInterface
+				}
+				pendingLocalPathRequestsMu.Unlock()
+			}
+		}
+
+		if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming && entry.RecvInterface == attachedInterface {
+			Logf(LogDebug, "Not answering path request for %s on %s, next hop is on same roaming interface", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+			return
+		}
+
+		if len(requestorTransportID) == truncatedHashBytes && len(entry.NextHop) == truncatedHashBytes && bytes.Equal(entry.NextHop, requestorTransportID) {
+			Logf(LogDebug, "Not answering path request for %s on %s, next hop is the requestor", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+			return
+		}
+
+		path := ""
+		if Owner != nil && len(entry.PacketHash) > 0 {
+			path = filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(entry.PacketHash))
+		}
+		if path == "" {
+			Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
+			return
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || len(data) == 0 {
+			Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
+			return
+		}
+		var announceCached []any
+		if err := umsgpack.Unpackb(data, &announceCached); err != nil || len(announceCached) < 1 {
+			Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
+			return
+		}
+		raw, ok := announceCached[0].([]byte)
+		if !ok || len(raw) == 0 {
+			Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
+			return
+		}
+		announcePacket := NewPacket(nil, raw)
+		if announcePacket == nil || !announcePacket.Unpack() {
+			return
+		}
+
+		dest := &Destination{
+			Type:      DestinationSINGLE,
+			Direction: DestinationOUT,
+			hash:      copyBytes(destinationHash),
+			hexhash:   PrettyHexRep(destinationHash),
+		}
+
+		resp := NewPacket(
+			dest,
+			copyBytes(announcePacket.Data),
+			WithPacketType(PacketANNOUNCE),
+			WithPacketContext(PacketPATH_RESPONSE),
+			WithTransportType(TransportDirect),
+			WithHeaderType(HeaderType2),
+			WithTransportID(copyBytes(TransportIdentity.Hash)),
+			WithContextFlag(announcePacket.ContextFlag),
+			WithAttachedInterface(attachedInterface),
+			WithoutReceipt(),
+		)
+		if resp == nil {
+			Logf(LogDebug, "Could not construct path response packet for %s", PrettyHash(destinationHash))
+			return
+		}
+		h := entry.Hops
+		if h < 0 {
+			h = 0
+		}
+		if h > 255 {
+			h = 255
+		}
+		resp.Hops = uint8(h)
+		resp.DestinationHash = copyBytes(destinationHash)
+		resp.DestinationType = byte(DestinationSINGLE)
+
+		delay := pathRequestGrace
+		switch {
+		case attachedInterface != nil && IsLocalClientInterface(attachedInterface):
+			delay = 0
+		case entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface):
+			delay = 0
+		case attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming:
+			delay += pathRequestRoamingGrace
+		}
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(destinationHash); ok {
+			announceMu.Lock()
+			if existing := announceTable[key]; existing != nil {
+				heldAnnounces[key] = &heldAnnounce{Entry: existing}
+				delete(announceTable, key)
+			}
+			announceMu.Unlock()
+		}
+		if keyHash, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(resp.DestinationHash); ok {
+			now := time.Now()
+			queued := &announceEntry{
+				Packet:            resp,
+				Next:              now.Add(delay),
+				Retries:           0,
+				Timestamp:         now,
+				Expires:           now.Add(announceQueueTTL),
+				LocalRebroadcasts: 0,
+				BlockRebroadcasts: true,
+				AttachedInterface: attachedInterface,
+			}
+			announceMu.Lock()
+			announceTable[keyHash] = queued
+			announceMu.Unlock()
+		}
+		Logf(LogDebug, "Answering path request for %s on %s, path is known", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
 		return
 	}
-	if IsLocalClientInterface(attached) {
+
+	if isFromLocalClient {
+		Logf(LogDebug, "Forwarding path request from local client for %s%s to all other interfaces", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
 		requestTag := IdentityGetRandomHash()
-		for _, ifc := range interfacesSnapshot() {
-			if ifc == nil || ifc == attached {
+		for _, ifc := range Interfaces {
+			if ifc == nil || ifc == attachedInterface {
 				continue
 			}
-			requestPathOnInterface(destinationHash, ifc, requestTag, false)
+			RequestPath(destinationHash, ifc, requestTag, false)
 		}
 		return
 	}
 
-	// Python parity: only interfaces in DISCOVER_PATHS_FOR start recursive
-	// discovery on behalf of external peers.
-	if !shouldDiscoverPathsFor(attached) {
-		return
-	}
+	if shouldSearchForUnknown && attachedInterface != nil {
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(destinationHash); ok {
+			now := time.Now()
+			discoveryPathRequestsMu.Lock()
+			if entry := discoveryPathRequests[key]; entry != nil {
+				discoveryPathRequestsMu.Unlock()
+				Logf(LogDebug, "There is already a waiting path request for %s on behalf of path request on %s",
+					PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+				return
+			}
+			discoveryPathRequests[key] = &discoveryPathRequest{
+				Timeout:             now.Add(time.Duration(TransportPathRequestTimeout * float64(time.Second))),
+				RequestingInterface: attachedInterface,
+			}
+			discoveryPathRequestsMu.Unlock()
 
-	now := time.Now()
-	if !rememberDiscoveryPathRequest(destinationHash, attached, now) {
-		Logf(LogDebug, "There is already a waiting path request for %s on behalf of path request on %s",
-			PrettyHash(destinationHash), interfaceName(attached))
-		return
-	}
-
-	for _, ifc := range interfacesSnapshot() {
-		if ifc == nil || ifc == attached {
-			continue
+			Logf(LogDebug, "Attempting to discover unknown path to %s on behalf of path request on %s",
+				PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+			for _, ifc := range Interfaces {
+				if ifc == nil || ifc == attachedInterface {
+					continue
+				}
+				RequestPath(destinationHash, ifc, tag, true)
+			}
+			return
 		}
-		requestPathOnInterface(destinationHash, ifc, tagBytes, true)
-	}
-}
-
-func answerWaitingDiscoveryPathRequest(packet *Packet, now time.Time) {
-	if packet == nil || TransportIdentity == nil {
-		return
 	}
 
-	entry := popDiscoveryPathRequest(packet.DestinationHash, now)
-	if entry == nil || entry.RequestingInterface == nil {
-		return
-	}
-
-	Logf(LogDebug, "Got matching announce, answering waiting discovery path request for %s on %s",
-		PrettyHash(packet.DestinationHash), interfaceName(entry.RequestingInterface))
-
-	dest := &Destination{
-		Type:      DestinationSINGLE,
-		Direction: DestinationOUT,
-		hash:      copyBytes(packet.DestinationHash),
-		hexhash:   PrettyHexRep(packet.DestinationHash),
-	}
-
-	response := NewPacket(
-		dest,
-		copyBytes(packet.Data),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(PacketPATH_RESPONSE),
-		WithTransportType(TransportDirect),
-		WithHeaderType(HeaderType2),
-		WithTransportID(copyBytes(TransportIdentity.Hash)),
-		WithContextFlag(packet.ContextFlag),
-		WithAttachedInterface(entry.RequestingInterface),
-		WithoutReceipt(),
-	)
-	if response == nil {
-		return
-	}
-
-	response.Hops = packet.Hops
-	response.DestinationHash = copyBytes(packet.DestinationHash)
-	response.DestinationType = byte(DestinationSINGLE)
-	_ = response.Send()
-}
-
-func forwardPathRequestToLocalClients(raw []byte) {
-	localClients := localClientInterfacesSnapshot()
-	if len(raw) == 0 || len(localClients) == 0 {
-		return
-	}
-	send := append([]byte(nil), raw...)
-	for _, cif := range localClients {
-		if cif == nil {
-			continue
+	if !isFromLocalClient && len(LocalClientInterfaces) > 0 {
+		Logf(LogDebug, "Forwarding path request for %s%s to local clients", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		for _, ifc := range LocalClientInterfaces {
+			if ifc == nil {
+				continue
+			}
+			RequestPath(destinationHash, ifc, nil, false)
 		}
-		Transmit(cif, send)
+		return
 	}
 }
 
 func tunnelSynthesizeHandler(data []byte, packet *Packet) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogDebug, "An error occurred while validating tunnel establishment packet.")
+			Logf(LogDebug, "The contained exception was: %v", err)
+			TraceException(err)
+		}
+	}()
 	// Python expected_length:
 	// KEYSIZE//8 (64) + HASHLENGTH//8 (32) + TRUNCATED_HASHLENGTH//8 (16) + SIGLENGTH//8 (64) = 176
 	expected := (IdentityKeySize / 8) + (IdentityHashLength / 8) + (ReticulumTruncatedHashLength / 8) + (IdentitySigLength / 8)
 	if len(data) != expected {
-		return
-	}
-	if packet == nil || packet.ReceivingInterface == nil {
 		return
 	}
 
@@ -2889,7 +3165,7 @@ func tunnelSynthesizeHandler(data []byte, packet *Packet) {
 
 	remote := &Identity{}
 	if err := remote.LoadPublicKey(pubKey); err != nil {
-		return
+		panic(err)
 	}
 	if !remote.Validate(signature, signedData) {
 		return
@@ -2911,21 +3187,17 @@ func tunnelSynthesizeHandler(data []byte, packet *Packet) {
 // SynthesizeTunnel mirrors Python Transport.synthesize_tunnel(interface). It sends a
 // tunnel establishment packet attached to the specified interface.
 func SynthesizeTunnel(ifc *Interface) {
-	if ifc == nil || TransportIdentity == nil {
-		return
-	}
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%v", r)
+			Logf(LogError, "Could not synthesize tunnel, the contained exception was: %v", err)
+			TraceException(err)
+		}
+	}()
+
 	pub := TransportIdentity.GetPublicKey()
-	if len(pub) != IdentityKeySize/8 {
-		return
-	}
 	ifaceHash := ifc.Hash()
-	if len(ifaceHash) != IdentityHashLength/8 {
-		return
-	}
 	randomHash := IdentityGetRandomHash()
-	if len(randomHash) != ReticulumTruncatedHashLength/8 {
-		return
-	}
 
 	tunnelIDData := make([]byte, 0, len(pub)+len(ifaceHash))
 	tunnelIDData = append(tunnelIDData, pub...)
@@ -2936,7 +3208,9 @@ func SynthesizeTunnel(ifc *Interface) {
 	signedData = append(signedData, randomHash...)
 
 	sig, err := TransportIdentity.Sign(signedData)
-	if err != nil || len(sig) != IdentitySigLength/8 {
+	if err != nil {
+		Logf(LogError, "Could not synthesize tunnel, the contained exception was: %v", err)
+		TraceException(err)
 		return
 	}
 
@@ -2946,6 +3220,8 @@ func SynthesizeTunnel(ifc *Interface) {
 
 	dst, err := NewDestination(nil, DestinationOUT, DestinationPLAIN, "rnstransport", "tunnel", "synthesize")
 	if err != nil {
+		Logf(LogError, "Could not synthesize tunnel, the contained exception was: %v", err)
+		TraceException(err)
 		return
 	}
 	p := NewPacket(
@@ -2957,16 +3233,11 @@ func SynthesizeTunnel(ifc *Interface) {
 		WithAttachedInterface(ifc),
 		WithoutReceipt(),
 	)
-	if p == nil {
-		return
-	}
 	_ = p.Send()
+	ifc.WantsTunnel = false
 }
 
 func handleTunnel(tunnelID []byte, ifc *Interface) {
-	if len(tunnelID) != HashLengthBytes || ifc == nil {
-		return
-	}
 	expiresAt := time.Now().Add(pathExpiration)
 
 	key := string(tunnelID)
@@ -2983,7 +3254,122 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 		tunnelsMu.Unlock()
 
 		ifc.TunnelID = append([]byte(nil), tunnelID...)
-		restoreTunnelPaths(existing, ifc)
+
+		now := time.Now()
+		deprecated := make([]string, 0)
+
+		for dstKey, entry := range existing.Paths {
+			if entry == nil {
+				deprecated = append(deprecated, dstKey)
+				continue
+			}
+			if !entry.ExpiresAt.IsZero() && now.After(entry.ExpiresAt) {
+				deprecated = append(deprecated, dstKey)
+				continue
+			}
+			dstHash := []byte(dstKey)
+			if len(dstHash) != truncatedHashBytes {
+				deprecated = append(deprecated, dstKey)
+				continue
+			}
+
+			pathKey, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(dstHash)
+			if !ok {
+				continue
+			}
+			randomBlobs := func(in [][]byte) [][]byte {
+				if len(in) == 0 {
+					return nil
+				}
+				out := make([][]byte, len(in))
+				for i, blob := range in {
+					out[i] = append([]byte(nil), blob...)
+				}
+				return out
+			}(entry.RandomBlobs)
+			if len(randomBlobs) > 0 {
+				seen := make(map[string]struct{}, len(randomBlobs))
+				deduped := make([][]byte, 0, len(randomBlobs))
+				for _, blob := range randomBlobs {
+					if len(blob) == 0 {
+						continue
+					}
+					key := string(blob)
+					if _, ok := seen[key]; ok {
+						continue
+					}
+					seen[key] = struct{}{}
+					deduped = append(deduped, append([]byte(nil), blob...))
+				}
+				if len(deduped) > maxRandomBlobs {
+					deduped = deduped[len(deduped)-maxRandomBlobs:]
+				}
+				randomBlobs = deduped
+			}
+			newEntry := &PathEntry{
+				NextHop:       copyBytes(entry.ReceivedFrom),
+				RecvInterface: ifc,
+				Hops:          entry.Hops,
+				Timestamp:     now,
+				ExpiresAt:     entry.ExpiresAt,
+				RandomBlobs:   randomBlobs,
+				PacketHash:    copyBytes(entry.PacketHash),
+			}
+
+			shouldAdd := false
+			var old *PathEntry
+			if pathKey, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(dstHash); ok {
+				pathTableMu.RLock()
+				old = pathTable[pathKey]
+				pathTableMu.RUnlock()
+			}
+			if old != nil {
+				if newEntry.Hops <= old.Hops || now.After(old.ExpiresAt) {
+					shouldAdd = true
+				} else {
+					Logf(LogDebug, "Did not restore path to %s because a newer path with fewer hops exist", PrettyHexRep(dstHash))
+				}
+			} else {
+				if now.Before(entry.ExpiresAt) {
+					shouldAdd = true
+				} else {
+					Logf(LogDebug, "Did not restore path to %s because it has expired", PrettyHexRep(dstHash))
+				}
+			}
+
+			if shouldAdd {
+				pathTableMu.Lock()
+				pathTable[pathKey] = newEntry
+				pathTableMu.Unlock()
+				Logf(LogDebug, "Restored path to %s is now %d hops away via %s on %v",
+					PrettyHexRep(dstHash), newEntry.Hops, PrettyHexRep(newEntry.NextHop), ifc)
+			} else {
+				deprecated = append(deprecated, dstKey)
+			}
+		}
+
+		if len(deprecated) > 0 {
+			tunnelsMu.Lock()
+			for _, k := range deprecated {
+				Logf(LogDebug, "Removing path to %s from tunnel %s", PrettyHexRep([]byte(k)), PrettyHexRep(existing.ID))
+				delete(existing.Paths, k)
+			}
+			tunnelsMu.Unlock()
+		}
 		return
 	}
 	te := &tunnelEntry{
@@ -2998,533 +3384,9 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 	ifc.TunnelID = append([]byte(nil), tunnelID...)
 }
 
-func restoreTunnelPaths(te *tunnelEntry, ifc *Interface) {
-	if te == nil || ifc == nil || len(te.Paths) == 0 {
-		return
-	}
-	now := time.Now()
-	deprecated := make([]string, 0)
-
-	for dstKey, entry := range te.Paths {
-		if entry == nil {
-			deprecated = append(deprecated, dstKey)
-			continue
-		}
-		if !entry.ExpiresAt.IsZero() && now.After(entry.ExpiresAt) {
-			deprecated = append(deprecated, dstKey)
-			continue
-		}
-		dstHash := []byte(dstKey)
-		if len(dstHash) != truncatedHashBytes {
-			deprecated = append(deprecated, dstKey)
-			continue
-		}
-
-		pathKey, ok := makeHashKey(dstHash)
-		if !ok {
-			continue
-		}
-		newEntry := &PathEntry{
-			NextHop:       copyBytes(entry.ReceivedFrom),
-			RecvInterface: ifc,
-			Hops:          entry.Hops,
-			Timestamp:     now,
-			ExpiresAt:     entry.ExpiresAt,
-			RandomBlobs:   dedupeAndTailRandomBlobs(copyRandomBlobSlice(entry.RandomBlobs), maxRandomBlobs),
-			PacketHash:    copyBytes(entry.PacketHash),
-		}
-
-		shouldAdd := false
-		old := getPathEntry(dstHash)
-		if old != nil {
-			if newEntry.Hops <= old.Hops || now.After(old.ExpiresAt) {
-				shouldAdd = true
-			} else {
-				Logf(LogDebug, "Did not restore path to %s because a newer path with fewer hops exist", PrettyHexRep(dstHash))
-			}
-		} else {
-			if now.Before(entry.ExpiresAt) {
-				shouldAdd = true
-			} else {
-				Logf(LogDebug, "Did not restore path to %s because it has expired", PrettyHexRep(dstHash))
-			}
-		}
-
-		if shouldAdd {
-			pathTableMu.Lock()
-			pathTable[pathKey] = newEntry
-			pathTableMu.Unlock()
-			Logf(LogDebug, "Restored path to %s is now %d hops away via %s on %v",
-				PrettyHexRep(dstHash), newEntry.Hops, PrettyHexRep(newEntry.NextHop), ifc)
-		} else {
-			deprecated = append(deprecated, dstKey)
-		}
-	}
-
-	if len(deprecated) > 0 {
-		tunnelsMu.Lock()
-		for _, k := range deprecated {
-			delete(te.Paths, k)
-		}
-		tunnelsMu.Unlock()
-	}
-}
-
-func answerPathRequest(destinationHash []byte, attachedInterface *Interface, requestorTransportID []byte, tag []byte) bool {
-	// Local destination? Answer by emitting a path response announce.
-	if dst := destinationByHash(destinationHash); dst != nil {
-		Logf(LogDebug, "Answering path request for %s on %s, destination is local to this system", PrettyHash(destinationHash), interfaceName(attachedInterface))
-		dst.Announce(nil, true, attachedInterface, tag, true)
-		return true
-	}
-
-	// Known path? Re-announce cached announce as path response.
-	if !TransportEnabled() {
-		Logf(LogDebug, "Ignoring path request for %s on %s, transport disabled", PrettyHash(destinationHash), interfaceName(attachedInterface))
-		return false
-	}
-	entry := getPathEntry(destinationHash)
-	if entry == nil {
-		Logf(LogDebug, "Ignoring path request for %s on %s, no path known", PrettyHash(destinationHash), interfaceName(attachedInterface))
-		return false
-	}
-
-	// Python parity: If the destination exists on a local client interface, remember which
-	// external interface desires the path so a subsequent PATH_RESPONSE from the local client
-	// can be forwarded.
-	if attachedInterface != nil && IsLocalClientInterface(entry.RecvInterface) {
-		if key, ok := makeHashKey(destinationHash); ok {
-			pendingLocalPathRequestsMu.Lock()
-			pendingLocalPathRequests[key] = attachedInterface
-			pendingLocalPathRequestsMu.Unlock()
-		}
-	}
-
-	// Don't answer path requests on roaming interfaces if next hop is on the same roaming interface.
-	if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming && entry.RecvInterface == attachedInterface {
-		Logf(LogDebug, "Not answering path request for %s on %s, next hop is on same roaming interface", PrettyHash(destinationHash), interfaceName(attachedInterface))
-		return true
-	}
-
-	// If requestor transport id is the next hop, skip (Python behaviour).
-	if len(requestorTransportID) == truncatedHashBytes && len(entry.NextHop) == truncatedHashBytes && bytes.Equal(entry.NextHop, requestorTransportID) {
-		Logf(LogDebug, "Not answering path request for %s on %s, next hop is the requestor", PrettyHash(destinationHash), interfaceName(attachedInterface))
-		return true
-	}
-
-	raw := getCachedAnnounceRaw(entry.PacketHash)
-	if len(raw) == 0 {
-		Logf(LogDebug, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
-		return false
-	}
-	cached := NewPacket(nil, raw)
-	if cached == nil || !cached.Unpack() {
-		return false
-	}
-
-	dest := &Destination{
-		Type:      DestinationSINGLE,
-		Direction: DestinationOUT,
-		hash:      copyBytes(destinationHash),
-		hexhash:   PrettyHexRep(destinationHash),
-	}
-
-	resp := NewPacket(
-		dest,
-		copyBytes(cached.Data),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(PacketPATH_RESPONSE),
-		WithTransportType(TransportDirect),
-		WithHeaderType(HeaderType2),
-		WithTransportID(copyBytes(TransportIdentity.Hash)),
-		WithContextFlag(cached.ContextFlag),
-		WithAttachedInterface(attachedInterface),
-		WithoutReceipt(),
-	)
-	if resp == nil {
-		Logf(LogDebug, "Could not construct path response packet for %s", PrettyHash(destinationHash))
-		return false
-	}
-	h := entry.Hops
-	if h < 0 {
-		h = 0
-	}
-	if h > 255 {
-		h = 255
-	}
-	resp.Hops = uint8(h)
-	resp.DestinationHash = copyBytes(destinationHash)
-	resp.DestinationType = byte(DestinationSINGLE)
-
-	delay := pathRequestGrace
-	switch {
-	case attachedInterface != nil && IsLocalClientInterface(attachedInterface):
-		// Python parity: replies to local-client PATH_REQUEST packets are queued immediately.
-		delay = 0
-	case entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface):
-		// Python parity: if the destination lives on a local client, answer immediately.
-		delay = 0
-	case attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming:
-		delay += pathRequestRoamingGrace
-	}
-	if key, ok := makeHashKey(destinationHash); ok {
-		announceMu.Lock()
-		if existing := announceTable[key]; existing != nil {
-			heldAnnounces[key] = &heldAnnounce{Entry: existing}
-			delete(announceTable, key)
-		}
-		announceMu.Unlock()
-	}
-	QueueAnnounce(resp, WithAnnounceDelay(delay), WithAnnounceBlockRebroadcasts(true), WithAnnounceAttachedInterface(attachedInterface))
-	Logf(LogDebug, "Answering path request for %s on %s, path is known", PrettyHash(destinationHash), interfaceName(attachedInterface))
-	return true
-}
-
-func getCachedAnnounceRaw(packetHash []byte) []byte {
-	raw, err := readCachedAnnounceRaw(packetHash)
-	if err != nil {
-		return nil
-	}
-	return raw
-}
-
-func filterTableByHash(table []map[string]any, hash []byte) []map[string]any {
-	if len(hash) == 0 {
-		return table
-	}
-	filtered := make([]map[string]any, 0, len(table))
-	for _, entry := range table {
-		raw, _ := entry["hash"].([]byte)
-		if len(raw) > 0 && bytes.Equal(raw, hash) {
-			filtered = append(filtered, entry)
-		}
-	}
-	return filtered
-}
-
-func toInterfaceSlice(value any) ([]any, bool) {
-	switch v := value.(type) {
-	case []any:
-		return v, true
-	default:
-		return nil, false
-	}
-}
-
-func asBoolValue(value any) (bool, bool) {
-	switch v := value.(type) {
-	case bool:
-		return v, true
-	case *bool:
-		if v == nil {
-			return false, false
-		}
-		return *v, true
-	default:
-		return false, false
-	}
-}
-
-func asBytesValue(value any) ([]byte, bool) {
-	switch v := value.(type) {
-	case []byte:
-		return v, true
-	case *[]byte:
-		if v == nil {
-			return nil, false
-		}
-		return *v, true
-	case string:
-		return []byte(v), true
-	default:
-		return nil, false
-	}
-}
-
-func asStringValue(value any) (string, bool) {
-	switch v := value.(type) {
-	case string:
-		return v, true
-	case []byte:
-		return string(v), true
-	default:
-		return "", false
-	}
-}
-
-func asIntValue(value any) (int, bool) {
-	switch v := value.(type) {
-	case int:
-		return v, true
-	case int8:
-		return int(v), true
-	case int16:
-		return int(v), true
-	case int32:
-		return int(v), true
-	case int64:
-		return int(v), true
-	case uint:
-		return int(v), true
-	case uint8:
-		return int(v), true
-	case uint16:
-		return int(v), true
-	case uint32:
-		return int(v), true
-	case uint64:
-		return int(v), true
-	case float32:
-		return int(v), true
-	case float64:
-		return int(v), true
-	case *int:
-		if v == nil {
-			return 0, false
-		}
-		return *v, true
-	case *float64:
-		if v == nil {
-			return 0, false
-		}
-		return int(*v), true
-	default:
-		return 0, false
-	}
-}
-
-func asFloatValue(value any) (float64, bool) {
-	switch v := value.(type) {
-	case float64:
-		return v, true
-	case float32:
-		return float64(v), true
-	case int:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	case uint64:
-		return float64(v), true
-	case *float64:
-		if v == nil {
-			return 0, false
-		}
-		return *v, true
-	default:
-		return 0, false
-	}
-}
-
-func registerControlHash(hash []byte) {
-	if len(hash) == 0 {
-		return
-	}
-	controlHashesMu.Lock()
-	controlHashes[string(hash)] = struct{}{}
-	controlHashesMu.Unlock()
-}
-
-func unregisterControlHash(hash []byte) {
-	if len(hash) == 0 {
-		return
-	}
-	controlHashesMu.Lock()
-	delete(controlHashes, string(hash))
-	controlHashesMu.Unlock()
-}
-
-func cullReverseAndLinkTables(now time.Time) bool {
-	var removed bool
-
-	reverseTableMu.Lock()
-	for key, entry := range reverseTable {
-		if entry == nil {
-			delete(reverseTable, key)
-			removed = true
-			continue
-		}
-		if now.Sub(entry.Timestamp) > reverseTimeout {
-			delete(reverseTable, key)
-			removed = true
-			continue
-		}
-		// Python removes entries if interfaces disappear.
-		if entry.OutboundIf != nil && !interfacePresent(entry.OutboundIf) {
-			delete(reverseTable, key)
-			removed = true
-			continue
-		}
-		if entry.ReceivedIf != nil && !interfacePresent(entry.ReceivedIf) {
-			delete(reverseTable, key)
-			removed = true
-		}
-	}
-	reverseTableMu.Unlock()
-
-	linkTableMu.Lock()
-	for key, entry := range linkTable {
-		if entry == nil {
-			delete(linkTable, key)
-			removed = true
-			continue
-		}
-		if entry.NextHopInterface != nil && !interfacePresent(entry.NextHopInterface) {
-			delete(linkTable, key)
-			removed = true
-			continue
-		}
-		if entry.ReceivedInterface != nil && !interfacePresent(entry.ReceivedInterface) {
-			delete(linkTable, key)
-			removed = true
-			continue
-		}
-		// Validated links have a timeout separate from path table expiration.
-		if entry.Validated && !entry.Timestamp.IsZero() && now.Sub(entry.Timestamp) > linkTimeout {
-			delete(linkTable, key)
-			removed = true
-			continue
-		}
-		// Proof timeouts expire pending links.
-		if !entry.ProofTimeout.IsZero() && now.After(entry.ProofTimeout) {
-			delete(linkTable, key)
-			removed = true
-			continue
-		}
-	}
-	linkTableMu.Unlock()
-
-	return removed
-}
-
-func cullPathTable(now time.Time) bool {
-	pathTableMu.Lock()
-	defer pathTableMu.Unlock()
-	removed := false
-	for key, entry := range pathTable {
-		if entry == nil {
-			delete(pathTable, key)
-			removed = true
-			continue
-		}
-		expires := entry.ExpiresAt
-		if entry.RecvInterface != nil {
-			switch entry.RecvInterface.Mode {
-			case InterfaceModeAccessPoint:
-				if !entry.Timestamp.IsZero() {
-					expires = entry.Timestamp.Add(apPathTime)
-				}
-			case InterfaceModeRoaming:
-				if !entry.Timestamp.IsZero() {
-					expires = entry.Timestamp.Add(roamingPathTime)
-				}
-			}
-		}
-		if !expires.IsZero() && expires.Before(now) {
-			delete(pathTable, key)
-			removed = true
-			continue
-		}
-		if entry.RecvInterface != nil && !interfacePresent(entry.RecvInterface) {
-			delete(pathTable, key)
-			removed = true
-		}
-	}
-	return removed
-}
-
-func cullPathStates() bool {
-	pathTableMu.RLock()
-	defer pathTableMu.RUnlock()
-	pathStatesMu.Lock()
-	defer pathStatesMu.Unlock()
-	removed := false
-	for key := range pathStates {
-		if _, ok := pathTable[key]; ok {
-			continue
-		}
-		delete(pathStates, key)
-		removed = true
-	}
-	return removed
-}
-
-func interfacePresent(ifc *Interface) bool {
-	if ifc == nil {
-		return false
-	}
-	interfacesMu.RLock()
-	defer interfacesMu.RUnlock()
-	for _, existing := range Interfaces {
-		if existing == ifc {
-			return true
-		}
-	}
-	return false
-}
-
-func cleanAnnounceCache(now time.Time) bool {
-	if Owner == nil || len(Owner.CachePath) == 0 {
-		return false
-	}
-	announceDir := filepath.Join(Owner.CachePath, "announces")
-	if !fileExists(announceDir) {
-		return false
-	}
-
-	// Python parity: remove cached announces that are not referenced by the
-	// current path_table or tunnels table.
-	active := make(map[string]struct{})
-	pathTableMu.RLock()
-	for _, entry := range pathTable {
-		if entry == nil || len(entry.PacketHash) == 0 {
-			continue
-		}
-		active[string(entry.PacketHash)] = struct{}{}
-	}
-	pathTableMu.RUnlock()
-	tunnelsMu.RLock()
-	for _, te := range tunnels {
-		if te == nil || te.Paths == nil {
-			continue
-		}
-		for _, pe := range te.Paths {
-			if pe == nil || len(pe.PacketHash) == 0 {
-				continue
-			}
-			active[string(pe.PacketHash)] = struct{}{}
-		}
-	}
-	tunnelsMu.RUnlock()
-
-	removed := false
-	st := time.Now()
-	_ = filepath.WalkDir(announceDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d == nil || d.IsDir() {
-			return nil
-		}
-		name := filepath.Base(path)
-		hash, decodeErr := hex.DecodeString(name)
-		if decodeErr != nil || len(hash) == 0 {
-			_ = os.Remove(path)
-			removed = true
-			return nil
-		}
-		if _, ok := active[string(hash)]; !ok {
-			_ = os.Remove(path)
-			removed = true
-		}
-		return nil
-	})
-	if removed {
-		Logf(LogDebug, "Removed cached announces in %s", PrettyTime(time.Since(st).Seconds(), true, false))
-	}
-	_ = now
-	return removed
-}
-
 // -------- interface transmission (IFAC) --------
 
-func Transmit(ifc *Interface, raw []byte) {
+func transmit(ifc *Interface, raw []byte) {
 	defer func() {
 		if r := recover(); r != nil {
 			Logf(LogError, "Error while transmitting on %v: %v", ifc, r)
@@ -3571,19 +3433,6 @@ func Transmit(ifc *Interface, raw []byte) {
 	ifc.ProcessOutgoing(raw)
 }
 
-func transmitAnnounce(ifc *Interface, raw []byte, hops uint8) {
-	if ifc == nil || len(raw) == 0 {
-		return
-	}
-	// IFAC is applied inside Transmit(), so enqueue raw through Transmit path first
-	// when interface uses IFAC. For announce-cap throttling we need the final raw.
-	if ifc.IFACIdentity != nil {
-		Transmit(ifc, raw)
-		return
-	}
-	ifc.ProcessAnnounceRaw(raw, int(hops))
-}
-
 // -------- outbound packets --------
 
 func Outbound(p *Packet) bool {
@@ -3596,9 +3445,8 @@ func Outbound(p *Packet) bool {
 		}
 	}()
 
-	outTime := time.Now()
-
 	genReceipt := false
+	outboundTime := time.Now()
 	if p.CreateReceipt &&
 		p.Type == PacketData &&
 		p.Destination.Type != DestPlain &&
@@ -3637,8 +3485,21 @@ func Outbound(p *Packet) bool {
 		p.Link == nil &&
 		HasPath(p.DestinationHash) {
 
-		entry := getPathEntry(p.DestinationHash)
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
 		if entry != nil {
+			sendBroadcast = false
 			outIfc := entry.RecvInterface
 			hops := entry.Hops
 
@@ -3659,7 +3520,28 @@ func Outbound(p *Packet) bool {
 					newRaw = append(newRaw, entry.NextHop...)
 					newRaw = append(newRaw, p.Raw[2:]...)
 					packetSent(p)
-					Transmit(outIfc, newRaw)
+					transmit(outIfc, newRaw)
+					entry.Timestamp = time.Now()
+					sent = true
+					sendBroadcast = false
+				}
+			} else if hops == 1 && connectedShared {
+				// Python parity: one-hop packets behind a shared instance must
+				// still be injected into transport as HEADER_2 so the shared
+				// instance can forward them onto the network.
+				Logf(LogNotice, "Outbound: shared-instance HEADER_2 rewrite (hops=%d, shared=%v, nextHop=%x, dest=%x, ifc=%s)",
+					hops, connectedShared, entry.NextHop, p.DestinationHash, outIfc)
+				if p.HeaderType == Header1 {
+					flags := byte(Header2)<<6 |
+						byte(TransportDirect)<<4 |
+						(p.Flags & 0x0f)
+					newRaw := make([]byte, 0, len(p.Raw)+truncatedHashBytes)
+					newRaw = append(newRaw, flags)
+					newRaw = append(newRaw, p.Raw[1])
+					newRaw = append(newRaw, entry.NextHop...)
+					newRaw = append(newRaw, p.Raw[2:]...)
+					packetSent(p)
+					transmit(outIfc, newRaw)
 					entry.Timestamp = time.Now()
 					sent = true
 					sendBroadcast = false
@@ -3668,7 +3550,7 @@ func Outbound(p *Packet) bool {
 				// single hop: send directly
 				Logf(LogNotice, "Outbound: direct HEADER_1 send (hops=%d, ifc=%s)", hops, outIfc)
 				packetSent(p)
-				Transmit(outIfc, p.Raw)
+				transmit(outIfc, p.Raw)
 				sent = true
 				sendBroadcast = false
 			}
@@ -3679,7 +3561,7 @@ func Outbound(p *Packet) bool {
 		// path unknown: broadcast via all OUT interfaces
 		storedHash := false
 
-		for _, ifc := range interfacesSnapshot() {
+		for _, ifc := range Interfaces {
 			if !ifc.OUT {
 				continue
 			}
@@ -3695,8 +3577,91 @@ func Outbound(p *Packet) bool {
 
 			// announce logic with AP/ROAMING/BOUNDARY and queues
 			if p.Type == PacketAnnounce {
-				if !shouldAnnounceOnInterface(p, ifc, outTime) {
-					shouldSend = false
+				if mode, ok := any(ifc).(interface{ Mode() int }); ok {
+					switch mode.Mode() {
+					case InterfaceModeAccessPoint:
+						// Python blocks AP announce broadcast unless the packet is
+						// already attached to a specific interface.
+						if p.AttachedInterface == nil {
+							shouldSend = false
+						}
+					case InterfaceModeRoaming:
+						// Python only allows roaming announces when the destination is
+						// local to this instance or the next hop is not roaming/boundary.
+						var dst *Destination
+						for _, candidate := range Destinations {
+							if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), p.DestinationHash) {
+								dst = candidate
+								break
+							}
+						}
+						if dst == nil {
+							var nextHop *PathEntry
+							if pathKey, ok := func(hash []byte) (hashKey, bool) {
+								if len(hash) < truncatedHashBytes {
+									return hashKey{}, false
+								}
+								var key hashKey
+								copy(key[:], hash[:truncatedHashBytes])
+								return key, true
+							}(p.DestinationHash); ok {
+								pathTableMu.RLock()
+								nextHop = pathTable[pathKey]
+								pathTableMu.RUnlock()
+							}
+							if nextHop == nil || nextHop.RecvInterface == nil {
+								shouldSend = false
+							} else {
+								nextMode := InterfaceModeFull
+								if mode, ok := any(nextHop.RecvInterface).(interface{ Mode() int }); ok {
+									nextMode = mode.Mode()
+								} else if mode, ok := any(nextHop.RecvInterface).(interface{ GetMode() int }); ok {
+									nextMode = mode.GetMode()
+								}
+								switch nextMode {
+								case InterfaceModeRoaming, InterfaceModeBoundary:
+									shouldSend = false
+								}
+							}
+						}
+					case InterfaceModeBoundary:
+						// Python allows boundary announces unless the next hop is roaming.
+						var dst *Destination
+						for _, candidate := range Destinations {
+							if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), p.DestinationHash) {
+								dst = candidate
+								break
+							}
+						}
+						if dst == nil {
+							var nextHop *PathEntry
+							if pathKey, ok := func(hash []byte) (hashKey, bool) {
+								if len(hash) < truncatedHashBytes {
+									return hashKey{}, false
+								}
+								var key hashKey
+								copy(key[:], hash[:truncatedHashBytes])
+								return key, true
+							}(p.DestinationHash); ok {
+								pathTableMu.RLock()
+								nextHop = pathTable[pathKey]
+								pathTableMu.RUnlock()
+							}
+							if nextHop == nil || nextHop.RecvInterface == nil {
+								shouldSend = false
+							} else {
+								nextMode := InterfaceModeFull
+								if mode, ok := any(nextHop.RecvInterface).(interface{ Mode() int }); ok {
+									nextMode = mode.Mode()
+								} else if mode, ok := any(nextHop.RecvInterface).(interface{ GetMode() int }); ok {
+									nextMode = mode.GetMode()
+								}
+								if nextMode == InterfaceModeRoaming {
+									shouldSend = false
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -3704,18 +3669,87 @@ func Outbound(p *Packet) bool {
 				continue
 			}
 
-			if !storedHash {
-				AddPacketHash(p.PacketHash)
-				storedHash = true
-			}
-
 			if p.Type == PacketAnnounce {
-				transmitAnnounce(ifc, p.Raw, p.Hops)
+				shouldTransmit := true
+				if int(p.Hops) > 0 {
+					cap := ifc.AnnounceCap
+					if cap <= 0 && ifaces.DefaultAnnounceCapProvider != nil {
+						cap = ifaces.DefaultAnnounceCapProvider()
+					}
+					if cap > 0 {
+						ifc.ICMu.Lock()
+						queuedAnnounces := len(ifc.AnnounceQueue) > 0
+						allowedAt := ifc.AnnounceAllowedAt
+						shouldQueue := queuedAnnounces || (!allowedAt.IsZero() && outboundTime.Before(allowedAt)) || ifc.Bitrate == 0
+						if !shouldQueue {
+							txTime := (float64(len(p.Raw)) * 8.0) / float64(ifc.Bitrate)
+							waitTime := txTime / cap
+							if waitTime < 0 {
+								waitTime = 0
+							}
+							ifc.AnnounceAllowedAt = outboundTime.Add(time.Duration(waitTime * float64(time.Second)))
+						} else {
+							shouldTransmit = false
+							if len(ifc.AnnounceQueue) < MAX_QUEUED_ANNOUNCES {
+								emitted := AnnounceEmitted(p)
+								alreadyQueued := false
+								var existing *ifaces.AnnounceQueueEntry
+								for idx := range ifc.AnnounceQueue {
+									if bytes.Equal(ifc.AnnounceQueue[idx].Destination, p.DestinationHash) {
+										alreadyQueued = true
+										existing = &ifc.AnnounceQueue[idx]
+									}
+								}
+								if alreadyQueued {
+									if emitted > existing.Emitted {
+										existing.Time = outboundTime
+										existing.Hops = int(p.Hops)
+										existing.Emitted = emitted
+										existing.Raw = copyBytes(p.Raw)
+									}
+								} else {
+									entry := ifaces.AnnounceQueueEntry{
+										Time:        outboundTime,
+										Destination: copyBytes(p.DestinationHash),
+										Hops:        int(p.Hops),
+										Emitted:     emitted,
+										Raw:         copyBytes(p.Raw),
+									}
+									queuedBefore := len(ifc.AnnounceQueue) > 0
+									ifc.AnnounceQueue = append(ifc.AnnounceQueue, entry)
+									if !queuedBefore {
+										waitTime := time.Until(ifc.AnnounceAllowedAt)
+										if waitTime < 0 {
+											waitTime = 0
+										}
+										time.AfterFunc(waitTime, func() {
+											ifc.ProcessAnnounceQueue()
+										})
+									}
+								}
+							}
+						}
+						ifc.ICMu.Unlock()
+					}
+				}
+				if shouldTransmit {
+					if !storedHash {
+						AddPacketHash(p.PacketHash)
+						storedHash = true
+					}
+					transmit(ifc, p.Raw)
+					packetSent(p)
+					sent = true
+				}
 			} else {
-				Transmit(ifc, p.Raw)
+				if !storedHash {
+					AddPacketHash(p.PacketHash)
+					storedHash = true
+				}
+				transmit(ifc, p.Raw)
+				packetSent(p)
+				sent = true
 			}
-			packetSent(p)
-			sent = true
 		}
 	}
 
@@ -3775,9 +3809,21 @@ func PacketFilter(p *Packet) bool {
 		return false
 	}
 
-	if !HasPacketHash(p.PacketHash) {
+	if len(p.PacketHash) < truncatedHashBytes {
 		return true
-	} else if p.Type == PacketAnnounce && p.DestinationType == DestSingle {
+	}
+	var packetHashKey hashKey
+	copy(packetHashKey[:], p.PacketHash[:truncatedHashBytes])
+	packetHashMu.RLock()
+	_, seen := PacketHashSet[packetHashKey]
+	if !seen {
+		_, seen = PacketHashSet2[packetHashKey]
+	}
+	packetHashMu.RUnlock()
+	if !seen {
+		return true
+	}
+	if p.Type == PacketAnnounce && p.DestinationType == DestSingle {
 		return true
 	}
 
@@ -3860,23 +3906,67 @@ func Inbound(raw []byte, ifc *Interface) {
 	p.ReceivingInterface = ifc
 	p.Hops++
 
-	// Record reverse table entry for transport-direct packets (minimal parity).
-	if p.HeaderType == HeaderType2 && ifc != nil {
-		// Python stores reverse_table entries keyed by packet.getTruncatedHash().
-		// These are used for forwarding proofs and replies back towards the origin.
-		if key, ok := makeHashKey(p.GetTruncatedHash()); ok {
-			reverseTableMu.Lock()
-			reverseTable[key] = &reverseEntry{ReceivedIf: ifc, Timestamp: time.Now()}
-			reverseTableMu.Unlock()
+	// Cache RSSI/SNR/Q for local-client lookups, mirroring Python's
+	// Transport.inbound() local_client_*_cache updates.
+	if ifc != nil {
+		if p.RSSI != nil {
+			localStatsMu.Lock()
+			if len(p.PacketHash) == 0 {
+				p.PacketHash = p.GetHash()
+			}
+			if len(p.PacketHash) != 0 {
+				key := string(p.PacketHash)
+				localRSSICache[key] = *p.RSSI
+				localRSSIFIFO = append(localRSSIFIFO, key)
+				if len(localRSSIFIFO) > localStatsMax {
+					evict := localRSSIFIFO[0]
+					localRSSIFIFO = localRSSIFIFO[1:]
+					delete(localRSSICache, evict)
+				}
+			}
+			localStatsMu.Unlock()
+		}
+		if p.SNR != nil {
+			localStatsMu.Lock()
+			if len(p.PacketHash) == 0 {
+				p.PacketHash = p.GetHash()
+			}
+			if len(p.PacketHash) != 0 {
+				key := string(p.PacketHash)
+				localSNRCache[key] = *p.SNR
+				localSNRFIFO = append(localSNRFIFO, key)
+				if len(localSNRFIFO) > localStatsMax {
+					evict := localSNRFIFO[0]
+					localSNRFIFO = localSNRFIFO[1:]
+					delete(localSNRCache, evict)
+				}
+			}
+			localStatsMu.Unlock()
+		}
+		if p.Q != nil {
+			localStatsMu.Lock()
+			if len(p.PacketHash) == 0 {
+				p.PacketHash = p.GetHash()
+			}
+			if len(p.PacketHash) != 0 {
+				key := string(p.PacketHash)
+				localQCache[key] = *p.Q
+				localQFIFO = append(localQFIFO, key)
+				if len(localQFIFO) > localStatsMax {
+					evict := localQFIFO[0]
+					localQFIFO = localQFIFO[1:]
+					delete(localQCache, evict)
+				}
+			}
+			localStatsMu.Unlock()
 		}
 	}
 
-	// cache RSSI/SNR/Q for clients
-	cacheLocalStats(p, ifc)
-
 	// hop correction for local clients / shared instance
-	if IsLocalClientInterface(ifc) {
-		p.Hops--
+	if len(LocalClientInterfaces) > 0 {
+		if IsLocalClientInterface(ifc) {
+			p.Hops--
+		}
 	} else if InterfaceToSharedInstance(ifc) {
 		p.Hops--
 	}
@@ -3886,7 +3976,14 @@ func Inbound(raw []byte, ifc *Interface) {
 	}
 
 	rememberHash := true
-	if key, ok := makeHashKey(p.DestinationHash); ok {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(p.DestinationHash); ok {
 		linkTableMu.RLock()
 		_, exists := linkTable[key]
 		linkTableMu.RUnlock()
@@ -3909,32 +4006,243 @@ func Inbound(raw []byte, ifc *Interface) {
 		}
 	}
 
-	fromLocal := IsLocalClientInterface(ifc)
-	forLocalClient := isForLocalClient(p)
-	proofForLocalClient := isProofForLocal(p)
+	fromLocal := false
+	interfacesMu.RLock()
+	for _, cif := range LocalClientInterfaces {
+		if cif == ifc {
+			fromLocal = true
+			break
+		}
+	}
+	interfacesMu.RUnlock()
+	forLocalClient := func(p *Packet) bool {
+		if p.Type == PacketAnnounce {
+			return false
+		}
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
+		return entry != nil && entry.Hops == 0
+	}(p)
+	forLocalClientLink := func(p *Packet) bool {
+		if p.Type == PacketAnnounce {
+			return false
+		}
+		key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash)
+		if !ok {
+			return false
+		}
+		linkTableMu.RLock()
+		entry := linkTable[key]
+		linkTableMu.RUnlock()
+		if entry == nil {
+			return false
+		}
+		for _, cif := range LocalClientInterfaces {
+			if entry.ReceivedInterface == cif || entry.NextHopInterface == cif {
+				return true
+			}
+		}
+		return false
+	}(p)
+	proofForLocalClient := func(p *Packet) bool {
+		key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash)
+		if !ok {
+			return false
+		}
+		reverseTableMu.Lock()
+		entry := reverseTable[key]
+		reverseTableMu.Unlock()
+		if entry == nil {
+			return false
+		}
+		for _, cif := range LocalClientInterfaces {
+			if entry.ReceivedIf == cif {
+				return true
+			}
+		}
+		return false
+	}(p)
+	transportHandling := TransportEnabled() || fromLocal || forLocalClient || forLocalClientLink
 
-	if p.TransportID == nil && forLocalClient && p.Type != PacketAnnounce && TransportIdentity != nil {
+	if p.TransportID == nil && forLocalClient {
 		p.TransportID = copyBytes(TransportIdentity.Hash)
 	}
 
 	if p.TransportID != nil && p.Type != PacketAnnounce && TransportIdentity != nil && bytes.Equal(p.TransportID, TransportIdentity.Hash) {
-		if forwardDesignatedTransportPacket(p, ifc) {
+		key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash)
+		if !ok {
 			return
 		}
+
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
+		if entry == nil || entry.RecvInterface == nil {
+			Logf(LogExtreme, "Got packet in transport, but no known path to final destination %s. Dropping packet.", PrettyHexRep(p.DestinationHash))
+			return
+		}
+
+		nextHop := entry.NextHop
+		remainingHops := entry.Hops
+		if remainingHops < 0 {
+			remainingHops = 0
+		}
+		var outRaw []byte
+		switch {
+		case remainingHops > 1 && len(nextHop) == truncatedHashBytes:
+			// Just increase hop count and transmit with updated next hop.
+			outRaw = make([]byte, 0, len(p.Raw))
+			outRaw = append(outRaw, p.Raw[0])
+			outRaw = append(outRaw, p.Raw[1])
+			outRaw = append(outRaw, nextHop...)
+			outRaw = append(outRaw, p.Raw[truncatedHashBytes+2:]...)
+
+		case remainingHops == 1:
+			// Strip transport headers (header2 -> header1) and transmit.
+			newFlags := (HeaderType1 << 6) | (Broadcast << 4) | (p.Flags & 0b00001111)
+			outRaw = make([]byte, 0, len(p.Raw)-truncatedHashBytes)
+			outRaw = append(outRaw, newFlags)
+			outRaw = append(outRaw, p.Raw[1])
+			outRaw = append(outRaw, p.Raw[truncatedHashBytes+2:]...)
+
+		case remainingHops == 0:
+			// Just increase hop count and transmit (header1 packets behind shared instances).
+			outRaw = make([]byte, 0, len(p.Raw))
+			outRaw = append(outRaw, p.Raw[0])
+			outRaw = append(outRaw, p.Raw[1])
+			outRaw = append(outRaw, p.Raw[2:]...)
+
+		default:
+			return
+		}
+
+		// LINKREQUEST: create link table entry, else create reverse table entry.
+		if p.PacketType == PacketTypeLinkRequest {
+			linkID := linkIDFromLinkRequestPacket(p)
+			if lidKey, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(linkID); ok {
+				now := time.Now()
+				rem := remainingHops
+				if rem < 1 {
+					rem = 1
+				}
+				proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*rem)*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
+				le := &linkEntry{
+					Timestamp:         now,
+					NextHopID:         copyBytes(nextHop),
+					NextHopInterface:  entry.RecvInterface,
+					RemainingHops:     remainingHops,
+					ReceivedInterface: ifc,
+					Hops:              int(p.Hops),
+					DestinationHash:   copyBytes(p.DestinationHash),
+					Validated:         false,
+					ProofTimeout:      proofTimeout,
+				}
+				linkMu.Lock()
+				linkTable[lidKey] = le
+				linkMu.Unlock()
+			}
+		} else {
+			reverseTableMu.Lock()
+			reverseTable[key] = &reverseEntry{ReceivedIf: ifc, OutboundIf: entry.RecvInterface, Timestamp: time.Now()}
+			reverseTableMu.Unlock()
+			Logf(LogDebug, "Transport reverse add key=%x recv=%v out=%v dest=%x hops=%d", key, ifc, entry.RecvInterface, p.DestinationHash, p.Hops)
+		}
+
+		transmit(entry.RecvInterface, outRaw)
+		pathTableMu.Lock()
+		if cur := pathTable[key]; cur == entry {
+			entry.Timestamp = time.Now()
+			pathTable[key] = entry
+		}
+		pathTableMu.Unlock()
+		return
 	}
 
 	// Local client routing: if a destination is behind a local client (path hops==0),
 	// forward packets to the local client interface.
 	if forLocalClient && !fromLocal {
-		if entry := getPathEntry(p.DestinationHash); entry != nil && entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface) {
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
+		if entry != nil && entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface) {
 			// Python parity: when forwarding LINKREQUEST packets to a local client, we
 			// must create a link_table entry so that subsequent LINK/LRPROOF packets
 			// can be routed back to the original interface.
 			if p.PacketType == PacketTypeLinkRequest {
 				linkID := linkIDFromLinkRequestPacket(p)
-				if lidKey, ok := makeHashKey(linkID); ok {
+				if lidKey, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(linkID); ok {
 					now := time.Now()
-					proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, entry.Hops))*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
+					rem := entry.Hops
+					if rem < 1 {
+						rem = 1
+					}
+					proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*rem)*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
 					le := &linkEntry{
 						Timestamp:         now,
 						NextHopID:         copyBytes(entry.NextHop),
@@ -3951,45 +4259,636 @@ func Inbound(raw []byte, ifc *Interface) {
 					linkTableMu.Unlock()
 				}
 			}
-			Transmit(entry.RecvInterface, p.Raw)
-			return
-		}
-	}
-
-	// Reverse table forwarding (Python: return replies and non-proof packets).
-	// Proof packets are handled separately below so they can use one-shot
-	// reverse-table routing semantics and interface validation.
-	if p.Type != PacketAnnounce && p.Type != PacketProof && p.DestinationType == DestSingle {
-		if forwardViaReverseTable(p, ifc) {
+			transmit(entry.RecvInterface, p.Raw)
 			return
 		}
 	}
 
 	// PLAIN BROADCAST from a client -> forward across interfaces
-	if !isControlHash(p.DestinationHash) &&
+	isControl := false
+	controlHashesMu.RLock()
+	_, isControl = controlHashes[string(p.DestinationHash)]
+	controlHashesMu.RUnlock()
+	if !isControl &&
 		p.DestinationType == DestPlain &&
 		p.TransportType == Broadcast {
 
 		if fromLocal {
-			for _, oif := range interfacesSnapshot() {
+			for _, oif := range Interfaces {
 				if oif != ifc {
-					Transmit(oif, p.Raw)
+					transmit(oif, p.Raw)
 				}
 			}
 		} else {
-			for _, cif := range localClientInterfacesSnapshot() {
-				Transmit(cif, p.Raw)
+			for _, cif := range LocalClientInterfaces {
+				transmit(cif, p.Raw)
 			}
 		}
 	}
 
+	if !transportHandling {
+		return
+	}
+
 	if p.Type == PacketAnnounce {
-		handleInboundAnnounce(p, ifc, fromLocal)
+		if p == nil {
+			return
+		}
+
+		if ifc != nil && ValidateAnnounce(p, true) {
+			ifc.ReceivedAnnounce()
+		}
+
+		// Python parity: apply ingress limiting for unknown destinations.
+		if ifc != nil && !HasPath(p.DestinationHash) {
+			if ifc.ShouldIngressLimit() {
+				ifc.HoldAnnounce(append([]byte(nil), p.Raw...), p.ReceivingInterface, copyBytes(p.DestinationHash), p.Hops)
+				return
+			}
+		}
+
+		var dst *Destination
+		for _, candidate := range Destinations {
+			if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), p.DestinationHash) {
+				dst = candidate
+				break
+			}
+		}
+		if dst != nil {
+			return
+		}
+
+		if !ValidateAnnounce(p, false) {
+			return
+		}
+
+		// Python keeps the full announce-ingress critical section under a single
+		// inbound_announce_lock. Without that serialization, two near-simultaneous
+		// arrivals of the same announce can both observe stale path state and
+		// re-accept the packet on TCP rings.
+		inboundAnnounceMu.Lock()
+		defer inboundAnnounceMu.Unlock()
+
+		now := time.Now()
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			announceMu.Lock()
+			entry := announceTable[key]
+			if entry != nil && entry.Packet != nil {
+				expected := entry.Packet.Hops
+				Logf(LogDebug, "Announce rebroadcast check key=%s hops=%d expected=%d retries=%d next=%s now=%s",
+					PrettyHash(p.DestinationHash), p.Hops, expected, entry.Retries, entry.Next.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+				if p.Hops-1 == expected {
+					entry.LocalRebroadcasts++
+					Logf(LogDebug, "Announce rebroadcast local hit key=%s local_rebroadcasts=%d", PrettyHash(p.DestinationHash), entry.LocalRebroadcasts)
+					if entry.LocalRebroadcasts >= localRebroadcastsMax {
+						Logf(LogDebug, "Announce rebroadcast complete key=%s local rebroadcast limit reached", PrettyHash(p.DestinationHash))
+						delete(announceTable, key)
+						announceMu.Unlock()
+						return
+					}
+					announceTable[key] = entry
+				} else if p.Hops-1 == expected+1 && entry.Retries > 0 && now.Before(entry.Next) {
+					Logf(LogDebug, "Announce rebroadcast complete key=%s next-hop hit before retry deadline", PrettyHash(p.DestinationHash))
+					delete(announceTable, key)
+				}
+			}
+			announceMu.Unlock()
+		}
+
+		if p.Hops >= PathfinderMaxHops+1 {
+			return
+		}
+
+		updated := false
+		if pathKey, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			offset := identityPubKeyLen + IdentityNameHashLength/8
+			var randomBlob []byte
+			if p != nil && len(p.Data) > offset {
+				end := offset + announceRandomHashLen
+				if end > len(p.Data) {
+					end = len(p.Data)
+				}
+				randomBlob = copyBytes(p.Data[offset:end])
+			}
+			var existing *PathEntry
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash); ok {
+				pathTableMu.RLock()
+				existing = pathTable[key]
+				pathTableMu.RUnlock()
+			}
+
+			var blobs [][]byte
+			if existing != nil && len(existing.RandomBlobs) > 0 {
+				blobs = func(in [][]byte) [][]byte {
+					if len(in) == 0 {
+						return nil
+					}
+					out := make([][]byte, len(in))
+					for i, blob := range in {
+						out[i] = append([]byte(nil), blob...)
+					}
+					return out
+				}(existing.RandomBlobs)
+			}
+
+			blobSeen := false
+			if len(randomBlob) > 0 {
+				for _, existingBlob := range blobs {
+					if bytes.Equal(existingBlob, randomBlob) {
+						blobSeen = true
+						break
+					}
+				}
+			}
+			emitted := timebaseFromRandomBlob(randomBlob)
+			shouldAdd := false
+
+			switch {
+			case existing == nil:
+				shouldAdd = true
+			case int(p.Hops) <= existing.Hops:
+				if !blobSeen && emitted > timebaseFromRandomBlobs(blobs) {
+					MarkPathUnknownState(p.DestinationHash)
+					shouldAdd = true
+				}
+			default:
+				expired := now.After(existing.ExpiresAt)
+				pathEmitted := timebaseFromRandomBlobs(blobs)
+				newer := emitted > pathEmitted
+				if expired && !blobSeen {
+					MarkPathUnknownState(p.DestinationHash)
+					shouldAdd = true
+				} else if newer && !blobSeen {
+					MarkPathUnknownState(p.DestinationHash)
+					shouldAdd = true
+				} else if emitted == pathEmitted && PathIsUnresponsive(p.DestinationHash) {
+					shouldAdd = true
+				}
+			}
+
+			if shouldAdd {
+				if len(randomBlob) > 0 {
+					blobs = append(blobs, randomBlob)
+					if len(blobs) > maxRandomBlobs {
+						blobs = blobs[len(blobs)-maxRandomBlobs:]
+					}
+				}
+				nextHop := p.TransportID
+				if len(nextHop) == 0 {
+					nextHop = p.DestinationHash
+				}
+				packetHash := p.PacketHash
+				if len(packetHash) == 0 {
+					packetHash = p.GetHash()
+				}
+
+				expiresAt := time.Now()
+				if mode, ok := any(ifc).(interface{ Mode() int }); ok {
+					switch mode.Mode() {
+					case InterfaceModeAccessPoint:
+						expiresAt = now.Add(apPathTime)
+					case InterfaceModeRoaming:
+						expiresAt = now.Add(roamingPathTime)
+					default:
+						expiresAt = now.Add(pathExpiration)
+					}
+				} else if mode, ok := any(ifc).(interface{ GetMode() int }); ok {
+					switch mode.GetMode() {
+					case InterfaceModeAccessPoint:
+						expiresAt = now.Add(apPathTime)
+					case InterfaceModeRoaming:
+						expiresAt = now.Add(roamingPathTime)
+					default:
+						expiresAt = now.Add(pathExpiration)
+					}
+				} else {
+					expiresAt = now.Add(pathExpiration)
+				}
+
+				entry := &PathEntry{
+					NextHop:       copyBytes(nextHop),
+					RecvInterface: ifc,
+					Hops:          int(p.Hops),
+					Timestamp:     now,
+					ExpiresAt:     expiresAt,
+					RandomBlobs:   blobs,
+					AnnounceAt:    emitted,
+					PacketHash:    copyBytes(packetHash),
+				}
+
+				pathTableMu.Lock()
+				pathTable[pathKey] = entry
+				pathTableMu.Unlock()
+
+				if ifc != nil && len(ifc.TunnelID) == HashLengthBytes {
+					tunnelsMu.Lock()
+					if te := tunnels[string(ifc.TunnelID)]; te != nil {
+						if te.Paths == nil {
+							te.Paths = make(map[string]*tunnelPathEntry)
+						}
+						te.Paths[string(p.DestinationHash)] = &tunnelPathEntry{
+							Timestamp:    entry.Timestamp,
+							ReceivedFrom: copyBytes(entry.NextHop),
+							Hops:         entry.Hops,
+							ExpiresAt:    entry.ExpiresAt,
+							RandomBlobs: func(in [][]byte) [][]byte {
+								if len(in) == 0 {
+									return nil
+								}
+								out := make([][]byte, len(in))
+								for i, blob := range in {
+									out[i] = append([]byte(nil), blob...)
+								}
+								return out
+							}(entry.RandomBlobs),
+							PacketHash: copyBytes(entry.PacketHash),
+						}
+						tunnels[string(ifc.TunnelID)] = te
+					}
+					tunnelsMu.Unlock()
+				}
+
+				// Python parity: cache announce with force_cache=True when adding/updating path table.
+				Cache(p, true)
+				updated = true
+			}
+		}
+		if updated {
+			receivedFrom := p.TransportID
+			if len(receivedFrom) == 0 {
+				receivedFrom = p.DestinationHash
+			}
+			Logf(LogDebug, "Destination %s is now %d hops away via %s on %s",
+				PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), fmt.Sprint(ifc))
+		}
+		if !updated {
+			return
+		}
+
+		if len(LocalClientInterfaces) > 0 {
+			announceIdentity := IdentityRecall(p.DestinationHash)
+			announceDestination := &Destination{
+				Type:      DestinationSINGLE,
+				Direction: DestinationOUT,
+				identity:  announceIdentity,
+				hash:      copyBytes(p.DestinationHash),
+				hexhash:   PrettyHexRep(p.DestinationHash),
+			}
+			for _, cif := range LocalClientInterfaces {
+				if cif == nil || p.ReceivingInterface == cif {
+					continue
+				}
+				send := NewPacket(
+					announceDestination,
+					copyBytes(p.Data),
+					WithPacketType(PacketANNOUNCE),
+					WithPacketContext(byte(PacketNONE)),
+					WithHeaderType(HeaderType2),
+					WithTransportType(TransportDirect),
+					WithAttachedInterface(cif),
+					WithContextFlag(p.ContextFlag),
+				)
+				if send == nil {
+					continue
+				}
+				if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
+					send.TransportID = copyBytes(TransportIdentity.Hash)
+				}
+				send.Hops = p.Hops
+				send.DestinationHash = copyBytes(p.DestinationHash)
+				send.DestinationType = byte(DestinationSINGLE)
+				if err := send.Pack(); err != nil {
+					continue
+				}
+				raw := append([]byte(nil), send.Raw...)
+				transmit(cif, raw)
+			}
+		}
+
+		if TransportIdentity != nil {
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash); ok {
+				discoveryPathRequestsMu.Lock()
+				entry := discoveryPathRequests[key]
+				if entry != nil {
+					if !entry.Timeout.IsZero() && !now.Before(entry.Timeout) {
+						delete(discoveryPathRequests, key)
+						entry = nil
+					} else {
+						delete(discoveryPathRequests, key)
+					}
+				}
+				discoveryPathRequestsMu.Unlock()
+
+				if entry != nil && entry.RequestingInterface != nil {
+					Logf(LogDebug, "Got matching announce, answering waiting discovery path request for %s on %s",
+						PrettyHash(p.DestinationHash), fmt.Sprint(entry.RequestingInterface))
+
+					dest := &Destination{
+						Type:      DestinationSINGLE,
+						Direction: DestinationOUT,
+						hash:      copyBytes(p.DestinationHash),
+						hexhash:   PrettyHexRep(p.DestinationHash),
+					}
+
+					response := NewPacket(
+						dest,
+						copyBytes(p.Data),
+						WithPacketType(PacketANNOUNCE),
+						WithPacketContext(PacketPATH_RESPONSE),
+						WithTransportType(TransportDirect),
+						WithHeaderType(HeaderType2),
+						WithTransportID(copyBytes(TransportIdentity.Hash)),
+						WithContextFlag(p.ContextFlag),
+						WithAttachedInterface(entry.RequestingInterface),
+						WithoutReceipt(),
+					)
+					if response != nil {
+						response.Hops = p.Hops
+						response.DestinationHash = copyBytes(p.DestinationHash)
+						response.DestinationType = byte(DestinationSINGLE)
+						_ = response.Send()
+					}
+				}
+			}
+		}
+
+		// Python parity: only newly accepted announces propagate to handlers and
+		// transport rebroadcast.
+		if p != nil && p.PacketType == PacketTypeAnnounce && len(p.Data) >= identityPubKeyLen+IdentityNameHashLength/8+announceRandomHashLen+ed25519.SignatureSize {
+			announceHandlersMu.RLock()
+			handlers := append([]any(nil), announceHandlers...)
+			announceHandlersMu.RUnlock()
+
+			for _, handler := range handlers {
+				if handler == nil {
+					continue
+				}
+
+				announceHandler, ok := handler.(AnnounceHandler)
+				if !ok {
+					continue
+				}
+
+				announced := IdentityRecall(p.DestinationHash)
+				filterValue := announceHandler.AspectFilter()
+				if filterValue != nil {
+					filter, ok := filterValue.(string)
+					if !ok {
+						continue
+					}
+					expectedHash, err := DestinationHashFromNameAndIdentity(filter, announced)
+					if err != nil || !bytes.Equal(expectedHash, p.DestinationHash) {
+						continue
+					}
+				}
+
+				if p.Context == PacketPATH_RESPONSE {
+					prHandler, ok := handler.(PathResponseAnnounceHandler)
+					if !ok || !prHandler.ReceivePathResponses() {
+						continue
+					}
+				}
+
+				go func(handler any) {
+					defer func() {
+						if rec := recover(); rec != nil {
+							Logf(LogError, "Announce handler panic: %v", rec)
+						}
+					}()
+
+					appData := IdentityRecallAppData(p.DestinationHash)
+					packetHash := copyBytes(p.PacketHash)
+					if len(packetHash) == 0 {
+						packetHash = copyBytes(p.GetHash())
+					}
+
+					switch typed := handler.(type) {
+					case AnnounceHandlerWithPacketInfo:
+						typed.ReceivedAnnounceWithPacketInfo(
+							copyBytes(p.DestinationHash),
+							announced,
+							appData,
+							packetHash,
+							p.Context == PacketPATH_RESPONSE,
+						)
+					case AnnounceHandlerWithPacketHash:
+						typed.ReceivedAnnounceWithPacketHash(
+							copyBytes(p.DestinationHash),
+							announced,
+							appData,
+							packetHash,
+						)
+					default:
+						announceHandler.ReceivedAnnounce(copyBytes(p.DestinationHash), announced, appData)
+					}
+				}(handler)
+			}
+		}
+
+		retransmitAllowed := TransportEnabled() || fromLocal
+		if !retransmitAllowed {
+			return
+		}
+
+		if p.Context == PacketPATH_RESPONSE && !fromLocal {
+			return
+		}
+
+		announceKey, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash)
+		if !ok {
+			return
+		}
+
+		rateBlocked := false
+		if p.Context != PacketPATH_RESPONSE {
+			type announceRateTargetGetter interface {
+				AnnounceRateTarget() time.Duration
+			}
+			if getter, ok := any(ifc).(announceRateTargetGetter); ok {
+				target := getter.AnnounceRateTarget()
+				if target > 0 {
+					type announceRateGraceGetter interface {
+						AnnounceRateGrace() int
+					}
+					type announceRatePenaltyGetter interface {
+						AnnounceRatePenalty() time.Duration
+					}
+
+					grace := 0
+					penalty := time.Duration(0)
+					if getter, ok := any(ifc).(announceRateGraceGetter); ok {
+						grace = getter.AnnounceRateGrace()
+					}
+					if getter, ok := any(ifc).(announceRatePenaltyGetter); ok {
+						penalty = getter.AnnounceRatePenalty()
+					}
+
+					announceRateMu.Lock()
+					entry := announceRateTable[announceKey]
+					if entry == nil {
+						announceRateTable[announceKey] = &announceRateEntry{
+							Last:       now,
+							Timestamps: []time.Time{now},
+						}
+					} else {
+						entry.Timestamps = append(entry.Timestamps, now)
+						if len(entry.Timestamps) > maxRateTimestamps {
+							entry.Timestamps = entry.Timestamps[len(entry.Timestamps)-maxRateTimestamps:]
+						}
+
+						currentRate := now.Sub(entry.Last)
+						if now.After(entry.BlockedUntil) {
+							if currentRate < target {
+								entry.RateViolations++
+							} else if entry.RateViolations > 0 {
+								entry.RateViolations--
+							}
+
+							if entry.RateViolations > grace {
+								entry.BlockedUntil = entry.Last.Add(target + penalty)
+								rateBlocked = true
+							} else {
+								entry.Last = now
+							}
+						} else {
+							rateBlocked = true
+						}
+					}
+					announceRateMu.Unlock()
+				}
+			}
+		}
+		if rateBlocked {
+			Logf(LogDebug, "Blocking rebroadcast of announce from %s due to excessive announce rate",
+				PrettyHexRep(p.DestinationHash))
+			return
+		}
+
+		if p.Context == PacketPATH_RESPONSE {
+			// Python only queues local-client PATH_RESPONSE announces when an
+			// external path request is pending. These are rebroadcast as normal
+			// announces, not as PATH_RESPONSE packets, and are not pinned to the
+			// requesting interface.
+			if !fromLocal {
+				return
+			}
+
+			queuePathResponse := false
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash); ok {
+				pendingLocalPathRequestsMu.Lock()
+				if _, exists := pendingLocalPathRequests[key]; exists {
+					delete(pendingLocalPathRequests, key)
+					queuePathResponse = true
+				}
+				pendingLocalPathRequestsMu.Unlock()
+			}
+			if !queuePathResponse {
+				return
+			}
+
+			if keyHash, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash); ok {
+				now := time.Now()
+				entry := &announceEntry{
+					Packet:            p,
+					Next:              now,
+					Retries:           pathfinderRetryLimit,
+					Timestamp:         now,
+					Expires:           now.Add(announceQueueTTL),
+					LocalRebroadcasts: 0,
+					BlockRebroadcasts: false,
+					AttachedInterface: nil,
+				}
+				announceMu.Lock()
+				announceTable[keyHash] = entry
+				announceMu.Unlock()
+			}
+			return
+		}
+
+		if keyHash, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			now := time.Now()
+			delay := pathfinderRetryGrace
+			if pathfinderRandomWindow > 0 {
+				delay = time.Duration(Rand() * float64(pathfinderRandomWindow))
+			}
+			entry := &announceEntry{
+				Packet:            p,
+				Next:              now.Add(delay),
+				Retries:           0,
+				Timestamp:         now,
+				Expires:           now.Add(announceQueueTTL),
+				LocalRebroadcasts: 0,
+				BlockRebroadcasts: false,
+				AttachedInterface: nil,
+			}
+			if fromLocal {
+				entry.Retries = pathfinderRetryLimit
+				entry.Next = now
+			}
+			announceMu.Lock()
+			announceTable[keyHash] = entry
+			announceMu.Unlock()
+		}
 	}
 
 	// Link transport handling (Python: routes packets according to link_table).
-	// This must include LRPROOF packets so link establishment can complete across hops.
-	if p.Type != PacketAnnounce && p.Type != PacketLINKREQUEST {
+	if p.Type != PacketAnnounce && p.Type != PacketLINKREQUEST && p.Context != PacketCtxLRProof {
 		// If this link packet is for a local link, deliver it before any routing
 		// decisions. Shared instances will typically have no local link, and will
 		// fall back to link_table forwarding below.
@@ -3998,7 +4897,23 @@ func Inbound(raw []byte, ifc *Interface) {
 				Logf(LogWarning, "Inbound DestLink packet ctx=0x%02x hash=%x recv=%v fromLocal=%v forLocalClient=%v proofForLocal=%v",
 					p.Context, p.DestinationHash, ifc, fromLocal, forLocalClient, proofForLocalClient)
 			}
-			link := findLinkByID(p.DestinationHash)
+			var link *Link
+			linkMu.Lock()
+			for _, candidate := range ActiveLinks {
+				if candidate != nil && bytes.Equal(candidate.LinkID, p.DestinationHash) {
+					link = candidate
+					break
+				}
+			}
+			if link == nil {
+				for _, candidate := range PendingLinks {
+					if candidate != nil && bytes.Equal(candidate.LinkID, p.DestinationHash) {
+						link = candidate
+						break
+					}
+				}
+			}
+			linkMu.Unlock()
 			if link != nil {
 				if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
 					Logf(LogWarning, "Inbound DestLink packet ctx=0x%02x delivered locally to %s", p.Context, link)
@@ -4006,7 +4921,10 @@ func Inbound(raw []byte, ifc *Interface) {
 				link.Receive(p)
 				return
 			}
-			pendingLinks, activeLinks := snapshotLinks()
+			linkMu.Lock()
+			pendingLinks := append([]*Link(nil), PendingLinks...)
+			activeLinks := append([]*Link(nil), ActiveLinks...)
+			linkMu.Unlock()
 			Logf(LogDebug, "Inbound DestLink: no local link for %x ctx=0x%02x (pending=%d active=%d)",
 				p.DestinationHash, p.Context, len(pendingLinks), len(activeLinks))
 			for i, pl := range pendingLinks {
@@ -4016,36 +4934,242 @@ func Inbound(raw []byte, ifc *Interface) {
 			}
 		}
 
-		if forwardViaLinkTable(p, ifc) {
-			return
+		if p.Type != PacketAnnounce && p.PacketType != PacketTypeLinkRequest && p.Context != PacketLRProof {
+			key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash)
+			if ok {
+				linkTableMu.RLock()
+				entry := linkTable[key]
+				linkTableMu.RUnlock()
+				if entry != nil && entry.NextHopInterface != nil && entry.ReceivedInterface != nil {
+					var outbound *Interface
+					if entry.NextHopInterface == entry.ReceivedInterface {
+						// Direction doesn't matter, but ensure hop count matches expectations.
+						if int(p.Hops) == entry.RemainingHops || int(p.Hops) == entry.Hops {
+							outbound = entry.NextHopInterface
+						}
+					} else {
+						// Direction matters; transmit on opposite interface to where it was received.
+						if ifc == entry.NextHopInterface {
+							if int(p.Hops) == entry.RemainingHops {
+								outbound = entry.ReceivedInterface
+							}
+						} else if ifc == entry.ReceivedInterface {
+							if int(p.Hops) == entry.Hops {
+								outbound = entry.NextHopInterface
+							}
+						}
+					}
+
+					if outbound != nil && outbound != ifc {
+						// Add this packet to the filter hashlist if we have determined that it's our turn.
+						AddPacketHash(p.PacketHash)
+
+						outRaw := append([]byte{p.Raw[0], p.Raw[1]}, p.Raw[2:]...)
+						if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+							Logf(LogWarning, "LinkTable forwarding ctx=0x%02x hash=%x recv=%v out=%v hops=%d rem=%d",
+								p.Context, p.DestinationHash, ifc, outbound, p.Hops, entry.RemainingHops)
+						}
+						transmit(outbound, outRaw)
+
+						linkTableMu.Lock()
+						if cur := linkTable[key]; cur == entry {
+							if p.Type == PacketProof && p.Context == PacketCtxLRProof {
+								entry.Validated = true
+								entry.ProofTimeout = time.Time{}
+							}
+							entry.Timestamp = time.Now()
+							linkTable[key] = entry
+						}
+						linkTableMu.Unlock()
+						return
+					}
+
+					if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
+						Logf(LogWarning, "LinkTable forward blocked ctx=0x%02x hash=%x recv=%v next=%v got=%v hops=%d rem=%d",
+							p.Context, p.DestinationHash, ifc, entry.NextHopInterface, outbound, p.Hops, entry.RemainingHops)
+					}
+				}
+			}
 		}
 	}
 
 	// ---- basic delivery pipeline (Destination/Link/Proof) ----
 
-	// ProofDestination packets are addressed to truncated packet hashes and are
-	// not registered Destinations. Python transports matching proofs first and
-	// only then tries to validate outstanding local receipts.
-	if p.Type == PacketProof && p.DestinationType == DestSingle {
-		if forwardProofViaReverseTable(p, ifc) {
-			return
-		}
-		if proofForLocalClient {
-			for _, cif := range localClientInterfacesSnapshot() {
-				if cif != nil && cif != ifc {
-					Transmit(cif, p.Raw)
+	// Proof packets are handled before generic destination routing.
+	if p.Type == PacketProof {
+		if p.Context == PacketLRProof {
+			if (TransportEnabled() || forLocalClientLink || fromLocal) && len(p.DestinationHash) > 0 {
+				key, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(p.DestinationHash)
+				if ok {
+					linkTableMu.RLock()
+					entry := linkTable[key]
+					linkTableMu.RUnlock()
+					if entry != nil {
+						if int(p.Hops) == entry.RemainingHops {
+							if p.ReceivingInterface == entry.NextHopInterface {
+								tryValidate := false
+								if len(p.Data) == ed25519.SignatureSize+linkEcPubSize/2 || len(p.Data) == ed25519.SignatureSize+linkEcPubSize/2+linkSignalSize {
+									tryValidate = true
+								}
+								if tryValidate {
+									signalling := []byte{}
+									if len(p.Data) == ed25519.SignatureSize+linkEcPubSize/2+linkSignalSize {
+										mtu, ok := linkMTUFromProofPacket(p)
+										if ok {
+											mode := linkModeFromProofPacket(p)
+											if sb, err := linkSignallingBytes(mtu, mode); err == nil {
+												signalling = sb
+											} else {
+												Logf(LogError, "Error while transporting link request proof. The contained exception was: %v", err)
+											}
+										}
+									}
+
+									peerPubBytes := p.Data[ed25519.SignatureSize : ed25519.SignatureSize+linkEcPubSize/2]
+									peerIdentity := IdentityRecall(entry.DestinationHash)
+									if peerIdentity != nil {
+										peerPubKey := peerIdentity.GetPublicKey()
+										if len(peerPubKey) >= linkEcPubSize {
+											peerSigPubBytes := peerPubKey[linkEcPubSize/2 : linkEcPubSize]
+											signedData := make([]byte, 0, len(p.DestinationHash)+len(peerPubBytes)+len(peerSigPubBytes)+len(signalling))
+											signedData = append(signedData, p.DestinationHash...)
+											signedData = append(signedData, peerPubBytes...)
+											signedData = append(signedData, peerSigPubBytes...)
+											signedData = append(signedData, signalling...)
+											signature := p.Data[:ed25519.SignatureSize]
+
+											if peerIdentity.Validate(signature, signedData) {
+												Logf(LogExtreme, "Link request proof validated for transport via %v", entry.ReceivedInterface)
+												newRaw := []byte{p.Raw[0]}
+												newRaw = append(newRaw, byte(p.Hops))
+												newRaw = append(newRaw, p.Raw[2:]...)
+												linkTableMu.Lock()
+												if cur := linkTable[key]; cur == entry {
+													entry.Validated = true
+													entry.Timestamp = time.Now()
+													linkTable[key] = entry
+												}
+												linkTableMu.Unlock()
+												transmit(entry.ReceivedInterface, newRaw)
+											} else {
+												Logf(LogDebug, "Invalid link request proof in transport for link %s, dropping proof.", PrettyHexRep(p.DestinationHash))
+											}
+										}
+									}
+								}
+							} else {
+								Logf(LogDebug, "Link request proof received on wrong interface, not transporting it.")
+							}
+						} else {
+							Logf(LogDebug, "Received link request proof with hop mismatch, not transporting it")
+						}
+					}
+				}
+			} else {
+				linkMu.Lock()
+				pendingLinks := append([]*Link(nil), PendingLinks...)
+				linkMu.Unlock()
+				for _, link := range pendingLinks {
+					if link == nil || !bytes.Equal(link.LinkID, p.DestinationHash) {
+						continue
+					}
+					if p.Hops == uint8(link.expectedHops) || link.expectedHops == PathfinderMaxHops {
+						AddPacketHash(p.PacketHash)
+						link.Receive(p)
+						return
+					}
 				}
 			}
 			return
 		}
-		if handleInboundProof(p) {
-			return
+		if (TransportEnabled() || fromLocal || proofForLocalClient) && len(p.DestinationHash) > 0 {
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.DestinationHash); ok {
+				reverseTableMu.Lock()
+				entry := reverseTable[key]
+				delete(reverseTable, key)
+				reverseTableMu.Unlock()
+				if entry != nil && entry.ReceivedIf != nil {
+					if ifc == entry.OutboundIf {
+						Logf(LogExtreme, "Proof received on correct interface, transporting it via %v", entry.ReceivedIf)
+						newRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
+						transmit(entry.ReceivedIf, newRaw)
+					} else {
+						Logf(LogDebug, "Proof received on wrong interface, not transporting it.")
+					}
+				}
+			}
 		}
+		proofHash := []byte(nil)
+		if len(p.Data) == ReceiptExplLength {
+			proofHash = p.Data[:HashLengthBytes]
+		}
+		receiptsMu.Lock()
+		for i := 0; i < len(Receipts); {
+			rc := Receipts[i]
+			receiptValidated := false
+			if rc != nil && rc.Status == ReceiptSent {
+				if proofHash != nil {
+					if bytes.Equal(rc.Hash, proofHash) {
+						receiptValidated = rc.ValidateProofPacket(p)
+					}
+				} else {
+					receiptValidated = rc.ValidateProofPacket(p)
+				}
+			}
+			if receiptValidated {
+				if i < len(Receipts) && Receipts[i] == rc {
+					Receipts = append(Receipts[:i], Receipts[i+1:]...)
+				} else {
+					i++
+				}
+			} else {
+				i++
+			}
+		}
+		receiptsMu.Unlock()
 	}
 
 	// Deliver to link if addressed to a link ID.
 	if p.DestinationType == DestLink {
-		if link := findLinkByID(p.DestinationHash); link != nil {
+		var link *Link
+		linkMu.Lock()
+		for _, candidate := range ActiveLinks {
+			if candidate != nil && bytes.Equal(candidate.LinkID, p.DestinationHash) {
+				link = candidate
+				break
+			}
+		}
+		if link == nil {
+			for _, candidate := range PendingLinks {
+				if candidate != nil && bytes.Equal(candidate.LinkID, p.DestinationHash) {
+					link = candidate
+					break
+				}
+			}
+		}
+		linkMu.Unlock()
+		if link != nil {
 			link.Receive(p)
 			return
 		}
@@ -4054,9 +5178,9 @@ func Inbound(raw []byte, ifc *Interface) {
 		// live in a local client rather than in this transport process, so forward
 		// unmatched resource proofs to local clients.
 		if p.Type == PacketProof && p.Context == PacketCtxResourcePrf && !fromLocal {
-			for _, cif := range localClientInterfacesSnapshot() {
+			for _, cif := range LocalClientInterfaces {
 				if cif != nil && cif != ifc {
-					Transmit(cif, p.Raw)
+					transmit(cif, p.Raw)
 				}
 			}
 			return
@@ -4065,963 +5189,135 @@ func Inbound(raw []byte, ifc *Interface) {
 	}
 
 	// Deliver to a registered destination (including control destinations).
-	if dst := destinationByHash(p.DestinationHash); dst != nil {
+	var dst *Destination
+	for _, candidate := range Destinations {
+		if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), p.DestinationHash) {
+			dst = candidate
+			break
+		}
+	}
+	if dst != nil {
 		_ = dst.Receive(p)
 		return
 	}
 
 	// Minimal routing pipeline: forward packets not for local system along a known path.
-	if TransportEnabled() {
-		if forwardTransportPacket(p, ifc) {
+	if p.Type != PacketAnnounce && p.TransportType != Broadcast && p.DestinationType != DestSingle && p.DestinationType != DestGroup && p.DestinationType != DestPlain {
+		// Only addressable destination types are eligible for path-based forwarding.
+		return
+	}
+	if p.Type != PacketAnnounce && p.Type != PacketProof && p.DestinationType == DestPlain && p.TransportType == Broadcast {
+		return
+	}
+	if p.Type != PacketAnnounce && p.Hops < PathfinderMaxHops+1 {
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(p.DestinationHash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
+		if entry != nil && entry.RecvInterface != nil && entry.RecvInterface != ifc {
+			// Remaining hops from path table (Python: IDX_PT_HOPS).
+			remainingHops := entry.Hops
+			if remainingHops < 0 {
+				remainingHops = 0
+			}
+			if remainingHops > 255 {
+				remainingHops = 255
+			}
+
+			flags := p.Flags
+			flags &^= 0b01000000                     // clear header type bit
+			flags &^= 0b00010000                     // clear transport type bit
+			flags |= (TransportDirect & 0x01) << 4   // set transport type (1 bit encoding)
+			flags |= (p.ContextFlag & 0x01) << 5     // preserve context flag
+			flags &^= 0b00000011                     // clear packet type bits
+			flags |= (p.PacketType & 0x03)           // restore packet type bits
+			flags &^= 0b00001100                     // clear destination type bits
+			flags |= (p.DestinationType & 0x03) << 2 // restore destination type bits
+
+			outRaw := make([]byte, 0, len(p.Raw)+truncatedHashBytes)
+			if remainingHops > 1 && len(entry.NextHop) == truncatedHashBytes {
+				// Header 2: flags,hops,next_hop_id,destination_hash,context,data
+				flags |= 0b01000000
+				outRaw = append(outRaw, flags, p.Hops)
+				outRaw = append(outRaw, entry.NextHop...)
+				outRaw = append(outRaw, p.DestinationHash...)
+				outRaw = append(outRaw, p.Context)
+				outRaw = append(outRaw, p.Data...)
+			} else {
+				// Header 1: flags,hops,destination_hash,context,data
+				// Python uses BROADCAST transport type for header1 forwarding.
+				flags &^= 0b00010000
+				outRaw = append(outRaw, flags, p.Hops)
+				outRaw = append(outRaw, p.DestinationHash...)
+				outRaw = append(outRaw, p.Context)
+				outRaw = append(outRaw, p.Data...)
+			}
+
+			// Update reverse table entry to assist replies/proofs returning.
+			if key, ok := func(hash []byte) (hashKey, bool) {
+				if len(hash) < truncatedHashBytes {
+					return hashKey{}, false
+				}
+				var key hashKey
+				copy(key[:], hash[:truncatedHashBytes])
+				return key, true
+			}(p.GetTruncatedHash()); ok && ifc != nil {
+				reverseTableMu.Lock()
+				if rev := reverseTable[key]; rev != nil {
+					rev.OutboundIf = entry.RecvInterface
+					reverseTable[key] = rev
+				} else {
+					reverseTable[key] = &reverseEntry{ReceivedIf: ifc, OutboundIf: entry.RecvInterface, Timestamp: time.Now()}
+				}
+				reverseTableMu.Unlock()
+			}
+
+			transmit(entry.RecvInterface, outRaw)
+
+			// Create link table entry for link requests so subsequent link packets can be forwarded.
+			if p.PacketType == PacketTypeLinkRequest {
+				linkID := linkIDFromLinkRequestPacket(p)
+				if lidKey, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(linkID); ok {
+					rem := remainingHops
+					if rem < 1 {
+						rem = 1
+					}
+					proofTmo := time.Now().Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT)*time.Second*time.Duration(rem) + ExtraLinkProofTimeout(entry.RecvInterface))
+					le := &linkEntry{
+						Timestamp:         time.Now(),
+						NextHopID:         copyBytes(entry.NextHop),
+						NextHopInterface:  entry.RecvInterface,
+						RemainingHops:     remainingHops,
+						ReceivedInterface: ifc,
+						Hops:              int(p.Hops),
+						DestinationHash:   copyBytes(p.DestinationHash),
+						Validated:         false,
+						ProofTimeout:      proofTmo,
+					}
+					linkTableMu.Lock()
+					linkTable[lidKey] = le
+					linkTableMu.Unlock()
+				}
+			}
 			return
 		}
 	}
-}
-
-func forwardViaLinkTable(p *Packet, receivedOn *Interface) bool {
-	if p == nil || len(p.DestinationHash) == 0 {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-
-	linkTableMu.RLock()
-	entry := linkTable[key]
-	linkTableMu.RUnlock()
-	if entry == nil || entry.NextHopInterface == nil || entry.ReceivedInterface == nil {
-		return false
-	}
-
-	var outbound *Interface
-	if entry.NextHopInterface == entry.ReceivedInterface {
-		// Direction doesn't matter, but ensure hop count matches expectations.
-		if int(p.Hops) == entry.RemainingHops || int(p.Hops) == entry.Hops {
-			outbound = entry.NextHopInterface
-		}
-	} else {
-		// Direction matters; transmit on opposite interface to where it was received.
-		if receivedOn == entry.NextHopInterface {
-			if int(p.Hops) == entry.RemainingHops {
-				outbound = entry.ReceivedInterface
-			}
-		} else if receivedOn == entry.ReceivedInterface {
-			if int(p.Hops) == entry.Hops {
-				outbound = entry.NextHopInterface
-			}
-		}
-	}
-
-	if outbound == nil || outbound == receivedOn {
-		if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
-			Logf(LogWarning, "LinkTable forward blocked ctx=0x%02x hash=%x recv=%v next=%v got=%v hops=%d rem=%d",
-				p.Context, p.DestinationHash, receivedOn, entry.NextHopInterface, outbound, p.Hops, entry.RemainingHops)
-		}
-		return false
-	}
-
-	// Add this packet to the filter hashlist if we have determined that it's our turn.
-	AddPacketHash(p.PacketHash)
-
-	outRaw := append([]byte{p.Raw[0], p.Raw[1]}, p.Raw[2:]...)
-	if p.Context == PacketCtxResourceAdv || p.Context == PacketCtxResource || p.Context == PacketCtxResourcePrf {
-		Logf(LogWarning, "LinkTable forwarding ctx=0x%02x hash=%x recv=%v out=%v hops=%d rem=%d",
-			p.Context, p.DestinationHash, receivedOn, outbound, p.Hops, entry.RemainingHops)
-	}
-	Transmit(outbound, outRaw)
-
-	now := time.Now()
-	linkTableMu.Lock()
-	if cur := linkTable[key]; cur == entry {
-		if p.Type == PacketProof && p.Context == PacketCtxLRProof {
-			entry.Validated = true
-			entry.ProofTimeout = time.Time{}
-		}
-		entry.Timestamp = now
-		linkTable[key] = entry
-	}
-	linkTableMu.Unlock()
-	return true
-}
-
-func forwardDesignatedTransportPacket(p *Packet, receivedOn *Interface) bool {
-	if p == nil || p.Type == PacketAnnounce {
-		return false
-	}
-	// Only transport packets (header2) are routed here.
-	if p.HeaderType != HeaderType2 || len(p.TransportID) != truncatedHashBytes {
-		return false
-	}
-
-	entry := getPathEntry(p.DestinationHash)
-	if entry == nil || entry.RecvInterface == nil {
-		Logf(LogExtreme, "Got packet in transport, but no known path to final destination %s. Dropping packet.", PrettyHexRep(p.DestinationHash))
-		return true
-	}
-
-	nextHop := entry.NextHop
-	remainingHops := entry.Hops
-	if remainingHops < 0 {
-		remainingHops = 0
-	}
-
-	var outRaw []byte
-	switch {
-	case remainingHops > 1 && len(nextHop) == truncatedHashBytes:
-		// Just increase hop count and transmit with updated next hop.
-		outRaw = make([]byte, 0, len(p.Raw))
-		outRaw = append(outRaw, p.Raw[0])
-		outRaw = append(outRaw, p.Raw[1])
-		outRaw = append(outRaw, nextHop...)
-		outRaw = append(outRaw, p.Raw[truncatedHashBytes+2:]...)
-
-	case remainingHops == 1:
-		// Strip transport headers (header2 -> header1) and transmit.
-		newFlags := (HeaderType1 << 6) | (Broadcast << 4) | (p.Flags & 0b00001111)
-		outRaw = make([]byte, 0, len(p.Raw)-truncatedHashBytes)
-		outRaw = append(outRaw, newFlags)
-		outRaw = append(outRaw, p.Raw[1])
-		outRaw = append(outRaw, p.Raw[truncatedHashBytes+2:]...)
-
-	case remainingHops == 0:
-		// Just increase hop count and transmit (header1 packets behind shared instances).
-		outRaw = make([]byte, 0, len(p.Raw))
-		outRaw = append(outRaw, p.Raw[0])
-		outRaw = append(outRaw, p.Raw[1])
-		outRaw = append(outRaw, p.Raw[2:]...)
-	default:
-		return false
-	}
-	// LINKREQUEST: create link table entry, else create reverse table entry.
-	if p.PacketType == PacketTypeLinkRequest {
-		linkID := linkIDFromLinkRequestPacket(p)
-		if lidKey, ok := makeHashKey(linkID); ok {
-			now := time.Now()
-			proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*maxInt(1, remainingHops))*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
-			le := &linkEntry{
-				Timestamp:         now,
-				NextHopID:         copyBytes(nextHop),
-				NextHopInterface:  entry.RecvInterface,
-				RemainingHops:     remainingHops,
-				ReceivedInterface: receivedOn,
-				Hops:              int(p.Hops),
-				DestinationHash:   copyBytes(p.DestinationHash),
-				Validated:         false,
-				ProofTimeout:      proofTimeout,
-			}
-			linkMu.Lock()
-			linkTable[lidKey] = le
-			linkMu.Unlock()
-		}
-	} else {
-		if key, ok := makeHashKey(p.GetTruncatedHash()); ok {
-			reverseTableMu.Lock()
-			reverseTable[key] = &reverseEntry{ReceivedIf: receivedOn, OutboundIf: entry.RecvInterface, Timestamp: time.Now()}
-			reverseTableMu.Unlock()
-			Logf(LogDebug, "Transport reverse add key=%x recv=%v out=%v dest=%x hops=%d", key, receivedOn, entry.RecvInterface, p.DestinationHash, p.Hops)
-		}
-	}
-
-	Transmit(entry.RecvInterface, outRaw)
-
-	// Update timestamp to keep path alive (Python).
-	pathTableMu.Lock()
-	if k, ok := makeHashKey(p.DestinationHash); ok {
-		if cur := pathTable[k]; cur != nil {
-			cur.Timestamp = time.Now()
-			pathTable[k] = cur
-		}
-	}
-	pathTableMu.Unlock()
-
-	return true
-}
-
-func forwardTransportPacket(p *Packet, receivedOn *Interface) bool {
-	if p == nil {
-		return false
-	}
-	// Do not forward announces; they are handled via announce queue.
-	if p.Type == PacketAnnounce {
-		return false
-	}
-	// Do not forward broadcast plain/group packets here; those are handled separately.
-	if p.TransportType == Broadcast && (p.DestinationType == DestPlain || p.DestinationType == DestGroup) {
-		return false
-	}
-	// Only forward addressable destination types.
-	if p.DestinationType != DestSingle && p.DestinationType != DestGroup && p.DestinationType != DestPlain {
-		return false
-	}
-	if p.Hops >= PathfinderMaxHops+1 {
-		return false
-	}
-
-	entry := getPathEntry(p.DestinationHash)
-	if entry == nil || entry.RecvInterface == nil {
-		return false
-	}
-	if receivedOn != nil && entry.RecvInterface == receivedOn {
-		return false
-	}
-
-	// Remaining hops from path table (Python: IDX_PT_HOPS).
-	remainingHops := entry.Hops
-	if remainingHops < 0 {
-		remainingHops = 0
-	}
-	if remainingHops > 255 {
-		remainingHops = 255
-	}
-
-	flags := p.Flags
-	flags &^= 0b01000000                     // clear header type bit
-	flags &^= 0b00010000                     // clear transport type bit
-	flags |= (TransportDirect & 0x01) << 4   // set transport type (1 bit encoding)
-	flags |= (p.ContextFlag & 0x01) << 5     // preserve context flag
-	flags &^= 0b00000011                     // clear packet type bits
-	flags |= (p.PacketType & 0x03)           // restore packet type bits
-	flags &^= 0b00001100                     // clear destination type bits
-	flags |= (p.DestinationType & 0x03) << 2 // restore destination type bits
-
-	outRaw := make([]byte, 0, len(p.Raw)+truncatedHashBytes)
-	if remainingHops > 1 && len(entry.NextHop) == truncatedHashBytes {
-		// Header 2: flags,hops,next_hop_id,destination_hash,context,data
-		flags |= 0b01000000
-		outRaw = append(outRaw, flags, p.Hops)
-		outRaw = append(outRaw, entry.NextHop...)
-		outRaw = append(outRaw, p.DestinationHash...)
-		outRaw = append(outRaw, p.Context)
-		outRaw = append(outRaw, p.Data...)
-	} else {
-		// Header 1: flags,hops,destination_hash,context,data
-		// Python uses BROADCAST transport type for header1 forwarding.
-		flags &^= 0b00010000
-		outRaw = append(outRaw, flags, p.Hops)
-		outRaw = append(outRaw, p.DestinationHash...)
-		outRaw = append(outRaw, p.Context)
-		outRaw = append(outRaw, p.Data...)
-	}
-
-	// Update reverse table entry to assist replies/proofs returning.
-	if key, ok := makeHashKey(p.GetTruncatedHash()); ok && receivedOn != nil {
-		reverseTableMu.Lock()
-		if rev := reverseTable[key]; rev != nil {
-			rev.OutboundIf = entry.RecvInterface
-			reverseTable[key] = rev
-		} else {
-			reverseTable[key] = &reverseEntry{ReceivedIf: receivedOn, OutboundIf: entry.RecvInterface, Timestamp: time.Now()}
-		}
-		reverseTableMu.Unlock()
-	}
-
-	Transmit(entry.RecvInterface, outRaw)
-
-	// Create link table entry for link requests so subsequent link packets can be forwarded.
-	if p.PacketType == PacketTypeLinkRequest {
-		linkID := linkIDFromLinkRequestPacket(p)
-		if lidKey, ok := makeHashKey(linkID); ok {
-			proofTmo := time.Now().Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT)*time.Second*time.Duration(maxInt(1, remainingHops)) + ExtraLinkProofTimeout(entry.RecvInterface))
-			le := &linkEntry{
-				Timestamp:         time.Now(),
-				NextHopID:         copyBytes(entry.NextHop),
-				NextHopInterface:  entry.RecvInterface,
-				RemainingHops:     remainingHops,
-				ReceivedInterface: receivedOn,
-				Hops:              int(p.Hops),
-				DestinationHash:   copyBytes(p.DestinationHash),
-				Validated:         false,
-				ProofTimeout:      proofTmo,
-			}
-			linkTableMu.Lock()
-			linkTable[lidKey] = le
-			linkTableMu.Unlock()
-		}
-	}
-	return true
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func shouldDiscoverPathsFor(ifc *Interface) bool {
-	if ifc == nil || !TransportEnabled() {
-		return false
-	}
-	switch ifc.Mode {
-	case InterfaceModeAccessPoint, InterfaceModeGateway, InterfaceModeRoaming:
-		return true
-	default:
-		return false
-	}
-}
-
-// linkIDFromLinkRequestPacket computes the link ID in the same way as Python
-// Link.link_id_from_lr_packet(), ensuring that link-table routing works for
-// LRPROOF and subsequent link packets across transport hops.
-func linkIDFromLinkRequestPacket(p *Packet) []byte {
-	if p == nil || p.PacketType != PacketTypeLinkRequest {
-		return nil
-	}
-	// The link ID is the truncated hash of the packet hashable part, excluding
-	// optional signalling bytes beyond Link.ECPUBSIZE (64 bytes).
-	hashable := p.getHashablePart()
-	if len(p.Data) > linkEcPubSize {
-		diff := len(p.Data) - linkEcPubSize
-		if diff > 0 && diff <= len(hashable) {
-			hashable = hashable[:len(hashable)-diff]
-		}
-	}
-	return TruncatedHash(hashable)
-}
-
-func forwardProofViaReverseTable(p *Packet, receivedOn *Interface) bool {
-	if p == nil || p.Type != PacketProof || len(p.DestinationHash) == 0 {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-
-	reverseTableMu.Lock()
-	entry := reverseTable[key]
-	// Proofs are one-shot routed in Python; pop the entry.
-	delete(reverseTable, key)
-	reverseTableMu.Unlock()
-	Logf(LogDebug, "Transport proof reverse key=%x recv=%v entry_recv=%v entry_out=%v", key, receivedOn, func() any {
-		if entry == nil {
-			return nil
-		}
-		return entry.ReceivedIf
-	}(), func() any {
-		if entry == nil {
-			return nil
-		}
-		return entry.OutboundIf
-	}())
-	if entry == nil || entry.ReceivedIf == nil {
-		return false
-	}
-	if entry.OutboundIf != nil && receivedOn != nil && entry.OutboundIf != receivedOn {
-		Logf(LogDebug, "Transport proof reverse wrong inbound key=%x recv=%v expected=%v", key, receivedOn, entry.OutboundIf)
-		return false
-	}
-	if receivedOn != nil && entry.ReceivedIf == receivedOn {
-		Logf(LogDebug, "Transport proof reverse loop key=%x recv=%v", key, receivedOn)
-		return false
-	}
-	outRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
-	Logf(LogDebug, "Transport proof reverse forward key=%x to=%v", key, entry.ReceivedIf)
-	Transmit(entry.ReceivedIf, outRaw)
-	return true
-}
-
-func forwardViaReverseTable(p *Packet, receivedOn *Interface) bool {
-	if p == nil || len(p.DestinationHash) == 0 {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-
-	reverseTableMu.Lock()
-	entry := reverseTable[key]
-	if entry != nil {
-		entry.Timestamp = time.Now()
-		reverseTable[key] = entry
-	}
-	reverseTableMu.Unlock()
-	if entry == nil || entry.ReceivedIf == nil {
-		return false
-	}
-
-	var outbound *Interface
-	if entry.OutboundIf != nil {
-		switch receivedOn {
-		case entry.OutboundIf:
-			outbound = entry.ReceivedIf
-		case entry.ReceivedIf:
-			outbound = entry.OutboundIf
-		default:
-			outbound = entry.ReceivedIf
-		}
-	} else {
-		outbound = entry.ReceivedIf
-	}
-
-	if outbound == nil || outbound == receivedOn {
-		return false
-	}
-
-	outRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
-	Transmit(outbound, outRaw)
-	return true
-}
-
-func findLinkByID(linkID []byte) *Link {
-	if len(linkID) == 0 {
-		return nil
-	}
-	linkMu.Lock()
-	defer linkMu.Unlock()
-	for _, l := range ActiveLinks {
-		if l != nil && bytes.Equal(l.LinkID, linkID) {
-			return l
-		}
-	}
-	for _, l := range PendingLinks {
-		if l != nil && bytes.Equal(l.LinkID, linkID) {
-			return l
-		}
-	}
-	return nil
-}
-
-func snapshotLinks() (pending []*Link, active []*Link) {
-	linkMu.Lock()
-	defer linkMu.Unlock()
-	pending = append([]*Link(nil), PendingLinks...)
-	active = append([]*Link(nil), ActiveLinks...)
-	return pending, active
-}
-
-func handleInboundProof(p *Packet) bool {
-	if p == nil || len(p.DestinationHash) == 0 {
-		return false
-	}
-	receiptsMu.Lock()
-	defer receiptsMu.Unlock()
-	for _, rc := range Receipts {
-		if rc == nil || rc.Status != ReceiptSent {
-			continue
-		}
-		if bytes.Equal(rc.TruncatedHash, p.DestinationHash) {
-			Logf(LogDebug, "Transport inbound proof candidate rc=%x proofdst=%x", rc.TruncatedHash, p.DestinationHash)
-			if rc.ValidateProofPacket(p) {
-				Logf(LogDebug, "Transport inbound proof validated rc=%x", rc.TruncatedHash)
-				return true
-			}
-			Logf(LogDebug, "Transport inbound proof validation failed rc=%x", rc.TruncatedHash)
-		}
-	}
-	return false
-}
-
-func handleInboundAnnounce(p *Packet, ifc *Interface, fromLocal bool) {
-	if p == nil {
-		return
-	}
-
-	if ifc != nil && IdentityValidateAnnounce(p, true) {
-		noteInterfaceAnnounce(ifc)
-	}
-
-	// Python parity: apply ingress limiting for unknown destinations.
-	if ifc != nil && !HasPath(p.DestinationHash) {
-		if ifc.ShouldIngressLimit() {
-			ifc.HoldAnnounce(append([]byte(nil), p.Raw...), p.ReceivingInterface, copyBytes(p.DestinationHash), p.Hops)
-			return
-		}
-	}
-
-	if destinationByHash(p.DestinationHash) != nil {
-		return
-	}
-
-	if !IdentityValidateAnnounce(p, false) {
-		return
-	}
-
-	// Python keeps the full announce-ingress critical section under a single
-	// inbound_announce_lock. Without that serialization, two near-simultaneous
-	// arrivals of the same announce can both observe stale path state and
-	// re-accept the packet on TCP rings.
-	inboundAnnounceMu.Lock()
-	defer inboundAnnounceMu.Unlock()
-
-	now := time.Now()
-	recordAnnounceRebroadcast(p, now)
-
-	if p.Hops >= PathfinderMaxHops+1 {
-		return
-	}
-
-	updated := updatePathFromAnnounce(p, ifc, now)
-	if updated {
-		receivedFrom := p.TransportID
-		if len(receivedFrom) == 0 {
-			receivedFrom = p.DestinationHash
-		}
-		Logf(LogDebug, "Destination %s is now %d hops away via %s on %s",
-			PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), interfaceName(ifc))
-	}
-	if !updated {
-		return
-	}
-
-	// Python parity: only newly accepted announces propagate to handlers,
-	// local clients, discovery waiters, and transport rebroadcast.
-	dispatchAnnounceHandlers(p)
-
-	forwardAnnounceToLocalClients(p)
-
-	answerWaitingDiscoveryPathRequest(p, now)
-
-	retransmitAllowed := TransportEnabled() || fromLocal
-	if !retransmitAllowed {
-		return
-	}
-
-	if p.Context == PacketPATH_RESPONSE && !fromLocal {
-		return
-	}
-
-	key := announceHash(p)
-	if key == nil {
-		return
-	}
-
-	if shouldRateBlockAnnounce(*key, ifc, now, p.Context) {
-		Logf(LogDebug, "Blocking rebroadcast of announce from %s due to excessive announce rate",
-			PrettyHexRep(p.DestinationHash))
-		return
-	}
-
-	opts := []AnnounceOption{}
-	if fromLocal {
-		opts = append(opts, WithAnnounceImmediate(), WithAnnounceInitialRetries(pathfinderRetryLimit))
-	}
-	if p.Context == PacketPATH_RESPONSE {
-		// Python only queues local-client PATH_RESPONSE announces when an
-		// external path request is pending. These are rebroadcast as normal
-		// announces, not as PATH_RESPONSE packets, and are not pinned to the
-		// requesting interface.
-		if !fromLocal {
-			return
-		}
-
-		queuePathResponse := false
-		if key, ok := makeHashKey(p.DestinationHash); ok {
-			pendingLocalPathRequestsMu.Lock()
-			if _, exists := pendingLocalPathRequests[key]; exists {
-				delete(pendingLocalPathRequests, key)
-				queuePathResponse = true
-			}
-			pendingLocalPathRequestsMu.Unlock()
-		}
-		if !queuePathResponse {
-			return
-		}
-
-		QueueAnnounce(p, WithAnnounceImmediate(), WithAnnounceInitialRetries(pathfinderRetryLimit))
-		return
-	}
-
-	QueueAnnounce(p, opts...)
-}
-
-func destinationByHash(hash []byte) *Destination {
-	for _, d := range Destinations {
-		if d == nil || len(d.Hash()) == 0 {
-			continue
-		}
-		if bytes.Equal(d.Hash(), hash) {
-			return d
-		}
-	}
-	return nil
-}
-
-func forwardAnnounceToLocalClients(p *Packet) {
-	localClients := localClientInterfacesSnapshot()
-	if p == nil || len(localClients) == 0 {
-		return
-	}
-	for _, cif := range localClients {
-		if cif == nil {
-			continue
-		}
-		if p.ReceivingInterface == cif {
-			continue
-		}
-		send := buildTransportAnnouncePacket(p, cif, false)
-		if send == nil {
-			continue
-		}
-		if err := send.Pack(); err != nil {
-			continue
-		}
-		raw := append([]byte(nil), send.Raw...)
-		Transmit(cif, raw)
-	}
-}
-
-func noteInterfaceAnnounce(ifc *Interface) {
-	if ifc == nil {
-		return
-	}
-	ifc.ReceivedAnnounce()
-}
-
-func recordAnnounceRebroadcast(p *Packet, now time.Time) {
-	key := announceHash(p)
-	if key == nil {
-		return
-	}
-	announceMu.Lock()
-	defer announceMu.Unlock()
-	entry := announceTable[*key]
-	if entry == nil || entry.Packet == nil {
-		return
-	}
-	expected := entry.Packet.Hops
-	Logf(LogDebug, "Announce rebroadcast check key=%s hops=%d expected=%d retries=%d next=%s now=%s",
-		PrettyHash(p.DestinationHash), p.Hops, expected, entry.Retries, entry.Next.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
-	if p.Hops-1 == expected {
-		entry.LocalRebroadcasts++
-		Logf(LogDebug, "Announce rebroadcast local hit key=%s local_rebroadcasts=%d", PrettyHash(p.DestinationHash), entry.LocalRebroadcasts)
-		if entry.LocalRebroadcasts >= localRebroadcastsMax {
-			Logf(LogDebug, "Announce rebroadcast complete key=%s local rebroadcast limit reached", PrettyHash(p.DestinationHash))
-			delete(announceTable, *key)
-			return
-		}
-		announceTable[*key] = entry
-		return
-	}
-	if p.Hops-1 == expected+1 && entry.Retries > 0 && now.Before(entry.Next) {
-		Logf(LogDebug, "Announce rebroadcast complete key=%s next-hop hit before retry deadline", PrettyHash(p.DestinationHash))
-		delete(announceTable, *key)
-	}
-}
-
-func updatePathFromAnnounce(p *Packet, ifc *Interface, now time.Time) bool {
-	if p == nil {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-
-	randomBlob := announceRandomBlob(p)
-	existing := getPathEntry(p.DestinationHash)
-
-	var blobs [][]byte
-	if existing != nil && len(existing.RandomBlobs) > 0 {
-		blobs = copyRandomBlobSlice(existing.RandomBlobs)
-	}
-
-	blobSeen := randomBlobSeen(blobs, randomBlob)
-	emitted := timebaseFromRandomBlob(randomBlob)
-	shouldAdd := false
-
-	switch {
-	case existing == nil:
-		shouldAdd = true
-	case int(p.Hops) <= existing.Hops:
-		if !blobSeen && emitted > timebaseFromRandomBlobs(blobs) {
-			MarkPathUnknownState(p.DestinationHash)
-			shouldAdd = true
-		}
-	default:
-		expired := now.After(existing.ExpiresAt)
-		pathEmitted := timebaseFromRandomBlobs(blobs)
-		newer := emitted > pathEmitted
-		if expired && !blobSeen {
-			MarkPathUnknownState(p.DestinationHash)
-			shouldAdd = true
-		} else if newer && !blobSeen {
-			MarkPathUnknownState(p.DestinationHash)
-			shouldAdd = true
-		} else if emitted == pathEmitted && PathIsUnresponsive(p.DestinationHash) {
-			shouldAdd = true
-		}
-	}
-
-	if !shouldAdd {
-		return false
-	}
-
-	blobs = appendRandomBlob(blobs, randomBlob)
-	nextHop := p.TransportID
-	if len(nextHop) == 0 {
-		nextHop = p.DestinationHash
-	}
-	packetHash := p.PacketHash
-	if len(packetHash) == 0 {
-		packetHash = p.GetHash()
-	}
-
-	entry := &PathEntry{
-		NextHop:       copyBytes(nextHop),
-		RecvInterface: ifc,
-		Hops:          int(p.Hops),
-		Timestamp:     now,
-		ExpiresAt:     pathExpiryFromInterface(ifc, now),
-		RandomBlobs:   blobs,
-		AnnounceAt:    emitted,
-		PacketHash:    copyBytes(packetHash),
-	}
-
-	pathTableMu.Lock()
-	pathTable[key] = entry
-	pathTableMu.Unlock()
-
-	if ifc != nil && len(ifc.TunnelID) == HashLengthBytes {
-		tunnelsMu.Lock()
-		if te := tunnels[string(ifc.TunnelID)]; te != nil {
-			if te.Paths == nil {
-				te.Paths = make(map[string]*tunnelPathEntry)
-			}
-			te.Paths[string(p.DestinationHash)] = &tunnelPathEntry{
-				Timestamp:    entry.Timestamp,
-				ReceivedFrom: copyBytes(entry.NextHop),
-				Hops:         entry.Hops,
-				ExpiresAt:    entry.ExpiresAt,
-				RandomBlobs:  copyRandomBlobSlice(entry.RandomBlobs),
-				PacketHash:   copyBytes(entry.PacketHash),
-			}
-			tunnels[string(ifc.TunnelID)] = te
-		}
-		tunnelsMu.Unlock()
-	}
-
-	// Python parity: cache announce with force_cache=True when adding/updating path table.
-	Cache(p, true)
-	return true
-}
-
-func pathExpiryFromInterface(ifc *Interface, now time.Time) time.Time {
-	switch interfaceMode(ifc) {
-	case InterfaceModeAccessPoint:
-		return now.Add(apPathTime)
-	case InterfaceModeRoaming:
-		return now.Add(roamingPathTime)
-	default:
-		return now.Add(pathExpiration)
-	}
-}
-
-func interfaceMode(ifc *Interface) int {
-	if ifc == nil {
-		return InterfaceModeFull
-	}
-	type modeGetter interface {
-		Mode() int
-	}
-	if getter, ok := any(ifc).(modeGetter); ok {
-		return getter.Mode()
-	}
-	type modeGetterAlt interface {
-		GetMode() int
-	}
-	if getter, ok := any(ifc).(modeGetterAlt); ok {
-		return getter.GetMode()
-	}
-	return InterfaceModeFull
-}
-
-func shouldRateBlockAnnounce(key hashKey, ifc *Interface, now time.Time, ctx byte) bool {
-	if ctx == PacketPATH_RESPONSE {
-		return false
-	}
-	target, grace, penalty, ok := getAnnounceRateParams(ifc)
-	if !ok || target <= 0 {
-		return false
-	}
-
-	announceRateMu.Lock()
-	defer announceRateMu.Unlock()
-
-	entry := announceRateTable[key]
-	if entry == nil {
-		entry = &announceRateEntry{
-			Last:       now,
-			Timestamps: []time.Time{now},
-		}
-		announceRateTable[key] = entry
-		return false
-	}
-
-	entry.Timestamps = append(entry.Timestamps, now)
-	if len(entry.Timestamps) > maxRateTimestamps {
-		entry.Timestamps = entry.Timestamps[len(entry.Timestamps)-maxRateTimestamps:]
-	}
-
-	if now.After(entry.BlockedUntil) {
-		if now.Sub(entry.Last) < target {
-			entry.RateViolations++
-		} else if entry.RateViolations > 0 {
-			entry.RateViolations--
-		}
-		if entry.RateViolations > grace {
-			entry.BlockedUntil = entry.Last.Add(target + penalty)
-			return true
-		}
-		entry.Last = now
-		return false
-	}
-
-	return true
-}
-
-func getAnnounceRateParams(ifc *Interface) (time.Duration, int, time.Duration, bool) {
-	target, ok := callDurationMethod(ifc, "AnnounceRateTarget")
-	if !ok || target <= 0 {
-		return 0, 0, 0, false
-	}
-	grace, _ := callIntMethod(ifc, "AnnounceRateGrace")
-	penalty, _ := callDurationMethod(ifc, "AnnounceRatePenalty")
-	return target, grace, penalty, true
-}
-
-func callDurationMethod(ifc *Interface, name string) (time.Duration, bool) {
-	if ifc == nil {
-		return 0, false
-	}
-	val := reflect.ValueOf(ifc)
-	if val.Kind() == reflect.Pointer && val.IsNil() {
-		return 0, false
-	}
-	method := val.MethodByName(name)
-	if !method.IsValid() || method.IsZero() || method.Type().NumIn() != 0 || method.Type().NumOut() == 0 {
-		return 0, false
-	}
-	out := method.Call(nil)
-	if len(out) == 0 {
-		return 0, false
-	}
-	return convertToDuration(out[0].Interface())
-}
-
-func callIntMethod(ifc *Interface, name string) (int, bool) {
-	if ifc == nil {
-		return 0, false
-	}
-	val := reflect.ValueOf(ifc)
-	if val.Kind() == reflect.Pointer && val.IsNil() {
-		return 0, false
-	}
-	method := val.MethodByName(name)
-	if !method.IsValid() || method.IsZero() || method.Type().NumIn() != 0 || method.Type().NumOut() == 0 {
-		return 0, false
-	}
-	out := method.Call(nil)
-	if len(out) == 0 {
-		return 0, false
-	}
-	return convertToInt(out[0].Interface())
-}
-
-func convertToDuration(value any) (time.Duration, bool) {
-	switch v := value.(type) {
-	case time.Duration:
-		return v, true
-	case *time.Duration:
-		if v == nil {
-			return 0, false
-		}
-		return *v, true
-	case int:
-		return time.Duration(v) * time.Second, true
-	case *int:
-		if v == nil {
-			return 0, false
-		}
-		return time.Duration(*v) * time.Second, true
-	case float64:
-		return time.Duration(v * float64(time.Second)), true
-	case *float64:
-		if v == nil {
-			return 0, false
-		}
-		return time.Duration(*v * float64(time.Second)), true
-	}
-	return 0, false
-}
-
-func convertToInt(value any) (int, bool) {
-	switch v := value.(type) {
-	case int:
-		return v, true
-	case *int:
-		if v == nil {
-			return 0, false
-		}
-		return *v, true
-	case float64:
-		return int(v), true
-	case *float64:
-		if v == nil {
-			return 0, false
-		}
-		return int(*v), true
-	}
-	return 0, false
-}
-
-func announceRandomBlob(p *Packet) []byte {
-	if p == nil {
-		return nil
-	}
-	offset := identityPubKeyLen + IdentityNameHashLength/8
-	if len(p.Data) < offset+announceRandomHashLen {
-		return nil
-	}
-	return copyBytes(p.Data[offset : offset+announceRandomHashLen])
-}
-
-func appendRandomBlob(blobs [][]byte, blob []byte) [][]byte {
-	if len(blob) == 0 {
-		return blobs
-	}
-	blobs = append(blobs, blob)
-	if len(blobs) > maxRandomBlobs {
-		blobs = blobs[len(blobs)-maxRandomBlobs:]
-	}
-	return blobs
-}
-
-func randomBlobSeen(blobs [][]byte, blob []byte) bool {
-	if len(blob) == 0 {
-		return false
-	}
-	for _, existing := range blobs {
-		if bytes.Equal(existing, blob) {
-			return true
-		}
-	}
-	return false
-}
-
-func dedupeAndTailRandomBlobs(blobs [][]byte, max int) [][]byte {
-	if len(blobs) == 0 || max <= 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(blobs))
-	out := make([][]byte, 0, len(blobs))
-	for _, blob := range blobs {
-		if len(blob) == 0 {
-			continue
-		}
-		key := string(blob)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, append([]byte(nil), blob...))
-	}
-	if len(out) > max {
-		out = out[len(out)-max:]
-	}
-	return out
 }
 
 func timebaseFromRandomBlob(blob []byte) uint64 {
@@ -5045,126 +5341,29 @@ func timebaseFromRandomBlobs(blobs [][]byte) uint64 {
 	return max
 }
 
-// TimebaseFromRandomBlob mirrors Python Transport.timebase_from_random_blob().
-func TimebaseFromRandomBlob(blob []byte) uint64 {
-	return timebaseFromRandomBlob(blob)
-}
-
-// TimebaseFromRandomBlobs mirrors Python Transport.timebase_from_random_blobs().
-func TimebaseFromRandomBlobs(blobs [][]byte) uint64 {
-	return timebaseFromRandomBlobs(blobs)
-}
-
 // AnnounceEmitted mirrors Python Transport.announce_emitted().
 // Returns the emission timebase encoded in the announce packet's random blob.
 func AnnounceEmitted(p *Packet) uint64 {
-	return timebaseFromRandomBlob(announceRandomBlob(p))
-}
-
-func copyRandomBlobSlice(in [][]byte) [][]byte {
-	if len(in) == 0 {
-		return nil
+	offset := identityPubKeyLen + IdentityNameHashLength/8
+	end := offset + announceRandomHashLen
+	if end > len(p.Data) {
+		end = len(p.Data)
 	}
-	out := make([][]byte, len(in))
-	for i, blob := range in {
-		out[i] = copyBytes(blob)
-	}
-	return out
-}
-
-func handlePendingAndActiveLinks(pathReqs map[hashKey]*Interface) {
-	linkMu.Lock()
-	defer linkMu.Unlock()
-
-	now := time.Now()
-
-	filterPending := PendingLinks[:0]
-	for _, link := range PendingLinks {
-		if link == nil {
-			continue
-		}
-		if link.Status == LinkClosed {
-			// Python parity: if a pending link closes without being activated on a
-			// non-transport instance, expire the associated path and try rediscovery.
-			if !TransportEnabled() && link.destination != nil {
-				destHash := link.destination.Hash()
-				if ExpirePath(destHash) {
-					if Owner != nil && Owner.IsConnectedToSharedInstance {
-						// Shared instance will handle path request.
-					} else {
-						requestPathAllExcept(destHash, nil)
-					}
-				}
-			}
-			continue
-		}
-		if link.destination != nil && len(link.destination.Hash()) >= truncatedHashBytes {
-			if key, ok := makeHashKey(link.destination.Hash()); ok {
-				pathReqs[key] = nil
-			}
-		}
-		filterPending = append(filterPending, link)
-	}
-	PendingLinks = filterPending
-
-	filterActive := ActiveLinks[:0]
-	for _, link := range ActiveLinks {
-		if link == nil || link.Status == LinkClosed {
-			continue
-		}
-		if !link.lastInbound.IsZero() && now.Sub(link.lastInbound) > link.StaleTime {
-			// Teardown in a goroutine: this function runs under jobsMu
-			// write lock, and Teardown → sendTeardownPacket → Outbound
-			// needs jobsMu read lock — calling it here would deadlock.
-			go link.Teardown()
-			continue
-		}
-		if link.destination != nil && !HasPath(link.destination.Hash()) {
-			if key, ok := makeHashKey(link.destination.Hash()); ok {
-				pathReqs[key] = nil
-			}
-		}
-		filterActive = append(filterActive, link)
-	}
-	ActiveLinks = filterActive
-}
-
-// ---- helpers ----
-
-func getPathEntry(hash []byte) *PathEntry {
-	key, ok := makeHashKey(hash)
-	if !ok {
-		return nil
-	}
-
-	pathTableMu.RLock()
-	entry := pathTable[key]
-	pathTableMu.RUnlock()
-	if entry == nil {
-		return nil
-	}
-	if time.Since(entry.Timestamp) > pathExpiration {
-		pathTableMu.Lock()
-		if cur := pathTable[key]; cur == entry {
-			delete(pathTable, key)
-		}
-		pathTableMu.Unlock()
-		return nil
-	}
-	return entry
-}
-
-func makeHashKey(hash []byte) (hashKey, bool) {
-	if len(hash) < truncatedHashBytes {
-		return hashKey{}, false
-	}
-	var key hashKey
-	copy(key[:], hash[:truncatedHashBytes])
-	return key, true
+	return timebaseFromRandomBlob(p.Data[offset:end])
 }
 
 func AddPacketHash(hash []byte) {
-	key, ok := makeHashKey(hash)
+	if Owner != nil && Owner.IsConnectedToSharedInstance {
+		return
+	}
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
 	if !ok {
 		return
 	}
@@ -5173,48 +5372,67 @@ func AddPacketHash(hash []byte) {
 	packetHashMu.Unlock()
 }
 
-func HasPacketHash(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok {
-		return false
-	}
-	packetHashMu.RLock()
-	_, ok = PacketHashSet[key]
-	if !ok {
-		_, ok = PacketHashSet2[key]
-	}
-	packetHashMu.RUnlock()
-	return ok
-}
-
 func HasPath(hash []byte) bool {
-	return getPathEntry(hash) != nil
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash); ok {
+		pathTableMu.RLock()
+		entry := pathTable[key]
+		pathTableMu.RUnlock()
+		return entry != nil
+	}
+	return false
 }
 
 // ExpirePath mirrors Python Transport.expire_path().
 func ExpirePath(hash []byte) bool {
-	key, ok := makeHashKey(hash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
 	if !ok {
 		return false
 	}
 	pathTableMu.Lock()
-	entry := pathTable[key]
+	entry, exists := pathTable[key]
+	if !exists {
+		pathTableMu.Unlock()
+		return false
+	}
 	if entry != nil {
 		entry.Timestamp = time.Unix(0, 0)
 	}
-	pathTableMu.Unlock()
-	if entry == nil {
-		return false
-	}
-	// Force a near-term cull pass.
 	TablesLastCulled = time.Time{}
+	pathTableMu.Unlock()
 	return true
 }
 
 // MarkPathResponsive mirrors Python Transport.mark_path_responsive().
 func MarkPathResponsive(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok || !HasPath(hash) {
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
+	if !ok {
+		return false
+	}
+	pathTableMu.RLock()
+	_, exists := pathTable[key]
+	pathTableMu.RUnlock()
+	if !exists {
 		return false
 	}
 	pathStatesMu.Lock()
@@ -5225,8 +5443,21 @@ func MarkPathResponsive(hash []byte) bool {
 
 // MarkPathUnknownState mirrors Python Transport.mark_path_unknown_state().
 func MarkPathUnknownState(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok || !HasPath(hash) {
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
+	if !ok {
+		return false
+	}
+	pathTableMu.RLock()
+	_, exists := pathTable[key]
+	pathTableMu.RUnlock()
+	if !exists {
 		return false
 	}
 	pathStatesMu.Lock()
@@ -5237,7 +5468,14 @@ func MarkPathUnknownState(hash []byte) bool {
 
 // PathIsUnresponsive mirrors Python Transport.path_is_unresponsive().
 func PathIsUnresponsive(hash []byte) bool {
-	key, ok := makeHashKey(hash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
 	if !ok {
 		return false
 	}
@@ -5249,8 +5487,21 @@ func PathIsUnresponsive(hash []byte) bool {
 
 // MarkPathUnresponsive mirrors Python Transport.mark_path_unresponsive().
 func MarkPathUnresponsive(hash []byte) bool {
-	key, ok := makeHashKey(hash)
-	if !ok || !HasPath(hash) {
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash)
+	if !ok {
+		return false
+	}
+	pathTableMu.RLock()
+	_, exists := pathTable[key]
+	pathTableMu.RUnlock()
+	if !exists {
 		return false
 	}
 	pathStatesMu.Lock()
@@ -5259,148 +5510,54 @@ func MarkPathUnresponsive(hash []byte) bool {
 	return true
 }
 
-func announceHash(p *Packet) *hashKey {
-	if p == nil {
-		return nil
-	}
-	hash := p.DestinationHash
-	if len(hash) == 0 && p.Destination != nil {
-		hash = p.Destination.Hash()
-	}
-	key, ok := makeHashKey(hash)
-	if !ok {
-		return nil
-	}
-	return &key
-}
-
-func cloneAnnouncePacket(p *Packet) *Packet {
-	if p == nil {
-		return nil
-	}
-	dest := p.Destination
-	if dest == nil {
-		dest = &Destination{
-			hash: copyBytes(p.DestinationHash),
-			Type: int(p.DestinationType),
-		}
-	}
-	clone := NewPacket(
-		dest,
-		copyBytes(p.Data),
-		WithPacketType(p.PacketType),
-		WithPacketContext(p.Context),
-		WithHeaderType(p.HeaderType),
-		WithTransportType(p.TransportType),
-		WithContextFlag(p.ContextFlag),
-	)
-	clone.AttachedInterface = p.AttachedInterface
-	if len(p.TransportID) > 0 {
-		clone.TransportID = copyBytes(p.TransportID)
-	}
-	clone.Hops = p.Hops
-	clone.DestinationHash = copyBytes(p.DestinationHash)
-	clone.DestinationType = p.DestinationType
-	return clone
-}
-
-func buildTransportAnnouncePacket(p *Packet, attachedInterface *Interface, pathResponse bool) *Packet {
-	if p == nil {
-		return nil
-	}
-	announceIdentity := IdentityRecall(p.DestinationHash)
-	announceDestination := &Destination{
-		Type:      DestinationSINGLE,
-		Direction: DestinationOUT,
-		identity:  announceIdentity,
-		hash:      copyBytes(p.DestinationHash),
-		hexhash:   PrettyHexRep(p.DestinationHash),
-	}
-	context := byte(PacketNONE)
-	if pathResponse {
-		context = byte(PacketPATH_RESPONSE)
-	}
-	send := NewPacket(
-		announceDestination,
-		copyBytes(p.Data),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(context),
-		WithHeaderType(HeaderType2),
-		WithTransportType(TransportDirect),
-		WithAttachedInterface(attachedInterface),
-		WithContextFlag(p.ContextFlag),
-	)
-	if send == nil {
-		return nil
-	}
-	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
-		send.TransportID = copyBytes(TransportIdentity.Hash)
-	}
-	send.Hops = p.Hops
-	send.DestinationHash = copyBytes(p.DestinationHash)
-	send.DestinationType = byte(DestinationSINGLE)
-	return send
-}
-
-func randAnnounceDelay() time.Duration {
-	if pathfinderRandomWindow <= 0 {
-		return pathfinderRetryGrace
-	}
-	return time.Duration(Rand() * float64(pathfinderRandomWindow))
-}
-
-func evictOldestAnnounceLocked() {
-	if len(announceTable) == 0 {
-		return
-	}
-	var oldestKey hashKey
-	oldestTime := time.Now()
-	found := false
-	for key, entry := range announceTable {
-		if entry == nil {
-			oldestKey = key
-			found = true
-			break
-		}
-		if !found || entry.Timestamp.Before(oldestTime) {
-			oldestTime = entry.Timestamp
-			oldestKey = key
-			found = true
-		}
-	}
-	if found {
-		delete(announceTable, oldestKey)
-	}
-}
-
 func HopsTo(hash []byte) int {
-	if entry := getPathEntry(hash); entry != nil {
+	var entry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) != truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash); ok {
+		pathTableMu.RLock()
+		entry = pathTable[key]
+		pathTableMu.RUnlock()
+	}
+	if entry != nil {
 		return entry.Hops
 	}
 	return PathfinderMaxHops
 }
 
 func NextHopInterfaceBitrate(destinationHash []byte) *int {
-	entry := getPathEntry(destinationHash)
+	var entry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) != truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destinationHash); ok {
+		pathTableMu.RLock()
+		entry = pathTable[key]
+		pathTableMu.RUnlock()
+	}
 	if entry == nil || entry.RecvInterface == nil {
 		return nil
 	}
-	if InterfaceToSharedInstance(entry.RecvInterface) {
-		if forced := SharedInstanceForcedBitrate(); forced > 0 {
-			return &forced
-		}
-	}
-	if entry.RecvInterface.Bitrate > 0 {
-		b := entry.RecvInterface.Bitrate
-		return &b
-	}
-	return nil
+	b := entry.RecvInterface.Bitrate
+	return &b
 }
 
 func NextHopPerBitLatency(destinationHash []byte) *float64 {
 	br := NextHopInterfaceBitrate(destinationHash)
-	if br == nil || *br <= 0 {
+	if br == nil {
 		return nil
+	}
+	if *br == 0 {
+		panic("division by zero")
 	}
 	v := 1.0 / float64(*br)
 	return &v
@@ -5421,9 +5578,6 @@ func FirstHopTimeout(destinationHash []byte) time.Duration {
 		return time.Duration(DEFAULT_PER_HOP_TIMEOUT * float64(time.Second))
 	}
 	timeout := float64(MTU)*(*perByte) + DEFAULT_PER_HOP_TIMEOUT
-	if timeout < 0 {
-		timeout = 0
-	}
 	return time.Duration(timeout * float64(time.Second))
 }
 
@@ -5432,51 +5586,32 @@ func ExtraLinkProofTimeout(ifc *Interface) time.Duration {
 	if ifc == nil {
 		return 0
 	}
-	br := ifc.Bitrate
-	if InterfaceToSharedInstance(ifc) {
-		if forced := SharedInstanceForcedBitrate(); forced > 0 {
-			br = forced
-		}
+	if ifc.Bitrate == 0 {
+		panic("division by zero")
 	}
-	if br <= 0 {
-		return 0
-	}
-	seconds := (float64(MTU) * 8.0) / float64(br)
-	if seconds <= 0 {
-		return 0
-	}
+	seconds := (float64(MTU) * 8.0) / float64(ifc.Bitrate)
 	return time.Duration(seconds * float64(time.Second))
 }
 
 // AwaitPath mirrors Python Transport.await_path().
 // It requests a path if needed and blocks until the path is available or the
-// timeout expires. When timeout is <= 0, the Python default timeout is used.
-func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Interface) bool {
+// timeout expires. A timeout <= 0 behaves like Python's None default.
+func AwaitPath(destinationHash []byte, timeout float64, onInterface *Interface) bool {
 	if HasPath(destinationHash) {
 		return true
 	}
 
 	if timeout <= 0 {
-		timeout = time.Duration(TransportPathRequestTimeout * float64(time.Second))
+		timeout = TransportPathRequestTimeout
 	}
 
 	if onInterface != nil {
-		requestPathOnInterface(destinationHash, onInterface, nil, false)
-		if key, ok := makeHashKey(destinationHash); ok {
-			pathRequestMu.Lock()
-			lastPathRequest[key] = time.Now()
-			pathRequestMu.Unlock()
-		}
+		RequestPath(destinationHash, onInterface, nil, false)
 	} else {
-		requestPathOnInterface(destinationHash, nil, nil, false)
-		if key, ok := makeHashKey(destinationHash); ok {
-			pathRequestMu.Lock()
-			lastPathRequest[key] = time.Now()
-			pathRequestMu.Unlock()
-		}
+		RequestPath(destinationHash, nil, nil, false)
 	}
 
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(time.Duration(timeout * float64(time.Second)))
 	for !HasPath(destinationHash) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -5488,57 +5623,20 @@ func AwaitPath(destinationHash []byte, timeout time.Duration, onInterface *Inter
 // Python does not suppress explicit request_path() calls just because a local
 // path entry already exists. Callers like rnid rely on this to refresh an
 // identity from the network when a path is known but the announce data is not.
-func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool) bool {
-	if _, ok := makeHashKey(hash); !ok {
-		return false
-	}
-
-	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
-	requestPathOnInterface(hash, onInterface, tag, recursive)
-	return true
-}
-
-// requestPathAllExcept broadcasts a path request on all interfaces except
-// the blocked one. This is an internal helper used by the discovery layer;
-// it is not part of the public Python-mirrored API.
-func requestPathAllExcept(hash []byte, blocked *Interface) {
-	if _, ok := makeHashKey(hash); !ok {
-		return
-	}
-
-	Logf(LogDebug, "Requesting path to %s", PrettyHash(hash))
-
-	tag := IdentityGetRandomHash()
-	if blocked == nil {
-		requestPathOnInterface(hash, nil, tag, false)
-		return
-	}
-	// Send on all interfaces except the blocked one (Python: discovery forwarding behaviour).
-	for _, ifc := range interfacesSnapshot() {
-		if ifc == nil || ifc == blocked {
-			continue
-		}
-		requestPathOnInterface(hash, ifc, tag, false)
-	}
-}
-
-func requestPathOnInterface(destinationHash []byte, onInterface *Interface, tag []byte, recursive bool) {
-	if len(destinationHash) != truncatedHashBytes {
-		return
-	}
+func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool) {
 	if len(tag) == 0 {
 		tag = IdentityGetRandomHash()
 	}
 
 	var payload []byte
-	if TransportEnabled() && TransportIdentity != nil && len(TransportIdentity.Hash) == truncatedHashBytes {
+	if TransportEnabled() {
 		payload = make([]byte, 0, truncatedHashBytes*3)
-		payload = append(payload, destinationHash...)
+		payload = append(payload, hash...)
 		payload = append(payload, TransportIdentity.Hash...)
 		payload = append(payload, tag...)
 	} else {
 		payload = make([]byte, 0, truncatedHashBytes*2)
-		payload = append(payload, destinationHash...)
+		payload = append(payload, hash...)
 		payload = append(payload, tag...)
 	}
 
@@ -5552,18 +5650,14 @@ func requestPathOnInterface(destinationHash []byte, onInterface *Interface, tag 
 			return
 		}
 		now := time.Now()
-		if allowedAt := onInterface.AnnounceAllowedAt(); !allowedAt.IsZero() && now.Before(allowedAt) {
+		if allowedAt := onInterface.AnnounceAllowedAtTime(); !allowedAt.IsZero() && now.Before(allowedAt) {
 			return
 		}
 
-		if onInterface.Bitrate > 0 && onInterface.AnnounceCap > 0 {
-			// tx_time = ((len(data)+HEADER_MINSIZE)*8)/bitrate
-			txTime := (float64(len(payload)+HEADER_MINSIZE) * 8.0) / float64(onInterface.Bitrate)
-			waitTime := txTime / onInterface.AnnounceCap
-			if waitTime > 0 {
-				onInterface.SetAnnounceAllowedAt(now.Add(time.Duration(waitTime * float64(time.Second))))
-			}
-		}
+		// tx_time = ((len(data)+HEADER_MINSIZE)*8)/bitrate
+		txTime := (float64(len(payload)+HEADER_MINSIZE) * 8.0) / float64(onInterface.Bitrate)
+		waitTime := txTime / onInterface.AnnounceCap
+		onInterface.SetAnnounceAllowedAt(now.Add(time.Duration(waitTime * float64(time.Second))))
 	}
 
 	dst, err := NewDestination(nil, DestinationOUT, DestinationPLAIN, "rnstransport", "path", "request")
@@ -5583,41 +5677,28 @@ func requestPathOnInterface(destinationHash []byte, onInterface *Interface, tag 
 		return
 	}
 	_ = p.Send()
-}
-
-func ForceSharedInstanceBitrate(bitrate int) {
-	sharedInstanceMu.Lock()
-	defer sharedInstanceMu.Unlock()
-	sharedInstanceForcedBitrate = bitrate
-}
-
-func SharedInstanceForcedBitrate() int {
-	sharedInstanceMu.RLock()
-	defer sharedInstanceMu.RUnlock()
-	return sharedInstanceForcedBitrate
-}
-
-func TransportActiveLinks() []*Link {
-	linkMu.Lock()
-	defer linkMu.Unlock()
-	out := make([]*Link, len(ActiveLinks))
-	copy(out, ActiveLinks)
-	return out
+	var key hashKey
+	copy(key[:], hash)
+	pathRequestMu.Lock()
+	lastPathRequest[key] = time.Now()
+	pathRequestMu.Unlock()
 }
 
 // SharedConnectionDisappeared mirrors the Python behaviour when the local
 // shared-instance connection drops.
 func SharedConnectionDisappeared() {
 	linkMu.Lock()
-	pending := append([]*Link(nil), PendingLinks...)
-	active := append([]*Link(nil), ActiveLinks...)
-	linkMu.Unlock()
-
-	for _, link := range append(active, pending...) {
+	for _, link := range ActiveLinks {
 		if link != nil {
 			link.Teardown()
 		}
 	}
+	for _, link := range PendingLinks {
+		if link != nil {
+			link.Teardown()
+		}
+	}
+	linkMu.Unlock()
 
 	announceMu.Lock()
 	announceTable = make(map[hashKey]*announceEntry)
@@ -5643,98 +5724,40 @@ func SharedConnectionDisappeared() {
 	linkTableMu.Lock()
 	linkTable = make(map[hashKey]*linkEntry)
 	linkTableMu.Unlock()
-	configureControlDestinations()
 }
 
 // SharedConnectionReappeared mirrors the Python behaviour when a shared
 // connection returns and single destinations should re-announce.
 func SharedConnectionReappeared() {
-	if Owner == nil || !Owner.IsConnectedToSharedInstance {
-		return
-	}
 	for _, dst := range Destinations {
-		if dst == nil || dst.Type != DestinationSINGLE {
-			continue
+		if dst.Type == DestinationSINGLE {
+			dst.Announce(nil, true, nil, nil, true)
 		}
-		dst.Announce(nil, true, nil, nil, true)
 	}
-	configureControlDestinations()
+}
+
+// TransportActiveLinks is a compatibility shim for callers that still use the
+// old helper name.
+func TransportActiveLinks() []*Link {
+	linkMu.Lock()
+	defer linkMu.Unlock()
+	return append([]*Link(nil), ActiveLinks...)
 }
 
 type defaultTransportBackend struct{}
 
-func (defaultTransportBackend) Outbound(p *Packet) bool {
-	return Outbound(p)
-}
-
-func (defaultTransportBackend) HopsTo(hash []byte) int {
-	return HopsTo(hash)
-}
-
-func (defaultTransportBackend) GetFirstHopTimeout(hash []byte) time.Duration {
-	return FirstHopTimeout(hash)
-}
-
-func (defaultTransportBackend) GetPacketRSSI(hash []byte) *float64 {
-	if len(hash) == 0 {
-		return nil
-	}
-	localStatsMu.RLock()
-	v, ok := localRSSICache[string(hash)]
-	localStatsMu.RUnlock()
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-func (defaultTransportBackend) GetPacketSNR(hash []byte) *float64 {
-	if len(hash) == 0 {
-		return nil
-	}
-	localStatsMu.RLock()
-	v, ok := localSNRCache[string(hash)]
-	localStatsMu.RUnlock()
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-func (defaultTransportBackend) GetPacketQ(hash []byte) *float64 {
-	if len(hash) == 0 {
-		return nil
-	}
-	localStatsMu.RLock()
-	v, ok := localQCache[string(hash)]
-	localStatsMu.RUnlock()
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-func init() {
-	Transport = defaultTransportBackend{}
-}
-
 func Cache(p *Packet, force bool) {
-	if p == nil || len(p.PacketHash) == 0 {
-		return
-	}
-	// Python parity: no caching when connected to a shared instance.
-	if Owner != nil && Owner.IsConnectedToSharedInstance {
+	if p == nil {
 		return
 	}
 	if !force && !ShouldCache(p) {
 		return
 	}
-	if len(p.Raw) == 0 {
-		if err := p.Pack(); err != nil {
-			return
-		}
-	}
 	if Owner == nil || len(Owner.CachePath) == 0 {
+		return
+	}
+	packetHash := p.GetHash()
+	if len(packetHash) == 0 {
 		return
 	}
 
@@ -5751,15 +5774,75 @@ func Cache(p *Packet, force bool) {
 	// Announces are stored in cachepath/announces/, everything else in cachepath/.
 	var path string
 	if p.Type == PacketANNOUNCE {
-		path = announceCachePath(p.PacketHash)
+		path = filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
 	} else {
-		path = packetCachePath(p.PacketHash)
-	}
-	if path == "" {
-		return
+		path = filepath.Join(Owner.CachePath, hex.EncodeToString(packetHash))
 	}
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	_ = os.WriteFile(path, buf, 0o600)
+}
+
+func cleanCache() {
+	if Owner.IsConnectedToSharedInstance {
+		return
+	}
+	cleanAnnounceCache()
+	LastCacheCleaned = time.Now()
+}
+
+func cleanAnnounceCache() {
+	if Owner == nil || len(Owner.CachePath) == 0 {
+		return
+	}
+	targetPath := filepath.Join(Owner.CachePath, "announces")
+	if !fileExists(targetPath) {
+		return
+	}
+	st := time.Now()
+	activePaths := make(map[string]struct{})
+	pathTableMu.RLock()
+	for _, entry := range pathTable {
+		if entry == nil || len(entry.PacketHash) == 0 {
+			continue
+		}
+		activePaths[string(entry.PacketHash)] = struct{}{}
+	}
+	pathTableMu.RUnlock()
+	tunnelsMu.RLock()
+	for _, te := range tunnels {
+		if te == nil || te.Paths == nil {
+			continue
+		}
+		for _, pe := range te.Paths {
+			if pe == nil || len(pe.PacketHash) == 0 {
+				continue
+			}
+			activePaths[string(pe.PacketHash)] = struct{}{}
+		}
+	}
+	tunnelsMu.RUnlock()
+
+	removed := 0
+	_ = filepath.WalkDir(targetPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() {
+			return nil
+		}
+		name := filepath.Base(path)
+		hash, decodeErr := hex.DecodeString(name)
+		if decodeErr != nil || len(hash) == 0 {
+			_ = os.Remove(path)
+			removed++
+			return nil
+		}
+		if _, ok := activePaths[string(hash)]; !ok {
+			_ = os.Remove(path)
+			removed++
+		}
+		return nil
+	})
+	if removed > 0 {
+		Logf(LogDebug, "Removed %d cached announces in %s", removed, PrettyTime(time.Since(st).Seconds(), true, false))
+	}
 }
 
 // ShouldCache mirrors Python Transport.should_cache() in spirit. The Go port
@@ -5774,7 +5857,8 @@ func ShouldCache(p *Packet) bool {
 }
 
 func CacheRequest(hash []byte, link *Link) {
-	if deliverCachedPacket(hash) {
+	if cached := get_cached_packet(hash); cached != nil {
+		Inbound(cached.Raw, cached.ReceivingInterface)
 		return
 	}
 	if link == nil {
@@ -5784,7 +5868,20 @@ func CacheRequest(hash []byte, link *Link) {
 	if ifc, ok := link.attachedInterface.(*Interface); ok && ifc != nil {
 		attached = ifc
 	} else if link.destination != nil {
-		if entry := getPathEntry(link.destination.hash); entry != nil && entry.RecvInterface != nil {
+		var entry *PathEntry
+		if key, ok := func(hash []byte) (hashKey, bool) {
+			if len(hash) < truncatedHashBytes {
+				return hashKey{}, false
+			}
+			var key hashKey
+			copy(key[:], hash[:truncatedHashBytes])
+			return key, true
+		}(link.destination.hash); ok {
+			pathTableMu.RLock()
+			entry = pathTable[key]
+			pathTableMu.RUnlock()
+		}
+		if entry != nil && entry.RecvInterface != nil {
 			attached = entry.RecvInterface
 		}
 	}
@@ -5799,226 +5896,63 @@ func CacheRequest(hash []byte, link *Link) {
 		opts...,
 	)
 	if req != nil {
-		if !sendLinkPacketDirect(req, attached) {
-			req.Send()
-		}
+		req.Send()
 	}
 }
 
 func cacheRequestPacket(packet *Packet) bool {
-	if len(packet.Data) == 0 {
-		Log("cacheRequestPacket: empty request", LogDebug)
+	if len(packet.Data) != HashLengthBytes {
 		return false
 	}
-	Logf(LogDebug, "cacheRequestPacket: destType=%d hash=%x recv=%v", packet.DestinationType, packet.Data, packet.ReceivingInterface)
-	if packet.DestinationType == DestLink {
-		raw, _, err := readCachedPacketRaw(packet.Data)
-		if err != nil || len(raw) == 0 {
-			Logf(LogDebug, "cacheRequestPacket: no cached entry for %x", packet.Data)
-			return false
-		}
-		link := findLinkByID(packet.DestinationHash)
-		if link == nil {
-			Logf(LogDebug, "cacheRequestPacket: no link for %x", packet.DestinationHash)
-			return false
-		}
-		cached := NewPacket(nil, raw)
-		if cached == nil || !cached.Unpack() {
-			return false
-		}
-		replay := NewPacket(
-			link,
-			cached.Data,
-			WithPacketType(cached.PacketType),
-			WithPacketContext(cached.Context),
-			WithAttachedInterface(packet.ReceivingInterface),
-			WithoutReceipt(),
-		)
-		if replay == nil {
-			Log("cacheRequestPacket: failed to build replay packet", LogDebug)
-			return false
-		}
-		Logf(LogDebug, "cacheRequestPacket: replaying cached packet %x over link %x", packet.Data, packet.DestinationHash)
-		return sendLinkPacketDirect(replay, packet.ReceivingInterface) || replay.Send() != nil || replay.Sent
-	}
-	return deliverCachedPacket(packet.Data)
-}
-
-func sendLinkPacketDirect(packet *Packet, ifc *Interface) bool {
-	if packet == nil {
-		Log("sendLinkPacketDirect: nil packet", LogDebug)
+	cached := get_cached_packet(packet.Data)
+	if cached == nil {
 		return false
 	}
-	if packet.Link == nil || packet.Link.Status == LinkClosed {
-		Logf(LogDebug, "sendLinkPacketDirect: invalid link status=%v", func() any {
-			if packet.Link == nil {
-				return nil
-			}
-			return packet.Link.Status
-		}())
-		return false
-	}
-	if ifc == nil {
-		if attached, ok := packet.Link.attachedInterface.(*Interface); ok && attached != nil {
-			ifc = attached
-		} else if packet.AttachedInterface != nil {
-			ifc = packet.AttachedInterface
-		} else {
-			for _, candidate := range interfacesSnapshot() {
-				if candidate != nil && candidate.OUT {
-					ifc = candidate
-					break
-				}
-			}
-		}
-	}
-	if ifc == nil {
-		Log("sendLinkPacketDirect: no interface resolved", LogDebug)
-		return false
-	}
-	packet.Link.noteOutbound(packet.Context, len(packet.Data))
-	if !packet.Packed {
-		if err := packet.Pack(); err != nil {
-			Logf(LogDebug, "sendLinkPacketDirect: pack failed: %v", err)
-			return false
-		}
-	}
-	Logf(LogDebug, "sendLinkPacketDirect: transmit ctx=0x%02x link=%x ifc=%s", packet.Context, packet.Link.LinkID, ifc)
-	Transmit(ifc, packet.Raw)
-	packet.Sent = true
-	packet.SentAt = time.Now()
+	Inbound(cached.Raw, cached.ReceivingInterface)
 	return true
 }
 
-func deliverCachedPacket(hash []byte) bool {
-	// Python parity: cached packet stored on disk as umsgpack([raw, ifref]).
-	raw, recvIf, err := readCachedPacketRaw(hash)
-	if err != nil || len(raw) == 0 {
-		// Announces are cached under cachepath/announces.
-		rawAnn, annErr := readCachedAnnounceRaw(hash)
-		if annErr != nil || len(rawAnn) == 0 {
-			return false
+func get_cached_packet(hash []byte) (pkt *Packet) {
+	defer func() {
+		if recover() != nil {
+			pkt = nil
 		}
-		raw = rawAnn
+	}()
+	path := filepath.Join(Owner.CachePath, hex.EncodeToString(hash))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
 	}
-	go Inbound(raw, recvIf)
-	return true
-}
-
-func shouldAnnounceOnInterface(p *Packet, ifc *Interface, _ time.Time) bool {
-	if p == nil || ifc == nil {
-		return false
+	var cached []any
+	if err := umsgpack.Unpackb(data, &cached); err != nil {
+		return nil
 	}
-
-	switch interfaceMode(ifc) {
-	case InterfaceModeAccessPoint:
-		// Python: block announce broadcast on AP interfaces unless the packet
-		// is already bound to a specific attached interface.
-		return p.AttachedInterface != nil
-
-	case InterfaceModeRoaming:
-		// Python allows roaming interfaces to carry announces only when the
-		// destination is local to this instance or the next hop is not another
-		// roaming/boundary interface.
-		if destinationByHash(p.DestinationHash) != nil {
-			return true
+	raw, ok := cached[0].([]byte)
+	if !ok {
+		return nil
+	}
+	var recvIf *Interface
+	if ref, ok := cached[1].(string); ok {
+		for _, ifc := range Interfaces {
+			if ifc != nil && ifc.String() == ref {
+				recvIf = ifc
+				break
+			}
 		}
-		nextHop := getPathEntry(p.DestinationHash)
-		if nextHop == nil || nextHop.RecvInterface == nil {
-			return false
-		}
-		switch interfaceMode(nextHop.RecvInterface) {
-		case InterfaceModeRoaming, InterfaceModeBoundary:
-			return false
-		default:
-			return true
-		}
-
-	case InterfaceModeBoundary:
-		// Python allows boundary interfaces unless the next hop itself is a
-		// roaming interface.
-		if destinationByHash(p.DestinationHash) != nil {
-			return true
-		}
-		nextHop := getPathEntry(p.DestinationHash)
-		if nextHop == nil || nextHop.RecvInterface == nil {
-			return false
-		}
-		return interfaceMode(nextHop.RecvInterface) != InterfaceModeRoaming
-
-	default:
-		// Python's default/full-mode branch applies rate limiting and queueing
-		// later in the interface driver, so outbound transmission is allowed.
-		return true
 	}
-}
-
-func cacheLocalStats(p *Packet, _ *Interface) {
-	if p == nil {
-		return
-	}
-	if len(p.PacketHash) == 0 {
-		p.PacketHash = p.GetHash()
-	}
-	if len(p.PacketHash) == 0 {
-		return
-	}
-	if p.RSSI == nil && p.SNR == nil && p.Q == nil {
-		return
-	}
-
-	key := string(p.PacketHash)
-	localStatsMu.Lock()
-	if p.RSSI != nil {
-		localRSSICache[key] = *p.RSSI
-	}
-	if p.SNR != nil {
-		localSNRCache[key] = *p.SNR
-	}
-	if p.Q != nil {
-		localQCache[key] = *p.Q
-	}
-	localStatsFIFO = append(localStatsFIFO, key)
-	if len(localStatsFIFO) > localStatsMax {
-		evict := localStatsFIFO[0]
-		localStatsFIFO = localStatsFIFO[1:]
-		delete(localRSSICache, evict)
-		delete(localSNRCache, evict)
-		delete(localQCache, evict)
-	}
-	localStatsMu.Unlock()
+	pkt = &Packet{Raw: raw, Data: raw, Packed: true, FromPacked: true, ReceivingInterface: recvIf}
+	return pkt
 }
 
 func InterfaceToSharedInstance(ifc *Interface) bool {
-	if ifc == nil || Owner == nil {
-		return false
-	}
-	if Owner.SharedInstanceInterface != nil && ifc == Owner.SharedInstanceInterface {
-		return true
-	}
-	// Best-effort name/type fallback for older initialisation paths.
-	if strings.EqualFold(ifc.Type, "LocalInterface") && strings.Contains(strings.ToLower(ifc.Name), "shared instance") {
-		return true
-	}
-	return false
+	return ifc != nil && ifc.LocalIsSharedClient
 }
 
 func IsLocalClientInterface(ifc *Interface) bool {
 	if ifc == nil {
 		return false
 	}
-	interfacesMu.RLock()
-	for _, cif := range LocalClientInterfaces {
-		if cif == ifc {
-			interfacesMu.RUnlock()
-			return true
-		}
-	}
-	interfacesMu.RUnlock()
-	// Python parity: local-client status is a property of the spawned interface
-	// object itself via its parent shared-instance interface, not just whether it
-	// is still present in the live local_client_interfaces list.
-	if ifc.Parent != nil && InterfaceToSharedInstance(ifc.Parent) {
+	if ifc.Parent != nil && ifc.Parent.LocalIsSharedInstance {
 		return true
 	}
 	return false
@@ -6027,171 +5961,72 @@ func IsLocalClientInterface(ifc *Interface) bool {
 // FromLocalClient mirrors Python Transport.from_local_client().
 // Returns true if the packet was received from a local client interface.
 func FromLocalClient(p *Packet) bool {
-	if p == nil {
-		return false
-	}
 	return IsLocalClientInterface(p.ReceivingInterface)
 }
 
-func isForLocalClient(p *Packet) bool {
-	if p == nil || p.Type == PacketAnnounce {
-		return false
-	}
-	// Python: for_local_client if destination_hash in path_table and hops == 0.
-	entry := getPathEntry(p.DestinationHash)
-	return entry != nil && entry.Hops == 0
-}
-
-func isProofForLocal(p *Packet) bool {
-	if p == nil || len(p.DestinationHash) == 0 {
-		return false
-	}
-	key, ok := makeHashKey(p.DestinationHash)
-	if !ok {
-		return false
-	}
-	reverseTableMu.Lock()
-	entry := reverseTable[key]
-	reverseTableMu.Unlock()
-	if entry == nil {
-		return false
-	}
-	return IsLocalClientInterface(entry.ReceivedIf)
-}
-
-func isControlHash(hash []byte) bool {
-	if len(hash) == 0 {
-		return false
-	}
-	controlHashesMu.RLock()
-	_, ok := controlHashes[string(hash)]
-	controlHashesMu.RUnlock()
-	return ok
-}
-
-func interfaceName(ifc *Interface) string {
-	if ifc == nil {
-		return ""
-	}
-	return fmt.Sprint(ifc)
-}
-
-// -------- exported helpers for Reticulum --------
-
-func GetPathTable(maxHops int) []map[string]any {
-	pathTableMu.RLock()
-	defer pathTableMu.RUnlock()
-	res := make([]map[string]any, 0, len(pathTable))
-	for key, entry := range pathTable {
-		if entry == nil {
-			continue
-		}
-		if maxHops >= 0 && entry.Hops > maxHops {
-			continue
-		}
-		hashCopy := make([]byte, truncatedHashBytes)
-		copy(hashCopy, key[:])
-		via := append([]byte(nil), entry.NextHop...)
-		var expires float64
-		if !entry.ExpiresAt.IsZero() {
-			expires = float64(entry.ExpiresAt.UnixNano()) / 1e9
-		}
-		timestamp := float64(entry.Timestamp.UnixNano()) / 1e9
-		res = append(res, map[string]any{
-			"hash":      hashCopy,
-			"timestamp": timestamp,
-			"via":       via,
-			"hops":      entry.Hops,
-			"expires":   expires,
-			"interface": interfaceName(entry.RecvInterface),
-		})
-	}
-	return res
-}
-
-func GetRateTable() []map[string]any {
-	announceRateMu.RLock()
-	defer announceRateMu.RUnlock()
-	res := make([]map[string]any, 0, len(announceRateTable))
-	for key, entry := range announceRateTable {
-		if entry == nil {
-			continue
-		}
-		hashCopy := make([]byte, truncatedHashBytes)
-		copy(hashCopy, key[:])
-		timestamps := make([]float64, len(entry.Timestamps))
-		for i, ts := range entry.Timestamps {
-			timestamps[i] = float64(ts.UnixNano()) / 1e9
-		}
-		res = append(res, map[string]any{
-			"hash":            hashCopy,
-			"last":            float64(entry.Last.UnixNano()) / 1e9,
-			"rate_violations": entry.RateViolations,
-			"blocked_until":   float64(entry.BlockedUntil.UnixNano()) / 1e9,
-			"timestamps":      timestamps,
-		})
-	}
-	return res
-}
-
-func DropPath(hash []byte) bool {
-	// Python calls this "expire_path": keep the entry but mark it stale by setting timestamp to 0.
-	return ExpirePath(hash)
-}
-
-func DropAllVia(via []byte) int {
-	if len(via) == 0 {
-		return 0
-	}
-	pathTableMu.Lock()
-	defer pathTableMu.Unlock()
-	removed := 0
-	for _, entry := range pathTable {
-		if entry == nil {
-			continue
-		}
-		if len(entry.NextHop) == 0 {
-			continue
-		}
-		if bytes.Equal(entry.NextHop, via) {
-			entry.Timestamp = time.Unix(0, 0)
-			removed++
-		}
-	}
-	if removed > 0 {
-		TablesLastCulled = time.Time{}
-	}
-	return removed
-}
-
 func NextHop(hash []byte) []byte {
-	if entry := getPathEntry(hash); entry != nil {
+	var entry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) != truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash); ok {
+		pathTableMu.RLock()
+		entry = pathTable[key]
+		pathTableMu.RUnlock()
+	}
+	if entry != nil {
 		return append([]byte(nil), entry.NextHop...)
 	}
 	return nil
 }
 
-func NextHopInterfaceName(hash []byte) string {
-	if entry := getPathEntry(hash); entry != nil {
-		return interfaceName(entry.RecvInterface)
-	}
-	return ""
-}
-
 // NextHopInterfaceHWMTU mirrors Python Transport.next_hop_interface_hw_mtu().
-// Returns 0 if unknown.
-func NextHopInterfaceHWMTU(hash []byte) int {
-	if entry := getPathEntry(hash); entry != nil && entry.RecvInterface != nil {
-		return entry.RecvInterface.HWMTU
+// Returns nil if unknown.
+func NextHopInterfaceHWMTU(hash []byte) *int {
+	var entry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) != truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash); ok {
+		pathTableMu.RLock()
+		entry = pathTable[key]
+		pathTableMu.RUnlock()
 	}
-	return 0
+	if entry != nil && entry.RecvInterface != nil {
+		if entry.RecvInterface.AutoconfigureMTU || entry.RecvInterface.FixedMTU {
+			mtu := entry.RecvInterface.HWMTU
+			return &mtu
+		}
+	}
+	return nil
 }
 
 // NextHopInterface mirrors Python Transport.next_hop_interface().
 // Returns the interface for the next hop to the specified destination, or nil
 // if the interface is unknown.
 func NextHopInterface(hash []byte) *Interface {
-	if entry := getPathEntry(hash); entry != nil {
+	var entry *PathEntry
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) != truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(hash); ok {
+		pathTableMu.RLock()
+		entry = pathTable[key]
+		pathTableMu.RUnlock()
+	}
+	if entry != nil {
 		return entry.RecvInterface
 	}
 	return nil

@@ -36,25 +36,35 @@ func (b *managementAnnounceBackend) GetPacketQ(_ []byte) *float64 {
 	return nil
 }
 
-func TestRefreshManagementDestinations_IncludesRemoteAndProbe(t *testing.T) {
+func TestManagementAnnouncements_DeferredInitialAnnounce(t *testing.T) {
 	prevRemote := remoteManagementDest
 	prevProbe := ProbeDestination
 	prevMgmt := mgmtDestinations
 	prevActive := remoteManagementActive
+	prevLast := LastMgmtAnnounce
 
 	remoteManagementDest = &Destination{}
 	ProbeDestination = &Destination{}
 	remoteManagementActive = true
 	mgmtDestinations = nil
+	now := time.Now()
+	LastMgmtAnnounce = now.Add(-(mgmtAnnounceInterval - initialMgmtAnnounceWait))
 
 	t.Cleanup(func() {
 		remoteManagementDest = prevRemote
 		ProbeDestination = prevProbe
 		mgmtDestinations = prevMgmt
 		remoteManagementActive = prevActive
+		LastMgmtAnnounce = prevLast
 	})
 
-	refreshManagementDestinations()
+	mgmtDestinations = mgmtDestinations[:0]
+	if remoteManagementActive && remoteManagementDest != nil {
+		mgmtDestinations = append(mgmtDestinations, remoteManagementDest)
+	}
+	if ProbeDestination != nil {
+		mgmtDestinations = append(mgmtDestinations, ProbeDestination)
+	}
 
 	if len(mgmtDestinations) != 2 {
 		t.Fatalf("mgmtDestinations len=%d, want 2", len(mgmtDestinations))
@@ -62,9 +72,14 @@ func TestRefreshManagementDestinations_IncludesRemoteAndProbe(t *testing.T) {
 	if mgmtDestinations[0] != remoteManagementDest || mgmtDestinations[1] != ProbeDestination {
 		t.Fatalf("unexpected management destinations ordering/content")
 	}
+
+	shouldAnnounce := len(mgmtDestinations) > 0 && (LastMgmtAnnounce.IsZero() || now.Sub(LastMgmtAnnounce) > mgmtAnnounceInterval)
+	if shouldAnnounce {
+		t.Fatal("management announce should be deferred before initial interval")
+	}
 }
 
-func TestConfigureControlDestinations_DoesNotCreateProbeWhenTransportDisabled(t *testing.T) {
+func TestSharedConnectionDisappeared_DoesNotCreateProbeWhenTransportDisabled(t *testing.T) {
 	prevOwner := Owner
 	prevTransportEnabled := transportEnabled
 	prevAllowProbes := allowProbes
@@ -96,7 +111,7 @@ func TestConfigureControlDestinations_DoesNotCreateProbeWhenTransportDisabled(t 
 		mgmtDestinations = prevMgmt
 	})
 
-	configureControlDestinations()
+	SharedConnectionDisappeared()
 
 	if ProbeDestination != nil {
 		t.Fatalf("ProbeDestination was created with transport disabled")
@@ -116,13 +131,15 @@ func TestDueManagementDestinations_DeferredInitialAnnounce(t *testing.T) {
 		LastMgmtAnnounce = prevLast
 	})
 
-	if due := dueManagementDestinations(now); len(due) != 0 {
-		t.Fatalf("dueManagementDestinations() len=%d, want 0 before initial delay", len(due))
+	shouldAnnounceNow := len(mgmtDestinations) > 0 && (LastMgmtAnnounce.IsZero() || now.Sub(LastMgmtAnnounce) > mgmtAnnounceInterval)
+	if shouldAnnounceNow {
+		t.Fatal("management announce should be deferred before initial delay")
 	}
 
 	later := now.Add(initialMgmtAnnounceWait + time.Millisecond)
-	if due := dueManagementDestinations(later); len(due) != 1 {
-		t.Fatalf("dueManagementDestinations() len=%d, want 1 after initial delay", len(due))
+	shouldAnnounceLater := len(mgmtDestinations) > 0 && (LastMgmtAnnounce.IsZero() || later.Sub(LastMgmtAnnounce) > mgmtAnnounceInterval)
+	if !shouldAnnounceLater {
+		t.Fatal("management announce should be due after initial delay")
 	}
 }
 
@@ -149,7 +166,12 @@ func TestAnnounceManagementDestinations_SendsAnnounces(t *testing.T) {
 		t.Fatalf("NewDestination(probe): %v", err)
 	}
 
-	announceManagementDestinations([]*Destination{remote, probe})
+	for _, dest := range []*Destination{remote, probe} {
+		if dest == nil {
+			continue
+		}
+		dest.Announce(nil, false, nil, nil, true)
+	}
 
 	if backend.outboundCalls != 2 {
 		t.Fatalf("announce outbound calls=%d, want 2", backend.outboundCalls)

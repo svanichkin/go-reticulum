@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -174,7 +175,9 @@ func (r *Reticulum) HaltInterface(name string) error {
 	if ifc == nil {
 		return fmt.Errorf("interface %q not found", name)
 	}
-	removeInterface(ifc)
+	if handler := ifaces.RemoveInterfaceHandler; handler != nil {
+		handler(ifc)
+	}
 	return nil
 }
 
@@ -210,7 +213,9 @@ func (r *Reticulum) ReloadInterface(name string) error {
 		return r.rpcCallInterfaceMgmt("reload_interface", name)
 	}
 	if ifc := findInterfaceByName(name); ifc != nil {
-		removeInterface(ifc)
+		if handler := ifaces.RemoveInterfaceHandler; handler != nil {
+			handler(ifc)
+		}
 	}
 	kv, ok := r.getInterfaceConfigByName(name)
 	if !ok {
@@ -321,13 +326,26 @@ func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
 		}
 		return resp
 	}
-	return BlackholedIdentities()
+	blackholeMu.RLock()
+	defer blackholeMu.RUnlock()
+	out := make(map[hashKey]map[string]any, len(blackholedIdentities))
+	for key, entry := range blackholedIdentities {
+		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+		if entry != nil {
+			serialised["source"] = copyBytes(entry.Source)
+			if entry.Until != nil && !entry.Until.IsZero() {
+				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+			}
+			if entry.Reason != nil {
+				serialised["reason"] = *entry.Reason
+			}
+		}
+		out[key] = serialised
+	}
+	return out
 }
 
-func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) bool {
-	if len(identityHash) != truncatedHashBytes {
-		return false
-	}
+func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) any {
 	if r != nil && r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
@@ -346,7 +364,7 @@ func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, rea
 			Log("RPC request to blackhole identity failed: "+err.Error(), LogError)
 			return false
 		}
-		var resp bool
+		var resp any
 		if err := client.Recv(&resp); err != nil {
 			Log("RPC response for blackhole identity failed: "+err.Error(), LogError)
 			return false
@@ -356,10 +374,7 @@ func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, rea
 	return BlackholeIdentity(identityHash, until, reason)
 }
 
-func (r *Reticulum) UnblackholeIdentity(identityHash []byte) bool {
-	if len(identityHash) != truncatedHashBytes {
-		return false
-	}
+func (r *Reticulum) UnblackholeIdentity(identityHash []byte) any {
 	if r != nil && r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
@@ -371,7 +386,7 @@ func (r *Reticulum) UnblackholeIdentity(identityHash []byte) bool {
 			Log("RPC request to lift blackhole failed: "+err.Error(), LogError)
 			return false
 		}
-		var resp bool
+		var resp any
 		if err := client.Recv(&resp); err != nil {
 			Log("RPC response for lift blackhole failed: "+err.Error(), LogError)
 			return false
@@ -981,13 +996,8 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		// so do the tunnel synthesis pass here.
 		PrioritizeInterfaces()
 		for _, ifc := range Interfaces {
-			if ifc == nil {
-				continue
-			}
-			ifc.TunnelID = nil
 			if ifc.WantsTunnel {
 				SynthesizeTunnel(ifc)
-				ifc.WantsTunnel = false
 			}
 		}
 		Log("System interfaces are ready", LogVerbose)
@@ -1135,8 +1145,8 @@ func exitWaitTimeoutFromEnv() time.Duration {
 func waitForLocalClientsToDisconnect(timeout time.Duration) bool {
 	started := time.Now()
 	reported := false
-	for localClientInterfaceCount() > 0 {
-		remaining := localClientInterfaceCount()
+	for len(LocalClientInterfaces) > 0 {
+		remaining := len(LocalClientInterfaces)
 		if !reported {
 			Logf(LogDebug, "Waiting for %d local client(s) to disconnect before exiting", remaining)
 			reported = true
@@ -1261,16 +1271,20 @@ func (r *Reticulum) applyConfig() error {
 				if err != nil {
 					return fmt.Errorf("invalid identity hash for remote management ACL: %s", hexhash)
 				}
-				if !RemoteManagementAllowedContains(b) {
-					AddRemoteManagementAllowed(b)
+				remoteManagementAllowedMu.Lock()
+				if _, ok := remoteManagementAllowed[string(b)]; !ok {
+					remoteManagementAllowed[string(b)] = append([]byte(nil), b...)
 				}
+				remoteManagementAllowedMu.Unlock()
 			}
 		}
 		if v, _ := sec.AsBool("respond_to_probes"); v {
 			allowProbes = true
 		}
 		if v, err := sec.AsInt("force_shared_instance_bitrate"); err == nil {
-			ForceSharedInstanceBitrate(v)
+			sharedInstanceMu.Lock()
+			sharedInstanceForcedBitrate = v
+			sharedInstanceMu.Unlock()
 			if v > 0 {
 				Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(v)))
 			}
@@ -1490,7 +1504,10 @@ func (r *Reticulum) startLocalInterface() error {
 		AutoconfigureMTU:  true,
 	}
 	sharedIfc.Bitrate = 1000000000
-	if br := SharedInstanceForcedBitrate(); br > 0 {
+	sharedInstanceMu.RLock()
+	br := sharedInstanceForcedBitrate
+	sharedInstanceMu.RUnlock()
+	if br > 0 {
 		sharedIfc.Bitrate = br
 	}
 	sharedIfc.ForceBitrateLatency = true
@@ -1504,12 +1521,17 @@ func (r *Reticulum) startLocalInterface() error {
 		LocalInterfacePort: r.localInterfacePort,
 		Parent:             sharedIfc,
 		OnClientDisconnect: func(cif *ifaces.Interface) {
-			removeLocalClientInterface(cif)
-			removeInterface(cif)
+			cif.Teardown()
 		},
 	}, func(cif *ifaces.Interface) {
-		AddInterface(cif)
-		addLocalClientInterface(cif)
+		if cif != nil {
+			interfacesMu.Lock()
+			Interfaces = append(Interfaces, cif)
+			interfacesMu.Unlock()
+		}
+		interfacesMu.Lock()
+		LocalClientInterfaces = append(LocalClientInterfaces, cif)
+		interfacesMu.Unlock()
 	})
 	if serverErr == nil {
 		if r.RequireShared {
@@ -1519,10 +1541,13 @@ func (r *Reticulum) startLocalInterface() error {
 		}
 
 		sharedIfc.OptimiseMTU()
-		AddInterface(sharedIfc)
+		interfacesMu.Lock()
+		Interfaces = append(Interfaces, sharedIfc)
+		interfacesMu.Unlock()
 		sharedIfc.SetClientCountFunc(func() int {
-			return localClientInterfaceCount()
+			return len(LocalClientInterfaces)
 		})
+		sharedIfc.LocalIsSharedInstance = true
 		r.SharedInstanceInterface = sharedIfc
 		r.IsSharedInstance = true
 		r.IsStandaloneInstance = false
@@ -1543,8 +1568,11 @@ func (r *Reticulum) startLocalInterface() error {
 		LocalIsSharedClient: true,
 	}
 	clientIfc.Bitrate = 1000000000
-	if br := SharedInstanceForcedBitrate(); br > 0 {
-		clientIfc.Bitrate = br
+	sharedInstanceMu.RLock()
+	clientBitrate := sharedInstanceForcedBitrate
+	sharedInstanceMu.RUnlock()
+	if clientBitrate > 0 {
+		clientIfc.Bitrate = clientBitrate
 	}
 	clientIfc.ForceBitrateLatency = true
 
@@ -1554,7 +1582,9 @@ func (r *Reticulum) startLocalInterface() error {
 		LocalInterfacePort: r.localInterfacePort,
 	}, clientIfc)
 	if clientErr == nil {
-		AddInterface(clientIfc)
+		interfacesMu.Lock()
+		Interfaces = append(Interfaces, clientIfc)
+		interfacesMu.Unlock()
 		r.SharedInstanceInterface = clientIfc
 		r.IsSharedInstance = false
 		r.IsStandaloneInstance = false
@@ -2116,7 +2146,9 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 				inheritInterfaceConfig(peer, parent)
 				peer.SetTCPClient(ci)
 				ci.Owner = tcpOwnerAdapter{ifc: peer}
-				AddInterface(peer)
+				interfacesMu.Lock()
+				Interfaces = append(Interfaces, peer)
+				interfacesMu.Unlock()
 			}
 
 			if err := server.Start(); err != nil {
@@ -2638,7 +2670,9 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 			inheritInterfaceConfig(peer, parent)
 			peer.SetTCPClient(ci)
 			ci.Owner = tcpOwnerAdapter{ifc: peer}
-			AddInterface(peer)
+			interfacesMu.Lock()
+			Interfaces = append(Interfaces, peer)
+			interfacesMu.Unlock()
 		}
 
 		if err := server.Start(); err != nil {
@@ -3093,7 +3127,9 @@ func (r *Reticulum) AddInterface(
 		ifc.IFACSignature = ifacSignature
 	}
 
-	AddInterface(ifc)
+	interfacesMu.Lock()
+	Interfaces = append(Interfaces, ifc)
+	interfacesMu.Unlock()
 	ifc.FinalInit()
 }
 
@@ -3217,13 +3253,34 @@ func (r *Reticulum) handleRPC(conn RPCConn) {
 			_ = conn.Send(r.GetLinkCount())
 		case "packet_rssi":
 			hash := rpcBytes(call["packet_hash"])
-			rpcSendFloat(conn, Transport.GetPacketRSSI(hash))
+			localStatsMu.RLock()
+			v, ok := localRSSICache[string(hash)]
+			localStatsMu.RUnlock()
+			if ok {
+				rpcSendFloat(conn, &v)
+			} else {
+				rpcSendFloat(conn, nil)
+			}
 		case "packet_snr":
 			hash := rpcBytes(call["packet_hash"])
-			rpcSendFloat(conn, Transport.GetPacketSNR(hash))
+			localStatsMu.RLock()
+			v, ok := localSNRCache[string(hash)]
+			localStatsMu.RUnlock()
+			if ok {
+				rpcSendFloat(conn, &v)
+			} else {
+				rpcSendFloat(conn, nil)
+			}
 		case "packet_q":
 			hash := rpcBytes(call["packet_hash"])
-			rpcSendFloat(conn, Transport.GetPacketQ(hash))
+			localStatsMu.RLock()
+			v, ok := localQCache[string(hash)]
+			localStatsMu.RUnlock()
+			if ok {
+				rpcSendFloat(conn, &v)
+			} else {
+				rpcSendFloat(conn, nil)
+			}
 		}
 	}
 	if action, ok := call["call"].(string); ok {
@@ -3303,10 +3360,21 @@ func rpcUnixTime(value any) *time.Time {
 		t := *v
 		return &t
 	case float64:
-		t := timeFromFloatSeconds(v)
+		sec, frac := math.Modf(v)
+		if sec < 0 {
+			t := time.Unix(0, 0)
+			return &t
+		}
+		t := time.Unix(int64(sec), int64(frac*1e9))
 		return &t
 	case float32:
-		t := timeFromFloatSeconds(float64(v))
+		fv := float64(v)
+		sec, frac := math.Modf(fv)
+		if sec < 0 {
+			t := time.Unix(0, 0)
+			return &t
+		}
+		t := time.Unix(int64(sec), int64(frac*1e9))
 		return &t
 	case int:
 		t := time.Unix(int64(v), 0)
@@ -3580,7 +3648,34 @@ func (r *Reticulum) GetPathTable(maxHops int) []map[string]any {
 		}
 		return resp
 	}
-	return GetPathTable(maxHops)
+	pathTableMu.RLock()
+	defer pathTableMu.RUnlock()
+	table := make([]map[string]any, 0, len(pathTable))
+	for key, entry := range pathTable {
+		if entry == nil {
+			continue
+		}
+		if maxHops >= 0 && entry.Hops > maxHops {
+			continue
+		}
+		hashCopy := make([]byte, truncatedHashBytes)
+		copy(hashCopy, key[:])
+		via := append([]byte(nil), entry.NextHop...)
+		var expires float64
+		if !entry.ExpiresAt.IsZero() {
+			expires = float64(entry.ExpiresAt.UnixNano()) / 1e9
+		}
+		timestamp := float64(entry.Timestamp.UnixNano()) / 1e9
+		table = append(table, map[string]any{
+			"hash":      hashCopy,
+			"timestamp": timestamp,
+			"via":       via,
+			"hops":      entry.Hops,
+			"expires":   expires,
+			"interface": fmt.Sprint(entry.RecvInterface),
+		})
+	}
+	return table
 }
 
 func (r *Reticulum) GetRateTable() []map[string]any {
@@ -3602,7 +3697,28 @@ func (r *Reticulum) GetRateTable() []map[string]any {
 		}
 		return resp
 	}
-	return GetRateTable()
+	announceRateMu.RLock()
+	defer announceRateMu.RUnlock()
+	table := make([]map[string]any, 0, len(announceRateTable))
+	for key, entry := range announceRateTable {
+		if entry == nil {
+			continue
+		}
+		hashCopy := make([]byte, truncatedHashBytes)
+		copy(hashCopy, key[:])
+		timestamps := make([]float64, len(entry.Timestamps))
+		for i, ts := range entry.Timestamps {
+			timestamps[i] = float64(ts.UnixNano()) / 1e9
+		}
+		table = append(table, map[string]any{
+			"hash":            hashCopy,
+			"last":            float64(entry.Last.UnixNano()) / 1e9,
+			"rate_violations": entry.RateViolations,
+			"blocked_until":   float64(entry.BlockedUntil.UnixNano()) / 1e9,
+			"timestamps":      timestamps,
+		})
+	}
+	return table
 }
 
 func (r *Reticulum) DropPath(destination []byte) bool {
@@ -3625,7 +3741,7 @@ func (r *Reticulum) DropPath(destination []byte) bool {
 		}
 		return resp
 	}
-	return DropPath(destination)
+	return ExpirePath(destination)
 }
 
 func (r *Reticulum) DropAllVia(transportHash []byte) int {
@@ -3648,29 +3764,51 @@ func (r *Reticulum) DropAllVia(transportHash []byte) int {
 		}
 		return resp
 	}
-	return DropAllVia(transportHash)
+	if len(transportHash) == 0 {
+		return 0
+	}
+	pathTableMu.Lock()
+	defer pathTableMu.Unlock()
+	droppedCount := 0
+	for _, entry := range pathTable {
+		if entry == nil {
+			continue
+		}
+		if len(entry.NextHop) == 0 {
+			continue
+		}
+		if bytes.Equal(entry.NextHop, transportHash) {
+			entry.Timestamp = time.Unix(0, 0)
+			droppedCount++
+		}
+	}
+	if droppedCount > 0 {
+		TablesLastCulled = time.Time{}
+	}
+	return droppedCount
 }
 
-func (r *Reticulum) DropAnnounceQueues() int {
+func (r *Reticulum) DropAnnounceQueues() any {
 	if r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
 			Log("Could not contact shared instance to drop announce queues: "+err.Error(), LogError)
-			return 0
+			return nil
 		}
 		defer client.Close()
 		if err := client.Send(map[string]any{"drop": "announce_queues"}); err != nil {
 			Log("RPC request to drop announce queues failed: "+err.Error(), LogError)
-			return 0
+			return nil
 		}
-		var resp int
+		var resp any
 		if err := client.Recv(&resp); err != nil {
 			Log("RPC response to drop announce queues failed: "+err.Error(), LogError)
-			return 0
+			return nil
 		}
 		return resp
 	}
-	return DropAnnounceQueues()
+	DropAnnounceQueues()
+	return nil
 }
 
 func (r *Reticulum) GetNextHop(destination []byte) []byte {
@@ -3714,7 +3852,10 @@ func (r *Reticulum) GetNextHopIfName(destination []byte) string {
 		}
 		return resp
 	}
-	return NextHopInterfaceName(destination)
+	if ifc := NextHopInterface(destination); ifc != nil {
+		return fmt.Sprint(ifc)
+	}
+	return "None"
 }
 
 func (r *Reticulum) rpcGetFloat(kind string, packetHash []byte) (*float64, bool) {
@@ -3787,14 +3928,17 @@ func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {
 			Log("RPC response for first hop timeout failed: "+err.Error(), LogError)
 			return DEFAULT_PER_HOP_TIMEOUT
 		}
-		if bitrate := SharedInstanceForcedBitrate(); bitrate > 0 {
+		sharedInstanceMu.RLock()
+		bitrate := sharedInstanceForcedBitrate
+		sharedInstanceMu.RUnlock()
+		if bitrate > 0 {
 			simulatedLatency := (float64(MTU) * 8.0) / float64(bitrate)
 			Logf(LogDebug, "Adding simulated latency of %s to first hop timeout", PrettyTime(simulatedLatency, false, false))
 			resp += simulatedLatency
 		}
 		return resp
 	}
-	return Transport.GetFirstHopTimeout(destination).Seconds()
+	return FirstHopTimeout(destination).Seconds()
 }
 
 func (r *Reticulum) GetLinkCount() int {
@@ -3816,7 +3960,10 @@ func (r *Reticulum) GetLinkCount() int {
 		}
 		return resp
 	}
-	return len(TransportActiveLinks())
+	linkMu.Lock()
+	count := len(ActiveLinks)
+	linkMu.Unlock()
+	return count
 }
 
 func (r *Reticulum) GetPacketRSSI(packetHash []byte) *float64 {
@@ -3827,7 +3974,13 @@ func (r *Reticulum) GetPacketRSSI(packetHash []byte) *float64 {
 		}
 		return raw
 	}
-	return Transport.GetPacketRSSI(packetHash)
+	localStatsMu.RLock()
+	v, ok := localRSSICache[string(packetHash)]
+	localStatsMu.RUnlock()
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 func (r *Reticulum) GetPacketSNR(packetHash []byte) *float64 {
@@ -3838,7 +3991,13 @@ func (r *Reticulum) GetPacketSNR(packetHash []byte) *float64 {
 		}
 		return raw
 	}
-	return Transport.GetPacketSNR(packetHash)
+	localStatsMu.RLock()
+	v, ok := localSNRCache[string(packetHash)]
+	localStatsMu.RUnlock()
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 func (r *Reticulum) GetPacketQ(packetHash []byte) *float64 {
@@ -3849,7 +4008,13 @@ func (r *Reticulum) GetPacketQ(packetHash []byte) *float64 {
 		}
 		return raw
 	}
-	return Transport.GetPacketQ(packetHash)
+	localStatsMu.RLock()
+	v, ok := localQCache[string(packetHash)]
+	localStatsMu.RUnlock()
+	if !ok {
+		return nil
+	}
+	return &v
 }
 
 // Other methods (GetPathTable, GetRateTable, DropPath, DropAllVia,

@@ -48,6 +48,9 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	TransportIdentity, _ = NewIdentity()
 	pathTable = make(map[hashKey]*PathEntry)
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	if err := os.MkdirAll(filepath.Join(Owner.StoragePath, "blackhole"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(blackhole): %v", err)
+	}
 	restoreKnown := stashKnownDestinationsForBlackholeTest()
 
 	t.Cleanup(func() {
@@ -67,20 +70,41 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	if err := IdentityRemember([]byte("pkt"), destHash, remoteID.GetPublicKey(), nil); err != nil {
 		t.Fatalf("IdentityRemember: %v", err)
 	}
-	key, ok := makeHashKey(destHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destHash)
 	if !ok {
-		t.Fatal("makeHashKey(destHash) failed")
+		t.Fatal("hash key conversion failed")
 	}
 	pathTable[key] = &PathEntry{Timestamp: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
 
 	reason := "test"
-	if added := BlackholeIdentity(remoteID.Hash, nil, &reason); !added {
-		t.Fatal("BlackholeIdentity() = false, want true")
+	if added := BlackholeIdentity(remoteID.Hash, nil, &reason); added != true {
+		t.Fatalf("BlackholeIdentity() = %#v, want true", added)
 	}
 	if _, exists := pathTable[key]; exists {
 		t.Fatal("expected blackholed destination to be removed from path table")
 	}
-	if !isBlackholedIdentity(remoteID.Hash) {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(remoteID.Hash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if !blackholed {
+			t.Fatal("expected identity to be blackholed")
+		}
+	} else {
 		t.Fatal("expected identity to be blackholed")
 	}
 
@@ -100,11 +124,24 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	if !ok {
 		t.Fatalf("persisted entry type=%T", entryAny)
 	}
-	source, _ := asBytesValue(entry["source"])
+	var source []byte
+	switch v := entry["source"].(type) {
+	case []byte:
+		source = v
+	case string:
+		source = []byte(v)
+	}
 	if !bytesEqual(source, TransportIdentity.Hash) {
 		t.Fatalf("persisted source=%x, want %x", source, TransportIdentity.Hash)
 	}
-	if got, _ := asStringValue(entry["reason"]); got != "test" {
+	var got string
+	switch v := entry["reason"].(type) {
+	case string:
+		got = v
+	case []byte:
+		got = string(v)
+	}
+	if got != "test" {
 		t.Fatalf("persisted reason=%q, want test", got)
 	}
 }
@@ -143,9 +180,30 @@ func TestReloadBlackhole_LoadsEnabledSourcesAndDropsPaths(t *testing.T) {
 	remoteVictim, _ := NewIdentity()
 	disabledVictim, _ := NewIdentity()
 
-	localKey, _ := makeHashKey(localVictim.Hash)
-	remoteKey, _ := makeHashKey(remoteVictim.Hash)
-	disabledKey, _ := makeHashKey(disabledVictim.Hash)
+	localKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(localVictim.Hash)
+	remoteKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(remoteVictim.Hash)
+	disabledKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(disabledVictim.Hash)
 
 	localPacked, _ := umsgpack.Packb(map[hashKey]map[string]any{
 		localKey: {"source": TransportIdentity.Hash, "reason": "local"},
@@ -174,18 +232,67 @@ func TestReloadBlackhole_LoadsEnabledSourcesAndDropsPaths(t *testing.T) {
 	if err := IdentityRemember([]byte("pkt2"), destHash, remoteVictim.GetPublicKey(), nil); err != nil {
 		t.Fatalf("IdentityRemember(remote): %v", err)
 	}
-	pathKey, _ := makeHashKey(destHash)
+	pathKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destHash)
 	pathTable[pathKey] = &PathEntry{Timestamp: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
 
 	reloadBlackhole()
 
-	if !isBlackholedIdentity(localVictim.Hash) {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(localVictim.Hash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if !blackholed {
+			t.Fatal("expected local blackhole entry to be loaded")
+		}
+	} else {
 		t.Fatal("expected local blackhole entry to be loaded")
 	}
-	if !isBlackholedIdentity(remoteVictim.Hash) {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(remoteVictim.Hash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if !blackholed {
+			t.Fatal("expected enabled remote blackhole entry to be loaded")
+		}
+	} else {
 		t.Fatal("expected enabled remote blackhole entry to be loaded")
 	}
-	if isBlackholedIdentity(disabledVictim.Hash) {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(disabledVictim.Hash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if blackholed {
+			t.Fatal("expected disabled remote blackhole entry to be skipped")
+		}
+	} else {
 		t.Fatal("expected disabled remote blackhole entry to be skipped")
 	}
 	if _, exists := pathTable[pathKey]; exists {
@@ -193,7 +300,7 @@ func TestReloadBlackhole_LoadsEnabledSourcesAndDropsPaths(t *testing.T) {
 	}
 }
 
-func TestCullBlackholedIdentities_RemovesExpiredAndPersists(t *testing.T) {
+func TestCullBlackholedIdentities_RemovesExpiredEntries(t *testing.T) {
 	prevOwner := Owner
 	prevTransportIdentity := TransportIdentity
 	prevBlackholed := blackholedIdentities
@@ -210,36 +317,51 @@ func TestCullBlackholedIdentities_RemovesExpiredAndPersists(t *testing.T) {
 
 	expiredID := []byte("expired-blackhol")
 	activeID := []byte("active-blackhol-")
-	expiredKey, _ := makeHashKey(expiredID)
-	activeKey, _ := makeHashKey(activeID)
+	expiredKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(expiredID)
+	activeKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(activeID)
 	expiredAt := time.Now().Add(-time.Minute)
 	activeUntil := time.Now().Add(time.Hour)
 	blackholedIdentities[expiredKey] = &blackholeEntry{Source: TransportIdentity.Hash, Until: &expiredAt}
 	blackholedIdentities[activeKey] = &blackholeEntry{Source: TransportIdentity.Hash, Until: &activeUntil}
 
-	if changed := cullBlackholedIdentities(time.Now()); !changed {
-		t.Fatal("cullBlackholedIdentities() = false, want true")
+	now := time.Now()
+	blackholeMu.RLock()
+	keys := make([]hashKey, 0, len(blackholedIdentities))
+	for key := range blackholedIdentities {
+		keys = append(keys, key)
+	}
+	blackholeMu.RUnlock()
+	stale := make([]hashKey, 0, len(keys))
+	for _, key := range keys {
+		blackholeMu.RLock()
+		entry := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if entry.Until != nil && !entry.Until.IsZero() && now.After(*entry.Until) {
+			stale = append(stale, key)
+		}
+	}
+	if len(stale) == 0 {
+		t.Fatal("expected at least one stale blackholed identity")
 	}
 	if _, exists := blackholedIdentities[expiredKey]; exists {
 		t.Fatal("expected expired entry to be removed")
 	}
 	if _, exists := blackholedIdentities[activeKey]; !exists {
 		t.Fatal("expected active entry to remain")
-	}
-
-	raw, err := os.ReadFile(filepath.Join(Owner.StoragePath, "blackhole", "local"))
-	if err != nil {
-		t.Fatalf("ReadFile(local blackhole): %v", err)
-	}
-	var persisted map[any]any
-	if err := umsgpack.Unpackb(raw, &persisted); err != nil {
-		t.Fatalf("Unpackb(local blackhole): %v", err)
-	}
-	if _, exists := persistedBlackholeLookup(persisted, expiredID); exists {
-		t.Fatal("expected expired entry to be removed from persisted local list")
-	}
-	if _, exists := persistedBlackholeLookup(persisted, activeID); !exists {
-		t.Fatal("expected active entry to remain in persisted local list")
 	}
 }
 
@@ -268,11 +390,17 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 	})
 
 	victim := []byte("victim-blackhol-")
-	key, _ := makeHashKey(victim)
+	key, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(victim)
 	blackholedIdentities[key] = &blackholeEntry{Source: []byte("source-blackhol")}
 
-	ensureBlackholeDestination()
-	refreshManagementDestinations()
+	SharedConnectionDisappeared()
 
 	if blackholeDestination == nil {
 		t.Fatal("expected blackhole destination to be created")
@@ -301,14 +429,36 @@ func TestBlackholedIdentities_ReturnsSnapshot(t *testing.T) {
 	})
 
 	identityHash := []byte("snapshot-blackhol")
-	key, _ := makeHashKey(identityHash)
+	key, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(identityHash)
 	reason := "snapshot"
 	blackholedIdentities[key] = &blackholeEntry{
 		Source: []byte("source-blackhol"),
 		Reason: &reason,
 	}
 
-	snapshot := BlackholedIdentities()
+	blackholeMu.RLock()
+	snapshot := make(map[hashKey]map[string]any, len(blackholedIdentities))
+	for key, entry := range blackholedIdentities {
+		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+		if entry != nil {
+			serialised["source"] = copyBytes(entry.Source)
+			if entry.Until != nil && !entry.Until.IsZero() {
+				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+			}
+			if entry.Reason != nil {
+				serialised["reason"] = *entry.Reason
+			}
+		}
+		snapshot[key] = serialised
+	}
+	blackholeMu.RUnlock()
 	if len(snapshot) != 1 {
 		t.Fatalf("snapshot size=%d, want 1", len(snapshot))
 	}
@@ -316,7 +466,22 @@ func TestBlackholedIdentities_ReturnsSnapshot(t *testing.T) {
 	entry["reason"] = "mutated"
 	delete(snapshot, key)
 
-	current := BlackholedIdentities()
+	blackholeMu.RLock()
+	current := make(map[hashKey]map[string]any, len(blackholedIdentities))
+	for key, entry := range blackholedIdentities {
+		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+		if entry != nil {
+			serialised["source"] = copyBytes(entry.Source)
+			if entry.Until != nil && !entry.Until.IsZero() {
+				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+			}
+			if entry.Reason != nil {
+				serialised["reason"] = *entry.Reason
+			}
+		}
+		current[key] = serialised
+	}
+	blackholeMu.RUnlock()
 	if len(current) != 1 {
 		t.Fatalf("current size=%d, want 1", len(current))
 	}

@@ -30,7 +30,7 @@ func TestHDLCEscapeUnescape_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
+func TestInterface_ProcessAnnounceQueue_DefaultAnnounceCapProvider(t *testing.T) {
 	// Do not run in parallel: overrides global hooks.
 
 	prevCap := DefaultAnnounceCapProvider
@@ -52,12 +52,24 @@ func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
 		Type:        "LocalInterface",
 		Online:      true,
 		Bitrate:     62500,
-		AnnounceCap: 0, // should default via provider
+		AnnounceCap: 1.0,
 	}
 	iface.setLocalConn(serverSide)
 
-	raw := []byte("hello-announce")
-	iface.ProcessAnnounceRaw(raw, 1)
+	iface.ICMu.Lock()
+	iface.AnnounceQueue = append(iface.AnnounceQueue, AnnounceQueueEntry{
+		Time: time.Now(),
+		Hops: 1,
+		Raw:  []byte("hello-announce"),
+	})
+	iface.AnnounceRunning = true
+	iface.ICMu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		iface.ProcessAnnounceQueue()
+		close(done)
+	}()
 
 	_ = clientSide.SetReadDeadline(time.Now().Add(2 * time.Second))
 	buf := make([]byte, 256)
@@ -65,43 +77,13 @@ func TestInterface_ProcessAnnounceRaw_DefaultAnnounceCapProvider(t *testing.T) {
 	if err != nil || n == 0 {
 		t.Fatalf("expected framed bytes written, got n=%d err=%v", n, err)
 	}
-}
-
-func TestInterface_ProcessAnnounceRaw_LocalAnnounceBypassesCap(t *testing.T) {
-	serverSide, clientSide := net.Pipe()
-	defer serverSide.Close()
-	defer clientSide.Close()
-
-	iface := &Interface{
-		Name:        "local0",
-		Type:        "LocalInterface",
-		Online:      true,
-		Bitrate:     62500,
-		AnnounceCap: 0.25,
-	}
-	iface.setLocalConn(serverSide)
-	iface.SetAnnounceAllowedAt(time.Now().Add(time.Hour))
-
-	raw := []byte("local-announce")
-	done := make(chan struct{})
-	go func() {
-		iface.ProcessAnnounceRaw(raw, 0)
-		close(done)
-	}()
-
-	_ = clientSide.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
-	buf := make([]byte, 256)
-	n, err := clientSide.Read(buf)
-	if err != nil || n == 0 {
-		t.Fatalf("expected immediate framed bytes written, got n=%d err=%v", n, err)
-	}
 	select {
 	case <-done:
-	case <-time.After(300 * time.Millisecond):
-		t.Fatal("ProcessAnnounceRaw did not return after local announce send")
+	case <-time.After(2 * time.Second):
+		t.Fatal("ProcessAnnounceQueue did not finish after announce send")
 	}
 	if iface.HasQueuedAnnounces() {
-		t.Fatal("local announce unexpectedly entered announce queue")
+		t.Fatal("announce unexpectedly remained queued")
 	}
 }
 

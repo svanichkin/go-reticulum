@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -113,7 +114,7 @@ type BlackholeUpdater struct {
 	jobInterval    time.Duration
 	updateInterval time.Duration
 	sourceTimeout  time.Duration
-	awaitPath      func([]byte, time.Duration, *Interface) bool
+	awaitPath      func([]byte, float64, *Interface) bool
 	fetchList      func([]byte, time.Duration) (any, error)
 	sleep          func(time.Duration)
 }
@@ -376,7 +377,7 @@ func NewInterfaceAnnounceHandler(requiredValue int, callback func(map[string]any
 	return &InterfaceAnnounceHandler{requiredValue: requiredValue, callback: callback}
 }
 
-func (h *InterfaceAnnounceHandler) AspectFilter() string {
+func (h *InterfaceAnnounceHandler) AspectFilter() any {
 	return TransportAppName + ".discovery.interface"
 }
 
@@ -1000,7 +1001,10 @@ func (d *InterfaceDiscovery) monitorOnce(now time.Time) bool {
 	}
 
 	maxAuto := MaxAutoconnectedInterfaces()
-	freeSlots := maxInt(0, maxAuto-d.autoconnectCount())
+	freeSlots := maxAuto - d.autoconnectCount()
+	if freeSlots < 0 {
+		freeSlots = 0
+	}
 	reservedSlots := maxAuto / 4
 
 	if online >= maxAuto {
@@ -1036,7 +1040,9 @@ func (d *InterfaceDiscovery) monitorOnce(now time.Time) bool {
 	}
 
 	for _, ifc := range detached {
-		removeInterface(ifc)
+		if handler := ifaces.RemoveInterfaceHandler; handler != nil {
+			handler(ifc)
+		}
 	}
 
 	d.mu.Lock()
@@ -1125,7 +1131,14 @@ func (u *BlackholeUpdater) job() {
 }
 
 func (u *BlackholeUpdater) due(now time.Time, sourceHash []byte) bool {
-	key, ok := makeHashKey(sourceHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(sourceHash)
 	if !ok {
 		return false
 	}
@@ -1140,7 +1153,14 @@ func (u *BlackholeUpdater) due(now time.Time, sourceHash []byte) bool {
 }
 
 func (u *BlackholeUpdater) markUpdated(sourceHash []byte, now time.Time) {
-	key, ok := makeHashKey(sourceHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(sourceHash)
 	if !ok {
 		return
 	}
@@ -1178,14 +1198,425 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 			Logf(LogError, "Error while establishing link for blackhole list update from %s: %v", PrettyHexRep(sourceHash), err)
 			continue
 		}
-		added := mergeRemoteBlackhole(sourceHash, response, now)
-		if added > 0 {
-			spec := "identities"
-			if added == 1 {
-				spec = "identity"
-			}
-			Logf(LogDebug, "Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash))
+		if len(sourceHash) != truncatedHashBytes {
+			continue
 		}
+		decoded := make(map[hashKey]*blackholeEntry)
+		switch typed := response.(type) {
+		case map[hashKey]map[string]any:
+			for key, entryValue := range typed {
+				if entryValue == nil {
+					continue
+				}
+				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+				if len(entry.Source) == 0 {
+					switch source := entryValue["source"].(type) {
+					case []byte:
+						if len(source) > 0 {
+							entry.Source = source
+						}
+					case string:
+						if len(source) > 0 {
+							entry.Source = []byte(source)
+						}
+					}
+				}
+				if untilVal, exists := entryValue["until"]; exists && untilVal != nil {
+					untilUnix := 0.0
+					switch v := untilVal.(type) {
+					case float64:
+						untilUnix = v
+					case float32:
+						untilUnix = float64(v)
+					case int:
+						untilUnix = float64(v)
+					case int8:
+						untilUnix = float64(v)
+					case int16:
+						untilUnix = float64(v)
+					case int32:
+						untilUnix = float64(v)
+					case int64:
+						untilUnix = float64(v)
+					case uint:
+						untilUnix = float64(v)
+					case uint8:
+						untilUnix = float64(v)
+					case uint16:
+						untilUnix = float64(v)
+					case uint32:
+						untilUnix = float64(v)
+					case uint64:
+						untilUnix = float64(v)
+					}
+					if untilUnix > 0 {
+						sec, frac := math.Modf(untilUnix)
+						until := time.Unix(int64(sec), int64(frac*1e9))
+						if sec < 0 {
+							until = time.Unix(0, 0)
+						}
+						if now.After(until) {
+							continue
+						}
+						entry.Until = &until
+					}
+				}
+				if reasonVal, exists := entryValue["reason"]; exists && reasonVal != nil {
+					switch reason := reasonVal.(type) {
+					case string:
+						entry.Reason = &reason
+					case []byte:
+						if len(reason) > 0 {
+							reasonStr := string(reason)
+							entry.Reason = &reasonStr
+						}
+					}
+				}
+				decoded[key] = entry
+			}
+		case map[hashKey]any:
+			for key, entryValue := range typed {
+				raw, ok := entryValue.(map[any]any)
+				if !ok {
+					if typedRaw, ok := entryValue.(map[string]any); ok {
+						raw = make(map[any]any, len(typedRaw))
+						for k, v := range typedRaw {
+							raw[k] = v
+						}
+					} else {
+						continue
+					}
+				}
+				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+				if len(entry.Source) == 0 {
+					switch source := raw["source"].(type) {
+					case []byte:
+						if len(source) > 0 {
+							entry.Source = source
+						}
+					case string:
+						if len(source) > 0 {
+							entry.Source = []byte(source)
+						}
+					}
+				}
+				if untilVal, exists := raw["until"]; exists && untilVal != nil {
+					untilUnix := 0.0
+					switch v := untilVal.(type) {
+					case float64:
+						untilUnix = v
+					case float32:
+						untilUnix = float64(v)
+					case int:
+						untilUnix = float64(v)
+					case int8:
+						untilUnix = float64(v)
+					case int16:
+						untilUnix = float64(v)
+					case int32:
+						untilUnix = float64(v)
+					case int64:
+						untilUnix = float64(v)
+					case uint:
+						untilUnix = float64(v)
+					case uint8:
+						untilUnix = float64(v)
+					case uint16:
+						untilUnix = float64(v)
+					case uint32:
+						untilUnix = float64(v)
+					case uint64:
+						untilUnix = float64(v)
+					}
+					if untilUnix > 0 {
+						sec, frac := math.Modf(untilUnix)
+						until := time.Unix(int64(sec), int64(frac*1e9))
+						if sec < 0 {
+							until = time.Unix(0, 0)
+						}
+						if now.After(until) {
+							continue
+						}
+						entry.Until = &until
+					}
+				}
+				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+					switch reason := reasonVal.(type) {
+					case string:
+						entry.Reason = &reason
+					case []byte:
+						if len(reason) > 0 {
+							reasonStr := string(reason)
+							entry.Reason = &reasonStr
+						}
+					}
+				}
+				decoded[key] = entry
+			}
+		case map[any]any:
+			for rawKey, rawValue := range typed {
+				var key hashKey
+				var ok bool
+				switch v := rawKey.(type) {
+				case string:
+					key, ok = func(hash []byte) (hashKey, bool) {
+						if len(hash) < truncatedHashBytes {
+							return hashKey{}, false
+						}
+						var key hashKey
+						copy(key[:], hash[:truncatedHashBytes])
+						return key, true
+					}([]byte(v))
+				case umsgpack.BinaryKey:
+					key, ok = func(hash []byte) (hashKey, bool) {
+						if len(hash) < truncatedHashBytes {
+							return hashKey{}, false
+						}
+						var key hashKey
+						copy(key[:], hash[:truncatedHashBytes])
+						return key, true
+					}([]byte(string(v)))
+				case []byte:
+					key, ok = func(hash []byte) (hashKey, bool) {
+						if len(hash) < truncatedHashBytes {
+							return hashKey{}, false
+						}
+						var key hashKey
+						copy(key[:], hash[:truncatedHashBytes])
+						return key, true
+					}(v)
+				default:
+					ok = false
+				}
+				if !ok {
+					continue
+				}
+				raw, ok := rawValue.(map[any]any)
+				if !ok {
+					if typedRaw, ok := rawValue.(map[string]any); ok {
+						raw = make(map[any]any, len(typedRaw))
+						for k, v := range typedRaw {
+							raw[k] = v
+						}
+					} else {
+						continue
+					}
+				}
+				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+				if len(entry.Source) == 0 {
+					switch source := raw["source"].(type) {
+					case []byte:
+						if len(source) > 0 {
+							entry.Source = source
+						}
+					case string:
+						if len(source) > 0 {
+							entry.Source = []byte(source)
+						}
+					}
+				}
+				if untilVal, exists := raw["until"]; exists && untilVal != nil {
+					untilUnix := 0.0
+					switch v := untilVal.(type) {
+					case float64:
+						untilUnix = v
+					case float32:
+						untilUnix = float64(v)
+					case int:
+						untilUnix = float64(v)
+					case int8:
+						untilUnix = float64(v)
+					case int16:
+						untilUnix = float64(v)
+					case int32:
+						untilUnix = float64(v)
+					case int64:
+						untilUnix = float64(v)
+					case uint:
+						untilUnix = float64(v)
+					case uint8:
+						untilUnix = float64(v)
+					case uint16:
+						untilUnix = float64(v)
+					case uint32:
+						untilUnix = float64(v)
+					case uint64:
+						untilUnix = float64(v)
+					}
+					if untilUnix > 0 {
+						sec, frac := math.Modf(untilUnix)
+						until := time.Unix(int64(sec), int64(frac*1e9))
+						if sec < 0 {
+							until = time.Unix(0, 0)
+						}
+						if now.After(until) {
+							continue
+						}
+						entry.Until = &until
+					}
+				}
+				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+					switch reason := reasonVal.(type) {
+					case string:
+						entry.Reason = &reason
+					case []byte:
+						if len(reason) > 0 {
+							reasonStr := string(reason)
+							entry.Reason = &reasonStr
+						}
+					}
+				}
+				decoded[key] = entry
+			}
+		case map[string]any:
+			for rawKey, rawValue := range typed {
+				key, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}([]byte(rawKey))
+				if !ok {
+					continue
+				}
+				raw, ok := rawValue.(map[any]any)
+				if !ok {
+					if typedRaw, ok := rawValue.(map[string]any); ok {
+						raw = make(map[any]any, len(typedRaw))
+						for k, v := range typedRaw {
+							raw[k] = v
+						}
+					} else {
+						continue
+					}
+				}
+				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+				if len(entry.Source) == 0 {
+					switch source := raw["source"].(type) {
+					case []byte:
+						if len(source) > 0 {
+							entry.Source = source
+						}
+					case string:
+						if len(source) > 0 {
+							entry.Source = []byte(source)
+						}
+					}
+				}
+				if untilVal, exists := raw["until"]; exists && untilVal != nil {
+					untilUnix := 0.0
+					switch v := untilVal.(type) {
+					case float64:
+						untilUnix = v
+					case float32:
+						untilUnix = float64(v)
+					case int:
+						untilUnix = float64(v)
+					case int8:
+						untilUnix = float64(v)
+					case int16:
+						untilUnix = float64(v)
+					case int32:
+						untilUnix = float64(v)
+					case int64:
+						untilUnix = float64(v)
+					case uint:
+						untilUnix = float64(v)
+					case uint8:
+						untilUnix = float64(v)
+					case uint16:
+						untilUnix = float64(v)
+					case uint32:
+						untilUnix = float64(v)
+					case uint64:
+						untilUnix = float64(v)
+					}
+					if untilUnix > 0 {
+						sec, frac := math.Modf(untilUnix)
+						until := time.Unix(int64(sec), int64(frac*1e9))
+						if sec < 0 {
+							until = time.Unix(0, 0)
+						}
+						if now.After(until) {
+							continue
+						}
+						entry.Until = &until
+					}
+				}
+				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+					switch reason := reasonVal.(type) {
+					case string:
+						entry.Reason = &reason
+					case []byte:
+						if len(reason) > 0 {
+							reasonStr := string(reason)
+							entry.Reason = &reasonStr
+						}
+					}
+				}
+				decoded[key] = entry
+			}
+		}
+		if len(decoded) == 0 {
+			continue
+		}
+		added := 0
+		serialisable := make(map[hashKey]map[string]any, len(decoded))
+		blackholeMu.Lock()
+		for key, entry := range decoded {
+			if entry == nil {
+				continue
+			}
+			serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+			serialised["source"] = copyBytes(entry.Source)
+			if entry.Until != nil && !entry.Until.IsZero() {
+				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+			}
+			if entry.Reason != nil {
+				serialised["reason"] = *entry.Reason
+			}
+			serialisable[key] = serialised
+			if _, exists := blackholedIdentities[key]; exists {
+				continue
+			}
+			blackholedIdentities[key] = entry
+			added++
+		}
+		blackholeMu.Unlock()
+
+		if added > 0 {
+			removeBlackholedPaths()
+			if Owner != nil && strings.TrimSpace(Owner.StoragePath) != "" {
+				sourcelistpath := filepath.Join(Owner.StoragePath, "blackhole", hex.EncodeToString(sourceHash))
+				tmppath := sourcelistpath + ".tmp"
+				payload := make(map[any]any, len(serialisable))
+				for key, entry := range serialisable {
+					payload[umsgpack.BinaryKey(string(key[:]))] = entry
+				}
+				packed, err := umsgpack.Packb(payload)
+				if err != nil {
+					Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+				} else {
+					if err := os.WriteFile(tmppath, packed, 0o600); err != nil {
+						Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+					} else {
+						if fileExists(sourcelistpath) {
+							_ = os.Remove(sourcelistpath)
+						}
+						if err := os.Rename(tmppath, sourcelistpath); err != nil {
+							Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+						}
+					}
+				}
+			}
+		}
+		spec := "identities"
+		if added == 1 {
+			spec = "identity"
+		}
+		Logf(LogDebug, "Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash))
 		u.markUpdated(sourceHash, now)
 		Logf(LogDebug, "Blackhole list update from %s completed", PrettyHexRep(sourceHash))
 	}
@@ -1501,10 +1932,10 @@ func requireDiscoveryStampProvider() bool {
 }
 
 func discoveryHopsTo(destinationHash []byte) int {
-	if Transport == nil || len(destinationHash) == 0 {
+	if len(destinationHash) == 0 {
 		return 0
 	}
-	return Transport.HopsTo(destinationHash)
+	return HopsTo(destinationHash)
 }
 
 func asDiscoveryString(v any) string {

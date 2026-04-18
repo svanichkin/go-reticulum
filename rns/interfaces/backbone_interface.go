@@ -37,6 +37,11 @@ type BackboneInterfaceDriver struct {
 	clients sync.Map
 }
 
+var (
+	backboneDriversMu sync.Mutex
+	backboneDrivers   = make(map[*BackboneInterfaceDriver]struct{})
+)
+
 type backboneClientConfig struct {
 	Name           string
 	TargetHost     string
@@ -147,6 +152,7 @@ func NewBackboneInterface(name string, kv map[string]string) (*Interface, error)
 		lns:    lns,
 		stopCh: make(chan struct{}),
 	}
+	registerBackboneDriver(driver)
 	iface.backboneServer = driver
 	iface.clientCount = driver.ClientCount
 	iface.Online = true
@@ -260,6 +266,7 @@ func (d *BackboneInterfaceDriver) Close() {
 		return
 	default:
 		close(d.stopCh)
+		unregisterBackboneDriver(d)
 		for _, ln := range d.lns {
 			if ln != nil {
 				_ = ln.Close()
@@ -271,6 +278,52 @@ func (d *BackboneInterfaceDriver) Close() {
 			}
 			return true
 		})
+	}
+}
+
+func registerBackboneDriver(d *BackboneInterfaceDriver) {
+	if d == nil {
+		return
+	}
+	backboneDriversMu.Lock()
+	backboneDrivers[d] = struct{}{}
+	backboneDriversMu.Unlock()
+}
+
+func unregisterBackboneDriver(d *BackboneInterfaceDriver) {
+	if d == nil {
+		return
+	}
+	backboneDriversMu.Lock()
+	delete(backboneDrivers, d)
+	backboneDriversMu.Unlock()
+}
+
+func (d *BackboneInterfaceDriver) CloseListeners() {
+	select {
+	case <-d.stopCh:
+		return
+	default:
+		close(d.stopCh)
+		unregisterBackboneDriver(d)
+		for _, ln := range d.lns {
+			if ln != nil {
+				_ = ln.Close()
+			}
+		}
+	}
+}
+
+// DeregisterListeners mirrors Python BackboneInterface.deregister_listeners().
+func DeregisterListeners() {
+	backboneDriversMu.Lock()
+	drivers := make([]*BackboneInterfaceDriver, 0, len(backboneDrivers))
+	for driver := range backboneDrivers {
+		drivers = append(drivers, driver)
+	}
+	backboneDriversMu.Unlock()
+	for _, driver := range drivers {
+		driver.CloseListeners()
 	}
 }
 

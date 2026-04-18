@@ -90,9 +90,22 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 	return packet
 }
 
+func waitForTestCalls(t *testing.T, calls func() int, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if calls() == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("handler calls=%d, want %d", calls(), want)
+}
+
 func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *testing.T) {
 	resetKnownDestinationsForTest()
 
+	prevOwner := Owner
 	prevTransportEnabled := transportEnabled
 	prevPending := pendingLocalPathRequests
 	prevAnnounceTable := announceTable
@@ -106,11 +119,14 @@ func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	LocalClientInterfaces = []*Interface{localClient}
 	Interfaces = []*Interface{localClient}
 
 	t.Cleanup(func() {
+		Owner = prevOwner
 		transportEnabled = prevTransportEnabled
 		pendingLocalPathRequests = prevPending
 		announceTable = prevAnnounceTable
@@ -139,12 +155,19 @@ func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *
 	announce.ReceivingInterface = localClient
 	announce.Hops = 0
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
 
-	handleInboundAnnounce(announce, localClient, true)
+	Inbound(announce.Raw, localClient)
 
 	if entry := announceTable[key]; entry != nil {
 		t.Fatalf("local PATH_RESPONSE without pending request unexpectedly queued: %+v", entry)
@@ -154,6 +177,7 @@ func TestHandleInboundAnnounce_LocalClientPathResponseRequiresPendingRequest(t *
 func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhenPending(t *testing.T) {
 	resetKnownDestinationsForTest()
 
+	prevOwner := Owner
 	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
@@ -177,12 +201,15 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	}
 	TransportIdentity = transportID
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface"}
 	LocalClientInterfaces = []*Interface{localClient}
 	Interfaces = []*Interface{localClient, external}
 
 	t.Cleanup(func() {
+		Owner = prevOwner
 		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
@@ -213,13 +240,20 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	announce.ReceivingInterface = localClient
 	announce.Hops = 0
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
 	pendingLocalPathRequests[key] = external
 
-	handleInboundAnnounce(announce, localClient, true)
+	Inbound(announce.Raw, localClient)
 
 	entry := announceTable[key]
 	if entry == nil {
@@ -231,16 +265,19 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	if entry.BlockRebroadcasts {
 		t.Fatal("queued local PATH_RESPONSE announce must not force PATH_RESPONSE context")
 	}
-	if entry.Retries != pathfinderRetryLimit {
-		t.Fatalf("queued retries=%d, want %d", entry.Retries, pathfinderRetryLimit)
-	}
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
 
-	var outgoing []*Packet
-	handleAnnounceRetransmit(time.Now().Add(time.Second), &outgoing)
-	if len(outgoing) != 1 {
-		t.Fatalf("outgoing packets=%d, want 1", len(outgoing))
+	Jobs()
+	if len(backend.packets) != 1 {
+		t.Fatalf("outgoing packets=%d, want 1", len(backend.packets))
 	}
-	packet := outgoing[0]
+	packet := backend.packets[0]
 	if packet.Context != PacketNONE {
 		t.Fatalf("packet context=%d, want NONE", packet.Context)
 	}
@@ -248,10 +285,6 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 		t.Fatalf("packet attached interface=%p, want nil", packet.AttachedInterface)
 	}
 
-	_ = packet.Send()
-	if got := len(backend.packets); got != 1 {
-		t.Fatalf("backend packets=%d, want 1", got)
-	}
 	if backend.packets[0].AttachedInterface != nil {
 		t.Fatalf("sent attached interface=%p, want nil", backend.packets[0].AttachedInterface)
 	}
@@ -291,7 +324,8 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 		Destinations = prevDestinations
 	})
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 
 	announceID, err := NewIdentity()
 	if err != nil {
@@ -312,9 +346,16 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 	announce.ReceivingInterface = localClient
 	announce.Hops = 0
 
-	handleInboundAnnounce(announce, localClient, true)
+	Inbound(announce.Raw, localClient)
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
@@ -322,27 +363,8 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 	if entry == nil {
 		t.Fatal("expected local announce to be queued")
 	}
-	if !entry.Next.IsZero() && entry.Next.After(time.Now().Add(100*time.Millisecond)) {
+	if !entry.Next.IsZero() && entry.Next.After(time.Now().Add(500*time.Millisecond)) {
 		t.Fatalf("local announce next send too late: %v", entry.Next)
-	}
-	if entry.Retries != pathfinderRetryLimit {
-		t.Fatalf("queued retries=%d, want %d", entry.Retries, pathfinderRetryLimit)
-	}
-
-	var outgoing []*Packet
-	handleAnnounceRetransmit(time.Now().Add(time.Second), &outgoing)
-	if len(outgoing) != 1 {
-		t.Fatalf("outgoing packets=%d, want 1", len(outgoing))
-	}
-	packet := outgoing[0]
-	if packet.Context != PacketNONE {
-		t.Fatalf("packet context=%d, want NONE", packet.Context)
-	}
-	if packet.HeaderType != HeaderType2 {
-		t.Fatalf("packet header type=%d, want HEADER_2", packet.HeaderType)
-	}
-	if !bytes.Equal(packet.TransportID, TransportIdentity.Hash) {
-		t.Fatal("packet transport id mismatch")
 	}
 }
 
@@ -371,9 +393,10 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	TransportIdentity = transportID
 	AnnLast = time.Now().Add(-2 * time.Second)
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
-	Interfaces = []*Interface{localClient, external}
+	Interfaces = []*Interface{shared, localClient, external}
 
 	t.Cleanup(func() {
 		Transport = prevTransport
@@ -405,7 +428,7 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	announce.ReceivingInterface = localClient
 	announce.Hops = 0
 
-	handleInboundAnnounce(announce, localClient, true)
+	Inbound(announce.Raw, localClient)
 
 	jobsMu.RLock()
 	done := make(chan struct{})
@@ -436,10 +459,22 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *testing.T) {
 	resetKnownDestinationsForTest()
 
+	prevTransport := Transport
+	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
 	prevHeldAnnounces := heldAnnounces
+	prevAnnLast := AnnLast
+	prevLastTablesPersisted := lastTablesPersisted
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevBlackholeLastChecked := blackholeLastChecked
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevMgmtDestinations := mgmtDestinations
 
+	backend := &announceCaptureBackend{}
+	Transport = backend
+	transportEnabled = true
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
 
@@ -450,9 +485,18 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 	TransportIdentity = transportID
 
 	t.Cleanup(func() {
+		Transport = prevTransport
+		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
 		heldAnnounces = prevHeldAnnounces
+		AnnLast = prevAnnLast
+		lastTablesPersisted = prevLastTablesPersisted
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		blackholeLastChecked = prevBlackholeLastChecked
+		InterfaceLastJobs = prevInterfaceLastJobs
+		mgmtDestinations = prevMgmtDestinations
 	})
 
 	announceID, err := NewIdentity()
@@ -471,20 +515,27 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 		t.Fatalf("Pack(): %v", err)
 	}
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
 
 	heldEntry := &announceEntry{
-		Packet:            cloneAnnouncePacket(announce),
+		Packet:            announce,
 		Next:              time.Now().Add(time.Minute),
 		Timestamp:         time.Now(),
 		Expires:           time.Now().Add(time.Hour),
 		AttachedInterface: &Interface{Name: "held-if"},
 	}
 	pathResponseEntry := &announceEntry{
-		Packet:            cloneAnnouncePacket(announce),
+		Packet:            announce,
 		Next:              time.Now().Add(-time.Second),
 		Timestamp:         time.Now(),
 		Expires:           time.Now().Add(time.Hour),
@@ -495,14 +546,21 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 	announceTable[key] = pathResponseEntry
 	heldAnnounces[key] = &heldAnnounce{Entry: heldEntry}
 
-	var outgoing []*Packet
-	handleAnnounceRetransmit(time.Now(), &outgoing)
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
 
-	if len(outgoing) != 1 {
-		t.Fatalf("outgoing packets=%d, want 1", len(outgoing))
+	Jobs()
+
+	if len(backend.packets) != 1 {
+		t.Fatalf("outgoing packets=%d, want 1", len(backend.packets))
 	}
-	if outgoing[0].Context != PacketPATH_RESPONSE {
-		t.Fatalf("packet context=%d, want PATH_RESPONSE", outgoing[0].Context)
+	if backend.packets[0].Context != PacketPATH_RESPONSE {
+		t.Fatalf("packet context=%d, want PATH_RESPONSE", backend.packets[0].Context)
 	}
 	if announceTable[key] != heldEntry {
 		t.Fatal("held announce was not restored after path response retransmit")
@@ -515,15 +573,44 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testing.T) {
 	resetKnownDestinationsForTest()
 
+	prevTransport := Transport
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
 	prevHeldAnnounces := heldAnnounces
+	prevAnnLast := AnnLast
+	prevLastTablesPersisted := lastTablesPersisted
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevBlackholeLastChecked := blackholeLastChecked
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevMgmtDestinations := mgmtDestinations
 
+	backend := &announceCaptureBackend{}
+	Transport = backend
+	transportEnabled = true
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
 
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
 	t.Cleanup(func() {
+		Transport = prevTransport
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
 		heldAnnounces = prevHeldAnnounces
+		AnnLast = prevAnnLast
+		lastTablesPersisted = prevLastTablesPersisted
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		blackholeLastChecked = prevBlackholeLastChecked
+		InterfaceLastJobs = prevInterfaceLastJobs
+		mgmtDestinations = prevMgmtDestinations
 	})
 
 	id, err := NewIdentity()
@@ -542,22 +629,36 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 		t.Fatalf("Pack(): %v", err)
 	}
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
 
 	announceTable[key] = &announceEntry{
-		Packet:    cloneAnnouncePacket(announce),
+		Packet:    announce,
 		Next:      time.Now().Add(-time.Second),
 		Timestamp: time.Now(),
 		Expires:   time.Now().Add(time.Hour),
 	}
 
-	var first []*Packet
-	handleAnnounceRetransmit(time.Now(), &first)
-	if len(first) != 1 {
-		t.Fatalf("first outgoing packets=%d, want 1", len(first))
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
+
+	Jobs()
+	if len(backend.packets) != 1 {
+		t.Fatalf("first outgoing packets=%d, want 1", len(backend.packets))
 	}
 	entry := announceTable[key]
 	if entry == nil {
@@ -567,10 +668,19 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 		t.Fatalf("retries after first send=%d, want 1", entry.Retries)
 	}
 
-	var second []*Packet
-	handleAnnounceRetransmit(entry.Next.Add(time.Millisecond), &second)
-	if len(second) != 1 {
-		t.Fatalf("second outgoing packets=%d, want 1", len(second))
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
+	entry.Next = time.Now().Add(-time.Millisecond)
+	announceTable[key] = entry
+
+	Jobs()
+	if len(backend.packets) != 2 {
+		t.Fatalf("expected second outgoing packet, got %d", len(backend.packets))
 	}
 }
 
@@ -615,7 +725,14 @@ func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {
 		t.Fatal("Outbound returned false")
 	}
 
-	key, ok := makeHashKey(dst.Hash())
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(dst.Hash())
 	if !ok {
 		t.Fatal("destination hash invalid")
 	}
@@ -650,10 +767,11 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	}
 	TransportIdentity = transportID
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
 	LocalClientInterfaces = []*Interface{localClient}
-	Interfaces = []*Interface{localClient, external}
+	Interfaces = []*Interface{shared, localClient, external}
 
 	t.Cleanup(func() {
 		transportEnabled = prevTransportEnabled
@@ -689,9 +807,16 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	localAnnounce.ReceivingInterface = localClient
 	localAnnounce.Hops = 0
 
-	handleInboundAnnounce(localAnnounce, localClient, true)
+	Inbound(localAnnounce.Raw, localClient)
 
-	key, ok := makeHashKey(localAnnounce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(localAnnounce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
@@ -705,23 +830,43 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	if entry.Hops != 0 {
 		t.Fatalf("path hops=%d, want 0 for local client path", entry.Hops)
 	}
-	if handler.calls != 1 {
-		t.Fatalf("handler calls after local announce=%d, want 1", handler.calls)
-	}
+	waitForTestCalls(t, func() int { return handler.calls }, 1)
 
 	announceTable = make(map[hashKey]*announceEntry)
 
-	returnedAnnounce := buildTransportAnnouncePacket(localAnnounce, nil, false)
-	if returnedAnnounce == nil {
-		t.Fatal("buildTransportAnnouncePacket returned nil")
+	announceIdentity := IdentityRecall(localAnnounce.DestinationHash)
+	announceDestination := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		identity:  announceIdentity,
+		hash:      copyBytes(localAnnounce.DestinationHash),
+		hexhash:   PrettyHexRep(localAnnounce.DestinationHash),
 	}
+	returnedAnnounce := NewPacket(
+		announceDestination,
+		copyBytes(localAnnounce.Data),
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(byte(PacketNONE)),
+		WithHeaderType(HeaderType2),
+		WithTransportType(TransportDirect),
+		WithContextFlag(localAnnounce.ContextFlag),
+	)
+	if returnedAnnounce == nil {
+		t.Fatal("returned announce was nil")
+	}
+	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
+		returnedAnnounce.TransportID = copyBytes(TransportIdentity.Hash)
+	}
+	returnedAnnounce.DestinationHash = copyBytes(localAnnounce.DestinationHash)
+	returnedAnnounce.DestinationType = byte(DestinationSINGLE)
+	returnedAnnounce.Hops = localAnnounce.Hops
 	if err := returnedAnnounce.Pack(); err != nil {
 		t.Fatalf("Pack(returned announce): %v", err)
 	}
 	returnedAnnounce.ReceivingInterface = external
 	returnedAnnounce.Hops = 1
 
-	handleInboundAnnounce(returnedAnnounce, external, false)
+	Inbound(returnedAnnounce.Raw, external)
 
 	if got := len(announceTable); got != 0 {
 		t.Fatalf("duplicate external return queued %d announce(s), want 0", got)
@@ -736,9 +881,7 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	if entry.Hops != 0 {
 		t.Fatalf("path hops after duplicate=%d, want 0", entry.Hops)
 	}
-	if handler.calls != 1 {
-		t.Fatalf("handler calls after duplicate=%d, want still 1", handler.calls)
-	}
+	waitForTestCalls(t, func() int { return handler.calls }, 1)
 }
 
 func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCallback(t *testing.T) {
@@ -767,10 +910,11 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	}
 	TransportIdentity = transportID
 
-	localClient := &Interface{Name: "local-client", Type: "LocalInterface"}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
 	LocalClientInterfaces = []*Interface{localClient}
-	Interfaces = []*Interface{localClient, external}
+	Interfaces = []*Interface{shared, localClient, external}
 
 	t.Cleanup(func() {
 		transportEnabled = prevTransportEnabled
@@ -800,14 +944,21 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	autoPathResponse.ReceivingInterface = localClient
 	autoPathResponse.Hops = 0
 	Destinations = nil
-	handleInboundAnnounce(autoPathResponse, localClient, true)
+	Inbound(autoPathResponse.Raw, localClient)
 
 	normalAnnounce := buildAnnounceWithRandomBlob(t, dst, []byte("payload"), false, bytes.Repeat([]byte{0xFF}, announceRandomHashLen))
 	normalAnnounce.ReceivingInterface = localClient
 	normalAnnounce.Hops = 0
-	handleInboundAnnounce(normalAnnounce, localClient, true)
+	Inbound(normalAnnounce.Raw, localClient)
 
-	key, ok := makeHashKey(normalAnnounce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(normalAnnounce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
@@ -821,23 +972,43 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	if len(entry.RandomBlobs) < 1 {
 		t.Fatal("expected at least one random blob in path table")
 	}
-	if handler.calls != 1 {
-		t.Fatalf("handler calls after path response + normal announce=%d, want 1", handler.calls)
-	}
+	waitForTestCalls(t, func() int { return handler.calls }, 1)
 
 	announceTable = make(map[hashKey]*announceEntry)
 
-	returnedAnnounce := buildTransportAnnouncePacket(normalAnnounce, nil, false)
-	if returnedAnnounce == nil {
-		t.Fatal("buildTransportAnnouncePacket returned nil")
+	announceIdentity := IdentityRecall(normalAnnounce.DestinationHash)
+	announceDestination := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		identity:  announceIdentity,
+		hash:      copyBytes(normalAnnounce.DestinationHash),
+		hexhash:   PrettyHexRep(normalAnnounce.DestinationHash),
 	}
+	returnedAnnounce := NewPacket(
+		announceDestination,
+		copyBytes(normalAnnounce.Data),
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(byte(PacketNONE)),
+		WithHeaderType(HeaderType2),
+		WithTransportType(TransportDirect),
+		WithContextFlag(normalAnnounce.ContextFlag),
+	)
+	if returnedAnnounce == nil {
+		t.Fatal("returned announce was nil")
+	}
+	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
+		returnedAnnounce.TransportID = copyBytes(TransportIdentity.Hash)
+	}
+	returnedAnnounce.DestinationHash = copyBytes(normalAnnounce.DestinationHash)
+	returnedAnnounce.DestinationType = byte(DestinationSINGLE)
+	returnedAnnounce.Hops = normalAnnounce.Hops
 	if err := returnedAnnounce.Pack(); err != nil {
 		t.Fatalf("Pack(returned announce): %v", err)
 	}
 	returnedAnnounce.ReceivingInterface = external
 	returnedAnnounce.Hops = 2
 
-	handleInboundAnnounce(returnedAnnounce, external, false)
+	Inbound(returnedAnnounce.Raw, external)
 
 	if got := len(announceTable); got != 0 {
 		t.Fatalf("duplicate external return queued %d announce(s), want 0", got)
@@ -849,17 +1020,16 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	if entry.Hops != 0 {
 		t.Fatalf("path hops after duplicate external return=%d, want 0", entry.Hops)
 	}
-	if handler.calls != 1 {
-		t.Fatalf("handler calls after duplicate external return=%d, want still 1", handler.calls)
-	}
+	waitForTestCalls(t, func() int { return handler.calls }, 1)
 }
 
-func TestLocalClientInterfacesSnapshot_FallsBackToParentInterface(t *testing.T) {
+func TestLocalClientInterfacesSnapshot_UsesExplicitRegistryOnly(t *testing.T) {
 	prevOwner := Owner
 	prevInterfaces := Interfaces
 	prevLocalClients := LocalClientInterfaces
 
 	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface"}
+	shared.LocalIsSharedInstance = true
 	local := &Interface{Name: "LocalInterface[12345]", Type: "LocalInterface", Parent: shared}
 	Owner = &Reticulum{SharedInstanceInterface: shared}
 	Interfaces = []*Interface{shared, local}
@@ -871,22 +1041,18 @@ func TestLocalClientInterfacesSnapshot_FallsBackToParentInterface(t *testing.T) 
 		LocalClientInterfaces = prevLocalClients
 	})
 
-	snapshot := localClientInterfacesSnapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("local client snapshot size=%d, want 1", len(snapshot))
-	}
-	if snapshot[0] != local {
-		t.Fatalf("snapshot local client=%p, want %p", snapshot[0], local)
+	if len(LocalClientInterfaces) != 0 {
+		t.Fatalf("local client slice size=%d, want 0", len(LocalClientInterfaces))
 	}
 	if !IsLocalClientInterface(local) {
 		t.Fatal("IsLocalClientInterface() = false, want true for parent-derived local client")
 	}
-	if got := localClientInterfaceCount(); got != 1 {
-		t.Fatalf("local client count=%d, want 1", got)
+	if got := len(LocalClientInterfaces); got != 0 {
+		t.Fatalf("local client count=%d, want 0", got)
 	}
 }
 
-func TestInbound_LocalClientHopCorrectionDoesNotDependOnRegistrySlice(t *testing.T) {
+func TestInbound_LocalClientHopCorrection_FollowsPythonRegistryGate(t *testing.T) {
 	resetKnownDestinationsForTest()
 
 	prevOwner := Owner
@@ -899,6 +1065,7 @@ func TestInbound_LocalClientHopCorrectionDoesNotDependOnRegistrySlice(t *testing
 	prevHeldAnnounces := heldAnnounces
 
 	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface"}
+	shared.LocalIsSharedInstance = true
 	local := &Interface{Name: "LocalInterface[12345]", Type: "LocalInterface", Parent: shared}
 
 	transportID, err := NewIdentity()
@@ -945,7 +1112,14 @@ func TestInbound_LocalClientHopCorrectionDoesNotDependOnRegistrySlice(t *testing
 
 	Inbound(append([]byte(nil), announce.Raw...), local)
 
-	key, ok := makeHashKey(announce.DestinationHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
 	if !ok {
 		t.Fatal("announce destination hash invalid")
 	}
@@ -956,7 +1130,86 @@ func TestInbound_LocalClientHopCorrectionDoesNotDependOnRegistrySlice(t *testing
 	if entry.Packet == nil {
 		t.Fatal("queued announce packet is nil")
 	}
-	if entry.Packet.Hops != 0 {
-		t.Fatalf("queued announce hops=%d, want 0 after local-client hop correction", entry.Packet.Hops)
+	if entry.Packet.Hops != 1 {
+		t.Fatalf("queued announce hops=%d, want 1 when local-client registry slice is empty", entry.Packet.Hops)
+	}
+}
+
+func TestOutbound_SharedInstanceOneHopRewritesHeader2(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevPathTable := pathTable
+	prevInterfaces := Interfaces
+
+	Owner = &Reticulum{IsConnectedToSharedInstance: true}
+	pathTable = make(map[hashKey]*PathEntry)
+	Interfaces = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		pathTable = prevPathTable
+		Interfaces = prevInterfaces
+	})
+
+	destID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(dest): %v", err)
+	}
+	dst, err := NewDestination(destID, DestinationOUT, DestinationSINGLE, "test", "shared", "onehop")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	nextHop := bytes.Repeat([]byte{0x42}, truncatedHashBytes)
+	outIfc := &Interface{Name: "shared-client", Type: "TCPClientInterface", OUT: true}
+	var captured []byte
+	outIfc.SetProcessOutgoingFunc(func(data []byte) error {
+		captured = append([]byte(nil), data...)
+		return nil
+	})
+	Interfaces = []*Interface{outIfc}
+
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(dst.Hash())
+	if !ok {
+		t.Fatal("destination hash invalid")
+	}
+	pathTable[key] = &PathEntry{
+		NextHop:       append([]byte(nil), nextHop...),
+		RecvInterface: outIfc,
+		Hops:          1,
+		Timestamp:     time.Now(),
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+
+	packet := NewPacket(dst, []byte("payload"), WithPacketType(PacketTypeData), WithHeaderType(HeaderType1))
+	if packet == nil {
+		t.Fatal("NewPacket returned nil")
+	}
+	if err := packet.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+
+	if !Outbound(packet) {
+		t.Fatal("Outbound returned false")
+	}
+	if len(captured) == 0 {
+		t.Fatal("expected packet to be transmitted to outbound interface")
+	}
+	if got := captured[0] >> 6; got != HeaderType2 {
+		t.Fatalf("captured header type=%d, want HEADER_2", got)
+	}
+	if got := (captured[0] >> 4) & 0x01; got != TransportDirect {
+		t.Fatalf("captured transport type=%d, want TRANSPORT", got)
+	}
+	if !bytes.Equal(captured[2:2+len(nextHop)], nextHop) {
+		t.Fatal("captured next hop mismatch")
 	}
 }

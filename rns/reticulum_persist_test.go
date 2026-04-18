@@ -21,7 +21,7 @@ func TestReticulumShouldPersistData_PersistsIdentityAndTransport(t *testing.T) {
 		CachePath:    filepath.Join(dir, "storage", "cache"),
 		ResourcePath: filepath.Join(dir, "storage", "resources"),
 		lastDataPersist: time.Now().Add(
-			-(time.Duration(GRACIOUS_PERSIST_INTERVAL+1)) * time.Second,
+			-(time.Duration(GRACIOUS_PERSIST_INTERVAL + 1)) * time.Second,
 		),
 	}
 
@@ -39,7 +39,17 @@ func TestReticulumShouldPersistData_PersistsIdentityAndTransport(t *testing.T) {
 		PacketHashSet2 = prevPacketHashSet2
 	})
 
-	if key, ok := makeHashKey(bytesRepeat(0xAB, truncatedHashBytes)); ok {
+	if err := os.MkdirAll(r.StoragePath, 0o755); err != nil {
+		t.Fatalf("mkdir storage: %v", err)
+	}
+	if key, ok := func(hash []byte) (hashKey, bool) {
+	if len(hash) < truncatedHashBytes {
+		return hashKey{}, false
+	}
+	var key hashKey
+	copy(key[:], hash[:truncatedHashBytes])
+	return key, true
+}(bytesRepeat(0xAB, truncatedHashBytes)); ok {
 		PacketHashSet[key] = struct{}{}
 	}
 
@@ -66,4 +76,3 @@ func bytesRepeat(b byte, n int) []byte {
 	}
 	return out
 }
-

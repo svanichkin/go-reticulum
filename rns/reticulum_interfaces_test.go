@@ -49,12 +49,12 @@ func TestReticulumBringUpSystemInterfaces_EnabledGating(t *testing.T) {
 	Interfaces = nil
 
 	r := &Reticulum{
-		Config:      cfg,
-		ConfigPath:  configPath,
-		StoragePath: filepath.Join(dir, "storage"),
-		CachePath:   filepath.Join(dir, "storage/cache"),
-		ResourcePath: filepath.Join(dir, "storage/resources"),
-		IdentityPath: filepath.Join(dir, "storage/identities"),
+		Config:        cfg,
+		ConfigPath:    configPath,
+		StoragePath:   filepath.Join(dir, "storage"),
+		CachePath:     filepath.Join(dir, "storage/cache"),
+		ResourcePath:  filepath.Join(dir, "storage/resources"),
+		IdentityPath:  filepath.Join(dir, "storage/identities"),
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
@@ -107,13 +107,13 @@ func TestReticulumBringUpSystemInterfaces_TCPInterfaceAlias_Client(t *testing.T)
 	Interfaces = nil
 
 	r := &Reticulum{
-		Config:         cfg,
-		ConfigPath:     configPath,
-		StoragePath:    filepath.Join(dir, "storage"),
-		CachePath:      filepath.Join(dir, "storage/cache"),
-		ResourcePath:   filepath.Join(dir, "storage/resources"),
-		IdentityPath:   filepath.Join(dir, "storage/identities"),
-		InterfacePath:  filepath.Join(dir, "interfaces"),
+		Config:        cfg,
+		ConfigPath:    configPath,
+		StoragePath:   filepath.Join(dir, "storage"),
+		CachePath:     filepath.Join(dir, "storage/cache"),
+		ResourcePath:  filepath.Join(dir, "storage/resources"),
+		IdentityPath:  filepath.Join(dir, "storage/identities"),
+		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
 	if err := r.bringUpSystemInterfaces(); err != nil {
@@ -259,21 +259,21 @@ func TestReticulum_TCPServerAcceptedPeer_InheritsIngressControl(t *testing.T) {
 	t.Cleanup(func() { Interfaces = prevInterfaces })
 
 	parent := &Interface{
-		Name:                   "tcp-server",
-		Type:                   "TCPServerInterface",
-		IN:                     true,
-		OUT:                    false,
-		IngressControl:         false,
-		ICMaxHeldAnnounces:     intPtr(123),
-		AnnounceRateTarget:     intPtr(7),
-		AnnounceRateGrace:      intPtr(8),
-		AnnounceRatePenalty:    intPtr(9),
-		AutoconfigureMTU:       true,
-		FixedMTU:               false,
-		Bitrate:                1000,
-		HWMTU:                  4096,
-		DriverImplemented:      true,
-		Online:                 true,
+		Name:                "tcp-server",
+		Type:                "TCPServerInterface",
+		IN:                  true,
+		OUT:                 false,
+		IngressControl:      false,
+		ICMaxHeldAnnounces:  intPtr(123),
+		AnnounceRateTarget:  intPtr(7),
+		AnnounceRateGrace:   intPtr(8),
+		AnnounceRatePenalty: intPtr(9),
+		AutoconfigureMTU:    true,
+		FixedMTU:            false,
+		Bitrate:             1000,
+		HWMTU:               4096,
+		DriverImplemented:   true,
+		Online:              true,
 	}
 
 	server := &ifaces.TCPServerInterface{}
@@ -295,7 +295,9 @@ func TestReticulum_TCPServerAcceptedPeer_InheritsIngressControl(t *testing.T) {
 		inheritInterfaceConfig(peer, parent)
 		peer.SetTCPClient(ci)
 		ci.Owner = tcpOwnerAdapter{ifc: peer}
-		AddInterface(peer)
+		interfacesMu.Lock()
+		Interfaces = append(Interfaces, peer)
+		interfacesMu.Unlock()
 	}
 
 	ci := ifaces.NewTCPClientFromAccepted(nil, nil, "client0", nil, false, false)

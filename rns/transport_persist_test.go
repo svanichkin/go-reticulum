@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,6 +33,9 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 		pathTable = prevPathTable
 	})
 
+	if err := os.MkdirAll(Owner.StoragePath, 0o755); err != nil {
+		t.Fatalf("mkdir storage: %v", err)
+	}
 	_ = os.MkdirAll(filepath.Join(Owner.CachePath, "announces"), 0o755)
 
 	ifc := &Interface{Name: "if0", Type: "Test"}
@@ -41,7 +45,14 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 	for i := range dst {
 		dst[i] = byte(i + 1)
 	}
-	key, ok := makeHashKey(dst)
+	key, ok := func(hash []byte) (hashKey, bool) {
+	if len(hash) < truncatedHashBytes {
+		return hashKey{}, false
+	}
+	var key hashKey
+	copy(key[:], hash[:truncatedHashBytes])
+	return key, true
+}(dst)
 	if !ok {
 		t.Fatalf("makeHashKey failed")
 	}
@@ -55,7 +66,8 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pack cached announce: %v", err)
 	}
-	if err := os.WriteFile(announceCachePath(packetHash), buf, 0o600); err != nil {
+	announcePath := filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))
+	if err := os.WriteFile(announcePath, buf, 0o600); err != nil {
 		t.Fatalf("write cached announce: %v", err)
 	}
 
@@ -69,13 +81,11 @@ func TestSaveDestinationTable_WritesFiles(t *testing.T) {
 		PacketHash:    packetHash,
 	}
 
-	if err := saveDestinationTable(); err != nil {
-		t.Fatalf("saveDestinationTable: %v", err)
-	}
+	SavePathTable()
 	if _, err := os.Stat(filepath.Join(Owner.StoragePath, "destination_table")); err != nil {
 		t.Fatalf("expected destination_table file: %v", err)
 	}
-	if _, err := os.Stat(announceCachePath(packetHash)); err != nil {
+	if _, err := os.Stat(filepath.Join(Owner.CachePath, "announces", hex.EncodeToString(packetHash))); err != nil {
 		t.Fatalf("expected announce cache file: %v", err)
 	}
 }
@@ -99,6 +109,9 @@ func TestSaveTunnelTable_TruncatesPersistedBlobs(t *testing.T) {
 		tunnels = prevTunnels
 	})
 
+	if err := os.MkdirAll(Owner.StoragePath, 0o755); err != nil {
+		t.Fatalf("mkdir storage: %v", err)
+	}
 	tunnelID := make([]byte, HashLengthBytes)
 	for i := range tunnelID {
 		tunnelID[i] = byte(0x10 + i)
@@ -133,9 +146,7 @@ func TestSaveTunnelTable_TruncatesPersistedBlobs(t *testing.T) {
 	}
 	tunnels[string(tunnelID)] = te
 
-	if err := saveTunnelTable(); err != nil {
-		t.Fatalf("saveTunnelTable: %v", err)
-	}
+	saveTunnelTable()
 
 	raw, err := os.ReadFile(filepath.Join(Owner.StoragePath, "tunnels"))
 	if err != nil {

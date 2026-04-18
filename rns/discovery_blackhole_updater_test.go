@@ -21,6 +21,9 @@ func TestBlackholeUpdater_UpdateOnce_MergesAndPersistsRemoteList(t *testing.T) {
 	}
 	TransportIdentity = transportID
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	if err := os.MkdirAll(filepath.Join(Owner.StoragePath, "blackhole"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(blackhole): %v", err)
+	}
 
 	sourceHash := []byte("remote-bh-source")
 	blackholeSources = [][]byte{append([]byte(nil), sourceHash...)}
@@ -33,11 +36,18 @@ func TestBlackholeUpdater_UpdateOnce_MergesAndPersistsRemoteList(t *testing.T) {
 	})
 
 	victimHash := []byte("remote-bh-victim")
-	victimKey, _ := makeHashKey(victimHash)
+	victimKey, _ := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(victimHash)
 	fetchCalls := 0
 
 	updater := NewBlackholeUpdater()
-	updater.awaitPath = func(hash []byte, timeout time.Duration, onInterface *Interface) bool {
+	updater.awaitPath = func(hash []byte, timeout float64, onInterface *Interface) bool {
 		return len(hash) == truncatedHashBytes && timeout == 0 && onInterface == nil
 	}
 	updater.fetchList = func(source []byte, timeout time.Duration) (any, error) {
@@ -63,7 +73,21 @@ func TestBlackholeUpdater_UpdateOnce_MergesAndPersistsRemoteList(t *testing.T) {
 	if fetchCalls != 1 {
 		t.Fatalf("fetch calls=%d, want 1", fetchCalls)
 	}
-	if !isBlackholedIdentity(victimHash) {
+	if key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(victimHash); ok {
+		blackholeMu.RLock()
+		_, blackholed := blackholedIdentities[key]
+		blackholeMu.RUnlock()
+		if !blackholed {
+			t.Fatal("expected remote blackhole entry to be merged")
+		}
+	} else {
 		t.Fatal("expected remote blackhole entry to be merged")
 	}
 

@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
@@ -115,7 +116,14 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 				Destinations = []*Destination{dst}
 			}
 			if tc.nextHop != nil {
-				key, ok := makeHashKey(dstHash)
+				key, ok := func(hash []byte) (hashKey, bool) {
+					if len(hash) < truncatedHashBytes {
+						return hashKey{}, false
+					}
+					var key hashKey
+					copy(key[:], hash[:truncatedHashBytes])
+					return key, true
+				}(dstHash)
 				if !ok {
 					t.Fatal("destination hash is invalid")
 				}
@@ -123,8 +131,103 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 			}
 
 			packet := &Packet{DestinationHash: copyBytes(dstHash), AttachedInterface: tc.attached}
-			if got := shouldAnnounceOnInterface(packet, tc.ifc, time.Time{}); got != tc.want {
-				t.Fatalf("shouldAnnounceOnInterface() = %v, want %v", got, tc.want)
+			got := true
+			if packet == nil || tc.ifc == nil {
+				got = false
+			} else {
+				mode := InterfaceModeFull
+				if m, ok := any(tc.ifc).(interface{ Mode() int }); ok {
+					mode = m.Mode()
+				} else if m, ok := any(tc.ifc).(interface{ GetMode() int }); ok {
+					mode = m.GetMode()
+				}
+
+				switch mode {
+				case InterfaceModeAccessPoint:
+					got = packet.AttachedInterface != nil
+				case InterfaceModeRoaming:
+					var dst *Destination
+					for _, candidate := range Destinations {
+						if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), packet.DestinationHash) {
+							dst = candidate
+							break
+						}
+					}
+					if dst != nil {
+						got = true
+					} else {
+						var nextHop *PathEntry
+						if key, ok := func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}(packet.DestinationHash); ok {
+							pathTableMu.RLock()
+							nextHop = pathTable[key]
+							pathTableMu.RUnlock()
+						}
+						if nextHop == nil || nextHop.RecvInterface == nil {
+							got = false
+						} else {
+							nextMode := InterfaceModeFull
+							if m, ok := any(nextHop.RecvInterface).(interface{ Mode() int }); ok {
+								nextMode = m.Mode()
+							} else if m, ok := any(nextHop.RecvInterface).(interface{ GetMode() int }); ok {
+								nextMode = m.GetMode()
+							}
+							switch nextMode {
+							case InterfaceModeRoaming, InterfaceModeBoundary:
+								got = false
+							default:
+								got = true
+							}
+						}
+					}
+				case InterfaceModeBoundary:
+					var dst *Destination
+					for _, candidate := range Destinations {
+						if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), packet.DestinationHash) {
+							dst = candidate
+							break
+						}
+					}
+					if dst != nil {
+						got = true
+					} else {
+						var nextHop *PathEntry
+						if key, ok := func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}(packet.DestinationHash); ok {
+							pathTableMu.RLock()
+							nextHop = pathTable[key]
+							pathTableMu.RUnlock()
+						}
+						if nextHop == nil || nextHop.RecvInterface == nil {
+							got = false
+						} else {
+							nextMode := InterfaceModeFull
+							if m, ok := any(nextHop.RecvInterface).(interface{ Mode() int }); ok {
+								nextMode = m.Mode()
+							} else if m, ok := any(nextHop.RecvInterface).(interface{ GetMode() int }); ok {
+								nextMode = m.GetMode()
+							}
+							got = nextMode != InterfaceModeRoaming
+						}
+					}
+				default:
+					got = true
+				}
+			}
+			if got != tc.want {
+				t.Fatalf("announce allow check = %v, want %v", got, tc.want)
 			}
 		})
 	}

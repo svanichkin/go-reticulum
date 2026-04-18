@@ -179,7 +179,8 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 					pkt.Destination = initiator.destination
 				}
 			}
-			if handled := handleInboundProof(pkt); handled {
+			Inbound(pkt.Raw, pkt.ReceivingInterface)
+			if pkt.Receipt != nil && pkt.Receipt.Status == ReceiptDelivered {
 				return true
 			}
 		}

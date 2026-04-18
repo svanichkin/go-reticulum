@@ -54,7 +54,14 @@ func TestAwaitPath_ReturnsImmediatelyWhenPathExists(t *testing.T) {
 	for i := range destHash {
 		destHash[i] = byte(i + 1)
 	}
-	key, ok := makeHashKey(destHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destHash)
 	if !ok {
 		t.Fatalf("makeHashKey failed")
 	}
@@ -62,7 +69,7 @@ func TestAwaitPath_ReturnsImmediatelyWhenPathExists(t *testing.T) {
 	pathTable[key] = &PathEntry{Timestamp: time.Now()}
 	pathTableMu.Unlock()
 
-	if !AwaitPath(destHash, 100*time.Millisecond, nil) {
+	if !AwaitPath(destHash, 0.1, nil) {
 		t.Fatalf("AwaitPath() = false, want true")
 	}
 	if backend.outboundCalls != 0 {
@@ -90,7 +97,14 @@ func TestAwaitPath_RequestsAndWaitsForPath(t *testing.T) {
 	for i := range destHash {
 		destHash[i] = byte(0x20 + i)
 	}
-	key, ok := makeHashKey(destHash)
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(destHash)
 	if !ok {
 		t.Fatalf("makeHashKey failed")
 	}
@@ -102,7 +116,7 @@ func TestAwaitPath_RequestsAndWaitsForPath(t *testing.T) {
 		pathTableMu.Unlock()
 	}()
 
-	if !AwaitPath(destHash, 250*time.Millisecond, nil) {
+	if !AwaitPath(destHash, 0.25, nil) {
 		t.Fatalf("AwaitPath() = false, want true")
 	}
 	if backend.outboundCalls != 1 {
@@ -134,7 +148,7 @@ func TestAwaitPath_TimesOutWhenPathNeverAppears(t *testing.T) {
 		destHash[i] = byte(0x40 + i)
 	}
 
-	if AwaitPath(destHash, 60*time.Millisecond, nil) {
+	if AwaitPath(destHash, 0.06, nil) {
 		t.Fatalf("AwaitPath() = true, want false")
 	}
 	if backend.outboundCalls != 1 {
