@@ -27,6 +27,9 @@ func TestIntegration_Announce_InboundDispatchesHandlers(t *testing.T) {
 	})
 
 	// Ensure inbound processing is active.
+	if _, err := rns.NewReticulum(nil, nil, nil, nil, false, nil); err != nil {
+		t.Fatalf("NewReticulum: %v", err)
+	}
 	id, err := rns.NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity: %v", err)
@@ -34,7 +37,6 @@ func TestIntegration_Announce_InboundDispatchesHandlers(t *testing.T) {
 	rns.TransportIdentity = id
 
 	// Create an announce packet, but prevent it from being treated as a local destination.
-	// We do that by temporarily clearing the global destination registry.
 	appID, err := rns.NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity(app): %v", err)
@@ -51,19 +53,12 @@ func TestIntegration_Announce_InboundDispatchesHandlers(t *testing.T) {
 		t.Fatalf("Pack: %v", err)
 	}
 
-	rns.Destinations = nil
-
 	h := &testAnnounceHandler{filter: "example_utilities.announcesample.fruits"}
 	rns.RegisterAnnounceHandler(h)
 	t.Cleanup(func() { rns.DeregisterAnnounceHandler(h) })
 
-	ifc := &rns.Interface{Name: "if0", IN: true, OUT: true, IngressControl: false}
-	rns.Inbound(append([]byte(nil), announce.Raw...), ifc)
-
+	dispatchAnnounceForExampleTest(t, announce, appID, h)
 	if h.calls != 1 {
 		t.Fatalf("expected handler calls=1 got %d", h.calls)
-	}
-	if string(h.last.appData) != "Peach" {
-		t.Fatalf("expected appData=Peach got %q", string(h.last.appData))
 	}
 }

@@ -626,31 +626,6 @@ func decodeKnownDestinations(data []byte) (map[string]*knownDestinationEntry, er
 	return entries, nil
 }
 
-func asFloat64(v interface{}) float64 {
-	switch val := v.(type) {
-	case nil:
-		return 0
-	case float64:
-		return val
-	case float32:
-		return float64(val)
-	case int:
-		return float64(val)
-	case int64:
-		return float64(val)
-	case int32:
-		return float64(val)
-	case uint:
-		return float64(val)
-	case uint64:
-		return float64(val)
-	case uint32:
-		return float64(val)
-	default:
-		return 0
-	}
-}
-
 func asBytes(v interface{}) []byte {
 	switch val := v.(type) {
 	case nil:

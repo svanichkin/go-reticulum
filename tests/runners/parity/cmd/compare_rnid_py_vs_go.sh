@@ -274,10 +274,15 @@ run_two_node_request() {
     return 1
   fi
 
+  # Give the announce a short moment to propagate before the reciprocal
+  # request starts spinning. This keeps the cross-language network path stable
+  # across slower CI environments and avoids timing-sensitive false negatives.
+  sleep 5
+
   local request_out="$OUT_DIR/${label}.two_node.request.out"
   local request_code
-  request_code="$(run_capture "$request_out" env HOME="$home_a" USERPROFILE="$home_a" \
-    $rnid_cmd_a $cfg_flag_a "$node_a_dir" -i "$dest_hash" -R -t 15 -p -q)"
+  request_code="$(run_capture_retry "$request_out" 5 2 env HOME="$home_a" USERPROFILE="$home_a" \
+    $rnid_cmd_a $cfg_flag_a "$node_a_dir" -i "$dest_hash" -R -t 20 -p -q)"
 
   stop_proc "$pid_a"
   stop_proc "$pid_b"

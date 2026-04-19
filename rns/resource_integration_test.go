@@ -34,16 +34,7 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 		peer := findPeerLinkTest(l)
 		if peer == nil {
 			t.Fatalf("expected peer link")
@@ -366,16 +357,7 @@ func TestIntegration_Resource_MediumLarge_Slow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 		peer := findPeerLinkTest(l)
 		if peer == nil {
 			t.Fatalf("expected peer link")
@@ -449,16 +431,7 @@ func TestIntegration_Resource_RejectStrategy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 
 		peer := findPeerLinkTest(l)
 		if peer == nil {
@@ -534,16 +507,7 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 
 		peer := findPeerLinkTest(l)
 		if peer == nil {

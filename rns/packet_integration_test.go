@@ -34,13 +34,11 @@ func (t *testTransport) GetPacketSNR(_ []byte) *float64  { return nil }
 func (t *testTransport) GetPacketQ(_ []byte) *float64    { return nil }
 
 func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
-	// Do not run in parallel: overrides global transport.
-	oldTransport := Transport
+	prevInterfaces := Interfaces
+	Interfaces = nil
 	t.Cleanup(func() {
-		Transport = oldTransport
+		Interfaces = prevInterfaces
 	})
-
-	Transport = &testTransport{}
 
 	id, err := NewIdentity()
 	if err != nil {
@@ -52,6 +50,11 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
+	sink := &outboundCapture{}
+	ifc := &Interface{Name: "packet-if0", Type: "Test", OUT: true}
+	attachOutboundCapture(t, sink, ifc)
+	Interfaces = []*Interface{ifc}
+
 	p := NewPacket(dst, []byte("payload"), WithCreateReceipt(true))
 	if p == nil {
 		t.Fatalf("NewPacket returned nil")
@@ -61,6 +64,9 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 	}
 	if p.Receipt.Status != ReceiptSent {
 		t.Fatalf("unexpected receipt status: %d", p.Receipt.Status)
+	}
+	if len(sink.packets) != 1 {
+		t.Fatalf("expected 1 outbound packet, got %d", len(sink.packets))
 	}
 
 	// Create a proof packet like Identity.Prove() would.
@@ -88,13 +94,11 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 }
 
 func TestPacketIntegration_ImplicitProof_ValidatesReceipt(t *testing.T) {
-	// Do not run in parallel: overrides global transport.
-	oldTransport := Transport
+	prevInterfaces := Interfaces
+	Interfaces = nil
 	t.Cleanup(func() {
-		Transport = oldTransport
+		Interfaces = prevInterfaces
 	})
-
-	Transport = &testTransport{}
 
 	id, err := NewIdentity()
 	if err != nil {
@@ -106,9 +110,17 @@ func TestPacketIntegration_ImplicitProof_ValidatesReceipt(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
+	sink := &outboundCapture{}
+	ifc := &Interface{Name: "packet-if1", Type: "Test", OUT: true}
+	attachOutboundCapture(t, sink, ifc)
+	Interfaces = []*Interface{ifc}
+
 	p := NewPacket(dst, []byte("payload"), WithCreateReceipt(true))
 	if p.Send() == nil || p.Receipt == nil {
 		t.Fatalf("expected receipt")
+	}
+	if len(sink.packets) != 1 {
+		t.Fatalf("expected 1 outbound packet, got %d", len(sink.packets))
 	}
 
 	packetHash := p.GetHash()

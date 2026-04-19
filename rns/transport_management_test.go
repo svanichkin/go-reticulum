@@ -144,19 +144,22 @@ func TestDueManagementDestinations_DeferredInitialAnnounce(t *testing.T) {
 }
 
 func TestAnnounceManagementDestinations_SendsAnnounces(t *testing.T) {
-	prevTransport := Transport
-
-	backend := &managementAnnounceBackend{}
-	Transport = backend
+	prevInterfaces := Interfaces
+	Interfaces = nil
 
 	t.Cleanup(func() {
-		Transport = prevTransport
+		Interfaces = prevInterfaces
 	})
 
 	id, err := NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity: %v", err)
 	}
+	sink := &outboundCapture{}
+	ifc := &Interface{Name: "mgmt-if0", Type: "Test", OUT: true}
+	attachOutboundCapture(t, sink, ifc)
+	Interfaces = []*Interface{ifc}
+
 	remote, err := NewDestination(id, DestinationIN, DestinationSINGLE, TransportAppName, "remote", "management")
 	if err != nil {
 		t.Fatalf("NewDestination(remote): %v", err)
@@ -173,7 +176,7 @@ func TestAnnounceManagementDestinations_SendsAnnounces(t *testing.T) {
 		dest.Announce(nil, false, nil, nil, true)
 	}
 
-	if backend.outboundCalls != 2 {
-		t.Fatalf("announce outbound calls=%d, want 2", backend.outboundCalls)
+	if len(sink.packets) != 2 {
+		t.Fatalf("announce outbound calls=%d, want 2", len(sink.packets))
 	}
 }

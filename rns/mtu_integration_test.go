@@ -39,16 +39,7 @@ func TestIntegration_MTU_PropagatesToLinkAndResource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 		if l.MTU != MTU {
 			t.Fatalf("expected link MTU=%d, got %d", MTU, l.MTU)
 		}

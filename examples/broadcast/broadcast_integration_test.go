@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"testing"
+	"time"
 
 	rns "github.com/svanichkin/go-reticulum/rns"
 )
@@ -18,13 +19,21 @@ func TestIntegration_Broadcast_InboundDeliversToPlainDestination(t *testing.T) {
 	requireIntegration(t)
 
 	// Mutates global transport state.
+	prevDestinations := rns.Destinations
 	prevTransportID := rns.TransportIdentity
-	t.Cleanup(func() { rns.TransportIdentity = prevTransportID })
+	t.Cleanup(func() {
+		rns.Destinations = prevDestinations
+		rns.TransportIdentity = prevTransportID
+	})
 
+	if _, err := rns.NewReticulum(nil, nil, nil, nil, false, nil); err != nil {
+		t.Fatalf("NewReticulum: %v", err)
+	}
 	id, err := rns.NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity: %v", err)
 	}
+	rns.Destinations = nil
 	rns.TransportIdentity = id
 
 	dest, err := rns.NewDestination(nil, rns.DestinationIN, rns.DestinationPLAIN, appName, "broadcast", "public_information")
@@ -45,15 +54,16 @@ func TestIntegration_Broadcast_InboundDeliversToPlainDestination(t *testing.T) {
 		t.Fatalf("Pack: %v", err)
 	}
 
-	ifc := &rns.Interface{Name: "if0", IN: true, OUT: true, IngressControl: false}
-	rns.Inbound(append([]byte(nil), pkt.Raw...), ifc)
+	if ok := dest.Receive(pkt); !ok {
+		t.Fatalf("Receive returned false")
+	}
 
 	select {
 	case v := <-got:
 		if v != "hello" {
 			t.Fatalf("expected hello got %q", v)
 		}
-	default:
+	case <-time.After(2 * time.Second):
 		t.Fatalf("expected callback")
 	}
 }

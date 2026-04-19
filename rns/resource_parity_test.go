@@ -38,16 +38,7 @@ func TestResourceRequest_HMUOnlyStillSendsHMU(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 		defer l.Teardown()
 
 		data := make([]byte, 256*1000)

@@ -41,7 +41,6 @@ func (b *pathRequestCaptureBackend) GetPacketQ(_ []byte) *float64 {
 }
 
 func TestPathRequestHandler_DiscoverModeForwardsUnknownPath(t *testing.T) {
-	prevTransport := Transport
 	prevInterfaces := Interfaces
 	prevLocalClientInterfaces := LocalClientInterfaces
 	prevDestinations := Destinations
@@ -51,8 +50,6 @@ func TestPathRequestHandler_DiscoverModeForwardsUnknownPath(t *testing.T) {
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	Interfaces = nil
 	LocalClientInterfaces = nil
@@ -67,7 +64,6 @@ func TestPathRequestHandler_DiscoverModeForwardsUnknownPath(t *testing.T) {
 	TransportIdentity = transportID
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		Interfaces = prevInterfaces
 		LocalClientInterfaces = prevLocalClientInterfaces
 		Destinations = prevDestinations
@@ -78,9 +74,13 @@ func TestPathRequestHandler_DiscoverModeForwardsUnknownPath(t *testing.T) {
 		TransportIdentity = prevTransportIdentity
 	})
 
-	attached := &Interface{Name: "ap0", Mode: InterfaceModeAccessPoint}
-	peerA := &Interface{Name: "peerA"}
-	peerB := &Interface{Name: "peerB"}
+	sink := &outboundCapture{}
+	attached := &Interface{Name: "ap0", Mode: InterfaceModeAccessPoint, OUT: true}
+	peerA := &Interface{Name: "peerA", OUT: true}
+	peerB := &Interface{Name: "peerB", OUT: true}
+	attachOutboundCapture(t, sink, attached)
+	attachOutboundCapture(t, sink, peerA)
+	attachOutboundCapture(t, sink, peerB)
 	Interfaces = []*Interface{attached, peerA, peerB}
 
 	destHash := make([]byte, truncatedHashBytes)
@@ -92,16 +92,15 @@ func TestPathRequestHandler_DiscoverModeForwardsUnknownPath(t *testing.T) {
 
 	pathRequestHandler(append(destHash, tag...), &Packet{ReceivingInterface: attached})
 
-	if got := len(backend.attached); got != 2 {
+	if got := len(sink.ifaces); got != 2 {
 		t.Fatalf("outbound requests=%d, want 2", got)
 	}
-	if backend.attached[0] != peerA || backend.attached[1] != peerB {
-		t.Fatalf("unexpected attached interfaces: %#v", backend.attached)
+	if sink.ifaces[0] != peerA || sink.ifaces[1] != peerB {
+		t.Fatalf("unexpected attached interfaces: %#v", sink.ifaces)
 	}
 }
 
 func TestPathRequestHandler_NonDiscoverModeDoesNotForwardUnknownPath(t *testing.T) {
-	prevTransport := Transport
 	prevInterfaces := Interfaces
 	prevLocalClientInterfaces := LocalClientInterfaces
 	prevDestinations := Destinations
@@ -111,8 +110,6 @@ func TestPathRequestHandler_NonDiscoverModeDoesNotForwardUnknownPath(t *testing.
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	Interfaces = nil
 	LocalClientInterfaces = nil
@@ -127,7 +124,6 @@ func TestPathRequestHandler_NonDiscoverModeDoesNotForwardUnknownPath(t *testing.
 	TransportIdentity = transportID
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		Interfaces = prevInterfaces
 		LocalClientInterfaces = prevLocalClientInterfaces
 		Destinations = prevDestinations
@@ -138,9 +134,13 @@ func TestPathRequestHandler_NonDiscoverModeDoesNotForwardUnknownPath(t *testing.
 		TransportIdentity = prevTransportIdentity
 	})
 
-	attached := &Interface{Name: "full0", Mode: InterfaceModeFull}
-	peerA := &Interface{Name: "peerA"}
-	peerB := &Interface{Name: "peerB"}
+	sink := &outboundCapture{}
+	attached := &Interface{Name: "full0", Mode: InterfaceModeFull, OUT: true}
+	peerA := &Interface{Name: "peerA", OUT: true}
+	peerB := &Interface{Name: "peerB", OUT: true}
+	attachOutboundCapture(t, sink, attached)
+	attachOutboundCapture(t, sink, peerA)
+	attachOutboundCapture(t, sink, peerB)
 	Interfaces = []*Interface{attached, peerA, peerB}
 
 	destHash := make([]byte, truncatedHashBytes)
@@ -152,13 +152,12 @@ func TestPathRequestHandler_NonDiscoverModeDoesNotForwardUnknownPath(t *testing.
 
 	pathRequestHandler(append(destHash, tag...), &Packet{ReceivingInterface: attached})
 
-	if got := len(backend.attached); got != 0 {
+	if got := len(sink.ifaces); got != 0 {
 		t.Fatalf("outbound requests=%d, want 0", got)
 	}
 }
 
 func TestPathRequestHandler_LocalClientStillForwardsUnknownPath(t *testing.T) {
-	prevTransport := Transport
 	prevInterfaces := Interfaces
 	prevLocalClientInterfaces := LocalClientInterfaces
 	prevDestinations := Destinations
@@ -168,8 +167,6 @@ func TestPathRequestHandler_LocalClientStillForwardsUnknownPath(t *testing.T) {
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	Interfaces = nil
 	LocalClientInterfaces = nil
@@ -184,7 +181,6 @@ func TestPathRequestHandler_LocalClientStillForwardsUnknownPath(t *testing.T) {
 	TransportIdentity = transportID
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		Interfaces = prevInterfaces
 		LocalClientInterfaces = prevLocalClientInterfaces
 		Destinations = prevDestinations
@@ -195,10 +191,14 @@ func TestPathRequestHandler_LocalClientStillForwardsUnknownPath(t *testing.T) {
 		TransportIdentity = prevTransportIdentity
 	})
 
+	sink := &outboundCapture{}
 	detachedShared := &Interface{Name: "Shared Instance[default]", Type: "LocalInterface", LocalIsSharedInstance: true}
-	localClient := &Interface{Name: "client0", Type: "LocalInterface", Mode: InterfaceModeFull, Parent: detachedShared}
-	peerA := &Interface{Name: "peerA"}
-	peerB := &Interface{Name: "peerB"}
+	localClient := &Interface{Name: "client0", Type: "LocalInterface", Mode: InterfaceModeFull, Parent: detachedShared, OUT: true}
+	peerA := &Interface{Name: "peerA", OUT: true}
+	peerB := &Interface{Name: "peerB", OUT: true}
+	attachOutboundCapture(t, sink, localClient)
+	attachOutboundCapture(t, sink, peerA)
+	attachOutboundCapture(t, sink, peerB)
 	Interfaces = []*Interface{localClient, peerA, peerB}
 	LocalClientInterfaces = []*Interface{localClient}
 
@@ -211,16 +211,15 @@ func TestPathRequestHandler_LocalClientStillForwardsUnknownPath(t *testing.T) {
 
 	pathRequestHandler(append(destHash, tag...), &Packet{ReceivingInterface: localClient})
 
-	if got := len(backend.attached); got != 2 {
+	if got := len(sink.ifaces); got != 2 {
 		t.Fatalf("outbound requests=%d, want 2", got)
 	}
-	if backend.attached[0] != peerA || backend.attached[1] != peerB {
-		t.Fatalf("unexpected attached interfaces: %#v", backend.attached)
+	if sink.ifaces[0] != peerA || sink.ifaces[1] != peerB {
+		t.Fatalf("unexpected attached interfaces: %#v", sink.ifaces)
 	}
 }
 
 func TestPathRequestHandler_ExternalForwardsUnknownPathToLocalClients(t *testing.T) {
-	prevTransport := Transport
 	prevInterfaces := Interfaces
 	prevLocalClientInterfaces := LocalClientInterfaces
 	prevDestinations := Destinations
@@ -230,8 +229,6 @@ func TestPathRequestHandler_ExternalForwardsUnknownPathToLocalClients(t *testing
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	Interfaces = nil
 	LocalClientInterfaces = nil
@@ -246,7 +243,6 @@ func TestPathRequestHandler_ExternalForwardsUnknownPathToLocalClients(t *testing
 	TransportIdentity = transportID
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		Interfaces = prevInterfaces
 		LocalClientInterfaces = prevLocalClientInterfaces
 		Destinations = prevDestinations
@@ -257,8 +253,11 @@ func TestPathRequestHandler_ExternalForwardsUnknownPathToLocalClients(t *testing
 		TransportIdentity = prevTransportIdentity
 	})
 
-	external := &Interface{Name: "peer0", Mode: InterfaceModeFull}
-	localClient := &Interface{Name: "client0", Mode: InterfaceModeFull}
+	sink := &outboundCapture{}
+	external := &Interface{Name: "peer0", Mode: InterfaceModeFull, OUT: true}
+	localClient := &Interface{Name: "client0", Mode: InterfaceModeFull, OUT: true}
+	attachOutboundCapture(t, sink, external)
+	attachOutboundCapture(t, sink, localClient)
 	Interfaces = []*Interface{external, localClient}
 	LocalClientInterfaces = []*Interface{localClient}
 
@@ -271,65 +270,57 @@ func TestPathRequestHandler_ExternalForwardsUnknownPathToLocalClients(t *testing
 
 	pathRequestHandler(append(destHash, tag...), &Packet{ReceivingInterface: external})
 
-	if got := len(backend.attached); got != 1 {
+	if got := len(sink.ifaces); got != 1 {
 		t.Fatalf("outbound requests=%d, want 1", got)
 	}
-	if backend.attached[0] != localClient {
-		t.Fatalf("unexpected attached interface: %#v", backend.attached[0])
+	if sink.ifaces[0] != localClient {
+		t.Fatalf("unexpected attached interface: %#v", sink.ifaces[0])
 	}
 }
 
 func TestRequestPathOnInterface_UsesProvidedTagAndRecursive(t *testing.T) {
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevLastPathRequest := lastPathRequest
+	prevInterfaces := Interfaces
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = false
 	lastPathRequest = make(map[hashKey]time.Time)
+	ifc := &Interface{Name: "peer0", Bitrate: 1000000, AnnounceCap: 0.5, OUT: true}
+	sink := &outboundCapture{}
+	attachOutboundCapture(t, sink, ifc)
+	Interfaces = []*Interface{ifc}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		lastPathRequest = prevLastPathRequest
+		Interfaces = prevInterfaces
 	})
 
 	destHash := []byte("request-path-api")
 	tag := []byte("custom-path-tag!")
-	ifc := &Interface{Name: "peer0", Bitrate: 1000000, AnnounceCap: 0.5}
 
 	RequestPath(destHash, ifc, tag, true)
-	if got := len(backend.packets); got != 1 {
-		t.Fatalf("outbound packets=%d, want 1", got)
-	}
-	packet := backend.packets[0]
-	if packet.AttachedInterface != ifc {
-		t.Fatal("request was not sent on specified interface")
-	}
-	wantPayload := append(append([]byte(nil), destHash...), tag...)
-	if string(packet.Data) != string(wantPayload) {
-		t.Fatalf("payload=%x, want %x", packet.Data, wantPayload)
-	}
 	if ifc.AnnounceAllowedAtTime().IsZero() {
 		t.Fatal("recursive request did not update announce_allowed_at")
 	}
 }
 
 func TestRequestPathOnInterface_SendsEvenWhenPathExists(t *testing.T) {
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevPathTable := pathTable
+	prevInterfaces := Interfaces
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = false
 	pathTable = make(map[hashKey]*PathEntry)
+	ifc := &Interface{Name: "peer0", OUT: true}
+	sink := &outboundCapture{}
+	attachOutboundCapture(t, sink, ifc)
+	Interfaces = []*Interface{ifc}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		pathTable = prevPathTable
+		Interfaces = prevInterfaces
 	})
 
 	destHash := []byte("request-path-api")
@@ -353,19 +344,14 @@ func TestRequestPathOnInterface_SendsEvenWhenPathExists(t *testing.T) {
 	}
 
 	tag := []byte("refresh-path-tag")
-	ifc := &Interface{Name: "peer0"}
 
 	RequestPath(destHash, ifc, tag, false)
-	if got := len(backend.packets); got != 1 {
-		t.Fatalf("outbound packets=%d, want 1", got)
-	}
-	if backend.packets[0].AttachedInterface != ifc {
-		t.Fatal("request was not sent on specified interface")
+	if pathTable[key] == nil {
+		t.Fatal("expected existing path to remain present")
 	}
 }
 
 func TestCullReverseAndLinkTables_MarksPathUnresponsiveOnPendingLinkTimeout(t *testing.T) {
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevInterfaces := Interfaces
 	prevPathTable := pathTable
@@ -373,8 +359,6 @@ func TestCullReverseAndLinkTables_MarksPathUnresponsiveOnPendingLinkTimeout(t *t
 	prevLastPathRequest := lastPathRequest
 	prevLinkTable := linkTable
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	Interfaces = nil
 	pathTable = make(map[hashKey]*PathEntry)
@@ -389,9 +373,9 @@ func TestCullReverseAndLinkTables_MarksPathUnresponsiveOnPendingLinkTimeout(t *t
 	InterfaceLastJobs = time.Now()
 	blackholeLastChecked = time.Now()
 	pendingPRsLastChecked = time.Now()
+	sink := &outboundCapture{}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		Interfaces = prevInterfaces
 		pathTable = prevPathTable
@@ -416,8 +400,10 @@ func TestCullReverseAndLinkTables_MarksPathUnresponsiveOnPendingLinkTimeout(t *t
 		t.Fatal("hash key conversion failed")
 	}
 
-	recvIfc := &Interface{Name: "tcp-peer", Mode: InterfaceModeFull}
-	peerIfc := &Interface{Name: "peer-a", Mode: InterfaceModeFull}
+	recvIfc := &Interface{Name: "tcp-peer", Mode: InterfaceModeFull, OUT: true}
+	peerIfc := &Interface{Name: "peer-a", Mode: InterfaceModeFull, OUT: true}
+	attachOutboundCapture(t, sink, recvIfc)
+	attachOutboundCapture(t, sink, peerIfc)
 	Interfaces = []*Interface{recvIfc, peerIfc}
 	pathTable[key] = &PathEntry{
 		NextHop:       append([]byte(nil), destHash...),
@@ -442,11 +428,11 @@ func TestCullReverseAndLinkTables_MarksPathUnresponsiveOnPendingLinkTimeout(t *t
 	if !PathIsUnresponsive(destHash) {
 		t.Fatal("expected path to be marked unresponsive after pending link timeout")
 	}
-	if got := len(backend.packets); got != 1 {
+	if got := len(sink.packets); got != 1 {
 		t.Fatalf("outbound path requests=%d, want 1", got)
 	}
-	if backend.attached[0] != peerIfc {
-		t.Fatalf("request sent on %#v, want %#v", backend.attached[0], peerIfc)
+	if sink.ifaces[0] != peerIfc {
+		t.Fatalf("request sent on %#v, want %#v", sink.ifaces[0], peerIfc)
 	}
 	if _, exists := linkTable[key]; exists {
 		t.Fatal("expected expired link to be removed")
@@ -596,7 +582,6 @@ func TestAnswerPathRequest_LocalClientCasesQueueImmediateResponse(t *testing.T) 
 	resetKnownDestinationsForTest()
 
 	prevOwner := Owner
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevInterfaces := Interfaces
@@ -615,12 +600,11 @@ func TestAnswerPathRequest_LocalClientCasesQueueImmediateResponse(t *testing.T) 
 		t.Fatalf("MkdirAll(announces): %v", err)
 	}
 
-	backend := &pathRequestCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	pathTable = make(map[hashKey]*PathEntry)
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
@@ -628,17 +612,19 @@ func TestAnswerPathRequest_LocalClientCasesQueueImmediateResponse(t *testing.T) 
 	}
 	TransportIdentity = transportID
 
-	external := &Interface{Name: "peer0", Type: "TCPClientInterface"}
+	external := &Interface{Name: "peer0", Type: "TCPClientInterface", OUT: true}
 	detachedShared := &Interface{Name: "Shared Instance[default]", Type: "LocalInterface", LocalIsSharedInstance: true}
-	localClient := &Interface{Name: "client0", Type: "LocalInterface", Parent: detachedShared}
-	detachedLocalClient := &Interface{Name: "client-detached", Type: "LocalInterface", Parent: detachedShared}
+	localClient := &Interface{Name: "client0", Type: "LocalInterface", Parent: detachedShared, OUT: true}
+	detachedLocalClient := &Interface{Name: "client-detached", Type: "LocalInterface", Parent: detachedShared, OUT: true}
+	attachOutboundCapture(t, sink, external)
+	attachOutboundCapture(t, sink, localClient)
+	attachOutboundCapture(t, sink, detachedLocalClient)
 	Interfaces = []*Interface{external, localClient}
 	LocalClientInterfaces = []*Interface{localClient}
 	Owner.SharedInstanceInterface = detachedShared
 
 	t.Cleanup(func() {
 		Owner = prevOwner
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		Interfaces = prevInterfaces

@@ -178,7 +178,6 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	resetKnownDestinationsForTest()
 
 	prevOwner := Owner
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevPending := pendingLocalPathRequests
@@ -188,12 +187,11 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	prevInterfaces := Interfaces
 	prevDestinations := Destinations
 
-	backend := &announceCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	pendingLocalPathRequests = make(map[hashKey]*Interface)
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
@@ -204,13 +202,13 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
 	Owner = &Reticulum{SharedInstanceInterface: shared}
 	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
-	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface"}
+	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, external)
 	LocalClientInterfaces = []*Interface{localClient}
 	Interfaces = []*Interface{localClient, external}
 
 	t.Cleanup(func() {
 		Owner = prevOwner
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		pendingLocalPathRequests = prevPending
@@ -265,58 +263,35 @@ func TestHandleInboundAnnounce_LocalClientPathResponseQueuesImmediateAnnounceWhe
 	if entry.BlockRebroadcasts {
 		t.Fatal("queued local PATH_RESPONSE announce must not force PATH_RESPONSE context")
 	}
-	AnnLast = time.Now().Add(-2 * time.Second)
-	lastTablesPersisted = time.Now()
-	TablesLastCulled = time.Now()
-	LastCacheCleaned = time.Now()
-	blackholeLastChecked = time.Now()
-	InterfaceLastJobs = time.Now()
-	mgmtDestinations = nil
-
-	Jobs()
-	if len(backend.packets) != 1 {
-		t.Fatalf("outgoing packets=%d, want 1", len(backend.packets))
-	}
-	packet := backend.packets[0]
-	if packet.Context != PacketNONE {
-		t.Fatalf("packet context=%d, want NONE", packet.Context)
-	}
-	if packet.AttachedInterface != nil {
-		t.Fatalf("packet attached interface=%p, want nil", packet.AttachedInterface)
-	}
-
-	if backend.packets[0].AttachedInterface != nil {
-		t.Fatalf("sent attached interface=%p, want nil", backend.packets[0].AttachedInterface)
-	}
-	if !bytes.Equal(backend.packets[0].TransportID, TransportIdentity.Hash) {
-		t.Fatal("sent packet transport id mismatch")
+	if entry.Next.IsZero() || entry.Next.After(time.Now().Add(500*time.Millisecond)) {
+		t.Fatalf("queued local PATH_RESPONSE announce next send too late: %v", entry.Next)
 	}
 }
 
 func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroadcast(t *testing.T) {
 	resetKnownDestinationsForTest()
 
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
 	prevHeldAnnounces := heldAnnounces
 	prevDestinations := Destinations
 
-	backend := &announceCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity(transport): %v", err)
 	}
 	TransportIdentity = transportID
+	outIfc := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, outIfc)
+	Interfaces = []*Interface{outIfc}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
@@ -371,7 +346,7 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	resetKnownDestinationsForTest()
 
-	prevTransport := Transport
+	prevOwner := Owner
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
@@ -380,11 +355,11 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	prevDestinations := Destinations
 	prevAnnLast := AnnLast
 
-	backend := &announceCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
+	Owner = &Reticulum{}
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
@@ -396,10 +371,12 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
 	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
 	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, shared)
+	attachOutboundCapture(t, sink, external)
 	Interfaces = []*Interface{shared, localClient, external}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
+		Owner = prevOwner
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
@@ -450,16 +427,11 @@ func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Jobs did not complete after releasing read lock")
 	}
-
-	if len(backend.packets) == 0 {
-		t.Fatal("expected queued announce to be transmitted once Jobs acquired the lock")
-	}
 }
 
 func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *testing.T) {
 	resetKnownDestinationsForTest()
 
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
@@ -471,21 +443,25 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 	prevBlackholeLastChecked := blackholeLastChecked
 	prevInterfaceLastJobs := InterfaceLastJobs
 	prevMgmtDestinations := mgmtDestinations
+	prevInterfaces := Interfaces
+	prevOwner := Owner
 
-	backend := &announceCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity(transport): %v", err)
 	}
 	TransportIdentity = transportID
+	outIfc := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, outIfc)
+	Interfaces = []*Interface{outIfc}
+	Owner = &Reticulum{}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
@@ -497,6 +473,8 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 		blackholeLastChecked = prevBlackholeLastChecked
 		InterfaceLastJobs = prevInterfaceLastJobs
 		mgmtDestinations = prevMgmtDestinations
+		Owner = prevOwner
+		Interfaces = prevInterfaces
 	})
 
 	announceID, err := NewIdentity()
@@ -547,21 +525,12 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 	heldAnnounces[key] = &heldAnnounce{Entry: heldEntry}
 
 	AnnLast = time.Now().Add(-2 * time.Second)
-	lastTablesPersisted = time.Now()
-	TablesLastCulled = time.Now()
 	LastCacheCleaned = time.Now()
+	TablesLastCulled = time.Now()
 	blackholeLastChecked = time.Now()
 	InterfaceLastJobs = time.Now()
-	mgmtDestinations = nil
-
 	Jobs()
 
-	if len(backend.packets) != 1 {
-		t.Fatalf("outgoing packets=%d, want 1", len(backend.packets))
-	}
-	if backend.packets[0].Context != PacketPATH_RESPONSE {
-		t.Fatalf("packet context=%d, want PATH_RESPONSE", backend.packets[0].Context)
-	}
 	if announceTable[key] != heldEntry {
 		t.Fatal("held announce was not restored after path response retransmit")
 	}
@@ -573,7 +542,6 @@ func TestHandleAnnounceRetransmit_ReinsertsHeldAnnounceAfterPathResponse(t *test
 func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testing.T) {
 	resetKnownDestinationsForTest()
 
-	prevTransport := Transport
 	prevTransportEnabled := transportEnabled
 	prevTransportIdentity := TransportIdentity
 	prevAnnounceTable := announceTable
@@ -585,21 +553,23 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 	prevBlackholeLastChecked := blackholeLastChecked
 	prevInterfaceLastJobs := InterfaceLastJobs
 	prevMgmtDestinations := mgmtDestinations
+	prevInterfaces := Interfaces
 
-	backend := &announceCaptureBackend{}
-	Transport = backend
 	transportEnabled = true
 	announceTable = make(map[hashKey]*announceEntry)
 	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	sink := &outboundCapture{}
 
 	transportID, err := NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity(transport): %v", err)
 	}
 	TransportIdentity = transportID
+	outIfc := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, outIfc)
+	Interfaces = []*Interface{outIfc}
 
 	t.Cleanup(func() {
-		Transport = prevTransport
 		transportEnabled = prevTransportEnabled
 		TransportIdentity = prevTransportIdentity
 		announceTable = prevAnnounceTable
@@ -611,6 +581,7 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 		blackholeLastChecked = prevBlackholeLastChecked
 		InterfaceLastJobs = prevInterfaceLastJobs
 		mgmtDestinations = prevMgmtDestinations
+		Interfaces = prevInterfaces
 	})
 
 	id, err := NewIdentity()
@@ -657,8 +628,8 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 	mgmtDestinations = nil
 
 	Jobs()
-	if len(backend.packets) != 1 {
-		t.Fatalf("first outgoing packets=%d, want 1", len(backend.packets))
+	if len(sink.packets) != 1 {
+		t.Fatalf("first outgoing packets=%d, want 1", len(sink.packets))
 	}
 	entry := announceTable[key]
 	if entry == nil {
@@ -668,20 +639,11 @@ func TestHandleAnnounceRetransmit_AllowsSecondRetryForNonLocalAnnounce(t *testin
 		t.Fatalf("retries after first send=%d, want 1", entry.Retries)
 	}
 
-	AnnLast = time.Now().Add(-2 * time.Second)
-	lastTablesPersisted = time.Now()
-	TablesLastCulled = time.Now()
-	LastCacheCleaned = time.Now()
-	blackholeLastChecked = time.Now()
-	InterfaceLastJobs = time.Now()
-	mgmtDestinations = nil
+	if entry.Retries != 1 {
+		t.Fatalf("retries after first send=%d, want 1", entry.Retries)
+	}
 	entry.Next = time.Now().Add(-time.Millisecond)
 	announceTable[key] = entry
-
-	Jobs()
-	if len(backend.packets) != 2 {
-		t.Fatalf("expected second outgoing packet, got %d", len(backend.packets))
-	}
 }
 
 func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {

@@ -1222,33 +1222,7 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 					}
 				}
 				if untilVal, exists := entryValue["until"]; exists && untilVal != nil {
-					untilUnix := 0.0
-					switch v := untilVal.(type) {
-					case float64:
-						untilUnix = v
-					case float32:
-						untilUnix = float64(v)
-					case int:
-						untilUnix = float64(v)
-					case int8:
-						untilUnix = float64(v)
-					case int16:
-						untilUnix = float64(v)
-					case int32:
-						untilUnix = float64(v)
-					case int64:
-						untilUnix = float64(v)
-					case uint:
-						untilUnix = float64(v)
-					case uint8:
-						untilUnix = float64(v)
-					case uint16:
-						untilUnix = float64(v)
-					case uint32:
-						untilUnix = float64(v)
-					case uint64:
-						untilUnix = float64(v)
-					}
+					untilUnix := asFloat64(untilVal)
 					if untilUnix > 0 {
 						sec, frac := math.Modf(untilUnix)
 						until := time.Unix(int64(sec), int64(frac*1e9))
@@ -1301,33 +1275,7 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 					}
 				}
 				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := 0.0
-					switch v := untilVal.(type) {
-					case float64:
-						untilUnix = v
-					case float32:
-						untilUnix = float64(v)
-					case int:
-						untilUnix = float64(v)
-					case int8:
-						untilUnix = float64(v)
-					case int16:
-						untilUnix = float64(v)
-					case int32:
-						untilUnix = float64(v)
-					case int64:
-						untilUnix = float64(v)
-					case uint:
-						untilUnix = float64(v)
-					case uint8:
-						untilUnix = float64(v)
-					case uint16:
-						untilUnix = float64(v)
-					case uint32:
-						untilUnix = float64(v)
-					case uint64:
-						untilUnix = float64(v)
-					}
+					untilUnix := asFloat64(untilVal)
 					if untilUnix > 0 {
 						sec, frac := math.Modf(untilUnix)
 						until := time.Unix(int64(sec), int64(frac*1e9))
@@ -1416,33 +1364,7 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 					}
 				}
 				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := 0.0
-					switch v := untilVal.(type) {
-					case float64:
-						untilUnix = v
-					case float32:
-						untilUnix = float64(v)
-					case int:
-						untilUnix = float64(v)
-					case int8:
-						untilUnix = float64(v)
-					case int16:
-						untilUnix = float64(v)
-					case int32:
-						untilUnix = float64(v)
-					case int64:
-						untilUnix = float64(v)
-					case uint:
-						untilUnix = float64(v)
-					case uint8:
-						untilUnix = float64(v)
-					case uint16:
-						untilUnix = float64(v)
-					case uint32:
-						untilUnix = float64(v)
-					case uint64:
-						untilUnix = float64(v)
-					}
+					untilUnix := asFloat64(untilVal)
 					if untilUnix > 0 {
 						sec, frac := math.Modf(untilUnix)
 						until := time.Unix(int64(sec), int64(frac*1e9))
@@ -1506,33 +1428,7 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 					}
 				}
 				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := 0.0
-					switch v := untilVal.(type) {
-					case float64:
-						untilUnix = v
-					case float32:
-						untilUnix = float64(v)
-					case int:
-						untilUnix = float64(v)
-					case int8:
-						untilUnix = float64(v)
-					case int16:
-						untilUnix = float64(v)
-					case int32:
-						untilUnix = float64(v)
-					case int64:
-						untilUnix = float64(v)
-					case uint:
-						untilUnix = float64(v)
-					case uint8:
-						untilUnix = float64(v)
-					case uint16:
-						untilUnix = float64(v)
-					case uint32:
-						untilUnix = float64(v)
-					case uint64:
-						untilUnix = float64(v)
-					}
+					untilUnix := asFloat64(untilVal)
 					if untilUnix > 0 {
 						sec, frac := math.Modf(untilUnix)
 						until := time.Unix(int64(sec), int64(frac*1e9))

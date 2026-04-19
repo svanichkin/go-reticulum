@@ -8,7 +8,15 @@
       "Bash(awk -F: '$2 > 1769')",
       "Bash(awk 'NR>=1769 && /^func / {print NR\": \"$0}' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/transport.go)",
       "Bash(go build *)",
-      "Bash(xargs perl *)"
+      "Bash(xargs perl *)",
+      "Bash(pip show *)",
+      "Bash(python3 -c \"import RNS; import os; print\\(os.path.dirname\\(RNS.__file__\\)\\)\")",
+      "Bash(go test *)",
+      "Bash(grep -rn \"func Outbound\\\\|Outbound\\\\s*=\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(git stash *)",
+      "Bash(git -C /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum diff HEAD -- rns/transport_blackhole_test.go)",
+      "Bash(git -C /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum status --short rns/transport_blackhole_test.go)",
+      "Bash(pip3 show *)"
     ]
   }
 }

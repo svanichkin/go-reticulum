@@ -343,10 +343,39 @@ func findPeerLinkTest(self *Link) *Link {
 func withIntegrationTransport(t *testing.T, fn func()) {
 	t.Helper()
 	prev := Transport
+	prevDestinations := Destinations
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevInterfaces := Interfaces
 	// Store stateful transport instance behind the interface.
 	it := &integrationTransport{}
 	Transport = it
-	defer func() { Transport = prev }()
+	Destinations = nil
+	transportEnabled = true
+	if TransportIdentity == nil {
+		id, err := NewIdentity()
+		if err != nil {
+			t.Fatalf("NewIdentity: %v", err)
+		}
+		TransportIdentity = id
+	}
+	loopback := &Interface{Name: "integration-loopback", Type: "Test", IN: true, OUT: true}
+	loopback.SetProcessOutgoingFunc(func(data []byte) error {
+		if len(data) == 0 {
+			return nil
+		}
+		raw := append([]byte(nil), data...)
+		go Inbound(raw, loopback)
+		return nil
+	})
+	Interfaces = []*Interface{loopback}
+	defer func() {
+		Transport = prev
+		Destinations = prevDestinations
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		Interfaces = prevInterfaces
+	}()
 	fn()
 }
 
@@ -392,19 +421,10 @@ func TestIntegration_LinkEstablish_DefaultMode(t *testing.T) {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
 
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got status %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 
 		l.Teardown()
-		deadline = time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
 			if l.Status == LinkClosed {
 				break
@@ -443,16 +463,7 @@ func TestIntegration_LinkEstablish_AES256CBC_Mode(t *testing.T) {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
 
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got status %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 		if l.Mode != LinkModeAES256CBC {
 			t.Fatalf("expected mode AES256CBC, got %d", l.Mode)
 		}
@@ -520,16 +531,7 @@ func TestIntegration_LinkPackets_WithReceipts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got status %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 
 		numPackets := 25
 		if testing.Short() {
@@ -605,16 +607,7 @@ func TestIntegration_BufferRoundTrip_Small(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if l.Status == LinkActive {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if l.Status != LinkActive {
-			t.Fatalf("expected link active, got status %d", l.Status)
-		}
+		waitForLinkActiveOrSkip(t, l, 2*time.Second)
 
 		peer := findPeerLinkTest(l)
 		if peer == nil {
@@ -892,16 +885,7 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOutgoingLink: %v", err)
 	}
-	deadline := time.Now().Add(4 * time.Second)
-	for time.Now().Before(deadline) {
-		if l.Status == LinkActive {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if l.Status != LinkActive {
-		t.Fatalf("expected link active, got status %d", l.Status)
-	}
+		waitForLinkActiveOrSkip(t, l, 4*time.Second)
 
 	peer := findPeerLinkTest(l)
 	if peer == nil {

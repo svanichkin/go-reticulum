@@ -8,6 +8,10 @@ import (
 
 func TestBroadcast_PlainDestinationReceivesPacket(t *testing.T) {
 	// No t.Parallel: uses package-level singletons in rns in other tests.
+	prevDestinations := rns.Destinations
+	rns.Destinations = nil
+	t.Cleanup(func() { rns.Destinations = prevDestinations })
+
 	dest, err := rns.NewDestination(nil, rns.DestinationIN, rns.DestinationPLAIN, appName, "broadcast", "public_information")
 	if err != nil {
 		t.Fatalf("NewDestination: %v", err)

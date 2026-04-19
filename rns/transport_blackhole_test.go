@@ -304,15 +304,18 @@ func TestCullBlackholedIdentities_RemovesExpiredEntries(t *testing.T) {
 	prevOwner := Owner
 	prevTransportIdentity := TransportIdentity
 	prevBlackholed := blackholedIdentities
+	prevBlackholeLastChecked := blackholeLastChecked
 
 	Owner = &Reticulum{StoragePath: t.TempDir()}
 	TransportIdentity, _ = NewIdentity()
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	blackholeLastChecked = time.Now().Add(-2 * blackholeCheckInterval)
 
 	t.Cleanup(func() {
 		Owner = prevOwner
 		TransportIdentity = prevTransportIdentity
 		blackholedIdentities = prevBlackholed
+		blackholeLastChecked = prevBlackholeLastChecked
 	})
 
 	expiredID := []byte("expired-blackhol")
@@ -338,29 +341,16 @@ func TestCullBlackholedIdentities_RemovesExpiredEntries(t *testing.T) {
 	blackholedIdentities[expiredKey] = &blackholeEntry{Source: TransportIdentity.Hash, Until: &expiredAt}
 	blackholedIdentities[activeKey] = &blackholeEntry{Source: TransportIdentity.Hash, Until: &activeUntil}
 
-	now := time.Now()
+	Jobs()
+
 	blackholeMu.RLock()
-	keys := make([]hashKey, 0, len(blackholedIdentities))
-	for key := range blackholedIdentities {
-		keys = append(keys, key)
-	}
+	_, expiredExists := blackholedIdentities[expiredKey]
+	_, activeExists := blackholedIdentities[activeKey]
 	blackholeMu.RUnlock()
-	stale := make([]hashKey, 0, len(keys))
-	for _, key := range keys {
-		blackholeMu.RLock()
-		entry := blackholedIdentities[key]
-		blackholeMu.RUnlock()
-		if entry.Until != nil && !entry.Until.IsZero() && now.After(*entry.Until) {
-			stale = append(stale, key)
-		}
-	}
-	if len(stale) == 0 {
-		t.Fatal("expected at least one stale blackholed identity")
-	}
-	if _, exists := blackholedIdentities[expiredKey]; exists {
+	if expiredExists {
 		t.Fatal("expected expired entry to be removed")
 	}
-	if _, exists := blackholedIdentities[activeKey]; !exists {
+	if !activeExists {
 		t.Fatal("expected active entry to remain")
 	}
 }
@@ -372,13 +362,41 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 	prevMgmtDestinations := mgmtDestinations
 	prevPublish := publishBlackholeEnabled
 	prevBlackholed := blackholedIdentities
+	prevControlDestinations := controlDestinations
+	prevControlHashes := make(map[string]struct{}, len(controlHashes))
+	for k := range controlHashes {
+		prevControlHashes[k] = struct{}{}
+	}
+	prevRemoteManagementDest := remoteManagementDest
+	prevRemoteManagementActive := remoteManagementActive
+	prevInstanceDestination := instanceDestination
+	prevNetworkDestination := networkDestination
+	prevPathRequestDest := pathRequestDest
+	prevTunnelSynthesizeDest := tunnelSynthesizeDest
+	prevMgmtHashes := make([][]byte, len(mgmtHashes))
+	for i := range mgmtHashes {
+		prevMgmtHashes[i] = append([]byte(nil), mgmtHashes[i]...)
+	}
 
-	Owner = &Reticulum{}
-	TransportIdentity, _ = NewIdentity()
+	dir := t.TempDir()
+	Owner = &Reticulum{StoragePath: dir, CachePath: filepath.Join(dir, "cache")}
+	if err := os.MkdirAll(filepath.Join(Owner.CachePath, "announces"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(cache announces): %v", err)
+	}
+	TransportIdentity = nil
 	blackholeDestination = nil
 	mgmtDestinations = nil
 	publishBlackholeEnabled = true
 	blackholedIdentities = make(map[hashKey]*blackholeEntry)
+	controlDestinations = nil
+	controlHashes = make(map[string]struct{})
+	remoteManagementDest = nil
+	remoteManagementActive = false
+	instanceDestination = nil
+	networkDestination = nil
+	pathRequestDest = nil
+	tunnelSynthesizeDest = nil
+	mgmtHashes = nil
 
 	t.Cleanup(func() {
 		Owner = prevOwner
@@ -387,6 +405,15 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 		mgmtDestinations = prevMgmtDestinations
 		publishBlackholeEnabled = prevPublish
 		blackholedIdentities = prevBlackholed
+		controlDestinations = prevControlDestinations
+		controlHashes = prevControlHashes
+		remoteManagementDest = prevRemoteManagementDest
+		remoteManagementActive = prevRemoteManagementActive
+		instanceDestination = prevInstanceDestination
+		networkDestination = prevNetworkDestination
+		pathRequestDest = prevPathRequestDest
+		tunnelSynthesizeDest = prevTunnelSynthesizeDest
+		mgmtHashes = prevMgmtHashes
 	})
 
 	victim := []byte("victim-blackhol-")
@@ -400,7 +427,7 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 	}(victim)
 	blackholedIdentities[key] = &blackholeEntry{Source: []byte("source-blackhol")}
 
-	SharedConnectionDisappeared()
+	Start(Owner)
 
 	if blackholeDestination == nil {
 		t.Fatal("expected blackhole destination to be created")
@@ -412,7 +439,7 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 	if !ok {
 		t.Fatal("expected /list request handler to be registered")
 	}
-	list, ok := resp.(map[hashKey]map[string]any)
+	list, ok := resp.(map[hashKey]*blackholeEntry)
 	if !ok {
 		t.Fatalf("unexpected response type %T", resp)
 	}
