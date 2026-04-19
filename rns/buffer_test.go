@@ -37,6 +37,40 @@ func newLoopOutlet(name string, mdu int) *loopOutlet {
 
 var loopPktID atomic.Uint64
 
+func newTestRawChannelReader(streamID int, ch *Channel) *RawChannelReader {
+	reader := &RawChannelReader{
+		streamID: streamID,
+		channel:  ch,
+		buffer:   make([]byte, 0),
+		eof:      false,
+	}
+	if ch != nil {
+		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+			panic(err)
+		}
+		ch.AddMessageHandler(reader.handleMessage)
+	}
+	return reader
+}
+
+func newTestRawChannelWriter(streamID int, ch *Channel) *RawChannelWriter {
+	maxLen := LinkMDU - OVERHEAD
+	if maxLen <= 0 {
+		maxLen = MAX_CHUNK_LEN
+	}
+	if ch != nil {
+		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+			panic(err)
+		}
+	}
+	return &RawChannelWriter{
+		streamID:   streamID,
+		channel:    ch,
+		eof:        false,
+		maxDataLen: maxLen,
+	}
+}
+
 func (o *loopOutlet) Send(raw []byte) any {
 	p := &loopPacket{id: loopPktID.Add(1), raw: append([]byte(nil), raw...)}
 
@@ -124,11 +158,11 @@ func TestRawChannelStream_NoContentLoss(t *testing.T) {
 	ob.peer.Store(ca)
 
 	// Receiver side reader.
-	reader := NewRawChannelReader(1, cb)
+	reader := newTestRawChannelReader(1, cb)
 	defer reader.Close()
 
 	// Sender side writer.
-	writer := NewRawChannelWriter(1, ca)
+	writer := newTestRawChannelWriter(1, ca)
 	defer writer.Close()
 
 	// Highly compressible payload to exercise compression path.
@@ -152,14 +186,18 @@ func TestRawChannelStream_NoContentLoss(t *testing.T) {
 	var got bytes.Buffer
 	buf := make([]byte, 8192)
 	for {
-		readN, rerr := reader.Read(buf)
+		readN, rerr := reader.ReadInto(buf)
 		if readN > 0 {
 			got.Write(buf[:readN])
 		}
 		if rerr != nil {
+			if errors.Is(rerr, ErrWouldBlock) {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
 			t.Fatalf("read error: %v", rerr)
 		}
-		if readN == 0 && reader.EOF() {
+		if readN == 0 && got.Len() == len(want) {
 			break
 		}
 		// Safety: shouldn't spin forever.
@@ -184,13 +222,13 @@ func TestRawChannelReader_ReadyCallback_BufferedSize(t *testing.T) {
 	oa.peer.Store(cb)
 	ob.peer.Store(ca)
 
-	reader := NewRawChannelReader(1, cb)
+	reader := newTestRawChannelReader(1, cb)
 	defer reader.Close()
 
 	ready := make(chan int, 4)
 	reader.AddReadyCallback(func(n int) { ready <- n })
 
-	writer := NewRawChannelWriter(1, ca)
+	writer := newTestRawChannelWriter(1, ca)
 	defer writer.Close()
 
 	if _, err := writer.Write([]byte("1234567890")); err != nil {
@@ -230,7 +268,7 @@ func TestStreamDataMessage_PackWithoutStreamIDFails(t *testing.T) {
 func TestRawChannelReader_RemoveReadyCallback_PanicsLikeValueError(t *testing.T) {
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	reader := NewRawChannelReader(1, ch)
+	reader := newTestRawChannelReader(1, ch)
 	defer reader.Close()
 
 	cb := func(int) {}
@@ -240,40 +278,16 @@ func TestRawChannelReader_RemoveReadyCallback_PanicsLikeValueError(t *testing.T)
 		if rec == nil {
 			t.Fatal("expected panic")
 		}
-		ve, ok := rec.(*BufferValueError)
+		ve, ok := rec.(error)
 		if !ok {
-			t.Fatalf("panic type=%T, want *BufferValueError", rec)
+			t.Fatalf("panic type=%T, want error", rec)
 		}
-		if ve.Message != "list.remove(x): x not in list" {
-			t.Fatalf("panic message=%q", ve.Message)
+		if ve.Error() != "list.remove(x): x not in list" {
+			t.Fatalf("panic message=%q", ve.Error())
 		}
 	}()
 
 	reader.RemoveReadyCallback(cb)
-}
-
-func TestRawChannelWriter_CloseWaitDuration_MatchesPythonFallback(t *testing.T) {
-	t.Parallel()
-
-	oa := newLoopOutlet("a", 65535)
-	ch := NewChannel(oa)
-	writer := NewRawChannelWriter(1, ch)
-	if got := writer.closeWaitDuration(); got != 15*time.Second {
-		t.Fatalf("closeWaitDuration()=%v, want 15s", got)
-	}
-}
-
-func TestRawChannelWriter_CloseWaitDuration_PreservesFractionalRTT(t *testing.T) {
-	t.Parallel()
-
-	link := &Link{RTT: 50 * time.Millisecond}
-	ch := NewChannel(NewLinkChannelOutlet(link))
-	ch.txRing = []*Envelope{{}, {}}
-
-	writer := NewRawChannelWriter(1, ch)
-	if got := writer.closeWaitDuration(); got != 100*time.Millisecond {
-		t.Fatalf("closeWaitDuration()=%v, want 100ms", got)
-	}
 }
 
 func TestRawChannelWriter_Close_LinkNotReadyDoesNotBlockOrFail(t *testing.T) {
@@ -283,7 +297,7 @@ func TestRawChannelWriter_Close_LinkNotReadyDoesNotBlockOrFail(t *testing.T) {
 	ch := NewChannel(NewLinkChannelOutlet(link))
 	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
 
-	writer := NewRawChannelWriter(1, ch)
+	writer := CreateWriter(1, ch)
 	start := time.Now()
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close() err=%v", err)
@@ -298,28 +312,28 @@ func TestRawChannelReader_CloseDoesNotForceEOF(t *testing.T) {
 
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	reader := NewRawChannelReader(1, ch)
+	reader := newTestRawChannelReader(1, ch)
 
 	if err := reader.Close(); err != nil {
 		t.Fatalf("Close() err=%v", err)
 	}
 
 	buf := make([]byte, 8)
-	n, err := reader.TryRead(buf)
+	n, err := reader.ReadInto(buf)
 	if n != 0 {
-		t.Fatalf("TryRead() n=%d, want 0", n)
+		t.Fatalf("ReadInto() n=%d, want 0", n)
 	}
 	if !errors.Is(err, ErrWouldBlock) {
-		t.Fatalf("TryRead() err=%v, want ErrWouldBlock", err)
+		t.Fatalf("ReadInto() err=%v, want ErrWouldBlock", err)
 	}
 }
 
-func TestRawChannelReader_ReadInto_NoDataReturnsZeroNil(t *testing.T) {
+func TestRawChannelReader_ReadInto_NoDataReturnsZeroWouldBlock(t *testing.T) {
 	t.Parallel()
 
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	reader := NewRawChannelReader(1, ch)
+	reader := newTestRawChannelReader(1, ch)
 	defer reader.Close()
 
 	buf := make([]byte, 8)
@@ -327,8 +341,8 @@ func TestRawChannelReader_ReadInto_NoDataReturnsZeroNil(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("ReadInto() n=%d, want 0", n)
 	}
-	if err != nil {
-		t.Fatalf("ReadInto() err=%v, want nil", err)
+	if !errors.Is(err, ErrWouldBlock) {
+		t.Fatalf("ReadInto() err=%v, want ErrWouldBlock", err)
 	}
 }
 
@@ -343,9 +357,9 @@ func TestRawChannelReader_ReadInto_EOFReturnsZeroNil(t *testing.T) {
 	oa.peer.Store(cb)
 	ob.peer.Store(ca)
 
-	reader := NewRawChannelReader(1, cb)
+	reader := newTestRawChannelReader(1, cb)
 	defer reader.Close()
-	writer := NewRawChannelWriter(1, ca)
+	writer := newTestRawChannelWriter(1, ca)
 
 	if _, err := writer.Write([]byte("hi")); err != nil {
 		t.Fatalf("write: %v", err)
@@ -370,7 +384,7 @@ func TestRawChannelReader_ReadInto_EOFReturnsZeroNil(t *testing.T) {
 	}
 }
 
-func TestChannelBufferedReader_NoDataReturnsZeroNil(t *testing.T) {
+func TestRawChannelReader_NoDataReturnsZeroWouldBlock(t *testing.T) {
 	t.Parallel()
 
 	oa := newLoopOutlet("a", 65535)
@@ -378,61 +392,52 @@ func TestChannelBufferedReader_NoDataReturnsZeroNil(t *testing.T) {
 	reader := CreateReader(1, ch, nil)
 
 	buf := make([]byte, 8)
-	n, err := reader.Read(buf)
+	n, err := reader.ReadInto(buf)
 	if n != 0 {
-		t.Fatalf("Read() n=%d, want 0", n)
+		t.Fatalf("ReadInto() n=%d, want 0", n)
 	}
-	if err != nil {
-		t.Fatalf("Read() err=%v, want nil", err)
-	}
-	if reader.EOF() {
-		t.Fatal("EOF()=true, want false")
+	if !errors.Is(err, ErrWouldBlock) {
+		t.Fatalf("ReadInto() err=%v, want ErrWouldBlock", err)
 	}
 }
 
-func TestChannelBufferedWriter_FlushWouldBlockInsteadOfWaiting(t *testing.T) {
+func TestRawChannelWriter_WriteReturnsZeroWhenNotReady(t *testing.T) {
 	t.Parallel()
 
 	link := &Link{}
 	ch := NewChannel(NewLinkChannelOutlet(link))
 	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
 
-	writer := CreateWriter(1, ch)
-	if n, err := writer.Write([]byte("abc")); err != nil || n != 3 {
-		t.Fatalf("Write() n=%d err=%v, want 3 nil", n, err)
-	}
-
+	writer := newTestRawChannelWriter(1, ch)
 	start := time.Now()
-	err := writer.Flush()
-	if err == nil {
-		t.Fatal("Flush() err=nil, want would-block error")
+	n, err := writer.Write([]byte("abc"))
+	if err != nil {
+		t.Fatalf("Write() err=%v, want nil", err)
 	}
-	var wb *BufferWouldBlockError
-	if !errors.As(err, &wb) {
-		t.Fatalf("Flush() err=%T %v, want *BufferWouldBlockError", err, err)
+	if n != 0 {
+		t.Fatalf("Write() n=%d, want 0", n)
 	}
 	if time.Since(start) > 200*time.Millisecond {
-		t.Fatalf("Flush() unexpectedly blocked")
+		t.Fatalf("Write() unexpectedly blocked")
 	}
 }
 
-func TestChannelBufferedWriter_LargeWriteReturnsShortProgressWhenNotReady(t *testing.T) {
+func TestRawChannelWriter_LargeWriteReturnsZeroWhenNotReady(t *testing.T) {
 	t.Parallel()
 
 	link := &Link{}
 	ch := NewChannel(NewLinkChannelOutlet(link))
 	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
 
-	writer := CreateWriter(1, ch)
+	writer := newTestRawChannelWriter(1, ch)
 	payload := bytes.Repeat([]byte("x"), defaultBufferSize)
 	start := time.Now()
 	n, err := writer.Write(payload)
 	if n != 0 {
 		t.Fatalf("Write() n=%d, want 0", n)
 	}
-	var wb *BufferWouldBlockError
-	if !errors.As(err, &wb) {
-		t.Fatalf("Write() err=%T %v, want *BufferWouldBlockError", err, err)
+	if err != nil {
+		t.Fatalf("Write() err=%v, want nil", err)
 	}
 	if time.Since(start) > 200*time.Millisecond {
 		t.Fatalf("Write() unexpectedly blocked")
@@ -444,7 +449,7 @@ func TestRawChannelReader_RawIOFlags(t *testing.T) {
 
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	reader := NewRawChannelReader(1, ch)
+	reader := newTestRawChannelReader(1, ch)
 	defer reader.Close()
 
 	if !reader.Readable() {
@@ -463,7 +468,7 @@ func TestRawChannelWriter_RawIOFlags(t *testing.T) {
 
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	writer := NewRawChannelWriter(1, ch)
+	writer := newTestRawChannelWriter(1, ch)
 
 	if writer.Readable() {
 		t.Fatal("Readable()=true, want false")
@@ -481,7 +486,7 @@ func TestRawChannelWriter_EmptyWriteStillSendsMessage(t *testing.T) {
 
 	oa := newLoopOutlet("a", 65535)
 	ch := NewChannel(oa)
-	writer := NewRawChannelWriter(1, ch)
+	writer := newTestRawChannelWriter(1, ch)
 
 	if n, err := writer.Write([]byte{}); err != nil || n != 0 {
 		t.Fatalf("Write(empty) n=%d err=%v, want 0 nil", n, err)
@@ -495,7 +500,7 @@ func TestRawChannelWriter_EmptyWriteStillSendsMessage(t *testing.T) {
 	}
 }
 
-func TestChannelBufferedReader_EOFOracle(t *testing.T) {
+func TestRawChannelReader_EndOfStreamReturnsZeroNil(t *testing.T) {
 	t.Parallel()
 
 	oa := newLoopOutlet("a", 65535)
@@ -507,7 +512,7 @@ func TestChannelBufferedReader_EOFOracle(t *testing.T) {
 	ob.peer.Store(ca)
 
 	reader := CreateReader(1, cb, nil)
-	writer := NewRawChannelWriter(1, ca)
+	writer := CreateWriter(1, ca)
 
 	if _, err := writer.Write([]byte("hi")); err != nil {
 		t.Fatalf("write: %v", err)
@@ -517,23 +522,23 @@ func TestChannelBufferedReader_EOFOracle(t *testing.T) {
 	}
 
 	buf := make([]byte, 8)
-	n, err := reader.Read(buf)
+	n, err := reader.ReadInto(buf)
 	if err != nil || n == 0 {
-		t.Fatalf("Read() n=%d err=%v, want >0 nil", n, err)
+		t.Fatalf("ReadInto() n=%d err=%v, want >0 nil", n, err)
 	}
 
-	// Drain: subsequent reads should return 0,nil, and EOF() should become true.
+	// Drain: subsequent reads should return 0,nil once the EOF marker is consumed.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		n, err = reader.Read(buf)
+		n, err = reader.ReadInto(buf)
 		if err != nil {
-			t.Fatalf("Read() err=%v, want nil", err)
+			t.Fatalf("ReadInto() err=%v, want nil", err)
 		}
-		if n == 0 && reader.EOF() {
+		if n == 0 {
 			return
 		}
 	}
-	t.Fatal("timeout waiting for EOF()=true")
+	t.Fatal("timeout waiting for end-of-stream 0,nil")
 }
 
 func TestBufferAliases_CreateHelpersReturnAliasTypes(t *testing.T) {

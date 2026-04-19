@@ -2,6 +2,7 @@ package rns
 
 import (
 	"bytes"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func TestBufferIntegration_RawChannelWriter_NonBlockingOnLinkNotReady(t *testing
 	o := &stuckOutlet{name: "stuck", mdu: 65535, rtt: 0.05}
 	ch := NewChannel(o)
 
-	writer := NewRawChannelWriter(1, ch)
+	writer := newTestRawChannelWriter(1, ch)
 
 	// First writes should succeed until the channel window is full.
 	n1, err := writer.Write([]byte("hello"))
@@ -65,14 +66,15 @@ func TestBufferIntegration_RawChannelWriter_NonBlockingOnLinkNotReady(t *testing
 		t.Fatalf("write2 expected progress")
 	}
 
-	// Third write should hit ME_LINK_NOT_READY and return 0 (non-blocking).
+	// Third write should remain non-blocking and report no progress once the
+	// channel window is exhausted.
 	start := time.Now()
 	n3, err := writer.Write([]byte("!"))
 	if err != nil {
 		t.Fatalf("write3 err: %v", err)
 	}
 	if n3 != 0 {
-		t.Fatalf("write3 expected 0, got %d", n3)
+		t.Fatalf("write3 n=%d, want 0 once channel is full", n3)
 	}
 	if time.Since(start) > 100*time.Millisecond {
 		t.Fatalf("write3 unexpectedly blocked")
@@ -80,8 +82,8 @@ func TestBufferIntegration_RawChannelWriter_NonBlockingOnLinkNotReady(t *testing
 }
 
 func TestBufferIntegration_ChannelBufferedWriter_FlushBlocksUntilProgress(t *testing.T) {
-	// This is a smoke test that Flush uses the blocking write path and that the
-	// receiving side can unpack StreamDataMessage.
+	// This is a smoke test that raw write sends StreamDataMessage and the
+	// receiving side can unpack it.
 	oa := newLoopOutlet("a", 65535)
 	ob := newLoopOutlet("b", 65535)
 	ca := NewChannel(oa)
@@ -89,7 +91,7 @@ func TestBufferIntegration_ChannelBufferedWriter_FlushBlocksUntilProgress(t *tes
 	oa.peer.Store(cb)
 	ob.peer.Store(ca)
 
-	reader := NewRawChannelReader(1, cb)
+	reader := CreateReader(1, cb, nil)
 	defer reader.Close()
 	writer := CreateWriter(1, ca)
 	defer writer.Close()
@@ -98,7 +100,23 @@ func TestBufferIntegration_ChannelBufferedWriter_FlushBlocksUntilProgress(t *tes
 	if _, err := writer.Write(payload); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := writer.Flush(); err != nil {
-		t.Fatalf("flush: %v", err)
+	buf := make([]byte, len(payload))
+	var got bytes.Buffer
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		n, err := reader.ReadInto(buf)
+		if err != nil && !errors.Is(err, ErrWouldBlock) {
+			t.Fatalf("read: %v", err)
+		}
+		if n > 0 {
+			got.Write(buf[:n])
+		}
+		if got.Len() >= len(payload) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !bytes.Equal(got.Bytes(), payload) {
+		t.Fatalf("payload mismatch: got %d want %d", got.Len(), len(payload))
 	}
 }

@@ -616,15 +616,14 @@ func TestIntegration_BufferRoundTrip_Small(t *testing.T) {
 
 		// Responder side: echo back incoming data with " back at you".
 		peerCh := peer.Channel()
-		var peerBuf *ChannelBufferedReadWriter
-		peerBuf = Buffer.CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
+		var peerBuf *BufferedRWPair
+		peerBuf = CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
 			data := make([]byte, readyBytes)
-			n, rerr := peerBuf.Read(data)
+			n, rerr := peerBuf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
-			_, _ = peerBuf.Write(append(data[:n], []byte(" back at you")...))
-			_ = peerBuf.Flush()
+			_, _ = peerBuf.Writer.Write(append(data[:n], []byte(" back at you")...))
 		})
 
 		// Initiator side: collect received response.
@@ -633,10 +632,10 @@ func TestIntegration_BufferRoundTrip_Small(t *testing.T) {
 			mu       sync.Mutex
 			received [][]byte
 		)
-		var initBuf *ChannelBufferedReadWriter
-		initBuf = Buffer.CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
+		var initBuf *BufferedRWPair
+		initBuf = CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
 			data := make([]byte, readyBytes)
-			n, rerr := initBuf.Read(data)
+			n, rerr := initBuf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
@@ -645,8 +644,7 @@ func TestIntegration_BufferRoundTrip_Small(t *testing.T) {
 			mu.Unlock()
 		})
 
-		_, _ = initBuf.Write([]byte("Hi there"))
-		_ = initBuf.Flush()
+		_, _ = initBuf.Writer.Write([]byte("Hi there"))
 
 		waitUntil := time.Now().Add(2 * time.Second)
 		for time.Now().Before(waitUntil) {
@@ -726,7 +724,7 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 		_, _ = rand.Read(msg)
 
 		// Build expected response: insert " back at you" every MAX_DATA_LEN and at the end.
-		maxDataLen := streamMaxDataLen(l.Channel())
+		maxDataLen := LinkMDU - OVERHEAD
 		if maxDataLen <= 0 {
 			t.Fatalf("invalid stream max data len")
 		}
@@ -747,21 +745,21 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 		}
 		var (
 			peerMu      sync.Mutex
-			peerBuf     *ChannelBufferedReadWriter
+			peerBuf     *BufferedRWPair
 			peerAcc     []byte
 			peerChunks  [][]byte
 			peerAccSize int
 			peerRxCount int
 			peerRxSizes []int
 		)
-		peerBuf = Buffer.CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
+		peerBuf = CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
 			// Debug: show progress if needed.
 			_ = readyBytes
 			if readyBytes <= 0 {
 				return
 			}
 			data := make([]byte, readyBytes)
-			n, rerr := peerBuf.Read(data)
+			n, rerr := peerBuf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
@@ -783,8 +781,7 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 			peerAccSize = 0
 			peerMu.Unlock()
 			for _, c := range chunks {
-				_, _ = peerBuf.Write(append(c, suffix...))
-				_ = peerBuf.Flush()
+				_, _ = peerBuf.Writer.Write(append(c, suffix...))
 			}
 		})
 
@@ -795,13 +792,13 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 		}
 		var (
 			initMu      sync.Mutex
-			initBuf     *ChannelBufferedReadWriter
+			initBuf     *BufferedRWPair
 			got         []byte
 			initRxCount int
 		)
-		initBuf = Buffer.CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
+		initBuf = CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
 			data := make([]byte, readyBytes)
-			n, rerr := initBuf.Read(data)
+			n, rerr := initBuf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
@@ -811,8 +808,7 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 			initMu.Unlock()
 		})
 
-		_, _ = initBuf.Write(msg)
-		_ = initBuf.Flush()
+		_, _ = initBuf.Writer.Write(msg)
 
 		waitUntil := time.Now().Add(5 * time.Second)
 		for time.Now().Before(waitUntil) {
@@ -885,7 +881,7 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOutgoingLink: %v", err)
 	}
-		waitForLinkActiveOrSkip(t, l, 4*time.Second)
+	waitForLinkActiveOrSkip(t, l, 4*time.Second)
 
 	peer := findPeerLinkTest(l)
 	if peer == nil {
@@ -902,7 +898,7 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 	msg := make([]byte, targetBytes)
 	_, _ = rand.Read(msg)
 
-	maxDataLen := streamMaxDataLen(l.Channel())
+	maxDataLen := LinkMDU - OVERHEAD
 	if maxDataLen <= 0 {
 		t.Fatalf("invalid stream max data len")
 	}
@@ -919,16 +915,16 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 	peerCh := peer.Channel()
 	var (
 		peerMu     sync.Mutex
-		peerBuf    *ChannelBufferedReadWriter
+		peerBuf    *BufferedRWPair
 		peerAcc    []byte
 		peerChunks [][]byte
 	)
-	peerBuf = Buffer.CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
+	peerBuf = CreateBidirectionalBuffer(0, 0, peerCh, func(readyBytes int) {
 		if readyBytes <= 0 {
 			return
 		}
 		data := make([]byte, readyBytes)
-		n, rerr := peerBuf.Read(data)
+		n, rerr := peerBuf.Reader.ReadInto(data)
 		if rerr != nil || n == 0 {
 			return
 		}
@@ -946,20 +942,19 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 		peerAcc = nil
 		peerMu.Unlock()
 		for _, c := range chunks {
-			_, _ = peerBuf.Write(append(c, suffix...))
-			_ = peerBuf.Flush()
+			_, _ = peerBuf.Writer.Write(append(c, suffix...))
 		}
 	})
 
 	initCh := l.Channel()
 	var (
 		initMu  sync.Mutex
-		initBuf *ChannelBufferedReadWriter
+		initBuf *BufferedRWPair
 		got     []byte
 	)
-	initBuf = Buffer.CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
+	initBuf = CreateBidirectionalBuffer(0, 0, initCh, func(readyBytes int) {
 		data := make([]byte, readyBytes)
-		n, rerr := initBuf.Read(data)
+		n, rerr := initBuf.Reader.ReadInto(data)
 		if rerr != nil || n == 0 {
 			return
 		}
@@ -968,8 +963,7 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 		initMu.Unlock()
 	})
 
-	_, _ = initBuf.Write(msg)
-	_ = initBuf.Flush()
+	_, _ = initBuf.Writer.Write(msg)
 
 	waitUntil := time.Now().Add(180 * time.Second)
 	for time.Now().Before(waitUntil) {

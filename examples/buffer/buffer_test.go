@@ -109,32 +109,31 @@ func TestBufferExample_BidirectionalEcho(t *testing.T) {
 	outB.connect(chA)
 
 	var (
-		serverBuf *rns.ChannelBufferedReadWriter
-		clientBuf *rns.ChannelBufferedReadWriter
+		serverBuf *rns.BufferedRWPair
+		clientBuf *rns.BufferedRWPair
 		mu        sync.Mutex
 		got       []string
 	)
 
-	serverBuf = rns.Buffer.CreateBidirectionalBuffer(0, 0, chB, func(readyBytes int) {
+	serverBuf = rns.CreateBidirectionalBuffer(0, 0, chB, func(readyBytes int) {
 		if readyBytes <= 0 {
 			return
 		}
 		data := make([]byte, readyBytes)
-		n, _ := serverBuf.Read(data)
+		n, _ := serverBuf.Reader.ReadInto(data)
 		if n == 0 {
 			return
 		}
 		reply := []byte("I received \"" + string(data[:n]) + "\" over the buffer")
-		_, _ = serverBuf.Write(reply)
-		_ = serverBuf.Flush()
+		_, _ = serverBuf.Writer.Write(reply)
 	})
 
-	clientBuf = rns.Buffer.CreateBidirectionalBuffer(0, 0, chA, func(readyBytes int) {
+	clientBuf = rns.CreateBidirectionalBuffer(0, 0, chA, func(readyBytes int) {
 		if readyBytes <= 0 {
 			return
 		}
 		data := make([]byte, readyBytes)
-		n, _ := clientBuf.Read(data)
+		n, _ := clientBuf.Reader.ReadInto(data)
 		if n == 0 {
 			return
 		}
@@ -143,8 +142,7 @@ func TestBufferExample_BidirectionalEcho(t *testing.T) {
 		mu.Unlock()
 	})
 
-	_, _ = clientBuf.Write([]byte("hello"))
-	_ = clientBuf.Flush()
+	_, _ = clientBuf.Writer.Write([]byte("hello"))
 
 	waitUntil := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(waitUntil) {

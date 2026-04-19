@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dsnet/compress/bzip2"
 	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
@@ -649,10 +650,19 @@ func NewResource(
 		var toSend []byte
 		if res.autoCompress && len(uncompressed) <= res.autoCompressLimit {
 			Log("Compressing resource data...", LOG_EXTREME)
-			compressed, err := bz2Compress(uncompressed)
+			var compressedBuf bytes.Buffer
+			writer, err := bzip2.NewWriter(&compressedBuf, nil)
 			if err != nil {
 				return nil, err
 			}
+			if _, err := writer.Write(uncompressed); err != nil {
+				_ = writer.Close()
+				return nil, err
+			}
+			if err := writer.Close(); err != nil {
+				return nil, err
+			}
+			compressed := compressedBuf.Bytes()
 			res.comp = len(compressed) < len(uncompressed)
 			if res.comp {
 				toSend = compressed
@@ -1200,13 +1210,20 @@ func (r *Resource) Assemble() {
 	data = data[RandomHashSize:]
 
 	if r.comp {
-		var err error
-		data, err = bz2Decompress(data)
+		reader, err := bzip2.NewReader(bytes.NewReader(data), nil)
 		if err != nil {
 			Log(fmt.Sprintf("Error while bz2 decompress resource: %v", err), LOG_ERROR)
 			r.status = ResourceCorrupt
 			return
 		}
+		decompressed, err := io.ReadAll(reader)
+		reader.Close()
+		if err != nil {
+			Log(fmt.Sprintf("Error while bz2 decompress resource: %v", err), LOG_ERROR)
+			r.status = ResourceCorrupt
+			return
+		}
+		data = decompressed
 	}
 
 	fullData := append([]byte(nil), data...)

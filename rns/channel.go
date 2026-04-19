@@ -82,6 +82,9 @@ const (
 type MessageBase interface {
 	Pack() ([]byte, error)
 	Unpack(raw []byte) error
+}
+
+type messageTyper interface {
 	MsgType() uint16
 }
 
@@ -96,6 +99,8 @@ type Envelope struct {
 	id       uintptr
 	message  MessageBase
 	raw      []byte
+	msgType  uint16
+	msgSet   bool
 	packet   any
 	sequence uint16
 	outlet   ChannelOutletBase
@@ -137,7 +142,16 @@ func (e *Envelope) Pack() ([]byte, error) {
 	if e.message == nil {
 		return nil, errors.New("envelope has no message")
 	}
-	mt := e.message.MsgType()
+	mt := e.msgType
+	if !e.msgSet {
+		if typer, ok := e.message.(messageTyper); ok {
+			mt = typer.MsgType()
+			e.msgType = mt
+			e.msgSet = true
+		} else {
+			return nil, errors.New("message type not registered")
+		}
+	}
 	data, err := e.message.Pack()
 	if err != nil {
 		return nil, err
@@ -174,6 +188,7 @@ type Channel struct {
 	nextRxSequence   uint16
 
 	messageFactories map[uint16]func() MessageBase
+	messageTypes     map[reflect.Type]uint16
 
 	maxTries          int
 	fastRateRounds    int
@@ -227,6 +242,7 @@ func NewChannel(outlet ChannelOutletBase) *Channel {
 		rxRing:           make([]*Envelope, 0),
 		messageCallbacks: make([]MessageCallbackType, 0),
 		messageFactories: make(map[uint16]func() MessageBase),
+		messageTypes:     make(map[reflect.Type]uint16),
 		maxTries:         5,
 		packetIndex:      make(map[string]*Envelope),
 		messageStates:    make(map[uint16]MessageState),
@@ -292,13 +308,31 @@ func (c *Channel) RegisterMessageType(msg any) {
 	}
 }
 
+func (c *Channel) RegisterMessageTypeWithID(msg any, msgType uint16) {
+	if err := c.TryRegisterMessageTypeWithID(msg, msgType); err != nil {
+		panic(err)
+	}
+}
+
 func (c *Channel) TryRegisterMessageType(msg any) error {
 	return c._register_message_type(msg, false)
+}
+
+func (c *Channel) TryRegisterMessageTypeWithID(msg any, msgType uint16) error {
+	return c._register_message_type_with_id(msg, false, msgType)
 }
 
 // _register_message_type is internal.
 
 func (c *Channel) _register_message_type(msg any, isSystemType bool) error {
+	return c.registerMessageTypeLocked(msg, isSystemType, nil)
+}
+
+func (c *Channel) _register_message_type_with_id(msg any, isSystemType bool, msgType uint16) error {
+	return c.registerMessageTypeLocked(msg, isSystemType, &msgType)
+}
+
+func (c *Channel) registerMessageTypeLocked(msg any, isSystemType bool, explicitType *uint16) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -311,7 +345,17 @@ func (c *Channel) _register_message_type(msg any, isSystemType bool) error {
 		return err
 	}
 
-	mt := sample.MsgType()
+	mt, ok := messageTypeFrom(sample)
+	if explicitType != nil {
+		mt = *explicitType
+		ok = true
+	}
+	if !ok {
+		return &ChannelException{
+			Type: ME_INVALID_MSG_TYPE,
+			Msg:  "message type not provided",
+		}
+	}
 	if mt >= 0xf000 && !isSystemType {
 		return &ChannelException{
 			Type: ME_INVALID_MSG_TYPE,
@@ -320,7 +364,16 @@ func (c *Channel) _register_message_type(msg any, isSystemType bool) error {
 	}
 
 	c.messageFactories[mt] = factory
+	c.messageTypes[reflect.TypeOf(sample)] = mt
 	return nil
+}
+
+func messageTypeFrom(msg any) (uint16, bool) {
+	typer, ok := msg.(messageTyper)
+	if !ok {
+		return 0, false
+	}
+	return typer.MsgType(), true
 }
 
 func channelFactoryFrom(msg any) (func() MessageBase, MessageBase, error) {
@@ -777,10 +830,21 @@ func (c *Channel) TrySend(message MessageBase) (*Envelope, error) {
 
 	seq := c.nextSequence
 	c.nextSequence = uint16((int(c.nextSequence) + 1) % SeqModulus)
+	msgType, ok := c.messageTypes[reflect.TypeOf(message)]
+	if !ok {
+		if mt, ok := messageTypeFrom(message); ok {
+			msgType = mt
+		} else {
+			c.lock.Unlock()
+			return nil, &ChannelException{Type: ME_INVALID_MSG_TYPE, Msg: "message type not registered"}
+		}
+	}
 	env := &Envelope{
 		ts:       float64(time.Now().UnixNano()) / 1e9,
 		id:       reflect.ValueOf(&struct{}{}).Pointer(),
 		message:  message,
+		msgType:  msgType,
+		msgSet:   true,
 		sequence: seq,
 		outlet:   c.outlet,
 	}

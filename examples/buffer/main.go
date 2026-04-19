@@ -62,7 +62,7 @@ func runServer(configDir *string) {
 		os.Exit(1)
 	}
 
-	var latestBuf *rns.ChannelBufferedReadWriter
+	var latestBuf *rns.BufferedRWPair
 	dest.SetLinkEstablishedCallback(func(link *rns.Link) {
 		rns.Log("Client connected", rns.LogInfo)
 		link.SetLinkClosedCallback(func(*rns.Link) {
@@ -74,20 +74,19 @@ func runServer(configDir *string) {
 		}
 
 		ch := link.Channel()
-		latestBuf = rns.Buffer.CreateBidirectionalBuffer(0, 0, ch, func(readyBytes int) {
+		latestBuf = rns.CreateBidirectionalBuffer(0, 0, ch, func(readyBytes int) {
 			if latestBuf == nil || readyBytes <= 0 {
 				return
 			}
 			data := make([]byte, readyBytes)
-			n, rerr := latestBuf.Read(data)
+			n, rerr := latestBuf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
 			msg := string(data[:n])
 			rns.Log("Received data over the buffer: "+msg, rns.LogInfo)
 			reply := []byte("I received \"" + msg + "\" over the buffer")
-			_, _ = latestBuf.Write(reply)
-			_ = latestBuf.Flush()
+			_, _ = latestBuf.Writer.Write(reply)
 		})
 	})
 
@@ -146,15 +145,15 @@ func runClient(destinationHex string, configDir *string) {
 		os.Exit(1)
 	}
 
-	var buf *rns.ChannelBufferedReadWriter
+	var buf *rns.BufferedRWPair
 	link.SetLinkEstablishedCallback(func(l *rns.Link) {
 		ch := l.Channel()
-		buf = rns.Buffer.CreateBidirectionalBuffer(0, 0, ch, func(readyBytes int) {
+		buf = rns.CreateBidirectionalBuffer(0, 0, ch, func(readyBytes int) {
 			if buf == nil || readyBytes <= 0 {
 				return
 			}
 			data := make([]byte, readyBytes)
-			n, rerr := buf.Read(data)
+			n, rerr := buf.Reader.ReadInto(data)
 			if rerr != nil || n == 0 {
 				return
 			}
@@ -195,7 +194,6 @@ func runClient(destinationHex string, configDir *string) {
 			link.Teardown()
 			return
 		}
-		_, _ = buf.Write([]byte(text))
-		_ = buf.Flush()
+		_, _ = buf.Writer.Write([]byte(text))
 	}
 }
