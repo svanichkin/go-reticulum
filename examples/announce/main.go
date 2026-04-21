@@ -62,8 +62,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	_ = destFruits.SetProofStrategy(rns.DestinationPROVE_ALL)
-	_ = destGases.SetProofStrategy(rns.DestinationPROVE_ALL)
+	destFruits.SetProofStrategy(rns.DestinationPROVE_ALL)
+	destGases.SetProofStrategy(rns.DestinationPROVE_ALL)
 
 	rns.RegisterAnnounceHandler(&exampleAnnounceHandler{
 		aspectFilter: "example_utilities.announcesample.fruits",
@@ -76,10 +76,10 @@ func main() {
 	for in.Scan() {
 		fruit := fruits[rng.Intn(len(fruits))]
 		destFruits.Announce([]byte(fruit), false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(destFruits.Hash())+" ("+destFruits.Name()+")", rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(destFruits.Hash), rns.LogInfo)
 
 		gas := nobleGases[rng.Intn(len(nobleGases))]
 		destGases.Announce([]byte(gas), false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(destGases.Hash())+" ("+destGases.Name()+")", rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(destGases.Hash), rns.LogInfo)
 	}
 }

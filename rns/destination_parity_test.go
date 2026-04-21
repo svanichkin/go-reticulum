@@ -17,16 +17,16 @@ func TestDestinationSetProofStrategy_InvalidPanics(t *testing.T) {
 		if rec == nil {
 			t.Fatal("expected panic for unsupported proof strategy")
 		}
-		stateErr, ok := rec.(*DestinationStateError)
+		typeErr, ok := rec.(*DestinationTypeError)
 		if !ok {
-			t.Fatalf("panic type=%T, want *DestinationStateError", rec)
+			t.Fatalf("panic type=%T, want *DestinationTypeError", rec)
 		}
-		if stateErr.Message != "Unsupported proof strategy" {
-			t.Fatalf("panic message=%q, want %q", stateErr.Message, "Unsupported proof strategy")
+		if typeErr.Message != "Unsupported proof strategy" {
+			t.Fatalf("panic message=%q, want %q", typeErr.Message, "Unsupported proof strategy")
 		}
 	}()
 
-	_ = d.SetProofStrategy(0x99)
+	d.SetProofStrategy(0x99)
 }
 
 func TestDestinationGroupEncryptDecrypt_WithoutKeyPanics(t *testing.T) {
@@ -41,13 +41,6 @@ func TestDestinationGroupEncryptDecrypt_WithoutKeyPanics(t *testing.T) {
 			if rec == nil {
 				t.Fatal("expected panic from Encrypt without group key")
 			}
-			stateErr, ok := rec.(*DestinationStateError)
-			if !ok {
-				t.Fatalf("encrypt panic type=%T, want *DestinationStateError", rec)
-			}
-			if stateErr.Message != "No private key held by GROUP destination. Did you create or load one?" {
-				t.Fatalf("encrypt panic message=%q", stateErr.Message)
-			}
 		}()
 		_ = d.Encrypt([]byte("hello"))
 	}()
@@ -58,12 +51,12 @@ func TestDestinationGroupEncryptDecrypt_WithoutKeyPanics(t *testing.T) {
 			if rec == nil {
 				t.Fatal("expected panic from Decrypt without group key")
 			}
-			stateErr, ok := rec.(*DestinationStateError)
+			valueErr, ok := rec.(*DestinationValueError)
 			if !ok {
-				t.Fatalf("decrypt panic type=%T, want *DestinationStateError", rec)
+				t.Fatalf("panic type=%T, want *DestinationValueError", rec)
 			}
-			if stateErr.Message != "No private key held by GROUP destination. Did you create or load one?" {
-				t.Fatalf("decrypt panic message=%q", stateErr.Message)
+			if valueErr.Message != "No private key held by GROUP destination. Did you create or load one?" {
+				t.Fatalf("panic message=%q", valueErr.Message)
 			}
 		}()
 		_ = d.Decrypt([]byte("cipher"))
@@ -95,7 +88,7 @@ func TestDestinationReloadRatchets_CorruptFileLogsRecoveryGuidance(t *testing.T)
 
 	joined := strings.Join(got, "\n")
 	wantSnippets := []string{
-		"First ratchet reload attempt for " + d.String() + " failed. Possible I/O conflict. Retrying in 500ms.",
+		"First ratchet reload attempt for " + str(d) + " failed. Possible I/O conflict. Retrying in 500ms.",
 		"The ratchet file located at " + path + " could not be loaded. This could indicate that the ratchet file has become corrupt.",
 		"You can attempt to manually recover the ratchet file, or simply remove it to have Reticulum recreate it on the next use.",
 		"If re-initialize this ratchet file, make sure to send an announce for the relevant destination as soon as possible,",

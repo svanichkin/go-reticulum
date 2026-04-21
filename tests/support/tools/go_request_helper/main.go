@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	rns "github.com/svanichkin/go-reticulum/rns"
@@ -70,6 +71,16 @@ func runReqListener(id *rns.Identity, waitSeconds float64) error {
 		return err
 	}
 
+	var (
+		linksMu sync.Mutex
+		links   []*rns.Link
+	)
+	dest.SetLinkEstablishedCallback(func(link *rns.Link) {
+		linksMu.Lock()
+		links = append(links, link)
+		linksMu.Unlock()
+	})
+
 	if err := dest.RegisterRequestHandler("echo", func(path string, data any, requestID []byte, linkID []byte, remoteIdentity *rns.Identity, requestedAt time.Time) any {
 		return fmt.Sprintf("echo:%v", data)
 	}, rns.DestinationALLOW_ALL, nil); err != nil {
@@ -109,7 +120,10 @@ func runReqListener(id *rns.Identity, waitSeconds float64) error {
 	}
 
 	if err := dest.RegisterRequestHandler("malformed", func(path string, data any, requestID []byte, linkID []byte, remoteIdentity *rns.Identity, requestedAt time.Time) any {
-		for _, link := range dest.Links() {
+		linksMu.Lock()
+		activeLinks := append([]*rns.Link(nil), links...)
+		linksMu.Unlock()
+		for _, link := range activeLinks {
 			if link != nil && string(link.LinkID) == string(linkID) {
 				packet := rns.NewPacket(
 					link,
@@ -129,7 +143,7 @@ func runReqListener(id *rns.Identity, waitSeconds float64) error {
 		return err
 	}
 
-	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash))
 	time.Sleep(time.Second)
 	deadline := time.Now().Add(durationReq(waitSeconds))
 	for time.Now().Before(deadline) {

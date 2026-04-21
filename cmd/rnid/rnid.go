@@ -429,8 +429,8 @@ func doHash(id *rns.Identity, aspectsStr string) {
 		rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 		rns.Exit(32)
 	}
-	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
-	rns.Log("The full destination specifier is "+dst.String(), rns.LogNotice)
+	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash), rns.LogNotice)
+	rns.Log("The full destination specifier is "+rns.PrettyHex(dst.Hash), rns.LogNotice)
 	time.Sleep(250 * time.Millisecond)
 	rns.Exit(0)
 }
@@ -450,8 +450,8 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 			rns.Exit(32)
 		}
-		rns.Log("Created destination "+dst.String(), rns.LogNotice)
-		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
+		rns.Log("Created destination "+rns.PrettyHex(dst.Hash), rns.LogNotice)
+		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash), rns.LogNotice)
 		time.Sleep(1100 * time.Millisecond)
 		dst.Announce(nil, false, nil, nil, true)
 		time.Sleep(250 * time.Millisecond)
@@ -462,8 +462,8 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 			rns.Exit(32)
 		}
-		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash()), rns.LogNotice)
-		rns.Log("The full destination specifier is "+dst.String(), rns.LogNotice)
+		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash), rns.LogNotice)
+		rns.Log("The full destination specifier is "+rns.PrettyHex(dst.Hash), rns.LogNotice)
 		rns.Log("Cannot announce this destination, since the private key is not held", rns.LogWarning)
 		time.Sleep(250 * time.Millisecond)
 		rns.Exit(33)
@@ -499,6 +499,19 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 				return rns.IdentityRecall(b, false) != nil || rns.IdentityRecall(b, true) != nil
 			}, "Requesting unknown Identity for "+rns.PrettyHash(b), timeout)
 			if !ok {
+				// The transport side may persist the announce just as the request
+				// timeout expires. Refresh the on-disk identity cache once before
+				// failing so we don't miss a late-arriving but otherwise valid reply.
+				if err := rns.IdentityLoadKnownDestinations(); err == nil {
+					id = rns.IdentityRecall(b, false)
+					if id == nil {
+						id = rns.IdentityRecall(b, true)
+					}
+					if id != nil {
+						rns.Log("Received Identity "+id.String()+" for destination "+rns.PrettyHash(b), rns.LogInfo)
+						return id
+					}
+				}
 				rns.Log("Identity request timed out", rns.LogError)
 				rns.Exit(6)
 			}

@@ -49,7 +49,7 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		Type:      DestinationPLAIN,
 		Direction: DestinationOUT,
 		identity:  remoteID,
-		hash:      append([]byte(nil), remoteID.Hash...),
+		Hash:      append([]byte(nil), remoteID.Hash...),
 		hexhash:   PrettyHexRep(remoteID.Hash),
 	}
 	Destinations = []*Destination{dest}
@@ -120,7 +120,7 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		RemainingHops:     1,
 		ReceivedInterface: localClient,
 		Hops:              1,
-		DestinationHash:   append([]byte(nil), dest.hash...),
+		DestinationHash:   append([]byte(nil), dest.Hash...),
 		Validated:         false,
 		ProofTimeout:      time.Now().Add(time.Hour),
 	}

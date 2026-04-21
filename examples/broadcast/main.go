@@ -47,7 +47,7 @@ func main() {
 	})
 
 	rns.Log(
-		"Broadcast example "+rns.PrettyHexRep(dest.Hash())+" running, enter text and hit enter to broadcast (Ctrl-C to quit)",
+		"Broadcast example "+rns.PrettyHexRep(dest.Hash)+" running, enter text and hit enter to broadcast (Ctrl-C to quit)",
 		rns.LogInfo,
 	)
 

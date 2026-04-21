@@ -487,7 +487,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 	lastPathRequest[key] = time.Now()
 	PendingLinks = []*Link{{
 		Status:      LinkClosed,
-		destination: &Destination{hash: append([]byte(nil), destHash...)},
+		destination: &Destination{Hash: append([]byte(nil), destHash...)},
 	}}
 
 	pathReqs := make(map[hashKey]*Interface)
@@ -504,7 +504,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 			}
 			if link.Status == LinkClosed {
 				if !TransportEnabled() && link.destination != nil {
-					destHash := link.destination.Hash()
+					destHash := link.destination.Hash
 					if ExpirePath(destHash) {
 						if Owner == nil || !Owner.IsConnectedToSharedInstance {
 							if key, ok := func(hash []byte) (hashKey, bool) {
@@ -531,7 +531,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 				}
 				continue
 			}
-			if link.destination != nil && len(link.destination.Hash()) >= truncatedHashBytes {
+			if link.destination != nil && len(link.destination.Hash) >= truncatedHashBytes {
 				if key, ok := func(hash []byte) (hashKey, bool) {
 					if len(hash) < truncatedHashBytes {
 						return hashKey{}, false
@@ -539,7 +539,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 					var key hashKey
 					copy(key[:], hash[:truncatedHashBytes])
 					return key, true
-				}(link.destination.Hash()); ok {
+				}(link.destination.Hash); ok {
 					pathReqs[key] = nil
 				}
 			}
@@ -556,7 +556,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 				go link.Teardown()
 				continue
 			}
-			if link.destination != nil && !HasPath(link.destination.Hash()) {
+			if link.destination != nil && !HasPath(link.destination.Hash) {
 				if key, ok := func(hash []byte) (hashKey, bool) {
 					if len(hash) < truncatedHashBytes {
 						return hashKey{}, false
@@ -564,7 +564,7 @@ func TestHandlePendingAndActiveLinks_ThrottlesClosedPendingLinkRediscovery(t *te
 					var key hashKey
 					copy(key[:], hash[:truncatedHashBytes])
 					return key, true
-				}(link.destination.Hash()); ok {
+				}(link.destination.Hash); ok {
 					pathReqs[key] = nil
 				}
 			}

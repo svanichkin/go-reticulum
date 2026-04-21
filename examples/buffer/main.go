@@ -87,16 +87,17 @@ func runServer(configDir *string) {
 			rns.Log("Received data over the buffer: "+msg, rns.LogInfo)
 			reply := []byte("I received \"" + msg + "\" over the buffer")
 			_, _ = latestBuf.Writer.Write(reply)
+			_ = latestBuf.Writer.Flush()
 		})
 	})
 
-	rns.Log("Link buffer example "+rns.PrettyHexRep(dest.Hash())+" running, waiting for a connection.", rns.LogInfo)
+	rns.Log("Link buffer example "+rns.PrettyHexRep(dest.Hash)+" running, waiting for a connection.", rns.LogInfo)
 	rns.Log("Hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		dest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 	}
 }
 
@@ -195,5 +196,6 @@ func runClient(destinationHex string, configDir *string) {
 			return
 		}
 		_, _ = buf.Writer.Write([]byte(text))
+		_ = buf.Writer.Flush()
 	}
 }

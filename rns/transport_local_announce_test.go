@@ -42,7 +42,7 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 
 	publicKey := dst.identity.GetPublicKey()
 	nameHash := copyBytes(dst.nameHash)
-	destinationHash := copyBytes(dst.Hash())
+	destinationHash := copyBytes(dst.Hash)
 
 	signed := make([]byte, 0, len(destinationHash)+len(publicKey)+len(nameHash)+len(randomBlob)+len(appData))
 	signed = append(signed, destinationHash...)
@@ -694,7 +694,7 @@ func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {
 		var key hashKey
 		copy(key[:], hash[:truncatedHashBytes])
 		return key, true
-	}(dst.Hash())
+	}(dst.Hash)
 	if !ok {
 		t.Fatal("destination hash invalid")
 	}
@@ -801,7 +801,7 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
 		identity:  announceIdentity,
-		hash:      copyBytes(localAnnounce.DestinationHash),
+		Hash:      copyBytes(localAnnounce.DestinationHash),
 		hexhash:   PrettyHexRep(localAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
@@ -943,7 +943,7 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
 		identity:  announceIdentity,
-		hash:      copyBytes(normalAnnounce.DestinationHash),
+		Hash:      copyBytes(normalAnnounce.DestinationHash),
 		hexhash:   PrettyHexRep(normalAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
@@ -1139,7 +1139,7 @@ func TestOutbound_SharedInstanceOneHopRewritesHeader2(t *testing.T) {
 		var key hashKey
 		copy(key[:], hash[:truncatedHashBytes])
 		return key, true
-	}(dst.Hash())
+	}(dst.Hash)
 	if !ok {
 		t.Fatal("destination hash invalid")
 	}

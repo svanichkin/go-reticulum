@@ -226,7 +226,7 @@ func TestChannel_SendOneRetry(t *testing.T) {
 	rtt := 0.01
 	outlet := &channelOutletTest{mdu: 500, rtt: rtt, usable: true, linkID: nextTestPacketID()}
 	ch := NewChannel(outlet)
-	defer ch.Close()
+	defer channelClose(ch)
 	outlet.defaultTimeout = ch.getPacketTimeoutTime(1)
 
 	msg := &messageTest{ID: "id", Data: "test"}
@@ -234,7 +234,7 @@ func TestChannel_SendOneRetry(t *testing.T) {
 		t.Fatalf("expected no packets")
 	}
 
-	env, err := ch.TrySend(msg)
+	env, err := ch.Send(msg)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -307,6 +307,42 @@ func TestChannel_SendOneRetry(t *testing.T) {
 	}
 }
 
+func TestChannel_EnterReturnsSelf(t *testing.T) {
+	maybeParallel(t)
+	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: true, linkID: nextTestPacketID()}
+	ch := NewChannel(outlet)
+	defer channelClose(ch)
+
+	if got := ch.Enter(); got != ch {
+		t.Fatalf("Enter() = %p, want %p", got, ch)
+	}
+}
+
+func TestChannel_ExitShutsDownAndReturnsFalse(t *testing.T) {
+	maybeParallel(t)
+	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: true, linkID: nextTestPacketID()}
+	ch := NewChannel(outlet)
+
+	called := false
+	ch.AddMessageHandler(func(MessageBase) bool {
+		called = true
+		return true
+	})
+
+	if got := ch.Exit(); got {
+		t.Fatalf("Exit() = true, want false")
+	}
+	if ch.closed {
+		t.Fatalf("Exit() should not permanently close channel")
+	}
+	if len(ch.messageCallbacks) != 0 {
+		t.Fatalf("expected callbacks cleared")
+	}
+	if called {
+		t.Fatalf("unexpected callback execution")
+	}
+}
+
 type packetIDOnly struct {
 	id uint64
 }
@@ -343,12 +379,12 @@ func TestChannel_PacketKey_UsesPacketIDNotPointer(t *testing.T) {
 
 	outlet := &channelOutletIDOnly{mdu: 500, rtt: 0.01}
 	ch := NewChannel(outlet)
-	defer ch.Close()
+	defer channelClose(ch)
 
-	if err := ch.TryRegisterMessageType(&messageTest{}); err != nil {
+	if err := ch.RegisterMessageType(&messageTest{}); err != nil {
 		t.Fatalf("RegisterMessageType: %v", err)
 	}
-	env, err := ch.TrySend(&messageTest{ID: "id", Data: "data"})
+	env, err := ch.Send(&messageTest{ID: "id", Data: "data"})
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -371,11 +407,11 @@ func TestChannel_SendTimeout(t *testing.T) {
 	rtt := 0.01
 	outlet := &channelOutletTest{mdu: 500, rtt: rtt, usable: true, linkID: nextTestPacketID()}
 	ch := NewChannel(outlet)
-	defer ch.Close()
+	defer channelClose(ch)
 	outlet.defaultTimeout = ch.getPacketTimeoutTime(1)
 
 	msg := &messageTest{ID: "id", Data: "test"}
-	env, err := ch.TrySend(msg)
+	env, err := ch.Send(msg)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -406,12 +442,12 @@ func TestChannel_RegisterMessageType_AllowsZeroMsgType(t *testing.T) {
 
 	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: true, linkID: nextTestPacketID()}
 	ch := NewChannel(outlet)
-	defer ch.Close()
+	defer channelClose(ch)
 
-	if err := ch.TryRegisterMessageType(func() MessageBase { return &zeroMsgTypeMessage{} }); err != nil {
-		t.Fatalf("TryRegisterMessageType: %v", err)
+	if err := ch.RegisterMessageType(func() MessageBase { return &zeroMsgTypeMessage{} }); err != nil {
+		t.Fatalf("RegisterMessageType: %v", err)
 	}
-	env, err := ch.TrySend(&zeroMsgTypeMessage{Data: "zero"})
+	env, err := ch.Send(&zeroMsgTypeMessage{Data: "zero"})
 	if err != nil {
 		t.Fatalf("TrySend: %v", err)
 	}
@@ -428,21 +464,17 @@ func TestChannel_Send_PanicsWithChannelException(t *testing.T) {
 
 	outlet := &channelOutletTest{mdu: 500, rtt: 0.01, usable: false, linkID: nextTestPacketID()}
 	ch := NewChannel(outlet)
-	defer ch.Close()
+	defer channelClose(ch)
 
-	defer func() {
-		rec := recover()
-		if rec == nil {
-			t.Fatal("expected panic")
-		}
-		cex, ok := rec.(*ChannelException)
-		if !ok {
-			t.Fatalf("panic type=%T, want *ChannelException", rec)
-		}
-		if cex.Type != ME_LINK_NOT_READY {
-			t.Fatalf("panic type code=%v, want %v", cex.Type, ME_LINK_NOT_READY)
-		}
-	}()
-
-	_ = ch.Send(&messageTest{ID: "x", Data: "y"})
+	_, err := ch.Send(&messageTest{ID: "x", Data: "y"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	cex, ok := err.(*ChannelException)
+	if !ok {
+		t.Fatalf("error type=%T, want *ChannelException", err)
+	}
+	if cex.Type != ME_LINK_NOT_READY {
+		t.Fatalf("error type code=%v, want %v", cex.Type, ME_LINK_NOT_READY)
+	}
 }

@@ -3616,7 +3616,7 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 		stats["transport_uptime"] = nil
 	}
 	if ProbeDestinationEnabled() && ProbeDestination != nil {
-		stats["probe_responder"] = ProbeDestination.Hash()
+		stats["probe_responder"] = ProbeDestination.Hash
 	} else {
 		stats["probe_responder"] = nil
 	}

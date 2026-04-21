@@ -138,7 +138,7 @@ func notifyAnnounceHandlersForTest(packet *Packet) {
 			if !ok {
 				continue
 			}
-			expectedHash, err := DestinationHashFromNameAndIdentity(filter, announced)
+			expectedHash, err := Destination{}.HashFromNameAndIdentity(filter, announced)
 			if err != nil || !bytes.Equal(expectedHash, packet.DestinationHash) {
 				continue
 			}

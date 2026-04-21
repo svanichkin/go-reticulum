@@ -17,6 +17,17 @@ import (
 	rns "github.com/svanichkin/go-reticulum/rns"
 )
 
+func destinationHashFromNameAndIdentityHash(fullName string, identityHash []byte) []byte {
+	if len(identityHash) != rns.ReticulumTruncatedHashLength/8 {
+		return nil
+	}
+	nameHash := rns.FullHash([]byte(fullName))[:rns.IdentityNameHashLength/8]
+	material := append([]byte{}, nameHash...)
+	material = append(material, identityHash...)
+	full := rns.FullHash(material)
+	return append([]byte(nil), full[:rns.ReticulumTruncatedHashLength/8]...)
+}
+
 var rnstatusVersion = fmt.Sprintf("rnstatus %s", rns.GetVersion())
 
 type countFlag int
@@ -235,7 +246,7 @@ func programSetup(
 		}
 		remotePretty = rns.PrettyHex(identityHash)
 
-		destHash := rns.HashFromNameAndIdentity("rnstransport.remote.management", identityHash)
+		destHash := destinationHashFromNameAndIdentityHash("rnstransport.remote.management", identityHash)
 		id, err := rns.IdentityFromFile(expandUser(managementIdentity))
 		if err != nil || id == nil {
 			return exitError{code: 20, err: fmt.Errorf("could not load management identity from %s", managementIdentity)}

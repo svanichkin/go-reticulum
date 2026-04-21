@@ -150,7 +150,7 @@ func runResourceListener(id *rns.Identity, mode string, waitSeconds float64, sma
 		})
 	})
 
-	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash))
 	time.Sleep(time.Second)
 
 	deadline := time.Now().Add(durationResource(waitSeconds))

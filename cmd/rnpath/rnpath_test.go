@@ -54,7 +54,7 @@ func TestRemoteHashFromNameAndIdentity(t *testing.T) {
 	for i := range identityHash {
 		identityHash[i] = byte(i + 1)
 	}
-	h := rns.HashFromNameAndIdentity("rnstransport.remote.management", identityHash)
+	h := destinationHashFromNameAndIdentityHash("rnstransport.remote.management", identityHash)
 	if len(h) != destLen {
 		t.Fatalf("got hash len %d want %d", len(h), destLen)
 	}

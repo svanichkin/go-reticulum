@@ -160,13 +160,13 @@ func runServer(configDir *string, serveDir string) error {
 		return fmt.Errorf("RegisterRequestHandler(/get): %w", err)
 	}
 
-	rns.Log("File server "+rns.PrettyHexRep(serverDest.Hash())+" running", rns.LogInfo)
+	rns.Log("File server "+rns.PrettyHexRep(serverDest.Hash)+" running", rns.LogInfo)
 	rns.Log("Hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		serverDest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(serverDest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(serverDest.Hash), rns.LogInfo)
 	}
 	return in.Err()
 }
@@ -286,7 +286,7 @@ func runClient(configDir *string, destinationHexHash string, outDir string) erro
 	if err != nil {
 		return fmt.Errorf("NewDestination(server out): %w", err)
 	}
-	_ = serverDest.SetProofStrategy(rns.DestinationPROVE_ALL)
+	serverDest.SetProofStrategy(rns.DestinationPROVE_ALL)
 
 	state := &clientState{outDir: outDir}
 	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, func(l *rns.Link) {

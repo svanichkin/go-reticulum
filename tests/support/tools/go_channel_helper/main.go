@@ -98,7 +98,7 @@ func runChannelListener(id *rns.Identity, waitSeconds float64) error {
 	got := make(chan string, 8)
 	dest.SetLinkEstablishedCallback(func(l *rns.Link) {
 		ch := l.Channel()
-		if err := ch.TryRegisterMessageType(&channelMessage{}); err != nil {
+		if err := ch.RegisterMessageType(&channelMessage{}); err != nil {
 			fmt.Printf("EVENT register_failed %v\n", err)
 			return
 		}
@@ -113,7 +113,7 @@ func runChannelListener(id *rns.Identity, waitSeconds float64) error {
 		})
 	})
 
-	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash))
 	time.Sleep(time.Second)
 	deadline := time.Now().Add(durationChannel(waitSeconds))
 	ids := ""
@@ -167,7 +167,7 @@ func runChannelClient(id *rns.Identity, destinationHex string, waitSeconds float
 	time.Sleep(1 * time.Second)
 
 	ch := link.Channel()
-	if err := ch.TryRegisterMessageType(&channelMessage{}); err != nil {
+	if err := ch.RegisterMessageType(&channelMessage{}); err != nil {
 		return err
 	}
 	messages := []channelMessage{
@@ -186,7 +186,7 @@ func runChannelClient(id *rns.Identity, destinationHex string, waitSeconds float
 		if !ch.IsReadyToSend() {
 			return fmt.Errorf("channel not ready for message %s", msg.ID)
 		}
-		if _, err := ch.TrySend(&channelMessage{ID: msg.ID, Data: msg.Data}); err != nil {
+		if _, err := ch.Send(&channelMessage{ID: msg.ID, Data: msg.Data}); err != nil {
 			return err
 		}
 		fmt.Printf("EVENT sent %s %s\n", msg.ID, msg.Data)

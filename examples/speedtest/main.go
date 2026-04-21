@@ -123,13 +123,13 @@ func runServer(configDir *string, dataCap int) error {
 		link.SetLinkClosedCallback(func(*rns.Link) { rns.Log("Client disconnected", rns.LogInfo) })
 	})
 
-	rns.Log("Speedtest "+rns.PrettyHexRep(serverDest.Hash())+" running, waiting for a connection.", rns.LogInfo)
+	rns.Log("Speedtest "+rns.PrettyHexRep(serverDest.Hash)+" running, waiting for a connection.", rns.LogInfo)
 	rns.Log("Hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		serverDest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(serverDest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(serverDest.Hash), rns.LogInfo)
 	}
 	return in.Err()
 }

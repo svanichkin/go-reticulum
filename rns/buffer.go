@@ -274,7 +274,7 @@ func (w *RawChannelWriter) Write(b []byte) (int, error) {
 			Data:       nil,
 			EOF:        w.eof,
 		}
-		if _, err := w.channel.TrySend(msg); err != nil {
+		if _, err := w.channel.Send(msg); err != nil {
 			if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
 				return 0, nil
 			}
@@ -352,7 +352,7 @@ func (w *RawChannelWriter) Write(b []byte) (int, error) {
 		Data:       chunk,
 		EOF:        w.eof,
 	}
-	if _, err := w.channel.TrySend(msg); err != nil {
+	if _, err := w.channel.Send(msg); err != nil {
 		if cex, ok := err.(*ChannelException); ok && cex.Type == ME_LINK_NOT_READY {
 			return 0, nil
 		}
@@ -365,8 +365,12 @@ func (w *RawChannelWriter) Write(b []byte) (int, error) {
 func (w *RawChannelWriter) Close() error {
 	timeout := 15 * time.Second
 	if w != nil && w.channel != nil {
-		if outlet, ok := w.channel.Outlet().(*LinkChannelOutlet); ok && outlet != nil && outlet.link != nil {
-			timeout = time.Duration(outlet.link.RTT.Seconds() * float64(w.channel.TxQueueLen()) * float64(time.Second))
+		w.channel.lock.RLock()
+		txQueueLen := len(w.channel.txRing)
+		outlet, ok := w.channel.outlet.(*LinkChannelOutlet)
+		w.channel.lock.RUnlock()
+		if ok && outlet != nil && outlet.link != nil {
+			timeout = time.Duration(outlet.link.RTT.Seconds() * float64(txQueueLen) * float64(time.Second))
 		}
 	}
 	deadline := time.Now().Add(timeout)
@@ -412,7 +416,7 @@ func CreateReader(streamID int, ch *Channel, readyCallback func(int)) *BufferedR
 		eof:      false,
 	}
 	if ch != nil {
-		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+		if err := channelRegisterMessageTypeLocked(ch, &StreamDataMessage{}, true, func() *uint16 { v := uint16(SMT_STREAM_DATA); return &v }()); err != nil {
 			Log(fmt.Sprintf("RawChannelReader failed to register StreamDataMessage: %v", err), LOG_ERROR)
 		}
 	}
@@ -431,7 +435,7 @@ func CreateWriter(streamID int, ch *Channel) *BufferedWriter {
 		maxLen = MAX_CHUNK_LEN
 	}
 	if ch != nil {
-		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+		if err := channelRegisterMessageTypeLocked(ch, &StreamDataMessage{}, true, func() *uint16 { v := uint16(SMT_STREAM_DATA); return &v }()); err != nil {
 			Log(fmt.Sprintf("RawChannelWriter failed to register StreamDataMessage: %v", err), LOG_ERROR)
 		}
 	}

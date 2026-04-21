@@ -25,7 +25,7 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDestination: %v", err)
 	}
-	dstHash := copyBytes(dst.Hash())
+	dstHash := copyBytes(dst.Hash)
 
 	ap := &Interface{Name: "ap", Mode: InterfaceModeAccessPoint}
 	roaming := &Interface{Name: "roaming", Mode: InterfaceModeRoaming}
@@ -148,7 +148,7 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 				case InterfaceModeRoaming:
 					var dst *Destination
 					for _, candidate := range Destinations {
-						if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), packet.DestinationHash) {
+						if candidate != nil && len(candidate.Hash) > 0 && bytes.Equal(candidate.Hash, packet.DestinationHash) {
 							dst = candidate
 							break
 						}
@@ -189,7 +189,7 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 				case InterfaceModeBoundary:
 					var dst *Destination
 					for _, candidate := range Destinations {
-						if candidate != nil && len(candidate.Hash()) > 0 && bytes.Equal(candidate.Hash(), packet.DestinationHash) {
+						if candidate != nil && len(candidate.Hash) > 0 && bytes.Equal(candidate.Hash, packet.DestinationHash) {
 							dst = candidate
 							break
 						}

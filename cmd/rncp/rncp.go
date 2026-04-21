@@ -279,7 +279,7 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 
 	if displayIdentity {
 		fmt.Println("Identity     :", rns.PrettyHex(identity.Hash))
-		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash()))
+		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash))
 		os.Exit(0)
 	}
 
@@ -307,7 +307,7 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 		}
 	}
 
-	fmt.Println("rncp listening on", rns.PrettyHex(dest.Hash()))
+	fmt.Println("rncp listening on", rns.PrettyHex(dest.Hash))
 
 	if announce >= 0 {
 		go func() {

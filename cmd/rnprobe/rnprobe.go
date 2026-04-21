@@ -167,7 +167,7 @@ func programSetup(
 		return exitError{code: 0, msg: "The full destination name including application name aspects must be specified for the destination"}
 	}
 
-	appName, aspects := rns.DestinationAppAndAspectsFromName(fullName)
+	appName, aspects := rns.Destination{}.AppAndAspectsFromName(fullName)
 
 	destLen := (rns.ReticulumTruncatedHashLength / 8) * 2
 	if len(destinationHex) != destLen {
@@ -328,7 +328,7 @@ func programSetup(
 
 				fmt.Printf(
 					"Valid reply from %s\nRound-trip time is %s over %d hop%s%s\n\n",
-					rns.PrettyHex(receipt.Destination.Hash()),
+					rns.PrettyHex(receipt.Destination.Hash),
 					rttStr,
 					hops,
 					suffix,

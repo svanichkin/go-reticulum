@@ -16,7 +16,20 @@
       "Bash(git stash *)",
       "Bash(git -C /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum diff HEAD -- rns/transport_blackhole_test.go)",
       "Bash(git -C /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum status --short rns/transport_blackhole_test.go)",
-      "Bash(pip3 show *)"
+      "Bash(pip3 show *)",
+      "Bash(grep -n \"const.*HashLengthBytes\\\\|HASHLENGTH\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(grep -n \"IdentityHashLength\\\\s*=\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(awk '/^        if Transport.packet_filter/{start=NR; indent=match\\($0, /[^ ]/\\)-1} start && NR>start && match\\($0, /[^ ]/\\)>0 && match\\($0, /[^ ]/\\)-1<=indent && NR>start+1 {print NR-1; exit}' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
+      "Bash(grep -n \"CACHE\\\\|get_cached\\\\|GetCached\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/*.go)",
+      "Bash(awk -F: '$1 >= 1395 && $1 <= 1929')",
+      "Bash(awk -F: '$1 >= 3945 && $1 <= 4750')",
+      "WebFetch(domain:)",
+      "Bash(grep -r \"\\\\.link\\\\s*=\" /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/*.py)",
+      "Bash(awk 'NR>=1590 && NR<=1830' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
+      "Bash(awk 'NR>=1590 && NR<=1930' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
+      "Bash(awk 'NR>=4230 && NR<=4810' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/transport.go)",
+      "Bash(awk 'NR>=1590 && NR<=1730' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
+      "Bash(awk 'NR>=1590 && NR<=1800' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)"
     ]
   }
 }

@@ -1180,8 +1180,8 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 		if !u.due(now, sourceHash) {
 			continue
 		}
-		destinationHash := HashFromNameAndIdentity("rnstransport.info.blackhole", sourceHash)
-		if len(destinationHash) == 0 {
+		destinationHash, err := (Destination{}).HashFromNameAndIdentity("rnstransport.info.blackhole", &Identity{Hash: sourceHash})
+		if err != nil || len(destinationHash) == 0 {
 			continue
 		}
 		Logf(LogDebug, "Attempting blackhole list update from %s...", PrettyHexRep(sourceHash))
@@ -1519,8 +1519,8 @@ func (u *BlackholeUpdater) updateOnce(now time.Time) {
 }
 
 func fetchRemoteBlackholeList(sourceHash []byte, timeout time.Duration) (any, error) {
-	destinationHash := HashFromNameAndIdentity("rnstransport.info.blackhole", sourceHash)
-	if len(destinationHash) == 0 {
+	destinationHash, err := (Destination{}).HashFromNameAndIdentity("rnstransport.info.blackhole", &Identity{Hash: sourceHash})
+	if err != nil || len(destinationHash) == 0 {
 		return nil, errors.New("invalid blackhole source identity hash")
 	}
 	remoteIdentity := IdentityRecall(destinationHash)

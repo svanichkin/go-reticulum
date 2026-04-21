@@ -394,7 +394,7 @@ func (p *Packet) Pack() error {
 	if p.Link != nil {
 		p.DestinationHash = copyBytes(p.Link.LinkID)
 	} else {
-		p.DestinationHash = copyBytes(p.Destination.hash)
+		p.DestinationHash = copyBytes(p.Destination.Hash)
 	}
 	if len(p.DestinationHash) != truncatedHashBytes {
 		return fmt.Errorf("invalid destination hash length %d (expected %d)", len(p.DestinationHash), truncatedHashBytes)
@@ -628,7 +628,7 @@ func (p *Packet) GenerateProofDestination() *Destination {
 	return &Destination{
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
-		hash:      append([]byte{}, p.GetHash()[:ReticulumTruncatedHashLength/8]...),
+		Hash:      append([]byte{}, p.GetHash()[:ReticulumTruncatedHashLength/8]...),
 	}
 }
 
@@ -772,11 +772,11 @@ func NewPacketReceipt(p *Packet) *PacketReceipt {
 	if p.Link != nil {
 		r.Timeout = maxFloat(p.Link.RTT.Seconds()*p.Link.TrafficTimeoutFactor, trafficTimeoutMin.Seconds())
 	} else if Transport != nil && p.Destination != nil {
-		base := FirstHopTimeout(p.Destination.hash).Seconds()
+		base := FirstHopTimeout(p.Destination.Hash).Seconds()
 		if Owner != nil {
-			base = Owner.GetFirstHopTimeout(p.Destination.hash)
+			base = Owner.GetFirstHopTimeout(p.Destination.Hash)
 		}
-		hops := HopsTo(p.Destination.hash)
+		hops := HopsTo(p.Destination.Hash)
 		if hops <= 0 {
 			hops = 1
 		}
@@ -843,10 +843,10 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		proofHash := proof[:HashLengthBytes]
 		sig := proof[HashLengthBytes : HashLengthBytes+SigLengthBytes]
 
-		if !bytesEqual(proofHash, r.Hash) || r.Destination == nil || r.Destination.Identity() == nil {
+		if !bytesEqual(proofHash, r.Hash) || r.Destination == nil || r.Destination.identity == nil {
 			return false
 		}
-		if !r.Destination.Identity().Validate(sig, r.Hash) {
+		if !r.Destination.identity.Validate(sig, r.Hash) {
 			return false
 		}
 		r.Status = ReceiptDelivered
@@ -870,11 +870,11 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 	}
 
 	if len(proof) == ReceiptImplLength {
-		if r.Destination == nil || r.Destination.Identity() == nil {
+		if r.Destination == nil || r.Destination.identity == nil {
 			return false
 		}
 		sig := proof[:SigLengthBytes]
-		if !r.Destination.Identity().Validate(sig, r.Hash) {
+		if !r.Destination.identity.Validate(sig, r.Hash) {
 			return false
 		}
 		r.Status = ReceiptDelivered

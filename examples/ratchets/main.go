@@ -78,7 +78,7 @@ func runServer(configDir *string) error {
 	}
 
 	// Python example uses /tmp/<hexhash>.ratchets. Use OS temp dir.
-	hexHash := rns.HexRep(dest.Hash(), false)
+	hexHash := rns.HexRep(dest.Hash, false)
 	ratchetsPath := filepath.Join(os.TempDir(), hexHash+".ratchets")
 	if _, err := dest.EnableRatchets(ratchetsPath); err != nil {
 		return fmt.Errorf("EnableRatchets(%s): %w", ratchetsPath, err)
@@ -86,7 +86,7 @@ func runServer(configDir *string) error {
 	// Make ratchets rotate frequently for the example.
 	_ = dest.SetRatchetInterval(1)
 
-	_ = dest.SetProofStrategy(rns.DestinationPROVE_ALL)
+	dest.SetProofStrategy(rns.DestinationPROVE_ALL)
 	dest.SetPacketCallback(func(message []byte, packet *rns.Packet) {
 		stats := ""
 		if packet != nil {
@@ -100,12 +100,12 @@ func runServer(configDir *string) error {
 		rns.Log("Received packet from echo client, proof sent"+stats, rns.LogInfo)
 	})
 
-	rns.Log("Ratcheted echo server "+rns.PrettyHexRep(dest.Hash())+" running, hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
+	rns.Log("Ratcheted echo server "+rns.PrettyHexRep(dest.Hash)+" running, hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		dest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 	}
 	return in.Err()
 }
@@ -170,12 +170,12 @@ func runClient(configDir *string, destinationHexHash string, timeout *time.Durat
 				}
 				dst := "<unknown>"
 				if receipt.Destination != nil {
-					dst = rns.PrettyHexRep(receipt.Destination.Hash())
+					dst = rns.PrettyHexRep(receipt.Destination.Hash)
 				}
 				rns.Log("Valid reply received from "+dst+", round-trip time is "+rttString+stats, rns.LogInfo)
 			})
 
-			rns.Log("Sent echo request to "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+			rns.Log("Sent echo request to "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 		} else {
 			rns.Log("Destination is not yet known. Requesting path...", rns.LogInfo)
 			rns.Log("Hit enter to manually retry once an announce is received.", rns.LogInfo)

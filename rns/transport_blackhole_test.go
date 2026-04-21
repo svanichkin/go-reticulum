@@ -435,7 +435,7 @@ func TestEnsureBlackholeDestination_PublishesList(t *testing.T) {
 	if len(mgmtDestinations) != 1 || mgmtDestinations[0] != blackholeDestination {
 		t.Fatalf("unexpected management destinations: %#v", mgmtDestinations)
 	}
-	resp, ok := blackholeDestination.DispatchRequest("/list", nil, nil, nil, nil, time.Time{})
+	resp, ok := destinationDispatchRequest(blackholeDestination, "/list", nil, nil, nil, nil, time.Time{})
 	if !ok {
 		t.Fatal("expected /list request handler to be registered")
 	}

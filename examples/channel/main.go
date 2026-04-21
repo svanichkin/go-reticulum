@@ -110,7 +110,10 @@ func runServer(configDir *string) {
 		})
 
 		ch := link.Channel()
-		ch.RegisterMessageType(&StringMessage{})
+		if err := ch.RegisterMessageType(&StringMessage{}); err != nil {
+			rns.Log("RegisterMessageType failed: "+err.Error(), rns.LogError)
+			return
+		}
 		ch.AddMessageHandler(func(m rns.MessageBase) bool {
 			sm, ok := m.(*StringMessage)
 			if !ok {
@@ -118,18 +121,20 @@ func runServer(configDir *string) {
 			}
 			rns.Log("Received data on the link: "+sm.Data+" (message created at "+sm.Timestamp.String()+")", rns.LogInfo)
 			reply := &StringMessage{Data: "I received \"" + sm.Data + "\" over the link"}
-			_ = link.Channel().Send(reply)
+			if _, err := link.Channel().Send(reply); err != nil {
+				rns.Log("Send reply failed: "+err.Error(), rns.LogError)
+			}
 			return true
 		})
 	})
 
-	rns.Log("Channel example "+rns.PrettyHexRep(dest.Hash())+" running, waiting for a connection.", rns.LogInfo)
+	rns.Log("Channel example "+rns.PrettyHexRep(dest.Hash)+" running, waiting for a connection.", rns.LogInfo)
 	rns.Log("Hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		dest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 	}
 }
 
@@ -181,7 +186,10 @@ func runClient(destinationHex string, configDir *string) {
 	var channel *rns.Channel
 	link.SetLinkEstablishedCallback(func(l *rns.Link) {
 		channel = l.Channel()
-		channel.RegisterMessageType(&StringMessage{})
+		if err := channel.RegisterMessageType(&StringMessage{}); err != nil {
+			rns.Log("RegisterMessageType failed: "+err.Error(), rns.LogError)
+			return
+		}
 		channel.AddMessageHandler(func(m rns.MessageBase) bool {
 			sm, ok := m.(*StringMessage)
 			if !ok {
@@ -236,6 +244,8 @@ func runClient(destinationHex string, configDir *string) {
 			rns.Log(fmt.Sprintf("Cannot send this packet, the data size of %d bytes exceeds the link packet MDU of %d bytes", len(packed), channel.Mdu()), rns.LogError)
 			continue
 		}
-		_ = channel.Send(msg)
+		if _, err := channel.Send(msg); err != nil {
+			rns.Log("Send failed: "+err.Error(), rns.LogError)
+		}
 	}
 }

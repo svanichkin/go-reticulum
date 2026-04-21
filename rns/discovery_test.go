@@ -198,15 +198,15 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	nameWithIdentity, err := DestinationExpandName(TransportIdentity, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := (Destination{}).ExpandName(TransportIdentity, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(identity): %v", err)
 	}
-	nameWithoutIdentity, err := DestinationExpandName(nil, TransportAppName, "discovery", "interface")
+	nameWithoutIdentity, err := (Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(nil): %v", err)
 	}
-	discoveryHash, err := DestinationHash(TransportIdentity, TransportAppName, "discovery", "interface")
+	discoveryHash, err := destinationHash(TransportIdentity, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationHash: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 		Direction:       DestinationIN,
 		identity:        TransportIdentity,
 		name:            nameWithIdentity,
-		hash:            discoveryHash,
+		Hash:            discoveryHash,
 		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
 		hexhash:         PrettyHexRep(discoveryHash),
 		pathResponses:   make(map[string]*pathResponseEntry),
@@ -444,15 +444,15 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	nameWithIdentity, err := DestinationExpandName(remoteID, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := (Destination{}).ExpandName(remoteID, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(identity): %v", err)
 	}
-	nameWithoutIdentity, err := DestinationExpandName(nil, TransportAppName, "discovery", "interface")
+	nameWithoutIdentity, err := (Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(nil): %v", err)
 	}
-	discoveryHash, err := DestinationHash(remoteID, TransportAppName, "discovery", "interface")
+	discoveryHash, err := destinationHash(remoteID, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationHash: %v", err)
 	}
@@ -461,7 +461,7 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 		Direction:       DestinationIN,
 		identity:        remoteID,
 		name:            nameWithIdentity,
-		hash:            discoveryHash,
+		Hash:            discoveryHash,
 		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
 		hexhash:         PrettyHexRep(discoveryHash),
 		pathResponses:   make(map[string]*pathResponseEntry),

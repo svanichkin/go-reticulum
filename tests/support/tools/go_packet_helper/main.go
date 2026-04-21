@@ -97,9 +97,7 @@ func runListener(id *rns.Identity, mode, groupKeyHex, expectPayload string, wait
 		if err != nil {
 			return err
 		}
-		if err := dest.LoadPrivateKey(key); err != nil {
-			return err
-		}
+		dest.LoadPrivateKey(key)
 	}
 
 	done := make(chan error, 1)
@@ -112,7 +110,7 @@ func runListener(id *rns.Identity, mode, groupKeyHex, expectPayload string, wait
 		done <- nil
 	})
 
-	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash))
 
 	deadline := time.Now().Add(durationSeconds(waitSeconds))
 	for {
@@ -169,9 +167,7 @@ func runSender(mode, destinationHex, groupKeyHex, payload string, waitSeconds fl
 		if err != nil {
 			return err
 		}
-		if err := dest.LoadPrivateKey(key); err != nil {
-			return err
-		}
+		dest.LoadPrivateKey(key)
 	default:
 		return fmt.Errorf("unsupported mode %q", mode)
 	}
@@ -180,7 +176,7 @@ func runSender(mode, destinationHex, groupKeyHex, payload string, waitSeconds fl
 	if pkt == nil {
 		return fmt.Errorf("failed to build packet")
 	}
-	fmt.Printf("EVENT destination %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("EVENT destination %s\n", hex.EncodeToString(dest.Hash))
 	if pkt.Send() == nil && !pkt.Sent {
 		return fmt.Errorf("send failed")
 	}

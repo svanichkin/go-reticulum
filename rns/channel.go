@@ -38,12 +38,6 @@ type ChannelOutletBase interface {
 	GetPacketID(packet any) any
 }
 
-// channelOutletTimeoutSetter matches Python's receipt.set_timeout() behavior:
-// update timeout without replacing callbacks.
-type channelOutletTimeoutSetter interface {
-	SetPacketTimeout(packet any, timeout float64)
-}
-
 // ====== errors ===============================================================
 
 type CEType int
@@ -204,12 +198,8 @@ type Channel struct {
 	nameCache     string
 }
 
-func (c *Channel) label() string {
-	return c.String()
-}
-
-func (c *Channel) log(level int, format string, args ...any) {
-	Log(fmt.Sprintf("%s: %s", c.label(), fmt.Sprintf(format, args...)), level)
+func channelLog(c *Channel, level int, format string, args ...any) {
+	Log(fmt.Sprintf("%s: %s", c.String(), fmt.Sprintf(format, args...)), level)
 }
 
 // window and sequence constants
@@ -261,6 +251,18 @@ func NewChannel(outlet ChannelOutletBase) *Channel {
 	return c
 }
 
+// Enter mirrors Python Channel.__enter__() and returns the channel itself.
+func (c *Channel) Enter() *Channel {
+	return c
+}
+
+// Exit mirrors Python Channel.__exit__(): it clears channel state and returns
+// false so callers do not suppress errors.
+func (c *Channel) Exit() bool {
+	c.shutdown()
+	return false
+}
+
 // String returns a channel identifier (mirrors Python __str__).
 func (c *Channel) String() string {
 	c.nameOnce.Do(func() {
@@ -276,63 +278,42 @@ func (c *Channel) String() string {
 	return c.nameCache
 }
 
-// Close releases channel resources (unregister callbacks, clear queues).
-func (c *Channel) Close() {
+func channelClose(c *Channel) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.closed {
 		return
 	}
 	c.closed = true
-	c.shutdownLocked()
+	channelShutdownLocked(c)
 }
 
 // shutdownLocked mirrors Python Channel._shutdown(): clears handlers and rings,
 // but does not permanently "close" the Channel object.
-func (c *Channel) shutdownLocked() {
+func channelShutdownLocked(c *Channel) {
 	c.messageCallbacks = nil
-	c.clearRingsLocked()
+	c.clearRings()
 }
 
 func (c *Channel) shutdown() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.shutdownLocked()
+	channelShutdownLocked(c)
 }
 
 // RegisterMessageType is the public registration method.
 
-func (c *Channel) RegisterMessageType(msg any) {
-	if err := c.TryRegisterMessageType(msg); err != nil {
-		panic(err)
-	}
-}
-
-func (c *Channel) RegisterMessageTypeWithID(msg any, msgType uint16) {
-	if err := c.TryRegisterMessageTypeWithID(msg, msgType); err != nil {
-		panic(err)
-	}
-}
-
-func (c *Channel) TryRegisterMessageType(msg any) error {
+func (c *Channel) RegisterMessageType(msg any) error {
 	return c._register_message_type(msg, false)
-}
-
-func (c *Channel) TryRegisterMessageTypeWithID(msg any, msgType uint16) error {
-	return c._register_message_type_with_id(msg, false, msgType)
 }
 
 // _register_message_type is internal.
 
 func (c *Channel) _register_message_type(msg any, isSystemType bool) error {
-	return c.registerMessageTypeLocked(msg, isSystemType, nil)
+	return channelRegisterMessageTypeLocked(c, msg, isSystemType, nil)
 }
 
-func (c *Channel) _register_message_type_with_id(msg any, isSystemType bool, msgType uint16) error {
-	return c.registerMessageTypeLocked(msg, isSystemType, &msgType)
-}
-
-func (c *Channel) registerMessageTypeLocked(msg any, isSystemType bool, explicitType *uint16) error {
+func channelRegisterMessageTypeLocked(c *Channel, msg any, isSystemType bool, explicitType *uint16) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -460,7 +441,7 @@ func (c *Channel) RemoveMessageHandler(cb MessageCallbackType) {
 	}
 }
 
-func (c *Channel) clearRingsLocked() {
+func (c *Channel) clearRings() {
 	for _, env := range c.txRing {
 		if env.packet != nil {
 			c.outlet.SetPacketTimeoutCallback(env.packet, nil, nil)
@@ -473,7 +454,7 @@ func (c *Channel) clearRingsLocked() {
 	c.messageStates = make(map[uint16]MessageState)
 }
 
-func (c *Channel) packetKey(packet any) string {
+func channelPacketKey(c *Channel, packet any) string {
 	if packet == nil {
 		return ""
 	}
@@ -485,20 +466,37 @@ func (c *Channel) packetKey(packet any) string {
 	return fmt.Sprintf("%v", id)
 }
 
-func (c *Channel) trackPacketLocked(env *Envelope) {
-	if key := c.packetKey(env.packet); key != "" {
+func channelTrackPacketLocked(c *Channel, env *Envelope) {
+	if key := channelPacketKey(c, env.packet); key != "" {
 		c.packetIndex[key] = env
 	}
 }
 
-func (c *Channel) untrackPacketLocked(packet any) {
-	if key := c.packetKey(packet); key != "" {
+func channelUntrackPacketLocked(c *Channel, packet any) {
+	if key := channelPacketKey(c, packet); key != "" {
 		delete(c.packetIndex, key)
 	}
 }
 
-func (c *Channel) setMessageStateLocked(seq uint16, state MessageState) {
+func channelSetMessageStateLocked(c *Channel, seq uint16, state MessageState) {
 	c.messageStates[seq] = state
+}
+
+func channelUpdatePacketTimeout(outlet ChannelOutletBase, packet any, timeout float64) {
+	switch outlet.(type) {
+	case *LinkChannelOutlet:
+		pkt, ok := packet.(*Packet)
+		if !ok || pkt == nil || pkt.Receipt == nil {
+			return
+		}
+		pkt.Receipt.SetTimeout(timeout)
+	default:
+		if timeoutSetter, ok := outlet.(interface {
+			SetPacketTimeout(packet any, timeout float64)
+		}); ok {
+			timeoutSetter.SetPacketTimeout(packet, timeout)
+		}
+	}
 }
 
 // insert envelope into the ring by sequence
@@ -507,7 +505,7 @@ func (c *Channel) emplaceEnvelope(env *Envelope, ring *[]*Envelope) bool {
 	i := 0
 	for _, existing := range *ring {
 		if env.sequence == existing.sequence {
-			c.log(LOG_EXTREME, "duplicate envelope with sequence %d", env.sequence)
+			channelLog(c, LOG_EXTREME, "duplicate envelope with sequence %d", env.sequence)
 			return false
 		}
 		if env.sequence < existing.sequence &&
@@ -533,7 +531,7 @@ func (c *Channel) runCallbacks(msg MessageBase) {
 		func(cb MessageCallbackType) {
 			defer func() {
 				if r := recover(); r != nil {
-					c.log(LOG_ERROR, "message callback panic: %v", r)
+					channelLog(c, LOG_ERROR, "Channel %s experienced an error while running a message callback. The contained exception was: %v", c, r)
 				}
 			}()
 			if cb(msg) {
@@ -551,7 +549,7 @@ func (c *Channel) runCallbacks(msg MessageBase) {
 func (c *Channel) Receive(raw []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.log(LOG_ERROR, "panic while receiving data: %v", r)
+			channelLog(c, LOG_ERROR, "An error ocurred while receiving data on %s. The contained exception was: %v", c, r)
 		}
 	}()
 
@@ -565,7 +563,7 @@ func (c *Channel) Receive(raw []byte) {
 	c.lock.Lock()
 	if _, err := env.Unpack(c.messageFactories); err != nil {
 		c.lock.Unlock()
-		c.log(LOG_ERROR, "error unpacking envelope: %v", err)
+		channelLog(c, LOG_ERROR, "error unpacking envelope: %v", err)
 		return
 	}
 
@@ -574,12 +572,12 @@ func (c *Channel) Receive(raw []byte) {
 		if windowOverflow < c.nextRxSequence {
 			if env.sequence > windowOverflow {
 				c.lock.Unlock()
-				c.log(LOG_EXTREME, "invalid packet sequence %d (window overflow %d)", env.sequence, windowOverflow)
+				channelLog(c, LOG_EXTREME, "Invalid packet sequence (%d) received on channel %s", env.sequence, c)
 				return
 			}
 		} else {
 			c.lock.Unlock()
-			c.log(LOG_EXTREME, "invalid packet sequence %d", env.sequence)
+			channelLog(c, LOG_EXTREME, "Invalid packet sequence (%d) received on channel %s", env.sequence, c)
 			return
 		}
 	}
@@ -587,7 +585,7 @@ func (c *Channel) Receive(raw []byte) {
 	isNew := c.emplaceEnvelope(env, &c.rxRing)
 	if !isNew {
 		c.lock.Unlock()
-		c.log(LOG_EXTREME, "duplicate message sequence %d", env.sequence)
+		channelLog(c, LOG_EXTREME, "Duplicate message received on channel %s", c)
 		return
 	}
 
@@ -616,7 +614,7 @@ func (c *Channel) Receive(raw []byte) {
 		if !e.unpacked {
 			msg, err = e.Unpack(c.messageFactories)
 			if err != nil {
-				c.log(LOG_ERROR, "error unpacking queued envelope: %v", err)
+				channelLog(c, LOG_ERROR, "error unpacking queued envelope: %v", err)
 				continue
 			}
 		} else {
@@ -648,10 +646,10 @@ func (c *Channel) IsReadyToSend() bool {
 	}
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.isReadyToSendLocked()
+	return channelIsReadyToSendLocked(c)
 }
 
-func (c *Channel) isReadyToSendLocked() bool {
+func channelIsReadyToSendLocked(c *Channel) bool {
 	outstanding := 0
 	for _, env := range c.txRing {
 		if env.outlet == c.outlet {
@@ -674,10 +672,10 @@ func (c *Channel) packetTxOp(packet any, op func(*Envelope) (bool, *MessageState
 		return
 	}
 
-	key := c.packetKey(packet)
+	key := channelPacketKey(c, packet)
 	env := c.packetIndex[key]
 	if env == nil {
-		c.log(LOG_EXTREME, "spurious packet callback")
+		channelLog(c, LOG_EXTREME, "Spurious message received on %s", c)
 		return
 	}
 
@@ -686,7 +684,7 @@ func (c *Channel) packetTxOp(packet any, op func(*Envelope) (bool, *MessageState
 		return
 	}
 
-	c.untrackPacketLocked(packet)
+	channelUntrackPacketLocked(c, packet)
 	env.tracked = false
 
 	found := false
@@ -698,12 +696,12 @@ func (c *Channel) packetTxOp(packet any, op func(*Envelope) (bool, *MessageState
 		}
 	}
 	if !found {
-		c.log(LOG_EXTREME, "envelope missing from tx ring for packet")
+		channelLog(c, LOG_EXTREME, "Envelope not found in TX ring for %s", c)
 		return
 	}
 
 	if newState != nil {
-		c.setMessageStateLocked(env.sequence, *newState)
+		channelSetMessageStateLocked(c, env.sequence, *newState)
 	}
 	delete(c.messageStates, env.sequence)
 
@@ -753,14 +751,11 @@ func (c *Channel) getPacketTimeoutTime(tries int) float64 {
 func (c *Channel) updatePacketTimeouts() {
 	// Python parity: Channel._update_packet_timeouts() only increases receipt.timeout
 	// and must not replace timeout callbacks.
-	timeoutSetter, _ := c.outlet.(channelOutletTimeoutSetter)
 	for _, env := range c.txRing {
 		to := c.getPacketTimeoutTime(env.tries)
 		if env.packet != nil && (env.timeout == 0 || to > env.timeout) {
 			env.timeout = to
-			if timeoutSetter != nil {
-				timeoutSetter.SetPacketTimeout(env.packet, to)
-			}
+			channelUpdatePacketTimeout(c.outlet, env.packet, to)
 		}
 	}
 }
@@ -799,7 +794,7 @@ func (c *Channel) packetTimeout(packet any) {
 	c.packetTxOp(packet, retryEnv)
 
 	if tearDown {
-		c.log(LOG_ERROR, "retry count exceeded, tearing down link")
+		channelLog(c, LOG_ERROR, "Retry count exceeded on %s, tearing down Link.", c)
 		// Python parity: Channel._shutdown() is called, but the object is not "closed"
 		// (it can still exist; handlers are just cleared).
 		c.shutdown()
@@ -809,21 +804,13 @@ func (c *Channel) packetTimeout(packet any) {
 
 // ====== Send =================================================================
 
-func (c *Channel) Send(message MessageBase) *Envelope {
-	env, err := c.TrySend(message)
-	if err != nil {
-		panic(err)
-	}
-	return env
-}
-
-func (c *Channel) TrySend(message MessageBase) (*Envelope, error) {
+func (c *Channel) Send(message MessageBase) (*Envelope, error) {
 	c.lock.Lock()
 	if c.closed {
 		c.lock.Unlock()
 		return nil, &ChannelException{Type: ME_LINK_NOT_READY, Msg: "channel closed"}
 	}
-	if !c.outlet.IsUsable() || !c.isReadyToSendLocked() {
+	if !c.outlet.IsUsable() || !channelIsReadyToSendLocked(c) {
 		c.lock.Unlock()
 		return nil, &ChannelException{Type: ME_LINK_NOT_READY, Msg: "link is not ready"}
 	}
@@ -849,14 +836,14 @@ func (c *Channel) TrySend(message MessageBase) (*Envelope, error) {
 		outlet:   c.outlet,
 	}
 	c.emplaceEnvelope(env, &c.txRing)
-	c.setMessageStateLocked(seq, MSGSTATE_NEW)
+	channelSetMessageStateLocked(c, seq, MSGSTATE_NEW)
 	c.lock.Unlock()
 
 	if _, err := env.Pack(); err != nil {
 		return nil, err
 	}
 	if len(env.raw) > c.outlet.Mdu() {
-		c.log(LOG_WARNING, "packed message exceeds outlet MDU (%d > %d)", len(env.raw), c.outlet.Mdu())
+		channelLog(c, LOG_WARNING, "packed message exceeds outlet MDU (%d > %d)", len(env.raw), c.outlet.Mdu())
 		return nil, &ChannelException{
 			Type: ME_TOO_BIG,
 			Msg:  "packed message too big for packet",
@@ -865,8 +852,8 @@ func (c *Channel) TrySend(message MessageBase) (*Envelope, error) {
 
 	env.packet = c.outlet.Send(env.raw)
 	c.lock.Lock()
-	c.trackPacketLocked(env)
-	c.setMessageStateLocked(env.sequence, MSGSTATE_SENT)
+	channelTrackPacketLocked(c, env)
+	channelSetMessageStateLocked(c, env.sequence, MSGSTATE_SENT)
 	c.lock.Unlock()
 	env.tries++
 	to := c.getPacketTimeoutTime(env.tries)
@@ -886,16 +873,6 @@ func (c *Channel) Mdu() int {
 		mdu = 0xFFFF
 	}
 	return mdu
-}
-
-func (c *Channel) Outlet() ChannelOutletBase {
-	return c.outlet
-}
-
-func (c *Channel) TxQueueLen() int {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return len(c.txRing)
 }
 
 // ====== LinkChannelOutlet ====================================================
@@ -946,7 +923,7 @@ func (o *LinkChannelOutlet) Resend(packet any) any {
 	}
 	receipt := pkt.Resend()
 	if receipt == nil && pkt.CreateReceipt {
-		Log(fmt.Sprintf("Failed to resend packet on %s", o.String()), LOG_ERROR)
+		Log("Failed to resend packet", LOG_ERROR)
 	}
 	return pkt
 }
@@ -1014,14 +991,6 @@ func (o *LinkChannelOutlet) SetPacketTimeoutCallback(packet any, cb func(any), t
 	pkt.Receipt.SetTimeoutCallback(func(*PacketReceipt) {
 		cb(pkt)
 	})
-}
-
-func (o *LinkChannelOutlet) SetPacketTimeout(packet any, timeout float64) {
-	pkt, ok := packet.(*Packet)
-	if !ok || pkt == nil || pkt.Receipt == nil {
-		return
-	}
-	pkt.Receipt.SetTimeout(timeout)
 }
 
 func (o *LinkChannelOutlet) SetPacketDeliveredCallback(packet any, cb func(any)) {

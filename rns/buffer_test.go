@@ -45,7 +45,7 @@ func newTestRawChannelReader(streamID int, ch *Channel) *RawChannelReader {
 		eof:      false,
 	}
 	if ch != nil {
-		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+		if err := channelRegisterMessageTypeLocked(ch, &StreamDataMessage{}, true, func() *uint16 { v := uint16(SMT_STREAM_DATA); return &v }()); err != nil {
 			panic(err)
 		}
 		ch.AddMessageHandler(reader.handleMessage)
@@ -59,7 +59,7 @@ func newTestRawChannelWriter(streamID int, ch *Channel) *RawChannelWriter {
 		maxLen = MAX_CHUNK_LEN
 	}
 	if ch != nil {
-		if err := ch._register_message_type_with_id(&StreamDataMessage{}, true, uint16(SMT_STREAM_DATA)); err != nil {
+		if err := channelRegisterMessageTypeLocked(ch, &StreamDataMessage{}, true, func() *uint16 { v := uint16(SMT_STREAM_DATA); return &v }()); err != nil {
 			panic(err)
 		}
 	}
@@ -295,7 +295,7 @@ func TestRawChannelWriter_Close_LinkNotReadyDoesNotBlockOrFail(t *testing.T) {
 
 	link := &Link{}
 	ch := NewChannel(NewLinkChannelOutlet(link))
-	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
+	ch.txRing = []*Envelope{{outlet: ch.outlet}, {outlet: ch.outlet}}
 
 	writer := CreateWriter(1, ch)
 	start := time.Now()
@@ -406,7 +406,7 @@ func TestRawChannelWriter_WriteReturnsZeroWhenNotReady(t *testing.T) {
 
 	link := &Link{}
 	ch := NewChannel(NewLinkChannelOutlet(link))
-	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
+	ch.txRing = []*Envelope{{outlet: ch.outlet}, {outlet: ch.outlet}}
 
 	writer := newTestRawChannelWriter(1, ch)
 	start := time.Now()
@@ -427,7 +427,7 @@ func TestRawChannelWriter_LargeWriteReturnsZeroWhenNotReady(t *testing.T) {
 
 	link := &Link{}
 	ch := NewChannel(NewLinkChannelOutlet(link))
-	ch.txRing = []*Envelope{{outlet: ch.Outlet()}, {outlet: ch.Outlet()}}
+	ch.txRing = []*Envelope{{outlet: ch.outlet}, {outlet: ch.outlet}}
 
 	writer := newTestRawChannelWriter(1, ch)
 	payload := bytes.Repeat([]byte("x"), defaultBufferSize)

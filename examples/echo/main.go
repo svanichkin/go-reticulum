@@ -63,7 +63,7 @@ func runServer(configDir *string) {
 		fmt.Fprintln(os.Stderr, "NewDestination:", err)
 		os.Exit(1)
 	}
-	_ = dest.SetProofStrategy(rns.DestinationPROVE_ALL)
+	dest.SetProofStrategy(rns.DestinationPROVE_ALL)
 
 	dest.SetPacketCallback(func(_ []byte, packet *rns.Packet) {
 		rns.Log("Received packet from echo client, proof sent", rns.LogInfo)
@@ -71,14 +71,14 @@ func runServer(configDir *string) {
 	})
 
 	rns.Log(
-		"Echo server "+rns.PrettyHexRep(dest.Hash())+" running, hit enter to manually send an announce (Ctrl-C to quit)",
+		"Echo server "+rns.PrettyHexRep(dest.Hash)+" running, hit enter to manually send an announce (Ctrl-C to quit)",
 		rns.LogInfo,
 	)
 
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		dest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 	}
 }
 
@@ -141,12 +141,12 @@ func runClient(destinationHex string, configDir *string, timeout float64) {
 				}
 				rtt := r.GetRTT()
 				if rtt >= 1 {
-					rns.Log(fmt.Sprintf("Valid reply received from %s, round-trip time is %.3f seconds", rns.PrettyHexRep(r.Destination.Hash()), rtt), rns.LogInfo)
+					rns.Log(fmt.Sprintf("Valid reply received from %s, round-trip time is %.3f seconds", rns.PrettyHexRep(r.Destination.Hash), rtt), rns.LogInfo)
 				} else {
-					rns.Log(fmt.Sprintf("Valid reply received from %s, round-trip time is %.3f milliseconds", rns.PrettyHexRep(r.Destination.Hash()), rtt*1000), rns.LogInfo)
+					rns.Log(fmt.Sprintf("Valid reply received from %s, round-trip time is %.3f milliseconds", rns.PrettyHexRep(r.Destination.Hash), rtt*1000), rns.LogInfo)
 				}
 			})
-			rns.Log("Sent echo request to "+rns.PrettyHexRep(requestDest.Hash()), rns.LogInfo)
+			rns.Log("Sent echo request to "+rns.PrettyHexRep(requestDest.Hash), rns.LogInfo)
 		} else {
 			rns.Log("Destination is not yet known. Requesting path...", rns.LogInfo)
 			rns.RequestPath(destinationHash, nil, nil, false)

@@ -260,7 +260,7 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	if mode < 0 {
 		mode = linkDefaultMode
 	}
-	if !containsInt(mode, linkEnabledModes) {
+	if mode != linkEnabledModes[0] {
 		return nil, fmt.Errorf("link mode %d disabled", mode)
 	}
 
@@ -312,15 +312,15 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	l.updateMDU()
 	l.watchdogStop = make(chan struct{})
 	if l.Initiator {
-		if destination != nil && len(destination.hash) > 0 {
-			l.expectedHops = HopsTo(destination.hash)
+		if destination != nil && len(destination.Hash) > 0 {
+			l.expectedHops = HopsTo(destination.Hash)
 			if l.expectedHops <= 0 {
 				l.expectedHops = 1
 			}
 			// Python: get_first_hop_timeout + ESTABLISHMENT_TIMEOUT_PER_HOP*hops
-			baseTimeout := FirstHopTimeout(destination.hash)
+			baseTimeout := FirstHopTimeout(destination.Hash)
 			if Owner != nil {
-				baseTimeout = time.Duration(Owner.GetFirstHopTimeout(destination.hash) * float64(time.Second))
+				baseTimeout = time.Duration(Owner.GetFirstHopTimeout(destination.Hash) * float64(time.Second))
 			}
 			l.estTimeout = baseTimeout + linkDefaultPerHop*time.Duration(l.expectedHops)
 		}
@@ -363,7 +363,7 @@ func (l *Link) sendLinkRequest() error {
 	// Python: if link_mtu_discovery() and next-hop hw mtu is known -> signal that MTU, else signal Reticulum MTU.
 	mtu := defaultLinkMTU()
 	if LinkMTUDiscovery() && l.destination != nil {
-		if nh := NextHopInterfaceHWMTU(l.destination.hash); nh != nil {
+		if nh := NextHopInterfaceHWMTU(l.destination.Hash); nh != nil {
 			mtu = *nh
 		}
 	}
@@ -1047,7 +1047,7 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 		link.MTU = mtu
 	}
 
-	if mode := linkModeFromLRPacket(packet); containsInt(mode, linkEnabledModes) {
+	if mode := linkModeFromLRPacket(packet); mode == linkEnabledModes[0] {
 		link.Mode = mode
 	}
 
@@ -1831,7 +1831,7 @@ func (l *Link) teardownWithOptions(reason int, sendClose bool) {
 	incomingResources := append([]*Resource(nil), l.incomingResources...)
 	outgoingResources := append([]*Resource(nil), l.outgoingResources...)
 	if l.channel != nil {
-		l.channel.Close()
+		channelClose(l.channel)
 		l.channel = nil
 	}
 	if l.watchdogStop != nil {
@@ -1870,7 +1870,14 @@ func (l *Link) teardownWithOptions(reason int, sendClose bool) {
 		}()
 	}
 	if owner != nil {
-		owner.removeLink(l)
+		owner.linksMu.Lock()
+		for i, existing := range owner.links {
+			if existing == l {
+				owner.links = append(owner.links[:i], owner.links[i+1:]...)
+				break
+			}
+		}
+		owner.linksMu.Unlock()
 	}
 }
 
@@ -2010,7 +2017,7 @@ func (l *Link) handleRequestAndReportAllowed(requestID []byte, unpacked []any, p
 		return false
 	}
 
-	resp, allowed := dest.DispatchRequest(handler.Path, requestData, requestID, linkID, remoteID, requestedAt)
+	resp, allowed := destinationDispatchRequest(dest, handler.Path, requestData, requestID, linkID, remoteID, requestedAt)
 	if !allowed {
 		return false
 	}
@@ -2418,7 +2425,7 @@ func linkMTUFromProofPacket(packet *Packet) (int, bool) {
 }
 
 func linkSignallingBytes(mtu int, mode int) ([]byte, error) {
-	if !containsInt(mode, linkEnabledModes) {
+	if mode != linkEnabledModes[0] {
 		return nil, fmt.Errorf("link mode %d disabled", mode)
 	}
 	if mtu <= 0 {

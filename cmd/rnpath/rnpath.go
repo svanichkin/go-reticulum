@@ -18,6 +18,17 @@ import (
 	rns "github.com/svanichkin/go-reticulum/rns"
 )
 
+func destinationHashFromNameAndIdentityHash(fullName string, identityHash []byte) []byte {
+	if len(identityHash) != rns.ReticulumTruncatedHashLength/8 {
+		return nil
+	}
+	nameHash := rns.FullHash([]byte(fullName))[:rns.IdentityNameHashLength/8]
+	material := append([]byte{}, nameHash...)
+	material = append(material, identityHash...)
+	full := rns.FullHash(material)
+	return append([]byte(nil), full[:rns.ReticulumTruncatedHashLength/8]...)
+}
+
 const programName = "rnpath"
 
 var (
@@ -274,7 +285,7 @@ func programSetup(
 		if err != nil {
 			return exitError{code: 20, msg: "Invalid destination entered. Check your input."}
 		}
-		remoteHash := rns.HashFromNameAndIdentity("rnstransport.remote.management", identityHash)
+		remoteHash := destinationHashFromNameAndIdentityHash("rnstransport.remote.management", identityHash)
 
 		if managementIdentity == "" {
 			return exitError{code: 20, msg: "Management identity path required (-i)"}

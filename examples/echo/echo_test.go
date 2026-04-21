@@ -15,7 +15,7 @@ func TestEchoExample_RequestGetsProof(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDestination(server): %v", err)
 	}
-	_ = serverDest.SetProofStrategy(rns.DestinationPROVE_ALL)
+	serverDest.SetProofStrategy(rns.DestinationPROVE_ALL)
 
 	clientDest, err := rns.NewDestination(serverID, rns.DestinationOUT, rns.DestinationSINGLE, appName, "echo", "request")
 	if err != nil {

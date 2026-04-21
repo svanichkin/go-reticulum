@@ -45,17 +45,17 @@ func programSetup(configDir *string, stdin io.Reader) error {
 		return fmt.Errorf("NewDestination: %w", err)
 	}
 
-	_ = dest.SetProofStrategy(rns.DestinationPROVE_ALL)
+	dest.SetProofStrategy(rns.DestinationPROVE_ALL)
 	announceLoop(dest, stdin)
 	return nil
 }
 
 func announceLoop(dest *rns.Destination, stdin io.Reader) {
-	rns.Log("Minimal example "+rns.PrettyHexRep(dest.Hash())+" running, hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
+	rns.Log("Minimal example "+rns.PrettyHexRep(dest.Hash)+" running, hit enter to manually send an announce (Ctrl-C to quit)", rns.LogInfo)
 
 	in := bufio.NewScanner(stdin)
 	for in.Scan() {
 		dest.Announce(nil, false, nil, nil, true)
-		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash()), rns.LogInfo)
+		rns.Log("Sent announce from "+rns.PrettyHexRep(dest.Hash), rns.LogInfo)
 	}
 }

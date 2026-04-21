@@ -126,6 +126,7 @@ func TestBufferExample_BidirectionalEcho(t *testing.T) {
 		}
 		reply := []byte("I received \"" + string(data[:n]) + "\" over the buffer")
 		_, _ = serverBuf.Writer.Write(reply)
+		_ = serverBuf.Writer.Flush()
 	})
 
 	clientBuf = rns.CreateBidirectionalBuffer(0, 0, chA, func(readyBytes int) {
@@ -143,6 +144,7 @@ func TestBufferExample_BidirectionalEcho(t *testing.T) {
 	})
 
 	_, _ = clientBuf.Writer.Write([]byte("hello"))
+	_ = clientBuf.Writer.Flush()
 
 	waitUntil := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(waitUntil) {

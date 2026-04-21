@@ -471,7 +471,7 @@ func listen(
 
 	if printIdentity {
 		fmt.Println("Identity     :", rns.PrettyHex(identity.Hash))
-		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash()))
+		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash))
 		return nil
 	}
 
@@ -502,7 +502,7 @@ func listen(
 	}
 
 	// Python uses RNS.log(..., level=3) by default (Notice).
-	rns.Log("rnx listening for commands on "+rns.PrettyHex(dest.Hash()), rns.LogNotice)
+	rns.Log("rnx listening for commands on "+rns.PrettyHex(dest.Hash), rns.LogNotice)
 
 	if !disableAnnounce {
 		dest.Announce(nil, false, nil, nil, true)

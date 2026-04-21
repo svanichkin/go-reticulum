@@ -92,7 +92,7 @@ func runListener(id *rns.Identity, payload string, waitSeconds float64) error {
 		})
 	})
 
-	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash()))
+	fmt.Printf("LISTEN_HASH %s\n", hex.EncodeToString(dest.Hash))
 	time.Sleep(time.Second)
 
 	deadline := time.Now().Add(duration(waitSeconds))

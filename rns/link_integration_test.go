@@ -258,10 +258,10 @@ func findDestinationByHash(hash []byte) *Destination {
 	// where we simulate both sides inside one process).
 	var fallback *Destination
 	for _, d := range Destinations {
-		if d == nil || len(d.hash) == 0 {
+		if d == nil || len(d.Hash) == 0 {
 			continue
 		}
-		if bytesEqual(d.hash, hash) {
+		if bytesEqual(d.Hash, hash) {
 			if d.Direction == DestinationIN {
 				return d
 			}

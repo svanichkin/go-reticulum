@@ -408,10 +408,10 @@ func IdentityRecall(targetHash []byte, fromIdentityHash ...bool) *Identity {
 	}
 
 	for _, dst := range Destinations {
-		if dst == nil || dst.identity == nil || len(dst.hash) == 0 {
+		if dst == nil || dst.identity == nil || len(dst.Hash) == 0 {
 			continue
 		}
-		if bytes.Equal(targetHash, dst.hash) {
+		if bytes.Equal(targetHash, dst.Hash) {
 			pub := dst.identity.GetPublicKey()
 			if len(pub) == 0 {
 				return nil
@@ -906,10 +906,10 @@ func (id *Identity) DecryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 	return id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
 }
 
-func (id *Identity) DecryptWithRatchetReceiver(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool, receiver interface{ setLatestRatchetID([]byte) }) ([]byte, error) {
+func (id *Identity) DecryptWithRatchetReceiver(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool, setLatestRatchetID func([]byte)) ([]byte, error) {
 	plaintext, ratchetID, err := id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
-	if receiver != nil {
-		receiver.setLatestRatchetID(ratchetID)
+	if setLatestRatchetID != nil {
+		setLatestRatchetID(ratchetID)
 	}
 	return plaintext, err
 }

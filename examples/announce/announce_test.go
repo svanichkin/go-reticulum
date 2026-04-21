@@ -7,6 +7,17 @@ import (
 	rns "github.com/svanichkin/go-reticulum/rns"
 )
 
+func destinationHashFromNameAndIdentity(fullName string, identity *rns.Identity) ([]byte, error) {
+	if identity == nil {
+		return nil, nil
+	}
+	nameHash := rns.FullHash([]byte(fullName))[:rns.IdentityNameHashLength/8]
+	material := append([]byte{}, nameHash...)
+	material = append(material, identity.Hash...)
+	full := rns.FullHash(material)
+	return append([]byte(nil), full[:rns.ReticulumTruncatedHashLength/8]...), nil
+}
+
 type testAnnounceHandler struct {
 	filter string
 	calls  int
@@ -33,7 +44,7 @@ func dispatchAnnounceForExampleTest(t *testing.T, pkt *rns.Packet, announcedIden
 		return
 	}
 	if handler.filter != "" {
-		expected, err := rns.DestinationHashFromNameAndIdentity(handler.filter, announcedIdentity)
+		expected, err := destinationHashFromNameAndIdentity(handler.filter, announcedIdentity)
 		if err != nil || !bytes.Equal(expected, pkt.DestinationHash) {
 			return
 		}

@@ -1072,11 +1072,11 @@ func TestRNIDIntegration_AnnouncePublicOnlyIdentityExit33(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new destination: %v", err)
 	}
-	rememberPublicDestinationRNID(t, cfg, dst.Hash(), id.GetPublicKey())
+	rememberPublicDestinationRNID(t, cfg, dst.Hash, id.GetPublicKey())
 
 	out, code := runRNID(t, ctx, bin, cfg, root,
 		"--config", cfg,
-		"--identity", hex.EncodeToString(dst.Hash()),
+		"--identity", hex.EncodeToString(dst.Hash),
 		"--announce", "app.aspect",
 	)
 	skipIfReticulumUnavailable(t, out, code)
@@ -1199,14 +1199,14 @@ func TestRNIDIntegration_SharedInstancePublicOnlyAnnounceExit33(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new destination: %v", err)
 	}
-	rememberPublicDestinationRNID(t, cfg, dst.Hash(), id.GetPublicKey())
+	rememberPublicDestinationRNID(t, cfg, dst.Hash, id.GetPublicKey())
 
 	_, serviceOut := startRNSDServiceRNID(t, ctx, rnsdBin, cfg, root)
 	_ = waitForRNStatusSuccessRNID(t, rnstatusBin, cfg, root, 10*time.Second)
 
 	out, code := runRNID(t, ctx, rnidBin, cfg, root,
 		"--config", cfg,
-		"--identity", hex.EncodeToString(dst.Hash()),
+		"--identity", hex.EncodeToString(dst.Hash),
 		"--announce", "app.aspect",
 	)
 	skipIfReticulumUnavailable(t, serviceOut.String()+out, code)

@@ -36,8 +36,8 @@ func TestRegisterDestination_DuplicateHashPanics(t *testing.T) {
 	Destinations = nil
 
 	hash := bytes.Repeat([]byte{0x21}, truncatedHashBytes)
-	first := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, hash: append([]byte(nil), hash...)}
-	second := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, hash: append([]byte(nil), hash...)}
+	first := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, Hash: append([]byte(nil), hash...)}
+	second := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, Hash: append([]byte(nil), hash...)}
 
 	if err := RegisterDestination(first); err != nil {
 		t.Fatalf("RegisterDestination(first): %v", err)
@@ -58,9 +58,9 @@ func TestDeregisterDestination_RemovesExactObjectOnly(t *testing.T) {
 	prevDestinations := Destinations
 	t.Cleanup(func() { Destinations = prevDestinations })
 
-	first := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, hash: bytes.Repeat([]byte{0x31}, truncatedHashBytes)}
-	second := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, hash: bytes.Repeat([]byte{0x31}, truncatedHashBytes)}
-	third := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, hash: bytes.Repeat([]byte{0x32}, truncatedHashBytes)}
+	first := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, Hash: bytes.Repeat([]byte{0x31}, truncatedHashBytes)}
+	second := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, Hash: bytes.Repeat([]byte{0x31}, truncatedHashBytes)}
+	third := &Destination{Direction: DestinationIN, Type: DestinationSINGLE, Hash: bytes.Repeat([]byte{0x32}, truncatedHashBytes)}
 
 	Destinations = []*Destination{first, second, third}
 
