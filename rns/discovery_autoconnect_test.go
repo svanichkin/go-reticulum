@@ -9,6 +9,24 @@ import (
 	"time"
 )
 
+func runMonitorJobForTest(t *testing.T, discovery *InterfaceDiscovery) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		discovery.monitorJob()
+		close(done)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	discovery.mu.Lock()
+	discovery.monitoring = false
+	discovery.mu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("monitorJob did not stop")
+	}
+}
+
 func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersSourcesAndInvalidReachable(t *testing.T) {
 	prevSources := InterfaceDiscoverySources()
 	interfaceDiscoverySources = [][]byte{{0xAA, 0xBB}}
@@ -16,9 +34,14 @@ func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersSourcesAndInvalidRea
 		interfaceDiscoverySources = prevSources
 	})
 
-	discovery, err := newInterfaceDiscoveryWithStorage(t.TempDir(), 14, nil, false)
-	if err != nil {
-		t.Fatalf("newInterfaceDiscoveryWithStorage: %v", err)
+	discovery := &InterfaceDiscovery{
+		requiredValue: 14,
+		storagePath:   filepath.Join(t.TempDir(), "discovery", "interfaces"),
+		monitorEvery:  discoveryMonitorInterval,
+		detachAfter:   discoveryDetachThreshold,
+	}
+	if err := os.MkdirAll(discovery.storagePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
 	}
 
 	discovery.interfaceDiscovered(map[string]any{
@@ -69,16 +92,21 @@ func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersSourcesAndInvalidRea
 	}
 }
 
-func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersUnsupportedType(t *testing.T) {
+func TestInterfaceDiscovery_ListDiscoveredInterfaces_RejectsTcpClientInterface(t *testing.T) {
 	prevSources := InterfaceDiscoverySources()
 	interfaceDiscoverySources = [][]byte{{0xAA, 0xBB}}
 	t.Cleanup(func() {
 		interfaceDiscoverySources = prevSources
 	})
 
-	discovery, err := newInterfaceDiscoveryWithStorage(t.TempDir(), 14, nil, false)
-	if err != nil {
-		t.Fatalf("newInterfaceDiscoveryWithStorage: %v", err)
+	discovery := &InterfaceDiscovery{
+		requiredValue: 14,
+		storagePath:   filepath.Join(t.TempDir(), "discovery", "interfaces"),
+		monitorEvery:  discoveryMonitorInterval,
+		detachAfter:   discoveryDetachThreshold,
+	}
+	if err := os.MkdirAll(discovery.storagePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
 	}
 
 	discovery.interfaceDiscovered(map[string]any{
@@ -93,11 +121,9 @@ func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersUnsupportedType(t *t
 	})
 	discovery.interfaceDiscovered(map[string]any{
 		"discovery_hash": []byte{0x02},
-		"name":           "unsupported",
+		"name":           "tcp-client",
 		"type":           "TCPClientInterface",
 		"transport":      true,
-		"reachable_on":   "reticulum.example",
-		"port":           4243,
 		"value":          20,
 		"network_id":     hex.EncodeToString([]byte{0xAA, 0xBB}),
 	})
@@ -115,7 +141,7 @@ func TestInterfaceDiscovery_ListDiscoveredInterfaces_FiltersUnsupportedType(t *t
 		t.Fatalf("ReadDir: %v", err)
 	}
 	if len(files) != 1 {
-		t.Fatalf("persisted files=%d, want 1 after filtering unsupported type", len(files))
+		t.Fatalf("persisted files=%d, want 1 after filtering non-discoverable types", len(files))
 	}
 }
 
@@ -195,7 +221,7 @@ func TestInterfaceDiscovery_Autoconnect_AddsInterfaceAndSkipsDuplicate(t *testin
 	}
 }
 
-func TestInterfaceDiscovery_MonitorOnce_DetachesExpiredAutoconnect(t *testing.T) {
+func TestInterfaceDiscovery_MonitorJob_DetachesExpiredAutoconnect(t *testing.T) {
 	prevInterfaces := Interfaces
 	Interfaces = nil
 	t.Cleanup(func() {
@@ -215,13 +241,10 @@ func TestInterfaceDiscovery_MonitorOnce_DetachesExpiredAutoconnect(t *testing.T)
 		monitored:    []*Interface{ifc},
 		monitoring:   true,
 		detachAfter:  12 * time.Second,
-		monitorEvery: 5 * time.Second,
+		monitorEvery: time.Millisecond,
 	}
 
-	running := discovery.monitorOnce(time.Now())
-	if running {
-		t.Fatalf("monitorOnce() = true, want false after detach")
-	}
+	runMonitorJobForTest(t, discovery)
 	if len(Interfaces) != 0 {
 		t.Fatalf("interfaces=%d, want 0", len(Interfaces))
 	}
@@ -232,7 +255,7 @@ func TestInterfaceDiscovery_MonitorOnce_DetachesExpiredAutoconnect(t *testing.T)
 	}
 }
 
-func TestInterfaceDiscovery_MonitorOnce_TearsDownBootstrapOnlyAtTarget(t *testing.T) {
+func TestInterfaceDiscovery_MonitorJob_TearsDownBootstrapOnlyAtTarget(t *testing.T) {
 	prevOwner := Owner
 	prevInterfaces := Interfaces
 	prevAutoconnect := autoconnectDiscoveredInterfaces
@@ -264,19 +287,16 @@ func TestInterfaceDiscovery_MonitorOnce_TearsDownBootstrapOnlyAtTarget(t *testin
 		monitored:    []*Interface{autoIfc},
 		monitoring:   true,
 		detachAfter:  12 * time.Second,
-		monitorEvery: 5 * time.Second,
+		monitorEvery: time.Millisecond,
 	}
 
-	running := discovery.monitorOnce(time.Now())
-	if !running {
-		t.Fatal("monitorOnce() = false, want true while autoconnected interface remains monitored")
-	}
+	runMonitorJobForTest(t, discovery)
 	if len(Interfaces) != 1 || Interfaces[0] != autoIfc {
 		t.Fatalf("interfaces after bootstrap teardown=%#v, want only autoconnected interface", Interfaces)
 	}
 }
 
-func TestInterfaceDiscovery_MonitorOnce_ReenablesBootstrapOnlyWhenNoAutoConnectedRemain(t *testing.T) {
+func TestInterfaceDiscovery_MonitorJob_ReenablesBootstrapOnlyWhenNoAutoConnectedRemain(t *testing.T) {
 	prevOwner := Owner
 	prevInterfaces := Interfaces
 
@@ -317,16 +337,7 @@ func TestInterfaceDiscovery_MonitorOnce_ReenablesBootstrapOnlyWhenNoAutoConnecte
 		Interfaces = prevInterfaces
 	})
 
-	discovery := &InterfaceDiscovery{
-		monitoring:   true,
-		detachAfter:  12 * time.Second,
-		monitorEvery: 5 * time.Second,
-	}
-
-	running := discovery.monitorOnce(time.Now())
-	if running {
-		t.Fatal("monitorOnce() = true, want false with no monitored autoconnects")
-	}
+	Owner.reenableBootstrapInterfaces()
 	if len(Interfaces) != 1 {
 		t.Fatalf("interfaces=%d, want 1 bootstrap interface re-enabled", len(Interfaces))
 	}

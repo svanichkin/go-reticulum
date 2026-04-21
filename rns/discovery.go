@@ -57,7 +57,16 @@ const (
 	blackholeSourceTimeout      = 25 * time.Second
 )
 
-var discoveryAllowedInterfaceTypes = map[string]struct{}{
+var discoveryAnnouncerInterfaceTypes = map[string]struct{}{
+	"BackboneInterface":  {},
+	"TCPServerInterface": {},
+	"TCPClientInterface": {},
+	"RNodeInterface":     {},
+	"WeaveInterface":     {},
+	"I2PInterface":       {},
+	"KISSInterface":      {},
+}
+var discoveryInterfaceTypes = map[string]struct{}{
 	"BackboneInterface":  {},
 	"TCPServerInterface": {},
 	"I2PInterface":       {},
@@ -78,7 +87,29 @@ type DiscoveryStamper interface {
 // Discovery.py in Python via LXMF. The runtime compiles without it, but actual
 // discovery announce generation/validation requires a compatible implementation.
 var DiscoveryStampProvider DiscoveryStamper
-var discoveryAutoconnectInterfaceFactory = defaultDiscoveryAutoconnectInterfaceFactory
+var discoveryAutoconnectInterfaceFactory = func(info map[string]any) (*Interface, error) {
+	name, _ := info["name"].(string)
+	reachableOn, _ := info["reachable_on"].(string)
+	port := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		default:
+			return 0
+		}
+	}(info["port"])
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(reachableOn) == "" || port <= 0 {
+		return nil, errors.New("discovered interface missing reachable_on or port")
+	}
+	return ifaces.NewBackboneClientInterface(name, map[string]string{
+		"target_host": reachableOn,
+		"target_port": strconv.Itoa(port),
+	})
+}
 var discoveryPanic = Panic
 
 type InterfaceAnnouncer struct {
@@ -137,8 +168,13 @@ func init() {
 }
 
 func NewInterfaceAnnouncer() *InterfaceAnnouncer {
-	if !requireDiscoveryStampProvider() {
-		return &InterfaceAnnouncer{stampCache: make(map[string][]byte)}
+	if DiscoveryStampProvider == nil {
+		Log("Using on-network interface discovery requires the LXMF module to be installed.", LogCritical)
+		Log("You can install it with the command: pip install lxmf", LogCritical)
+		if discoveryPanic != nil {
+			discoveryPanic()
+		}
+		panic(errors.New("Using on-network interface discovery requires the LXMF module to be installed."))
 	}
 	var identity *Identity
 	if HasNetworkIdentity() {
@@ -181,54 +217,59 @@ func (a *InterfaceAnnouncer) Stop() {
 	a.mu.Unlock()
 }
 
-func (a *InterfaceAnnouncer) running() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.shouldRun
-}
-
 func (a *InterfaceAnnouncer) job() {
-	for a.running() {
-		time.Sleep(discoveryAnnouncerInterval)
-		if !a.running() {
+	for {
+		a.mu.Lock()
+		shouldRun := a.shouldRun
+		a.mu.Unlock()
+		if !shouldRun {
 			return
 		}
-		a.runOnce(time.Now())
-	}
-}
-
-func (a *InterfaceAnnouncer) runOnce(now time.Time) {
-	if a == nil || a.dest == nil {
-		return
-	}
-	due := make([]*Interface, 0)
-	for _, ifc := range Interfaces {
-		if ifc == nil || !ifc.SupportsDiscovery() || !ifc.Discoverable {
+		time.Sleep(discoveryAnnouncerInterval)
+		a.mu.Lock()
+		shouldRun = a.shouldRun
+		a.mu.Unlock()
+		if !shouldRun {
+			return
+		}
+		if a == nil || a.dest == nil {
 			continue
 		}
-		interval := ifc.DiscoveryAnnounceInterval
-		if interval <= 0 {
-			interval = 6 * time.Hour
-		}
-		if ifc.LastDiscoveryAnnounce.IsZero() || now.Sub(ifc.LastDiscoveryAnnounce) > interval {
-			due = append(due, ifc)
-		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logf(LogError, "Error while preparing interface discovery announces: %v", r)
+					TraceException(r)
+				}
+			}()
+			now := time.Now()
+			due := make([]*Interface, 0)
+			for _, ifc := range Interfaces {
+				if ifc == nil || !ifc.SupportsDiscovery() || !ifc.Discoverable {
+					continue
+				}
+				if ifc.LastDiscoveryAnnounce.IsZero() || now.Sub(ifc.LastDiscoveryAnnounce) > ifc.DiscoveryAnnounceInterval {
+					due = append(due, ifc)
+				}
+			}
+			sort.SliceStable(due, func(i, j int) bool {
+				return now.Sub(due[i].LastDiscoveryAnnounce) > now.Sub(due[j].LastDiscoveryAnnounce)
+			})
+			if len(due) == 0 {
+				return
+			}
+			selected := due[0]
+			selected.LastDiscoveryAnnounce = time.Now()
+			Logf(LogDebug, "Preparing interface discovery announce for %s", selected.Name)
+			appData, err := a.GetInterfaceAnnounceData(selected)
+			if err != nil {
+				Logf(LogError, "Could not generate interface discovery announce data for %s", selected.Name)
+				return
+			}
+			Logf(LogDebug, "Sending interface discovery announce for %s with %dB payload", selected.Name, len(appData))
+			a.dest.Announce(appData, false, nil, nil, true)
+		}()
 	}
-	sort.SliceStable(due, func(i, j int) bool {
-		return now.Sub(due[i].LastDiscoveryAnnounce) > now.Sub(due[j].LastDiscoveryAnnounce)
-	})
-	if len(due) == 0 {
-		return
-	}
-
-	selected := due[0]
-	appData, err := a.GetInterfaceAnnounceData(selected)
-	if err != nil {
-		Logf(LogError, "Could not generate interface discovery announce data for %s: %v", selected.Name, err)
-		return
-	}
-	selected.LastDiscoveryAnnounce = now
-	a.dest.Announce(appData, false, nil, nil, true)
 }
 
 func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, error) {
@@ -240,10 +281,11 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 	}
 
 	ifType := ifc.Type
-	if !ifc.SupportsDiscovery() {
+	if _, ok := discoveryAnnouncerInterfaceTypes[ifType]; !ok {
 		return nil, fmt.Errorf("interface type %q does not support discovery", ifType)
 	}
 	if ifType == "TCPClientInterface" && !ifc.DiscoveryKISSFraming() {
+		Logf(LogError, "Invalid interface discovery configuration for %s, aborting discovery announce", ifc.Name)
 		return nil, fmt.Errorf("invalid interface discovery configuration for %s", ifc.Name)
 	}
 
@@ -253,19 +295,75 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 		discoveryFieldTransport:     TransportEnabled(),
 		discoveryFieldTransportID:   copyBytes(TransportIdentity.Hash),
 		discoveryFieldName:          sanitizeDiscoveryString(ifc.DiscoveryNameValue()),
-		discoveryFieldLatitude:      derefFloat64(ifc.DiscoveryLatitude),
-		discoveryFieldLongitude:     derefFloat64(ifc.DiscoveryLongitude),
-		discoveryFieldHeight:        derefFloat64(ifc.DiscoveryHeight),
+		discoveryFieldLatitude: func() any {
+			if ifc.DiscoveryLatitude == nil {
+				return nil
+			}
+			return *ifc.DiscoveryLatitude
+		}(),
+		discoveryFieldLongitude: func() any {
+			if ifc.DiscoveryLongitude == nil {
+				return nil
+			}
+			return *ifc.DiscoveryLongitude
+		}(),
+		discoveryFieldHeight: func() any {
+			if ifc.DiscoveryHeight == nil {
+				return nil
+			}
+			return *ifc.DiscoveryHeight
+		}(),
 	}
 
 	switch ifType {
 	case "BackboneInterface", "TCPServerInterface":
-		reachableOn, err := resolveDiscoveryReachableOn(ifc, sanitizeDiscoveryString(ifc.DiscoveryReachableOnValue()))
-		if err != nil {
-			return nil, err
-		}
-		if !isDiscoveryAddress(reachableOn) {
-			return nil, fmt.Errorf("invalid reachable_on %q for %s", reachableOn, ifc.Name)
+		reachableOn := sanitizeDiscoveryString(ifc.DiscoveryReachableOnValue())
+		if !umsgpack.IsWindows() {
+			resolveExecutablePath := func(v string) (string, bool) {
+				if strings.TrimSpace(v) == "" {
+					return "", false
+				}
+				expanded := v
+				if strings.HasPrefix(expanded, "~") {
+					if home, err := os.UserHomeDir(); err == nil {
+						switch {
+						case expanded == "~":
+							expanded = home
+						case strings.HasPrefix(expanded, "~/"):
+							expanded = filepath.Join(home, strings.TrimPrefix(expanded, "~/"))
+						}
+					}
+				}
+				info, err := os.Stat(expanded)
+				if err != nil || info.IsDir() {
+					return "", false
+				}
+				if info.Mode()&0o111 == 0 {
+					return "", false
+				}
+				return expanded, true
+			}
+			if execPath, ok := resolveExecutablePath(reachableOn); ok {
+				Logf(LogDebug, "Evaluating reachable_on from executable at %s", execPath)
+				out, err := exec.Command(execPath).Output()
+				if err != nil {
+					Logf(LogError, "Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), err)
+					Log("Aborting discovery announce", LogError)
+					return nil, fmt.Errorf("error while getting reachable_on from executable at %s: %w", ifc.DiscoveryReachableOnValue(), err)
+				}
+				reachableOn = sanitizeDiscoveryString(string(out))
+				if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
+					execErr := fmt.Errorf("Valid IP address or hostname was not found in external script output %q", reachableOn)
+					Logf(LogError, "Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), execErr)
+					Log("Aborting discovery announce", LogError)
+					return nil, execErr
+				}
+			}
+			if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
+				Logf(LogError, "The configured reachable_on parameter \"%s\" for %s is not a valid IP address or hostname", reachableOn, ifc.Name)
+				Log("Aborting discovery announce", LogError)
+				return nil, fmt.Errorf("invalid reachable_on %q for %s", reachableOn, ifc.Name)
+			}
 		}
 		port := ifc.DiscoveryPortValue()
 		if port == nil || *port <= 0 {
@@ -279,7 +377,7 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 				info[discoveryFieldReachableOn] = sanitizeDiscoveryString(*b32)
 			}
 		}
-	case "RNodeInterface", "RNodeMultiInterface":
+	case "RNodeInterface":
 		frequency, bandwidth, sf, cr, ok := ifc.DiscoveryRNodeRadioParams()
 		if ok {
 			info[discoveryFieldFrequency] = frequency
@@ -303,39 +401,154 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 		}
 	}
 
-	if ifc.DiscoveryKISSFraming() {
+	if ifType == "KISSInterface" || (ifType == "TCPClientInterface" && ifc.DiscoveryKISSFraming()) {
 		info[discoveryFieldInterfaceType] = "KISSInterface"
 		if ifc.DiscoveryFrequency != nil {
 			info[discoveryFieldFrequency] = *ifc.DiscoveryFrequency
+		} else {
+			info[discoveryFieldFrequency] = nil
 		}
 		if ifc.DiscoveryBandwidth != nil {
 			info[discoveryFieldBandwidth] = *ifc.DiscoveryBandwidth
+		} else {
+			info[discoveryFieldBandwidth] = nil
 		}
-		if strings.TrimSpace(ifc.DiscoveryModulation) != "" {
-			info[discoveryFieldModulation] = sanitizeDiscoveryString(ifc.DiscoveryModulation)
-		}
+		info[discoveryFieldModulation] = sanitizeDiscoveryString(ifc.DiscoveryModulation)
 	}
 
 	if ifc.DiscoveryPublishIFAC {
-		if netname := sanitizeDiscoveryString(ifc.IFACNetname()); netname != "" {
-			info[discoveryFieldIFACNetname] = netname
-		}
-		if netkey := sanitizeDiscoveryString(ifc.IFACNetkey()); netkey != "" {
-			info[discoveryFieldIFACNetkey] = netkey
-		}
+		info[discoveryFieldIFACNetname] = sanitizeDiscoveryString(ifc.IFACNetname())
+		info[discoveryFieldIFACNetkey] = sanitizeDiscoveryString(ifc.IFACNetkey())
 	}
 
-	packed, err := packDiscoveryInfo(info)
-	if err != nil {
+	packedInfo := bytes.Buffer{}
+	stringOf := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
+	}
+	lookup := func(raw map[any]any, want int) (any, bool) {
+		for k, v := range raw {
+			switch x := k.(type) {
+			case int:
+				if x == want {
+					return v, true
+				}
+			case int64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint8:
+				if int(x) == want {
+					return v, true
+				}
+			}
+		}
+		return nil, false
+	}
+	writeHeader := func(buf *bytes.Buffer, n int) error {
+		switch {
+		case n <= 15:
+			return buf.WriteByte(byte(0x80 | n))
+		case n <= 0xFFFF:
+			if err := buf.WriteByte(0xDE); err != nil {
+				return err
+			}
+			var raw [2]byte
+			binary.BigEndian.PutUint16(raw[:], uint16(n))
+			_, err := buf.Write(raw[:])
+			return err
+		default:
+			if err := buf.WriteByte(0xDF); err != nil {
+				return err
+			}
+			var raw [4]byte
+			binary.BigEndian.PutUint32(raw[:], uint32(n))
+			_, err := buf.Write(raw[:])
+			return err
+		}
+	}
+	keys := []int{
+		discoveryFieldInterfaceType,
+		discoveryFieldTransport,
+		discoveryFieldTransportID,
+		discoveryFieldName,
+		discoveryFieldLatitude,
+		discoveryFieldLongitude,
+		discoveryFieldHeight,
+	}
+	ifTypeVal, _ := lookup(info, discoveryFieldInterfaceType)
+	switch sanitizeDiscoveryString(stringOf(ifTypeVal)) {
+	case "BackboneInterface", "TCPServerInterface":
+		keys = append(keys, discoveryFieldReachableOn, discoveryFieldPort)
+	case "I2PInterface":
+		keys = append(keys, discoveryFieldReachableOn)
+	case "RNodeInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldSpreading, discoveryFieldCodingRate)
+	case "WeaveInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldChannel, discoveryFieldModulation)
+	case "KISSInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldModulation)
+	}
+	if _, ok := lookup(info, discoveryFieldIFACNetname); ok {
+		keys = append(keys, discoveryFieldIFACNetname)
+	}
+	if _, ok := lookup(info, discoveryFieldIFACNetkey); ok {
+		keys = append(keys, discoveryFieldIFACNetkey)
+	}
+	filtered := make([]int, 0, len(keys))
+	seen := make(map[int]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		if _, ok := lookup(info, key); !ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		filtered = append(filtered, key)
+	}
+	keys = filtered
+	if err := writeHeader(&packedInfo, len(keys)); err != nil {
 		return nil, err
 	}
-	infoHash := FullHash(packed)
+	for _, key := range keys {
+		value, ok := lookup(info, key)
+		if !ok {
+			continue
+		}
+		packedKey, err := umsgpack.Packb(key)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := packedInfo.Write(packedKey); err != nil {
+			return nil, err
+		}
+		packedValue, err := umsgpack.Packb(value)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := packedInfo.Write(packedValue); err != nil {
+			return nil, err
+		}
+	}
+	infoHash := FullHash(packedInfo.Bytes())
 	stampCost := discoveryStampDefaultValue
 	if ifc.DiscoveryStampValue != nil && *ifc.DiscoveryStampValue > 0 {
 		stampCost = *ifc.DiscoveryStampValue
 	}
-	stampKey := string(packed)
+	stampKey := string(infoHash)
 	var stamp []byte
+	var err error
 	a.mu.Lock()
 	if cached, ok := a.stampCache[stampKey]; ok && len(cached) > 0 {
 		stamp = append([]byte(nil), cached...)
@@ -353,9 +566,10 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 		a.stampCache[stampKey] = append([]byte(nil), stamp...)
 		a.mu.Unlock()
 	}
-	payload := append(append([]byte(nil), packed...), stamp...)
+	payload := append(append([]byte(nil), packedInfo.Bytes()...), stamp...)
 	if ifc.DiscoveryEncrypt {
 		if !HasNetworkIdentity() {
+			Logf(LogError, "Discovery encryption requested for %s, but no network identity configured. Aborting discovery announce.", ifc.Name)
 			return nil, errors.New("discovery encryption requested without network identity")
 		}
 		flags |= discoveryFlagEncrypted
@@ -368,8 +582,13 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 }
 
 func NewInterfaceAnnounceHandler(requiredValue int, callback func(map[string]any)) *InterfaceAnnounceHandler {
-	if !requireDiscoveryStampProvider() {
-		return &InterfaceAnnounceHandler{requiredValue: requiredValue, callback: callback}
+	if DiscoveryStampProvider == nil {
+		Log("Using on-network interface discovery requires the LXMF module to be installed.", LogCritical)
+		Log("You can install it with the command: pip install lxmf", LogCritical)
+		if discoveryPanic != nil {
+			discoveryPanic()
+		}
+		panic(errors.New("Using on-network interface discovery requires the LXMF module to be installed."))
 	}
 	if requiredValue <= 0 {
 		requiredValue = discoveryStampDefaultValue
@@ -382,15 +601,31 @@ func (h *InterfaceAnnounceHandler) AspectFilter() any {
 }
 
 func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, announcedIdentity *Identity, appData []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogDebug, "An error occurred while trying to decode discovered interface. The contained exception was: %v", r)
+		}
+	}()
 	if h == nil || announcedIdentity == nil || len(appData) <= 1 || DiscoveryStampProvider == nil {
 		return
 	}
-	if !discoverySourceAllowed(announcedIdentity.Hash) {
-		Logf(LogDebug, "Interface discovered from non-authorized network identity %s, ignoring", PrettyHexRep(announcedIdentity.Hash))
-		return
+	sources := InterfaceDiscoverySources()
+	if len(sources) > 0 {
+		allowed := false
+		for _, src := range sources {
+			if bytesEqual(src, announcedIdentity.Hash) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			Logf(LogDebug, "Interface discovered from non-authorized network identity %s, ignoring", PrettyHexRep(announcedIdentity.Hash))
+			return
+		}
 	}
 
 	flags := appData[0]
+	_ = flags & discoveryFlagSigned
 	payload := append([]byte(nil), appData[1:]...)
 	if flags&discoveryFlagEncrypted != 0 {
 		if !HasNetworkIdentity() {
@@ -412,6 +647,12 @@ func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, anno
 	infoHash := FullHash(packed)
 	workblock := DiscoveryStampProvider.StampWorkblock(infoHash, discoveryWorkblockRounds)
 	if !DiscoveryStampProvider.StampValid(stamp, h.requiredValue, workblock) {
+		Log("Ignored discovered interface with invalid stamp", LogDebug)
+		return
+	}
+	value := DiscoveryStampProvider.StampValue(workblock, stamp)
+	if value < h.requiredValue {
+		Logf(LogDebug, "Ignored discovered interface with stamp value %d", value)
 		return
 	}
 
@@ -419,10 +660,298 @@ func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, anno
 	if err := umsgpack.Unpackb(packed, &raw); err != nil {
 		return
 	}
-	info := discoveryInfoFromRaw(raw, destinationHash, announcedIdentity, stamp, DiscoveryStampProvider.StampValue(workblock, stamp))
-	if info == nil {
+	if raw == nil || announcedIdentity == nil {
 		return
 	}
+	lookup := func(raw map[any]any, want int) (any, bool) {
+		for k, v := range raw {
+			switch x := k.(type) {
+			case int:
+				if x == want {
+					return v, true
+				}
+			case int64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint8:
+				if int(x) == want {
+					return v, true
+				}
+			}
+		}
+		return nil, false
+	}
+	stringOf := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
+	}
+	intOf := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}
+	maybeInt := func(v any) *int {
+		switch x := v.(type) {
+		case int:
+			return &x
+		case int64:
+			n := int(x)
+			return &n
+		case uint64:
+			n := int(x)
+			return &n
+		case float64:
+			n := int(x)
+			return &n
+		default:
+			return nil
+		}
+	}
+	floatOf := func(v any) float64 {
+		switch x := v.(type) {
+		case float64:
+			return x
+		case float32:
+			return float64(x)
+		case int:
+			return float64(x)
+		case int64:
+			return float64(x)
+		default:
+			return 0
+		}
+	}
+	ifTypeVal, _ := lookup(raw, discoveryFieldInterfaceType)
+	ifType := sanitizeDiscoveryString(stringOf(ifTypeVal))
+	if ifType == "" {
+		return
+	}
+	nameVal, _ := lookup(raw, discoveryFieldName)
+	name := stringOf(nameVal)
+	if name == "" {
+		name = "Discovered " + ifType
+	}
+	transportIDVal, _ := lookup(raw, discoveryFieldTransportID)
+	transportID := func(v any) []byte {
+		switch x := v.(type) {
+		case []byte:
+			return append([]byte(nil), x...)
+		case string:
+			return []byte(x)
+		default:
+			return nil
+		}
+	}(transportIDVal)
+	info := map[string]any{
+		"type": ifType,
+		"transport": func() bool {
+			value, _ := lookup(raw, discoveryFieldTransport)
+			if x, ok := value.(bool); ok {
+				return x
+			}
+			return false
+		}(),
+		"name":         name,
+		"received":     float64(time.Now().UnixNano()) / 1e9,
+		"stamp":        stamp,
+		"value":        value,
+		"transport_id": strings.ToLower(hex.EncodeToString(transportID)),
+		"network_id":   strings.ToLower(hex.EncodeToString(announcedIdentity.Hash)),
+		"hops": func() int {
+			if len(destinationHash) == 0 {
+				return 0
+			}
+			return HopsTo(destinationHash)
+		}(),
+	}
+	if latRaw, ok := lookup(raw, discoveryFieldLatitude); ok {
+		if latRaw == nil {
+			info["latitude"] = nil
+		} else {
+			info["latitude"] = floatOf(latRaw)
+		}
+	} else {
+		info["latitude"] = nil
+	}
+	if lonRaw, ok := lookup(raw, discoveryFieldLongitude); ok {
+		if lonRaw == nil {
+			info["longitude"] = nil
+		} else {
+			info["longitude"] = floatOf(lonRaw)
+		}
+	} else {
+		info["longitude"] = nil
+	}
+	if heightRaw, ok := lookup(raw, discoveryFieldHeight); ok {
+		if heightRaw == nil {
+			info["height"] = nil
+		} else {
+			info["height"] = floatOf(heightRaw)
+		}
+	} else {
+		info["height"] = nil
+	}
+	if reachableOnVal, ok := lookup(raw, discoveryFieldReachableOn); ok {
+		reachableOn := stringOf(reachableOnVal)
+		if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
+			panic(errors.New("Invalid data in reachable_on field of announce"))
+		}
+		info["reachable_on"] = reachableOn
+	}
+	if portVal, _ := lookup(raw, discoveryFieldPort); maybeInt(portVal) != nil {
+		port := maybeInt(portVal)
+		info["port"] = *port
+	}
+	if netnameVal, ok := lookup(raw, discoveryFieldIFACNetname); ok {
+		info["ifac_netname"] = stringOf(netnameVal)
+	}
+	if netkeyVal, ok := lookup(raw, discoveryFieldIFACNetkey); ok {
+		info["ifac_netkey"] = stringOf(netkeyVal)
+	}
+	if vVal, _ := lookup(raw, discoveryFieldFrequency); maybeInt(vVal) != nil {
+		v := maybeInt(vVal)
+		info["frequency"] = *v
+	}
+	if vVal, _ := lookup(raw, discoveryFieldBandwidth); maybeInt(vVal) != nil {
+		v := maybeInt(vVal)
+		info["bandwidth"] = *v
+	}
+	if vVal, _ := lookup(raw, discoveryFieldSpreading); maybeInt(vVal) != nil {
+		v := maybeInt(vVal)
+		info["sf"] = *v
+	}
+	if vVal, _ := lookup(raw, discoveryFieldCodingRate); maybeInt(vVal) != nil {
+		v := maybeInt(vVal)
+		info["cr"] = *v
+	}
+	if vVal, _ := lookup(raw, discoveryFieldChannel); maybeInt(vVal) != nil {
+		v := maybeInt(vVal)
+		info["channel"] = *v
+	}
+	if modulationVal, _ := lookup(raw, discoveryFieldModulation); sanitizeDiscoveryString(stringOf(modulationVal)) != "" {
+		modulation := sanitizeDiscoveryString(stringOf(modulationVal))
+		info["modulation"] = modulation
+	}
+	cfgName, _ := info["name"].(string)
+	cfgTransportID, _ := info["transport_id"].(string)
+	cfgNetname, _ := info["ifac_netname"].(string)
+	cfgNetkey, _ := info["ifac_netkey"].(string)
+	cfgNetnameStr := ""
+	if strings.TrimSpace(cfgNetname) != "" {
+		cfgNetnameStr = "\n  network_name = " + cfgNetname
+	}
+	cfgNetkeyStr := ""
+	if strings.TrimSpace(cfgNetkey) != "" {
+		cfgNetkeyStr = "\n  passphrase = " + cfgNetkey
+	}
+	cfgIdentityStr := ""
+	if strings.TrimSpace(cfgTransportID) != "" {
+		cfgIdentityStr = "\n  transport_identity = " + cfgTransportID
+	}
+
+	var configEntry string
+	switch ifType {
+	case "BackboneInterface", "TCPServerInterface":
+		reachableOn, ok := info["reachable_on"].(string)
+		if !ok {
+			return
+		}
+		portValue, ok := info["port"]
+		if !ok {
+			return
+		}
+		port := intOf(portValue)
+		connectionType := "BackboneInterface"
+		remoteKey := "remote"
+		if umsgpack.IsWindows() {
+			connectionType = "TCPClientInterface"
+			remoteKey = "target_host"
+		}
+		configEntry = fmt.Sprintf("[[%s]]\n  type = %s\n  enabled = yes\n  %s = %s\n  target_port = %d%s%s%s",
+			cfgName, connectionType, remoteKey, reachableOn, port, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
+	case "I2PInterface":
+		reachableOn, ok := info["reachable_on"].(string)
+		if !ok {
+			return
+		}
+		configEntry = fmt.Sprintf("[[%s]]\n  type = I2PInterface\n  enabled = yes\n  peers = %s%s%s%s",
+			cfgName, reachableOn, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
+	case "RNodeInterface":
+		if _, ok := info["frequency"]; !ok {
+			return
+		}
+		if _, ok := info["bandwidth"]; !ok {
+			return
+		}
+		if _, ok := info["sf"]; !ok {
+			return
+		}
+		if _, ok := info["cr"]; !ok {
+			return
+		}
+		configEntry = fmt.Sprintf("[[%s]]\n  type = RNodeInterface\n  enabled = yes\n  port = \n  frequency = %d\n  bandwidth = %d\n  spreadingfactor = %d\n  codingrate = %d\n  txpower = %s%s",
+			cfgName, intOf(info["frequency"]), intOf(info["bandwidth"]), intOf(info["sf"]), intOf(info["cr"]), cfgNetnameStr, cfgNetkeyStr)
+	case "WeaveInterface":
+		if _, ok := info["frequency"]; !ok {
+			return
+		}
+		if _, ok := info["bandwidth"]; !ok {
+			return
+		}
+		if _, ok := info["channel"]; !ok {
+			return
+		}
+		if _, ok := info["modulation"]; !ok {
+			return
+		}
+		configEntry = fmt.Sprintf("[[%s]]\n  type = WeaveInterface\n  enabled = yes\n  port = %s%s",
+			cfgName, cfgNetnameStr, cfgNetkeyStr)
+	case "KISSInterface":
+		if _, ok := info["frequency"]; !ok {
+			return
+		}
+		if _, ok := info["bandwidth"]; !ok {
+			return
+		}
+		if _, ok := info["modulation"]; !ok {
+			return
+		}
+		configEntry = fmt.Sprintf("[[%s]]\n  type = KISSInterface\n  enabled = yes\n  port = \n  # Frequency: %d\n  # Bandwidth: %d\n  # Modulation: %s%s%s%s",
+			cfgName, intOf(info["frequency"]), intOf(info["bandwidth"]), func() string {
+				switch x := info["modulation"].(type) {
+				case string:
+					return x
+				case []byte:
+					return string(x)
+				default:
+					return ""
+				}
+			}(), cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
+	}
+	if configEntry != "" {
+		info["config_entry"] = configEntry
+	}
+	info["discovery_hash"] = FullHash([]byte(info["transport_id"].(string) + info["name"].(string)))
 	if h.callback != nil {
 		h.callback(info)
 	}
@@ -432,17 +961,13 @@ func NewInterfaceDiscovery(requiredValue int, callback func(map[string]any), dis
 	if Owner == nil {
 		return nil, errors.New("transport owner/storage path is not initialised")
 	}
-	return newInterfaceDiscoveryWithStorage(Owner.StoragePath, requiredValue, callback, discoverInterfaces)
-}
-
-func newInterfaceDiscoveryWithStorage(storageBase string, requiredValue int, callback func(map[string]any), discoverInterfaces bool) (*InterfaceDiscovery, error) {
-	if strings.TrimSpace(storageBase) == "" {
+	if strings.TrimSpace(Owner.StoragePath) == "" {
 		return nil, errors.New("transport owner/storage path is not initialised")
 	}
 	d := &InterfaceDiscovery{
 		requiredValue: requiredValue,
 		callback:      callback,
-		storagePath:   filepath.Join(storageBase, "discovery", "interfaces"),
+		storagePath:   filepath.Join(Owner.StoragePath, "discovery", "interfaces"),
 		monitorEvery:  discoveryMonitorInterval,
 		detachAfter:   discoveryDetachThreshold,
 	}
@@ -461,10 +986,25 @@ func newInterfaceDiscoveryWithStorage(storageBase string, requiredValue int, cal
 }
 
 func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Error processing discovered interface data: %v", r)
+			TraceException(r)
+		}
+	}()
 	if d == nil || len(info) == 0 {
 		return
 	}
-	if !discoveryInterfaceTypeAllowed(asDiscoveryString(info["type"])) {
+	if _, ok := discoveryInterfaceTypes[strings.TrimSpace(func() string {
+		switch x := info["type"].(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
+	}())]; !ok {
 		return
 	}
 	hash, _ := info["discovery_hash"].([]byte)
@@ -472,7 +1012,26 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 		return
 	}
 	path := filepath.Join(d.storagePath, hex.EncodeToString(hash))
-	now := time.Now().Unix()
+	received := float64(time.Now().UnixNano()) / 1e9
+	hops, _ := info["hops"].(int)
+	stampValue, _ := info["value"].(int)
+	ifName, _ := info["name"].(string)
+	ifType, _ := info["type"].(string)
+	ms := "s"
+	if hops == 1 {
+		ms = ""
+	}
+	Logf(LogDebug, "Discovered %s %d hop%s away with stamp value %d: %s", ifType, hops, ms, stampValue, ifName)
+	switch x := info["received"].(type) {
+	case float64:
+		received = x
+	case float32:
+		received = float64(x)
+	case int:
+		received = float64(x)
+	case int64:
+		received = float64(x)
+	}
 
 	merged := map[string]any{}
 	newlyDiscovered := true
@@ -484,9 +1043,9 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 		merged[k] = v
 	}
 	if _, ok := merged["discovered"]; !ok {
-		merged["discovered"] = now
+		merged["discovered"] = received
 	}
-	merged["last_heard"] = now
+	merged["last_heard"] = received
 	if newlyDiscovered {
 		merged["heard_count"] = 0
 	} else {
@@ -501,13 +1060,25 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 
 	buf, err := umsgpack.Packb(merged)
 	if err != nil {
+		Logf(LogError, "Error while persisting discovered interface data: %v", err)
+		TraceException(err)
 		return
 	}
-	_ = os.WriteFile(path, buf, 0o600)
+	if err := os.WriteFile(path, buf, 0o600); err != nil {
+		Logf(LogError, "Error while persisting discovered interface data: %v", err)
+		TraceException(err)
+	}
 
 	d.autoconnect(merged)
 	if d.callback != nil {
-		d.callback(merged)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logf(LogError, "Error while processing external interface discovery callback: %v", r)
+				}
+			}()
+			d.callback(merged)
+		}()
 	}
 }
 
@@ -520,7 +1091,35 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 		return nil
 	}
 
-	now := time.Now()
+	now := float64(time.Now().UnixNano()) / 1e9
+	floatOf := func(v any) float64 {
+		switch x := v.(type) {
+		case float64:
+			return x
+		case float32:
+			return float64(x)
+		case int:
+			return float64(x)
+		case int64:
+			return float64(x)
+		default:
+			return 0
+		}
+	}
+	intOf := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}
 	out := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -529,35 +1128,75 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 		path := filepath.Join(d.storagePath, entry.Name())
 		raw, err := os.ReadFile(path)
 		if err != nil {
+			Logf(LogError, "Error while loading discovered interface data: %v", err)
+			Logf(LogError, "The interface data file %s may be corrupt", path)
+			TraceException(err)
 			continue
 		}
 		info := map[string]any{}
 		if err := umsgpack.Unpackb(raw, &info); err != nil {
+			Logf(LogError, "Error while loading discovered interface data: %v", err)
+			Logf(LogError, "The interface data file %s may be corrupt", path)
+			TraceException(err)
 			continue
 		}
-		lastHeardUnix, _ := info["last_heard"].(int64)
-		if lastHeardUnix == 0 {
-			if v, ok := info["last_heard"].(int); ok {
-				lastHeardUnix = int64(v)
-			}
-		}
-		if lastHeardUnix == 0 {
+		lastHeard := floatOf(info["last_heard"])
+		if lastHeard <= 0 {
 			continue
 		}
 		networkID, _ := info["network_id"].(string)
-		if !discoveryAllowedSource(networkID) {
+		networkID = strings.TrimSpace(networkID)
+		if len(InterfaceDiscoverySources()) > 0 {
+			if networkID == "" {
+				_ = os.Remove(path)
+				continue
+			}
+			decoded, err := hex.DecodeString(networkID)
+			if err != nil {
+				_ = os.Remove(path)
+				continue
+			}
+			allowed := false
+			for _, src := range InterfaceDiscoverySources() {
+				if bytesEqual(src, decoded) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				_ = os.Remove(path)
+				continue
+			}
+		}
+		if _, ok := discoveryInterfaceTypes[strings.TrimSpace(func() string {
+			switch x := info["type"].(type) {
+			case string:
+				return x
+			case []byte:
+				return string(x)
+			default:
+				return ""
+			}
+		}())]; !ok {
 			_ = os.Remove(path)
 			continue
 		}
-		if !discoveryInterfaceTypeAllowed(asDiscoveryString(info["type"])) {
-			_ = os.Remove(path)
-			continue
+		if reachableOnValue, ok := info["reachable_on"]; ok {
+			var reachableOn string
+			switch x := reachableOnValue.(type) {
+			case string:
+				reachableOn = x
+			case []byte:
+				reachableOn = string(x)
+			default:
+				reachableOn = fmt.Sprint(x)
+			}
+			if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
+				_ = os.Remove(path)
+				continue
+			}
 		}
-		if reachableOn, _ := info["reachable_on"].(string); strings.TrimSpace(reachableOn) != "" && !isDiscoveryAddress(strings.TrimSpace(reachableOn)) {
-			_ = os.Remove(path)
-			continue
-		}
-		delta := now.Sub(time.Unix(lastHeardUnix, 0))
+		delta := time.Duration((now - lastHeard) * float64(time.Second))
 		if delta > discoveryThresholdRemove {
 			_ = os.Remove(path)
 			continue
@@ -587,205 +1226,27 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {
-		icode := asDiscoveryInt(out[i]["status_code"])
-		jcode := asDiscoveryInt(out[j]["status_code"])
+		icode := intOf(out[i]["status_code"])
+		jcode := intOf(out[j]["status_code"])
 		if icode != jcode {
 			return icode > jcode
 		}
-		iv := asDiscoveryInt(out[i]["value"])
-		jv := asDiscoveryInt(out[j]["value"])
+		iv := intOf(out[i]["value"])
+		jv := intOf(out[j]["value"])
 		if iv != jv {
 			return iv > jv
 		}
-		return asDiscoveryInt64(out[i]["last_heard"]) > asDiscoveryInt64(out[j]["last_heard"])
+		return floatOf(out[i]["last_heard"]) > floatOf(out[j]["last_heard"])
 	})
 	return out
 }
 
-func discoveryInfoFromRaw(raw map[any]any, destinationHash []byte, announcedIdentity *Identity, stamp []byte, value int) map[string]any {
-	if raw == nil || announcedIdentity == nil {
-		return nil
-	}
-	ifType := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldInterfaceType)))
-	if ifType == "" {
-		return nil
-	}
-	if !discoveryInterfaceTypeAllowed(ifType) {
-		return nil
-	}
-	name := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldName)))
-	if name == "" {
-		name = "Discovered " + ifType
-	}
-	transportID := asDiscoveryBytes(discoveryRawGet(raw, discoveryFieldTransportID))
-	info := map[string]any{
-		"type":         ifType,
-		"transport":    asDiscoveryBool(discoveryRawGet(raw, discoveryFieldTransport)),
-		"name":         name,
-		"received":     time.Now().Unix(),
-		"stamp":        stamp,
-		"value":        value,
-		"transport_id": strings.ToLower(hex.EncodeToString(transportID)),
-		"network_id":   strings.ToLower(hex.EncodeToString(announcedIdentity.Hash)),
-		"hops":         discoveryHopsTo(destinationHash),
-	}
-	if latRaw := discoveryRawGet(raw, discoveryFieldLatitude); latRaw != nil {
-		info["latitude"] = asDiscoveryFloat(latRaw)
-	} else {
-		info["latitude"] = nil
-	}
-	if lonRaw := discoveryRawGet(raw, discoveryFieldLongitude); lonRaw != nil {
-		info["longitude"] = asDiscoveryFloat(lonRaw)
-	} else {
-		info["longitude"] = nil
-	}
-	if heightRaw := discoveryRawGet(raw, discoveryFieldHeight); heightRaw != nil {
-		info["height"] = asDiscoveryFloat(heightRaw)
-	} else {
-		info["height"] = nil
-	}
-	if reachableOn := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldReachableOn))); reachableOn != "" {
-		info["reachable_on"] = reachableOn
-	}
-	if port := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldPort)); port != nil {
-		info["port"] = *port
-	}
-	if netname := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldIFACNetname))); netname != "" {
-		info["ifac_netname"] = netname
-	}
-	if netkey := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldIFACNetkey))); netkey != "" {
-		info["ifac_netkey"] = netkey
-	}
-	if v := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldFrequency)); v != nil {
-		info["frequency"] = *v
-	}
-	if v := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldBandwidth)); v != nil {
-		info["bandwidth"] = *v
-	}
-	if v := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldSpreading)); v != nil {
-		info["sf"] = *v
-	}
-	if v := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldCodingRate)); v != nil {
-		info["cr"] = *v
-	}
-	if v := asDiscoveryMaybeInt(discoveryRawGet(raw, discoveryFieldChannel)); v != nil {
-		info["channel"] = *v
-	}
-	if modulation := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(raw, discoveryFieldModulation))); modulation != "" {
-		info["modulation"] = modulation
-	}
-	if configEntry := discoveryConfigEntry(info); configEntry != "" {
-		info["config_entry"] = configEntry
-	}
-	info["discovery_hash"] = FullHash([]byte(info["transport_id"].(string) + info["name"].(string)))
-	return info
-}
-
-func discoveryInterfaceTypeAllowed(ifType string) bool {
-	_, ok := discoveryAllowedInterfaceTypes[strings.TrimSpace(ifType)]
-	return ok
-}
-
-func discoveryAllowedSource(networkID string) bool {
-	sources := InterfaceDiscoverySources()
-	if len(sources) == 0 {
-		return true
-	}
-	networkID = strings.TrimSpace(networkID)
-	if networkID == "" {
-		return false
-	}
-	decoded, err := hex.DecodeString(networkID)
-	if err != nil {
-		return false
-	}
-	for _, src := range sources {
-		if bytesEqual(src, decoded) {
-			return true
-		}
-	}
-	return false
-}
-
-func discoverySourceAllowed(identityHash []byte) bool {
-	sources := InterfaceDiscoverySources()
-	if len(sources) == 0 {
-		return true
-	}
-	for _, src := range sources {
-		if bytesEqual(src, identityHash) {
-			return true
-		}
-	}
-	return false
-}
-
-func discoveryConfigEntry(info map[string]any) string {
-	if len(info) == 0 {
-		return ""
-	}
-	interfaceType, _ := info["type"].(string)
-	name, _ := info["name"].(string)
-	transportID, _ := info["transport_id"].(string)
-	ifacNetname, _ := info["ifac_netname"].(string)
-	ifacNetkey, _ := info["ifac_netkey"].(string)
-	cfgIdentityStr := ""
-	if strings.TrimSpace(transportID) != "" {
-		cfgIdentityStr = "\n  transport_identity = " + transportID
-	}
-	cfgNetnameStr := ""
-	if strings.TrimSpace(ifacNetname) != "" {
-		cfgNetnameStr = "\n  network_name = " + ifacNetname
-	}
-	cfgNetkeyStr := ""
-	if strings.TrimSpace(ifacNetkey) != "" {
-		cfgNetkeyStr = "\n  passphrase = " + ifacNetkey
-	}
-
-	switch interfaceType {
-	case "BackboneInterface", "TCPServerInterface":
-		reachableOn, _ := info["reachable_on"].(string)
-		port := asDiscoveryInt(info["port"])
-		if strings.TrimSpace(reachableOn) == "" || port <= 0 {
-			return ""
-		}
-		connectionType := "BackboneInterface"
-		remoteKey := "remote"
-		if umsgpack.IsWindows() {
-			connectionType = "TCPClientInterface"
-			remoteKey = "target_host"
-		}
-		return fmt.Sprintf("[[%s]]\n  type = %s\n  enabled = yes\n  %s = %s\n  target_port = %d%s%s%s",
-			name, connectionType, remoteKey, reachableOn, port, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
-	case "I2PInterface":
-		reachableOn, _ := info["reachable_on"].(string)
-		if strings.TrimSpace(reachableOn) == "" {
-			return ""
-		}
-		return fmt.Sprintf("[[%s]]\n  type = I2PInterface\n  enabled = yes\n  peers = %s%s%s%s",
-			name, reachableOn, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
-	case "RNodeInterface":
-		frequency := asDiscoveryInt(info["frequency"])
-		bandwidth := asDiscoveryInt(info["bandwidth"])
-		sf := asDiscoveryInt(info["sf"])
-		cr := asDiscoveryInt(info["cr"])
-		return fmt.Sprintf("[[%s]]\n  type = RNodeInterface\n  enabled = yes\n  port = \n  frequency = %d\n  bandwidth = %d\n  spreadingfactor = %d\n  codingrate = %d\n  txpower = %s%s%s",
-			name, frequency, bandwidth, sf, cr, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
-	case "WeaveInterface":
-		return fmt.Sprintf("[[%s]]\n  type = WeaveInterface\n  enabled = yes\n  port = %s%s%s",
-			name, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
-	case "KISSInterface":
-		frequency := asDiscoveryInt(info["frequency"])
-		bandwidth := asDiscoveryInt(info["bandwidth"])
-		modulation, _ := info["modulation"].(string)
-		return fmt.Sprintf("[[%s]]\n  type = KISSInterface\n  enabled = yes\n  port = \n  # Frequency: %d\n  # Bandwidth: %d\n  # Modulation: %s%s%s%s",
-			name, frequency, bandwidth, modulation, cfgIdentityStr, cfgNetnameStr, cfgNetkeyStr)
-	default:
-		return ""
-	}
-}
-
 func (d *InterfaceDiscovery) connectDiscovered() {
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Error while reconnecting discovered interfaces: %v", r)
+		}
+	}()
 	if d == nil || !ShouldAutoconnectDiscoveredInterfaces() {
 		return
 	}
@@ -801,42 +1262,54 @@ func (d *InterfaceDiscovery) connectDiscovered() {
 }
 
 func (d *InterfaceDiscovery) endpointHash(info map[string]any) []byte {
-	if len(info) == 0 {
-		return nil
-	}
 	spec := ""
-	if reachableOn, _ := info["reachable_on"].(string); strings.TrimSpace(reachableOn) != "" {
-		spec += reachableOn
-	}
-	if port := asDiscoveryInt(info["port"]); port > 0 {
-		spec += ":" + strconv.Itoa(port)
-	}
-	if spec == "" {
-		return nil
+	if info != nil {
+		if reachableOn, ok := info["reachable_on"]; ok {
+			spec += fmt.Sprint(reachableOn)
+		}
+		if _, ok := info["port"]; ok {
+			spec += ":" + fmt.Sprint(info["port"])
+		}
 	}
 	return FullHash([]byte(spec))
 }
 
 func (d *InterfaceDiscovery) interfaceExists(info map[string]any) bool {
+	if info == nil {
+		return false
+	}
 	endpointHash := d.endpointHash(info)
-	reachableOn, _ := info["reachable_on"].(string)
-	port := asDiscoveryInt(info["port"])
+	reachableOn, hasReachableOn := info["reachable_on"]
+	_, hasPort := info["port"]
+	port := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}(info["port"])
+	reachableOnStr := fmt.Sprint(reachableOn)
 	for _, ifc := range Interfaces {
 		if ifc == nil {
 			continue
 		}
-		if len(endpointHash) > 0 && len(ifc.AutoconnectHash) > 0 && bytesEqual(ifc.AutoconnectHash, endpointHash) {
+		if len(ifc.AutoconnectHash) > 0 && bytesEqual(ifc.AutoconnectHash, endpointHash) {
 			return true
 		}
 		targetHost := ifc.DiscoveryTargetHost()
-		if targetHost == nil || strings.TrimSpace(*targetHost) == "" || strings.TrimSpace(reachableOn) == "" {
-			continue
-		}
-		if *targetHost != reachableOn {
-			continue
-		}
 		targetPort := ifc.DiscoveryTargetPort()
-		if port <= 0 || targetPort == nil || *targetPort == port {
+		destMatch := hasReachableOn && targetHost != nil && *targetHost == reachableOnStr
+		portMatch := !hasPort || (targetPort != nil && *targetPort == port)
+		b32 := ifc.I2PB32()
+		b32Match := hasReachableOn && b32 != nil && *b32 == reachableOnStr
+		if (destMatch && portMatch) || b32Match {
 			return true
 		}
 	}
@@ -854,7 +1327,13 @@ func (d *InterfaceDiscovery) autoconnectCount() int {
 }
 
 func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
-	if d == nil || !ShouldAutoconnectDiscoveredInterfaces() || Owner == nil || Owner.IsConnectedToSharedInstance {
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Error while auto-connecting discovered interface: %v", r)
+			TraceException(r)
+		}
+	}()
+	if d == nil || !ShouldAutoconnectDiscoveredInterfaces() {
 		return
 	}
 	if d.autoconnectCount() >= MaxAutoconnectedInterfaces() {
@@ -871,26 +1350,42 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 		return
 	}
 	if d.interfaceExists(info) {
+		Logf(LogDebug, "Discovered %s already exists, not auto-connecting", interfaceType)
 		return
 	}
 
+	name, _ := info["name"].(string)
+	reachableOn, _ := info["reachable_on"].(string)
+	port := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}(info["port"])
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(reachableOn) == "" || port <= 0 {
+		Logf(LogWarning, "Could not auto-connect discovered %s %q: %v", interfaceType, name, errors.New("discovered interface missing reachable_on or port"))
+		return
+	}
 	ifc, err := discoveryAutoconnectInterfaceFactory(info)
 	if err != nil {
-		Logf(LogWarning, "Could not auto-connect discovered %s %q: %v", interfaceType, info["name"], err)
+		Logf(LogWarning, "Could not auto-connect discovered %s %q: %v", interfaceType, name, err)
 		return
 	}
-	if ifc == nil {
-		return
-	}
-
 	endpointHash := d.endpointHash(info)
-	if len(endpointHash) > 0 {
-		ifc.AutoconnectHash = append([]byte(nil), endpointHash...)
-	}
+	ifc.AutoconnectHash = append([]byte(nil), endpointHash...)
 	if networkID, _ := info["network_id"].(string); strings.TrimSpace(networkID) != "" {
 		ifc.AutoconnectSource = networkID
 	}
 	ifc.OUT = true
+	Logf(LogVerbose, "Auto-connecting discovered %s %s", interfaceType, name)
 
 	var bitrate *int
 	configuredBitrate := discoveryAutoconnectBitrate
@@ -905,19 +1400,6 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 	}
 	Owner.AddInterface(ifc, 0, bitrate, nil, ifacNetname, ifacNetkey, nil, nil, nil, nil)
 	d.monitorInterface(ifc)
-}
-
-func defaultDiscoveryAutoconnectInterfaceFactory(info map[string]any) (*Interface, error) {
-	name, _ := info["name"].(string)
-	reachableOn, _ := info["reachable_on"].(string)
-	port := asDiscoveryInt(info["port"])
-	if strings.TrimSpace(name) == "" || strings.TrimSpace(reachableOn) == "" || port <= 0 {
-		return nil, errors.New("discovered interface missing reachable_on or port")
-	}
-	return ifaces.NewBackboneClientInterface(name, map[string]string{
-		"target_host": reachableOn,
-		"target_port": strconv.Itoa(port),
-	})
 }
 
 func (d *InterfaceDiscovery) monitorInterface(ifc *Interface) {
@@ -946,6 +1428,39 @@ func (d *InterfaceDiscovery) monitorInterface(ifc *Interface) {
 	}
 }
 
+func (d *InterfaceDiscovery) teardownInterface(ifc *Interface) {
+	if ifc == nil {
+		return
+	}
+	if handler := ifaces.RemoveInterfaceHandler; handler != nil {
+		handler(ifc)
+	} else {
+		ifc.Detach()
+	}
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	filtered := d.monitored[:0]
+	for _, existing := range d.monitored {
+		if existing != nil && existing != ifc {
+			filtered = append(filtered, existing)
+		}
+	}
+	d.monitored = filtered
+	d.mu.Unlock()
+}
+
+func (d *InterfaceDiscovery) bootstrapInterfaceCount() int {
+	count := 0
+	for _, ifc := range Interfaces {
+		if ifc != nil && ifc.BootstrapOnly {
+			count++
+		}
+	}
+	return count
+}
+
 func (d *InterfaceDiscovery) monitorJob() {
 	for {
 		d.mu.Lock()
@@ -959,116 +1474,123 @@ func (d *InterfaceDiscovery) monitorJob() {
 			interval = discoveryMonitorInterval
 		}
 		time.Sleep(interval)
-		if !d.monitorOnce(time.Now()) {
+		if d == nil {
 			return
 		}
-	}
-}
-
-func (d *InterfaceDiscovery) monitorOnce(now time.Time) bool {
-	if d == nil {
-		return false
-	}
-	d.mu.Lock()
-	monitored := append([]*Interface(nil), d.monitored...)
-	initialAuto := d.initialAuto
-	detachAfter := d.detachAfter
-	d.mu.Unlock()
-	if detachAfter <= 0 {
-		detachAfter = discoveryDetachThreshold
-	}
-
-	detached := make([]*Interface, 0)
-	online := 0
-	for _, ifc := range monitored {
-		if ifc == nil {
-			continue
+		now := time.Now()
+		d.mu.Lock()
+		monitored := append([]*Interface(nil), d.monitored...)
+		initialAuto := d.initialAuto
+		detachAfter := d.detachAfter
+		d.mu.Unlock()
+		if detachAfter <= 0 {
+			detachAfter = discoveryDetachThreshold
 		}
-		if ifc.Online {
-			online++
-			if !ifc.AutoconnectDown.IsZero() {
-				ifc.AutoconnectDown = time.Time{}
-			}
-			continue
-		}
-		if ifc.AutoconnectDown.IsZero() {
-			ifc.AutoconnectDown = now
-			continue
-		}
-		if now.Sub(ifc.AutoconnectDown) >= detachAfter {
-			detached = append(detached, ifc)
-		}
-	}
 
-	maxAuto := MaxAutoconnectedInterfaces()
-	freeSlots := maxAuto - d.autoconnectCount()
-	if freeSlots < 0 {
-		freeSlots = 0
-	}
-	reservedSlots := maxAuto / 4
-
-	if online >= maxAuto {
-		for _, ifc := range Interfaces {
-			if ifc == nil || !ifc.BootstrapOnly {
+		detached := make([]*Interface, 0)
+		online := 0
+		for _, ifc := range monitored {
+			if ifc == nil {
 				continue
 			}
-			alreadyDetached := false
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						Logf(LogError, "Error while checking auto-connected interface state for %s: %v", ifc, r)
+					}
+				}()
+				if ifc.Online {
+					online++
+					if !ifc.AutoconnectDown.IsZero() {
+						Logf(LogVerbose, "Auto-discovered interface %s reconnected", ifc)
+						ifc.AutoconnectDown = time.Time{}
+					}
+					return
+				}
+				if ifc.AutoconnectDown.IsZero() {
+					Logf(LogDebug, "Auto-discovered interface %s disconnected", ifc)
+					ifc.AutoconnectDown = now
+					return
+				}
+				if downFor := now.Sub(ifc.AutoconnectDown); downFor >= detachAfter {
+					Logf(LogDebug, "Auto-discovered interface %s has been down for %s, detaching", ifc, PrettyTime(downFor.Seconds(), false, false))
+					detached = append(detached, ifc)
+				}
+			}()
+		}
+
+		maxAuto := MaxAutoconnectedInterfaces()
+		freeSlots := maxAuto - d.autoconnectCount()
+		if freeSlots < 0 {
+			freeSlots = 0
+		}
+		reservedSlots := maxAuto / 4
+
+		if online >= maxAuto {
+			for _, ifc := range Interfaces {
+				if ifc == nil || !ifc.BootstrapOnly {
+					continue
+				}
+				Logf(LogInfo, "Tearing down bootstrap-only %s since target connected auto-discovered interface count has been reached", ifc)
+				alreadyDetached := false
+				for _, gone := range detached {
+					if gone == ifc {
+						alreadyDetached = true
+						break
+					}
+				}
+				if !alreadyDetached {
+					detached = append(detached, ifc)
+				}
+			}
+		}
+
+		if online == 0 && Owner != nil && d.bootstrapInterfaceCount() == 0 {
+			Log("No auto-discovered interfaces connected, re-enabling bootstrap interfaces", LogNotice)
+			Owner.reenableBootstrapInterfaces()
+		}
+
+		if initialAuto && freeSlots > reservedSlots {
+			candidates := d.ListDiscoveredInterfaces(true, true)
+			if len(candidates) > 0 {
+				selected := candidates[rand.Intn(len(candidates))]
+				if !d.interfaceExists(selected) {
+					d.autoconnect(selected)
+				}
+			}
+		}
+
+		for _, ifc := range detached {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						Logf(LogError, "Error while de-registering auto-connected interface from transport: %v", r)
+					}
+				}()
+				d.teardownInterface(ifc)
+			}()
+		}
+
+		d.mu.Lock()
+		filtered := d.monitored[:0]
+		for _, ifc := range d.monitored {
+			if ifc == nil {
+				continue
+			}
+			keep := true
 			for _, gone := range detached {
 				if gone == ifc {
-					alreadyDetached = true
+					keep = false
 					break
 				}
 			}
-			if !alreadyDetached {
-				detached = append(detached, ifc)
+			if keep {
+				filtered = append(filtered, ifc)
 			}
 		}
+		d.monitored = filtered
+		d.mu.Unlock()
 	}
-
-	if online == 0 && Owner != nil && Owner.bootstrapInterfaceCount() == 0 {
-		Owner.reenableBootstrapInterfaces()
-	}
-
-	if initialAuto && freeSlots > reservedSlots {
-		candidates := d.ListDiscoveredInterfaces(true, true)
-		if len(candidates) > 0 {
-			selected := candidates[rand.Intn(len(candidates))]
-			if !d.interfaceExists(selected) {
-				d.autoconnect(selected)
-			}
-		}
-	}
-
-	for _, ifc := range detached {
-		if handler := ifaces.RemoveInterfaceHandler; handler != nil {
-			handler(ifc)
-		}
-	}
-
-	d.mu.Lock()
-	filtered := d.monitored[:0]
-	for _, ifc := range d.monitored {
-		if ifc == nil {
-			continue
-		}
-		keep := true
-		for _, gone := range detached {
-			if gone == ifc {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			filtered = append(filtered, ifc)
-		}
-	}
-	d.monitored = filtered
-	if len(d.monitored) == 0 && online == 0 {
-		d.monitoring = false
-	}
-	running := d.monitoring
-	d.mu.Unlock()
-	return running
 }
 
 func NewBlackholeUpdater() *BlackholeUpdater {
@@ -1079,7 +1601,6 @@ func NewBlackholeUpdater() *BlackholeUpdater {
 		updateInterval: blackholeUpdateInterval,
 		sourceTimeout:  blackholeSourceTimeout,
 		awaitPath:      AwaitPath,
-		fetchList:      fetchRemoteBlackholeList,
 		sleep:          time.Sleep,
 	}
 }
@@ -1104,10 +1625,13 @@ func (u *BlackholeUpdater) Start() {
 	go u.job()
 }
 
-func (u *BlackholeUpdater) running() bool {
+func (u *BlackholeUpdater) Stop() {
+	if u == nil {
+		return
+	}
 	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.shouldRun
+	u.shouldRun = false
+	u.mu.Unlock()
 }
 
 func (u *BlackholeUpdater) job() {
@@ -1117,613 +1641,439 @@ func (u *BlackholeUpdater) job() {
 	if u.initialWait > 0 {
 		u.sleep(u.initialWait)
 	}
-	for u.running() {
-		u.updateOnce(time.Now())
-		if !u.running() {
+	for {
+		u.mu.Lock()
+		shouldRun := u.shouldRun
+		u.mu.Unlock()
+		if !shouldRun {
 			return
 		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					Logf(LogError, "Error in blackhole list updater job: %v", r)
+					TraceException(r)
+				}
+			}()
+			now := time.Now()
+			for _, sourceHash := range BlackholeSources() {
+			if len(sourceHash) < truncatedHashBytes {
+				continue
+			}
+			var sourceKey hashKey
+			copy(sourceKey[:], sourceHash[:truncatedHashBytes])
+			u.mu.Lock()
+			last := u.lastUpdates[sourceKey]
+			interval := u.updateInterval
+			u.mu.Unlock()
+			if interval <= 0 {
+				interval = blackholeUpdateInterval
+			}
+			if now.Sub(last) < interval {
+				continue
+			}
+			destinationHash, err := (Destination{}).HashFromNameAndIdentity("rnstransport.info.blackhole", &Identity{Hash: sourceHash})
+			if err != nil || len(destinationHash) == 0 {
+				continue
+			}
+			Logf(LogDebug, "Attempting blackhole list update from %s...", PrettyHexRep(sourceHash))
+			if u.awaitPath != nil && !u.awaitPath(destinationHash, 0, nil) {
+				Logf(LogVerbose, "No path available for blackhole list update from %s, retrying later", PrettyHexRep(sourceHash))
+				continue
+			}
+			timeout := u.sourceTimeout
+			if timeout <= 0 {
+				timeout = blackholeSourceTimeout
+			}
+			var response any
+			if u.fetchList != nil {
+				response, err = u.fetchList(sourceHash, timeout)
+			} else {
+				remoteIdentity := IdentityRecall(destinationHash)
+				if remoteIdentity == nil {
+					remoteIdentity = IdentityRecall(sourceHash, true)
+				}
+				if remoteIdentity == nil {
+					err = errors.New("remote blackhole source identity not known")
+				} else {
+					destination, derr := NewDestination(remoteIdentity, DestinationOUT, DestinationSINGLE, TransportAppName, "info", "blackhole")
+					if derr != nil {
+						err = derr
+					} else {
+						establishedCh := make(chan *Link, 1)
+						var established *Link
+						link, derr := NewOutgoingLink(destination, LinkModeDefault, func(l *Link) {
+							select {
+							case establishedCh <- l:
+							default:
+							}
+						}, nil)
+						if derr != nil {
+							err = derr
+						} else {
+							select {
+							case established = <-establishedCh:
+							case <-time.After(timeout):
+								if link != nil {
+									link.Teardown()
+								}
+								err = errors.New("timed out establishing blackhole update link")
+							}
+							if err == nil {
+								if established == nil {
+									err = errors.New("blackhole update link was not established")
+								} else {
+									defer established.Teardown()
+									rr := RequestReceiptFrom(established.Request("/list", nil, nil, nil, nil, timeout.Seconds()))
+									if rr == nil {
+										err = errors.New("blackhole list request could not be started")
+									} else {
+										deadline := time.Now().Add(timeout)
+										for !rr.Concluded() && time.Now().Before(deadline) {
+											time.Sleep(200 * time.Millisecond)
+										}
+										if rr.Status() != ReceiptReady {
+											err = errors.New("blackhole list request timed out or failed")
+										} else {
+											response = rr.Response()
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if err != nil {
+				Logf(LogError, "Error while establishing link for blackhole list update from %s: %v", PrettyHexRep(sourceHash), err)
+				continue
+			}
+			decoded := make(map[hashKey]*blackholeEntry)
+			switch typed := response.(type) {
+			case map[hashKey]map[string]any:
+				for entryKey, entryValue := range typed {
+					if entryValue == nil {
+						continue
+					}
+					entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+					if len(entry.Source) == 0 {
+						switch source := entryValue["source"].(type) {
+						case []byte:
+							if len(source) > 0 {
+								entry.Source = source
+							}
+						case string:
+							if len(source) > 0 {
+								entry.Source = []byte(source)
+							}
+						}
+					}
+					if untilVal, exists := entryValue["until"]; exists && untilVal != nil {
+						untilUnix := asFloat64(untilVal)
+						if untilUnix > 0 {
+							sec, frac := math.Modf(untilUnix)
+							until := time.Unix(int64(sec), int64(frac*1e9))
+							if sec < 0 {
+								until = time.Unix(0, 0)
+							}
+							if now.After(until) {
+								continue
+							}
+							entry.Until = &until
+						}
+					}
+					if reasonVal, exists := entryValue["reason"]; exists && reasonVal != nil {
+						switch reason := reasonVal.(type) {
+						case string:
+							entry.Reason = &reason
+						case []byte:
+							if len(reason) > 0 {
+								reasonStr := string(reason)
+								entry.Reason = &reasonStr
+							}
+						}
+					}
+					decoded[entryKey] = entry
+				}
+			case map[hashKey]any:
+				for entryKey, entryValue := range typed {
+					raw, ok := entryValue.(map[any]any)
+					if !ok {
+						if typedRaw, ok := entryValue.(map[string]any); ok {
+							raw = make(map[any]any, len(typedRaw))
+							for k, v := range typedRaw {
+								raw[k] = v
+							}
+						} else {
+							continue
+						}
+					}
+					entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+					if len(entry.Source) == 0 {
+						switch source := raw["source"].(type) {
+						case []byte:
+							if len(source) > 0 {
+								entry.Source = source
+							}
+						case string:
+							if len(source) > 0 {
+								entry.Source = []byte(source)
+							}
+						}
+					}
+					if untilVal, exists := raw["until"]; exists && untilVal != nil {
+						untilUnix := asFloat64(untilVal)
+						if untilUnix > 0 {
+							sec, frac := math.Modf(untilUnix)
+							until := time.Unix(int64(sec), int64(frac*1e9))
+							if sec < 0 {
+								until = time.Unix(0, 0)
+							}
+							if now.After(until) {
+								continue
+							}
+							entry.Until = &until
+						}
+					}
+					if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+						switch reason := reasonVal.(type) {
+						case string:
+							entry.Reason = &reason
+						case []byte:
+							if len(reason) > 0 {
+								reasonStr := string(reason)
+								entry.Reason = &reasonStr
+							}
+						}
+					}
+					decoded[entryKey] = entry
+				}
+			case map[any]any:
+				for rawKey, rawValue := range typed {
+					var entryKey hashKey
+					var ok bool
+					switch v := rawKey.(type) {
+					case string:
+						entryKey, ok = func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}([]byte(v))
+					case umsgpack.BinaryKey:
+						entryKey, ok = func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}([]byte(string(v)))
+					case []byte:
+						entryKey, ok = func(hash []byte) (hashKey, bool) {
+							if len(hash) < truncatedHashBytes {
+								return hashKey{}, false
+							}
+							var key hashKey
+							copy(key[:], hash[:truncatedHashBytes])
+							return key, true
+						}(v)
+					default:
+						ok = false
+					}
+					if !ok {
+						continue
+					}
+					raw, ok := rawValue.(map[any]any)
+					if !ok {
+						if typedRaw, ok := rawValue.(map[string]any); ok {
+							raw = make(map[any]any, len(typedRaw))
+							for k, v := range typedRaw {
+								raw[k] = v
+							}
+						} else {
+							continue
+						}
+					}
+					entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+					if len(entry.Source) == 0 {
+						switch source := raw["source"].(type) {
+						case []byte:
+							if len(source) > 0 {
+								entry.Source = source
+							}
+						case string:
+							if len(source) > 0 {
+								entry.Source = []byte(source)
+							}
+						}
+					}
+					if untilVal, exists := raw["until"]; exists && untilVal != nil {
+						untilUnix := asFloat64(untilVal)
+						if untilUnix > 0 {
+							sec, frac := math.Modf(untilUnix)
+							until := time.Unix(int64(sec), int64(frac*1e9))
+							if sec < 0 {
+								until = time.Unix(0, 0)
+							}
+							if now.After(until) {
+								continue
+							}
+							entry.Until = &until
+						}
+					}
+					if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+						switch reason := reasonVal.(type) {
+						case string:
+							entry.Reason = &reason
+						case []byte:
+							if len(reason) > 0 {
+								reasonStr := string(reason)
+								entry.Reason = &reasonStr
+							}
+						}
+					}
+					decoded[entryKey] = entry
+				}
+			case map[string]any:
+				for rawKey, rawValue := range typed {
+					entryKey, ok := func(hash []byte) (hashKey, bool) {
+						if len(hash) < truncatedHashBytes {
+							return hashKey{}, false
+						}
+						var key hashKey
+						copy(key[:], hash[:truncatedHashBytes])
+						return key, true
+					}([]byte(rawKey))
+					if !ok {
+						continue
+					}
+					raw, ok := rawValue.(map[any]any)
+					if !ok {
+						if typedRaw, ok := rawValue.(map[string]any); ok {
+							raw = make(map[any]any, len(typedRaw))
+							for k, v := range typedRaw {
+								raw[k] = v
+							}
+						} else {
+							continue
+						}
+					}
+					entry := &blackholeEntry{Source: copyBytes(sourceHash)}
+					if len(entry.Source) == 0 {
+						switch source := raw["source"].(type) {
+						case []byte:
+							if len(source) > 0 {
+								entry.Source = source
+							}
+						case string:
+							if len(source) > 0 {
+								entry.Source = []byte(source)
+							}
+						}
+					}
+					if untilVal, exists := raw["until"]; exists && untilVal != nil {
+						untilUnix := asFloat64(untilVal)
+						if untilUnix > 0 {
+							sec, frac := math.Modf(untilUnix)
+							until := time.Unix(int64(sec), int64(frac*1e9))
+							if sec < 0 {
+								until = time.Unix(0, 0)
+							}
+							if now.After(until) {
+								continue
+							}
+							entry.Until = &until
+						}
+					}
+					if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
+						switch reason := reasonVal.(type) {
+						case string:
+							entry.Reason = &reason
+						case []byte:
+							if len(reason) > 0 {
+								reasonStr := string(reason)
+								entry.Reason = &reasonStr
+							}
+						}
+					}
+					decoded[entryKey] = entry
+				}
+			}
+			if len(decoded) == 0 {
+				continue
+			}
+			added := 0
+			serialisable := make(map[hashKey]map[string]any, len(decoded))
+			blackholeMu.Lock()
+			for entryKey, entry := range decoded {
+				if entry == nil {
+					continue
+				}
+				serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
+				serialised["source"] = copyBytes(entry.Source)
+				if entry.Until != nil && !entry.Until.IsZero() {
+					serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
+				}
+				if entry.Reason != nil {
+					serialised["reason"] = *entry.Reason
+				}
+				serialisable[entryKey] = serialised
+				if _, exists := blackholedIdentities[entryKey]; exists {
+					continue
+				}
+				blackholedIdentities[entryKey] = entry
+				added++
+			}
+			blackholeMu.Unlock()
+
+			if added > 0 {
+				removeBlackholedPaths()
+				if Owner != nil && strings.TrimSpace(Owner.StoragePath) != "" {
+					sourcelistpath := filepath.Join(Owner.StoragePath, "blackhole", hex.EncodeToString(sourceHash))
+					tmppath := sourcelistpath + ".tmp"
+					payload := make(map[any]any, len(serialisable))
+					for entryKey, entry := range serialisable {
+						payload[umsgpack.BinaryKey(string(entryKey[:]))] = entry
+					}
+					packed, err := umsgpack.Packb(payload)
+					if err != nil {
+						Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+					} else {
+						if err := os.WriteFile(tmppath, packed, 0o600); err != nil {
+							Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+						} else {
+							if fileExists(sourcelistpath) {
+								_ = os.Remove(sourcelistpath)
+							}
+							if err := os.Rename(tmppath, sourcelistpath); err != nil {
+								Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+							}
+						}
+					}
+				}
+			}
+			spec := "identities"
+			if added == 1 {
+				spec = "identity"
+			}
+			Logf(LogDebug, "Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash))
+			u.mu.Lock()
+			if u.lastUpdates == nil {
+				u.lastUpdates = make(map[hashKey]time.Time)
+			}
+			u.lastUpdates[sourceKey] = now
+			u.mu.Unlock()
+			Logf(LogDebug, "Blackhole list update from %s completed", PrettyHexRep(sourceHash))
+		}
+		}()
 		interval := u.jobInterval
 		if interval <= 0 {
 			interval = blackholeUpdaterJobInterval
 		}
 		u.sleep(interval)
-	}
-}
-
-func (u *BlackholeUpdater) due(now time.Time, sourceHash []byte) bool {
-	key, ok := func(hash []byte) (hashKey, bool) {
-		if len(hash) < truncatedHashBytes {
-			return hashKey{}, false
-		}
-		var key hashKey
-		copy(key[:], hash[:truncatedHashBytes])
-		return key, true
-	}(sourceHash)
-	if !ok {
-		return false
-	}
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	last := u.lastUpdates[key]
-	interval := u.updateInterval
-	if interval <= 0 {
-		interval = blackholeUpdateInterval
-	}
-	return now.Sub(last) >= interval
-}
-
-func (u *BlackholeUpdater) markUpdated(sourceHash []byte, now time.Time) {
-	key, ok := func(hash []byte) (hashKey, bool) {
-		if len(hash) < truncatedHashBytes {
-			return hashKey{}, false
-		}
-		var key hashKey
-		copy(key[:], hash[:truncatedHashBytes])
-		return key, true
-	}(sourceHash)
-	if !ok {
-		return
-	}
-	u.mu.Lock()
-	if u.lastUpdates == nil {
-		u.lastUpdates = make(map[hashKey]time.Time)
-	}
-	u.lastUpdates[key] = now
-	u.mu.Unlock()
-}
-
-func (u *BlackholeUpdater) updateOnce(now time.Time) {
-	if u == nil {
-		return
-	}
-	for _, sourceHash := range BlackholeSources() {
-		if !u.due(now, sourceHash) {
-			continue
-		}
-		destinationHash, err := (Destination{}).HashFromNameAndIdentity("rnstransport.info.blackhole", &Identity{Hash: sourceHash})
-		if err != nil || len(destinationHash) == 0 {
-			continue
-		}
-		Logf(LogDebug, "Attempting blackhole list update from %s...", PrettyHexRep(sourceHash))
-		if u.awaitPath != nil && !u.awaitPath(destinationHash, 0, nil) {
-			Logf(LogVerbose, "No path available for blackhole list update from %s, retrying later", PrettyHexRep(sourceHash))
-			continue
-		}
-		timeout := u.sourceTimeout
-		if timeout <= 0 {
-			timeout = blackholeSourceTimeout
-		}
-		response, err := u.fetchList(sourceHash, timeout)
-		if err != nil {
-			Logf(LogError, "Error while establishing link for blackhole list update from %s: %v", PrettyHexRep(sourceHash), err)
-			continue
-		}
-		if len(sourceHash) != truncatedHashBytes {
-			continue
-		}
-		decoded := make(map[hashKey]*blackholeEntry)
-		switch typed := response.(type) {
-		case map[hashKey]map[string]any:
-			for key, entryValue := range typed {
-				if entryValue == nil {
-					continue
-				}
-				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
-				if len(entry.Source) == 0 {
-					switch source := entryValue["source"].(type) {
-					case []byte:
-						if len(source) > 0 {
-							entry.Source = source
-						}
-					case string:
-						if len(source) > 0 {
-							entry.Source = []byte(source)
-						}
-					}
-				}
-				if untilVal, exists := entryValue["until"]; exists && untilVal != nil {
-					untilUnix := asFloat64(untilVal)
-					if untilUnix > 0 {
-						sec, frac := math.Modf(untilUnix)
-						until := time.Unix(int64(sec), int64(frac*1e9))
-						if sec < 0 {
-							until = time.Unix(0, 0)
-						}
-						if now.After(until) {
-							continue
-						}
-						entry.Until = &until
-					}
-				}
-				if reasonVal, exists := entryValue["reason"]; exists && reasonVal != nil {
-					switch reason := reasonVal.(type) {
-					case string:
-						entry.Reason = &reason
-					case []byte:
-						if len(reason) > 0 {
-							reasonStr := string(reason)
-							entry.Reason = &reasonStr
-						}
-					}
-				}
-				decoded[key] = entry
-			}
-		case map[hashKey]any:
-			for key, entryValue := range typed {
-				raw, ok := entryValue.(map[any]any)
-				if !ok {
-					if typedRaw, ok := entryValue.(map[string]any); ok {
-						raw = make(map[any]any, len(typedRaw))
-						for k, v := range typedRaw {
-							raw[k] = v
-						}
-					} else {
-						continue
-					}
-				}
-				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
-				if len(entry.Source) == 0 {
-					switch source := raw["source"].(type) {
-					case []byte:
-						if len(source) > 0 {
-							entry.Source = source
-						}
-					case string:
-						if len(source) > 0 {
-							entry.Source = []byte(source)
-						}
-					}
-				}
-				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := asFloat64(untilVal)
-					if untilUnix > 0 {
-						sec, frac := math.Modf(untilUnix)
-						until := time.Unix(int64(sec), int64(frac*1e9))
-						if sec < 0 {
-							until = time.Unix(0, 0)
-						}
-						if now.After(until) {
-							continue
-						}
-						entry.Until = &until
-					}
-				}
-				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
-					switch reason := reasonVal.(type) {
-					case string:
-						entry.Reason = &reason
-					case []byte:
-						if len(reason) > 0 {
-							reasonStr := string(reason)
-							entry.Reason = &reasonStr
-						}
-					}
-				}
-				decoded[key] = entry
-			}
-		case map[any]any:
-			for rawKey, rawValue := range typed {
-				var key hashKey
-				var ok bool
-				switch v := rawKey.(type) {
-				case string:
-					key, ok = func(hash []byte) (hashKey, bool) {
-						if len(hash) < truncatedHashBytes {
-							return hashKey{}, false
-						}
-						var key hashKey
-						copy(key[:], hash[:truncatedHashBytes])
-						return key, true
-					}([]byte(v))
-				case umsgpack.BinaryKey:
-					key, ok = func(hash []byte) (hashKey, bool) {
-						if len(hash) < truncatedHashBytes {
-							return hashKey{}, false
-						}
-						var key hashKey
-						copy(key[:], hash[:truncatedHashBytes])
-						return key, true
-					}([]byte(string(v)))
-				case []byte:
-					key, ok = func(hash []byte) (hashKey, bool) {
-						if len(hash) < truncatedHashBytes {
-							return hashKey{}, false
-						}
-						var key hashKey
-						copy(key[:], hash[:truncatedHashBytes])
-						return key, true
-					}(v)
-				default:
-					ok = false
-				}
-				if !ok {
-					continue
-				}
-				raw, ok := rawValue.(map[any]any)
-				if !ok {
-					if typedRaw, ok := rawValue.(map[string]any); ok {
-						raw = make(map[any]any, len(typedRaw))
-						for k, v := range typedRaw {
-							raw[k] = v
-						}
-					} else {
-						continue
-					}
-				}
-				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
-				if len(entry.Source) == 0 {
-					switch source := raw["source"].(type) {
-					case []byte:
-						if len(source) > 0 {
-							entry.Source = source
-						}
-					case string:
-						if len(source) > 0 {
-							entry.Source = []byte(source)
-						}
-					}
-				}
-				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := asFloat64(untilVal)
-					if untilUnix > 0 {
-						sec, frac := math.Modf(untilUnix)
-						until := time.Unix(int64(sec), int64(frac*1e9))
-						if sec < 0 {
-							until = time.Unix(0, 0)
-						}
-						if now.After(until) {
-							continue
-						}
-						entry.Until = &until
-					}
-				}
-				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
-					switch reason := reasonVal.(type) {
-					case string:
-						entry.Reason = &reason
-					case []byte:
-						if len(reason) > 0 {
-							reasonStr := string(reason)
-							entry.Reason = &reasonStr
-						}
-					}
-				}
-				decoded[key] = entry
-			}
-		case map[string]any:
-			for rawKey, rawValue := range typed {
-				key, ok := func(hash []byte) (hashKey, bool) {
-					if len(hash) < truncatedHashBytes {
-						return hashKey{}, false
-					}
-					var key hashKey
-					copy(key[:], hash[:truncatedHashBytes])
-					return key, true
-				}([]byte(rawKey))
-				if !ok {
-					continue
-				}
-				raw, ok := rawValue.(map[any]any)
-				if !ok {
-					if typedRaw, ok := rawValue.(map[string]any); ok {
-						raw = make(map[any]any, len(typedRaw))
-						for k, v := range typedRaw {
-							raw[k] = v
-						}
-					} else {
-						continue
-					}
-				}
-				entry := &blackholeEntry{Source: copyBytes(sourceHash)}
-				if len(entry.Source) == 0 {
-					switch source := raw["source"].(type) {
-					case []byte:
-						if len(source) > 0 {
-							entry.Source = source
-						}
-					case string:
-						if len(source) > 0 {
-							entry.Source = []byte(source)
-						}
-					}
-				}
-				if untilVal, exists := raw["until"]; exists && untilVal != nil {
-					untilUnix := asFloat64(untilVal)
-					if untilUnix > 0 {
-						sec, frac := math.Modf(untilUnix)
-						until := time.Unix(int64(sec), int64(frac*1e9))
-						if sec < 0 {
-							until = time.Unix(0, 0)
-						}
-						if now.After(until) {
-							continue
-						}
-						entry.Until = &until
-					}
-				}
-				if reasonVal, exists := raw["reason"]; exists && reasonVal != nil {
-					switch reason := reasonVal.(type) {
-					case string:
-						entry.Reason = &reason
-					case []byte:
-						if len(reason) > 0 {
-							reasonStr := string(reason)
-							entry.Reason = &reasonStr
-						}
-					}
-				}
-				decoded[key] = entry
-			}
-		}
-		if len(decoded) == 0 {
-			continue
-		}
-		added := 0
-		serialisable := make(map[hashKey]map[string]any, len(decoded))
-		blackholeMu.Lock()
-		for key, entry := range decoded {
-			if entry == nil {
-				continue
-			}
-			serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
-			serialised["source"] = copyBytes(entry.Source)
-			if entry.Until != nil && !entry.Until.IsZero() {
-				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
-			}
-			if entry.Reason != nil {
-				serialised["reason"] = *entry.Reason
-			}
-			serialisable[key] = serialised
-			if _, exists := blackholedIdentities[key]; exists {
-				continue
-			}
-			blackholedIdentities[key] = entry
-			added++
-		}
-		blackholeMu.Unlock()
-
-		if added > 0 {
-			removeBlackholedPaths()
-			if Owner != nil && strings.TrimSpace(Owner.StoragePath) != "" {
-				sourcelistpath := filepath.Join(Owner.StoragePath, "blackhole", hex.EncodeToString(sourceHash))
-				tmppath := sourcelistpath + ".tmp"
-				payload := make(map[any]any, len(serialisable))
-				for key, entry := range serialisable {
-					payload[umsgpack.BinaryKey(string(key[:]))] = entry
-				}
-				packed, err := umsgpack.Packb(payload)
-				if err != nil {
-					Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
-				} else {
-					if err := os.WriteFile(tmppath, packed, 0o600); err != nil {
-						Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
-					} else {
-						if fileExists(sourcelistpath) {
-							_ = os.Remove(sourcelistpath)
-						}
-						if err := os.Rename(tmppath, sourcelistpath); err != nil {
-							Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
-						}
-					}
-				}
-			}
-		}
-		spec := "identities"
-		if added == 1 {
-			spec = "identity"
-		}
-		Logf(LogDebug, "Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash))
-		u.markUpdated(sourceHash, now)
-		Logf(LogDebug, "Blackhole list update from %s completed", PrettyHexRep(sourceHash))
-	}
-}
-
-func fetchRemoteBlackholeList(sourceHash []byte, timeout time.Duration) (any, error) {
-	destinationHash, err := (Destination{}).HashFromNameAndIdentity("rnstransport.info.blackhole", &Identity{Hash: sourceHash})
-	if err != nil || len(destinationHash) == 0 {
-		return nil, errors.New("invalid blackhole source identity hash")
-	}
-	remoteIdentity := IdentityRecall(destinationHash)
-	if remoteIdentity == nil {
-		remoteIdentity = IdentityRecall(sourceHash, true)
-	}
-	if remoteIdentity == nil {
-		return nil, errors.New("remote blackhole source identity not known")
-	}
-
-	destination, err := NewDestination(remoteIdentity, DestinationOUT, DestinationSINGLE, TransportAppName, "info", "blackhole")
-	if err != nil {
-		return nil, err
-	}
-	defer DeregisterDestination(destination)
-
-	establishedCh := make(chan *Link, 1)
-	link, err := NewOutgoingLink(destination, LinkModeDefault, func(l *Link) {
-		select {
-		case establishedCh <- l:
-		default:
-		}
-	}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var established *Link
-	select {
-	case established = <-establishedCh:
-	case <-time.After(timeout):
-		if link != nil {
-			link.Teardown()
-		}
-		return nil, errors.New("timed out establishing blackhole update link")
-	}
-	if established == nil {
-		return nil, errors.New("blackhole update link was not established")
-	}
-	defer established.Teardown()
-
-	rr := RequestReceiptFrom(established.Request("/list", nil, nil, nil, nil, timeout.Seconds()))
-	if rr == nil {
-		return nil, errors.New("blackhole list request could not be started")
-	}
-	deadline := time.Now().Add(timeout)
-	for !rr.Concluded() && time.Now().Before(deadline) {
-		time.Sleep(200 * time.Millisecond)
-	}
-	if rr.Status() != ReceiptReady {
-		return nil, errors.New("blackhole list request timed out or failed")
-	}
-	return rr.Response(), nil
-}
-
-func discoveryRawGet(raw map[any]any, want int) any {
-	for k, v := range raw {
-		switch x := k.(type) {
-		case int:
-			if x == want {
-				return v
-			}
-		case int64:
-			if int(x) == want {
-				return v
-			}
-		case uint64:
-			if int(x) == want {
-				return v
-			}
-		case uint8:
-			if int(x) == want {
-				return v
-			}
-		}
-	}
-	return nil
-}
-
-func packDiscoveryInfo(info map[any]any) ([]byte, error) {
-	if len(info) == 0 {
-		return umsgpack.Packb(map[any]any{})
-	}
-
-	keys := orderedDiscoveryInfoKeys(info)
-	var buf bytes.Buffer
-	if err := writeDiscoveryMapHeader(&buf, len(keys)); err != nil {
-		return nil, err
-	}
-	for _, key := range keys {
-		value, ok := discoveryRawLookup(info, key)
-		if !ok {
-			continue
-		}
-		packedKey, err := umsgpack.Packb(key)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := buf.Write(packedKey); err != nil {
-			return nil, err
-		}
-		packedValue, err := umsgpack.Packb(value)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := buf.Write(packedValue); err != nil {
-			return nil, err
-		}
-	}
-	return buf.Bytes(), nil
-}
-
-func orderedDiscoveryInfoKeys(info map[any]any) []int {
-	keys := []int{
-		discoveryFieldInterfaceType,
-		discoveryFieldTransport,
-		discoveryFieldTransportID,
-		discoveryFieldName,
-		discoveryFieldLatitude,
-		discoveryFieldLongitude,
-		discoveryFieldHeight,
-	}
-
-	ifType := sanitizeDiscoveryString(asDiscoveryString(discoveryRawGet(info, discoveryFieldInterfaceType)))
-	switch ifType {
-	case "BackboneInterface", "TCPServerInterface":
-		keys = append(keys, discoveryFieldReachableOn, discoveryFieldPort)
-	case "I2PInterface":
-		keys = append(keys, discoveryFieldReachableOn)
-	case "RNodeInterface", "RNodeMultiInterface":
-		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldSpreading, discoveryFieldCodingRate)
-	case "WeaveInterface":
-		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldChannel, discoveryFieldModulation)
-	case "KISSInterface":
-		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldModulation)
-	}
-
-	if _, ok := discoveryRawLookup(info, discoveryFieldIFACNetname); ok {
-		keys = append(keys, discoveryFieldIFACNetname)
-	}
-	if _, ok := discoveryRawLookup(info, discoveryFieldIFACNetkey); ok {
-		keys = append(keys, discoveryFieldIFACNetkey)
-	}
-
-	filtered := make([]int, 0, len(keys))
-	seen := make(map[int]struct{}, len(keys))
-	for _, key := range keys {
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		if _, ok := discoveryRawLookup(info, key); !ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		filtered = append(filtered, key)
-	}
-	return filtered
-}
-
-func discoveryRawLookup(raw map[any]any, want int) (any, bool) {
-	for k, v := range raw {
-		switch x := k.(type) {
-		case int:
-			if x == want {
-				return v, true
-			}
-		case int64:
-			if int(x) == want {
-				return v, true
-			}
-		case uint64:
-			if int(x) == want {
-				return v, true
-			}
-		case uint8:
-			if int(x) == want {
-				return v, true
-			}
-		}
-	}
-	return nil, false
-}
-
-func writeDiscoveryMapHeader(buf *bytes.Buffer, n int) error {
-	switch {
-	case n <= 15:
-		return buf.WriteByte(byte(0x80 | n))
-	case n <= 0xFFFF:
-		if err := buf.WriteByte(0xDE); err != nil {
-			return err
-		}
-		var raw [2]byte
-		binary.BigEndian.PutUint16(raw[:], uint16(n))
-		_, err := buf.Write(raw[:])
-		return err
-	default:
-		if err := buf.WriteByte(0xDF); err != nil {
-			return err
-		}
-		var raw [4]byte
-		binary.BigEndian.PutUint32(raw[:], uint32(n))
-		_, err := buf.Write(raw[:])
-		return err
 	}
 }
 
@@ -1733,10 +2083,14 @@ func sanitizeDiscoveryString(in string) string {
 	return strings.TrimSpace(s)
 }
 
-func isDiscoveryAddress(v string) bool {
+func isIPAddress(v string) bool {
 	if ip := net.ParseIP(v); ip != nil {
 		return true
 	}
+	return false
+}
+
+func isHostname(v string) bool {
 	v = strings.TrimSuffix(v, ".")
 	if len(v) == 0 || len(v) > 253 {
 		return false
@@ -1745,7 +2099,7 @@ func isDiscoveryAddress(v string) bool {
 	if len(parts) == 0 {
 		return false
 	}
-	if _, err := strconvAtoi(parts[len(parts)-1]); err == nil {
+	if _, err := strconv.Atoi(parts[len(parts)-1]); err == nil {
 		return false
 	}
 	for _, part := range parts {
@@ -1768,174 +2122,4 @@ func isDiscoveryAddress(v string) bool {
 		}
 	}
 	return true
-}
-
-func resolveDiscoveryReachableOn(ifc *Interface, reachableOn string) (string, error) {
-	reachableOn = sanitizeDiscoveryString(reachableOn)
-	if umsgpack.IsWindows() {
-		return reachableOn, nil
-	}
-	execPath, ok := expandDiscoveryExecutablePath(reachableOn)
-	if !ok {
-		return reachableOn, nil
-	}
-	out, err := exec.Command(execPath).Output()
-	if err != nil {
-		return "", fmt.Errorf("error while getting reachable_on from executable at %s: %w", ifc.DiscoveryReachableOnValue(), err)
-	}
-	resolved := sanitizeDiscoveryString(string(out))
-	if !isDiscoveryAddress(resolved) {
-		return "", fmt.Errorf("valid IP address or hostname was not found in external script output %q", resolved)
-	}
-	return resolved, nil
-}
-
-func expandDiscoveryExecutablePath(v string) (string, bool) {
-	if strings.TrimSpace(v) == "" {
-		return "", false
-	}
-	expanded := v
-	if strings.HasPrefix(expanded, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			switch {
-			case expanded == "~":
-				expanded = home
-			case strings.HasPrefix(expanded, "~/"):
-				expanded = filepath.Join(home, strings.TrimPrefix(expanded, "~/"))
-			}
-		}
-	}
-	info, err := os.Stat(expanded)
-	if err != nil || info.IsDir() {
-		return "", false
-	}
-	if info.Mode()&0o111 == 0 {
-		return "", false
-	}
-	return expanded, true
-}
-
-func requireDiscoveryStampProvider() bool {
-	if DiscoveryStampProvider != nil {
-		return true
-	}
-	Log("Using on-network interface discovery requires the LXMF module to be installed.", LogCritical)
-	Log("You can install it with the command: pip install lxmf", LogCritical)
-	if discoveryPanic != nil {
-		discoveryPanic()
-	}
-	return false
-}
-
-func discoveryHopsTo(destinationHash []byte) int {
-	if len(destinationHash) == 0 {
-		return 0
-	}
-	return HopsTo(destinationHash)
-}
-
-func asDiscoveryString(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case []byte:
-		return string(x)
-	default:
-		return ""
-	}
-}
-
-func asDiscoveryBytes(v any) []byte {
-	switch x := v.(type) {
-	case []byte:
-		return append([]byte(nil), x...)
-	case string:
-		return []byte(x)
-	default:
-		return nil
-	}
-}
-
-func asDiscoveryBool(v any) bool {
-	switch x := v.(type) {
-	case bool:
-		return x
-	default:
-		return false
-	}
-}
-
-func asDiscoveryFloat(v any) float64 {
-	switch x := v.(type) {
-	case float64:
-		return x
-	case float32:
-		return float64(x)
-	case int:
-		return float64(x)
-	case int64:
-		return float64(x)
-	default:
-		return 0
-	}
-}
-
-func asDiscoveryInt(v any) int {
-	switch x := v.(type) {
-	case int:
-		return x
-	case int64:
-		return int(x)
-	case uint64:
-		return int(x)
-	default:
-		return 0
-	}
-}
-
-func asDiscoveryInt64(v any) int64 {
-	switch x := v.(type) {
-	case int:
-		return int64(x)
-	case int64:
-		return x
-	case uint64:
-		return int64(x)
-	default:
-		return 0
-	}
-}
-
-func asDiscoveryMaybeInt(v any) *int {
-	val := asDiscoveryInt(v)
-	if val == 0 {
-		return nil
-	}
-	return &val
-}
-
-func derefFloat64(v *float64) float64 {
-	if v == nil {
-		return 0
-	}
-	return *v
-}
-
-func strconvAtoi(s string) (int, error) {
-	var sign int = 1
-	if strings.HasPrefix(s, "-") {
-		sign = -1
-		s = s[1:]
-	}
-	if s == "" {
-		return 0, errors.New("empty")
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, errors.New("not int")
-		}
-		n = n*10 + int(r-'0')
-	}
-	return sign * n, nil
 }

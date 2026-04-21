@@ -2,6 +2,7 @@ package rns
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -96,56 +97,131 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_TCPServer(t *testing.T) {
 	if err := umsgpack.Unpackb(data[1:len(data)-4], &raw); err != nil {
 		t.Fatalf("Unpackb: %v", err)
 	}
-	if got := asDiscoveryString(discoveryRawGet(raw, discoveryFieldInterfaceType)); got != "TCPServerInterface" {
-		t.Fatalf("interface type=%q, want TCPServerInterface", got)
+	lookup := func(raw map[any]any, want int) any {
+		for k, v := range raw {
+			switch x := k.(type) {
+			case int:
+				if x == want {
+					return v
+				}
+			case int64:
+				if int(x) == want {
+					return v
+				}
+			case uint64:
+				if int(x) == want {
+					return v
+				}
+			case uint8:
+				if int(x) == want {
+					return v
+				}
+			}
+		}
+		return nil
 	}
-	if got := asDiscoveryString(discoveryRawGet(raw, discoveryFieldReachableOn)); got != "example.com" {
-		t.Fatalf("reachable_on=%q, want example.com", got)
+	stringOf := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
 	}
-	if got := asDiscoveryInt(discoveryRawGet(raw, discoveryFieldPort)); got != 4242 {
-		t.Fatalf("port=%d, want 4242", got)
+	if got := stringOf(lookup(raw, discoveryFieldInterfaceType)); got != "TCPServerInterface" {
+		t.Fatalf("interface type=%q, want TCPServerInterface", stringOf(got))
 	}
-	if got := asDiscoveryString(discoveryRawGet(raw, discoveryFieldIFACNetname)); got != "mesh" {
-		t.Fatalf("ifac_netname=%q, want mesh", got)
+	if got := stringOf(lookup(raw, discoveryFieldReachableOn)); got != "example.com" {
+		t.Fatalf("reachable_on=%q, want example.com", stringOf(got))
 	}
-	if got := asDiscoveryString(discoveryRawGet(raw, discoveryFieldIFACNetkey)); got != "secret" {
-		t.Fatalf("ifac_netkey=%q, want secret", got)
+	intOf := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}
+	if got := intOf(lookup(raw, discoveryFieldPort)); got != 4242 {
+		t.Fatalf("port=%d, want 4242", intOf(got))
+	}
+	if got := stringOf(lookup(raw, discoveryFieldIFACNetname)); got != "mesh" {
+		t.Fatalf("ifac_netname=%q, want mesh", stringOf(got))
+	}
+	if got := stringOf(lookup(raw, discoveryFieldIFACNetkey)); got != "secret" {
+		t.Fatalf("ifac_netkey=%q, want secret", stringOf(got))
 	}
 }
 
-func TestDiscoveryInfoFromRaw_MissingLocationFieldsStayNil(t *testing.T) {
+func TestInterfaceAnnounceHandler_ReceivedAnnounce_MissingLocationFieldsStayNil(t *testing.T) {
+	prevStamper := DiscoveryStampProvider
+	prevTransportIdentity := TransportIdentity
+	prevNetworkIdentity := NetworkIdentity
+
+	DiscoveryStampProvider = fakeDiscoveryStamper{stamp: []byte{7, 7, 7, 7}, value: 23}
+	NetworkIdentity = nil
 	id, err := NewIdentity()
 	if err != nil {
 		t.Fatalf("NewIdentity: %v", err)
+	}
+	TransportIdentity = id
+
+	t.Cleanup(func() {
+		DiscoveryStampProvider = prevStamper
+		TransportIdentity = prevTransportIdentity
+		NetworkIdentity = prevNetworkIdentity
+	})
+
+	captured := map[string]any{}
+	handler := &InterfaceAnnounceHandler{
+		requiredValue: 14,
+		callback: func(info map[string]any) {
+			captured = info
+		},
 	}
 
 	raw := map[any]any{
 		discoveryFieldInterfaceType: "TCPServerInterface",
 		discoveryFieldName:          "public-tcp",
 		discoveryFieldTransport:     true,
+		discoveryFieldReachableOn:   "reticulum.example",
+		discoveryFieldPort:          4242,
 	}
+	packed, err := umsgpack.Packb(raw)
+	if err != nil {
+		t.Fatalf("Packb: %v", err)
+	}
+	appData := append([]byte{0}, append(packed, []byte{7, 7, 7, 7}...)...)
 
-	info := discoveryInfoFromRaw(raw, []byte{0x01, 0x02}, id, []byte{0xaa}, 23)
-	if info == nil {
-		t.Fatal("discoveryInfoFromRaw returned nil")
+	handler.ReceivedAnnounce([]byte{0x01, 0x02}, id, appData)
+	if len(captured) == 0 {
+		t.Fatal("callback was not invoked")
 	}
-	if _, ok := info["latitude"]; !ok {
+	if _, ok := captured["latitude"]; !ok {
 		t.Fatal("latitude key missing")
 	}
-	if _, ok := info["longitude"]; !ok {
+	if _, ok := captured["longitude"]; !ok {
 		t.Fatal("longitude key missing")
 	}
-	if _, ok := info["height"]; !ok {
+	if _, ok := captured["height"]; !ok {
 		t.Fatal("height key missing")
 	}
-	if info["latitude"] != nil {
-		t.Fatalf("latitude=%v, want nil", info["latitude"])
+	if captured["latitude"] != nil {
+		t.Fatalf("latitude=%v, want nil", captured["latitude"])
 	}
-	if info["longitude"] != nil {
-		t.Fatalf("longitude=%v, want nil", info["longitude"])
+	if captured["longitude"] != nil {
+		t.Fatalf("longitude=%v, want nil", captured["longitude"])
 	}
-	if info["height"] != nil {
-		t.Fatalf("height=%v, want nil", info["height"])
+	if captured["height"] != nil {
+		t.Fatalf("height=%v, want nil", captured["height"])
 	}
 }
 
@@ -247,13 +323,27 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 		t.Fatalf("discovered interfaces=%d, want 1", len(list))
 	}
 	info := list[0]
+	intOf := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}
 	if got, _ := info["name"].(string); got != "public-tcp" {
 		t.Fatalf("name=%q, want public-tcp", got)
 	}
 	if got, _ := info["reachable_on"].(string); got != "reticulum.example" {
 		t.Fatalf("reachable_on=%q, want reticulum.example", got)
 	}
-	if got := asDiscoveryInt(info["port"]); got != 7777 {
+	if got := intOf(info["port"]); got != 7777 {
 		t.Fatalf("port=%v, want 7777", info["port"])
 	}
 }
@@ -380,8 +470,41 @@ func TestInterfaceAnnouncer_GetInterfaceAnnounceData_ReachableOnExecutable(t *te
 	if err := umsgpack.Unpackb(data[1:len(data)-4], &raw); err != nil {
 		t.Fatalf("Unpackb: %v", err)
 	}
-	if got := asDiscoveryString(discoveryRawGet(raw, discoveryFieldReachableOn)); got != "exec.example" {
-		t.Fatalf("reachable_on=%q, want exec.example", got)
+	lookup := func(raw map[any]any, want int) any {
+		for k, v := range raw {
+			switch x := k.(type) {
+			case int:
+				if x == want {
+					return v
+				}
+			case int64:
+				if int(x) == want {
+					return v
+				}
+			case uint64:
+				if int(x) == want {
+					return v
+				}
+			case uint8:
+				if int(x) == want {
+					return v
+				}
+			}
+		}
+		return nil
+	}
+	stringOf := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
+	}
+	if got := stringOf(lookup(raw, discoveryFieldReachableOn)); got != "exec.example" {
+		t.Fatalf("reachable_on=%q, want exec.example", stringOf(got))
 	}
 }
 
@@ -510,17 +633,145 @@ func TestDiscoveryConstructors_PanicWithoutStampProvider(t *testing.T) {
 		NetworkIdentity = prevNetworkIdentity
 	})
 
-	announcer := NewInterfaceAnnouncer()
-	if announcer == nil {
-		t.Fatal("NewInterfaceAnnouncer() returned nil")
+	expectPanic := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if rec := recover(); rec == nil {
+				t.Fatalf("%s did not panic", name)
+			}
+		}()
+		fn()
 	}
-	handler := NewInterfaceAnnounceHandler(14, nil)
-	if handler == nil {
-		t.Fatal("NewInterfaceAnnounceHandler() returned nil")
-	}
+
+	expectPanic("NewInterfaceAnnouncer", func() { _ = NewInterfaceAnnouncer() })
+	expectPanic("NewInterfaceAnnounceHandler", func() { _ = NewInterfaceAnnounceHandler(14, nil) })
 	if panics != 2 {
 		t.Fatalf("panic calls=%d, want 2", panics)
 	}
+}
+
+func packDiscoveryInfoForTest(info map[any]any) ([]byte, error) {
+	lookup := func(raw map[any]any, want int) (any, bool) {
+		for k, v := range raw {
+			switch x := k.(type) {
+			case int:
+				if x == want {
+					return v, true
+				}
+			case int64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint64:
+				if int(x) == want {
+					return v, true
+				}
+			case uint8:
+				if int(x) == want {
+					return v, true
+				}
+			}
+		}
+		return nil, false
+	}
+	stringOf := func(v any) string {
+		switch x := v.(type) {
+		case string:
+			return x
+		case []byte:
+			return string(x)
+		default:
+			return ""
+		}
+	}
+	writeHeader := func(buf *bytes.Buffer, n int) error {
+		switch {
+		case n <= 15:
+			return buf.WriteByte(byte(0x80 | n))
+		case n <= 0xFFFF:
+			if err := buf.WriteByte(0xDE); err != nil {
+				return err
+			}
+			var raw [2]byte
+			binary.BigEndian.PutUint16(raw[:], uint16(n))
+			_, err := buf.Write(raw[:])
+			return err
+		default:
+			if err := buf.WriteByte(0xDF); err != nil {
+				return err
+			}
+			var raw [4]byte
+			binary.BigEndian.PutUint32(raw[:], uint32(n))
+			_, err := buf.Write(raw[:])
+			return err
+		}
+	}
+	keys := []int{
+		discoveryFieldInterfaceType,
+		discoveryFieldTransport,
+		discoveryFieldTransportID,
+		discoveryFieldName,
+		discoveryFieldLatitude,
+		discoveryFieldLongitude,
+		discoveryFieldHeight,
+	}
+	ifTypeVal, _ := lookup(info, discoveryFieldInterfaceType)
+	switch sanitizeDiscoveryString(stringOf(ifTypeVal)) {
+	case "BackboneInterface", "TCPServerInterface":
+		keys = append(keys, discoveryFieldReachableOn, discoveryFieldPort)
+	case "I2PInterface":
+		keys = append(keys, discoveryFieldReachableOn)
+	case "RNodeInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldSpreading, discoveryFieldCodingRate)
+	case "WeaveInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldChannel, discoveryFieldModulation)
+	case "KISSInterface":
+		keys = append(keys, discoveryFieldFrequency, discoveryFieldBandwidth, discoveryFieldModulation)
+	}
+	if _, ok := lookup(info, discoveryFieldIFACNetname); ok {
+		keys = append(keys, discoveryFieldIFACNetname)
+	}
+	if _, ok := lookup(info, discoveryFieldIFACNetkey); ok {
+		keys = append(keys, discoveryFieldIFACNetkey)
+	}
+	filtered := make([]int, 0, len(keys))
+	seen := make(map[int]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		if _, ok := lookup(info, key); !ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		filtered = append(filtered, key)
+	}
+	keys = filtered
+	var buf bytes.Buffer
+	if err := writeHeader(&buf, len(keys)); err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		value, ok := lookup(info, key)
+		if !ok {
+			continue
+		}
+		packedKey, err := umsgpack.Packb(key)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(packedKey); err != nil {
+			return nil, err
+		}
+		packedValue, err := umsgpack.Packb(value)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(packedValue); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
 }
 
 func TestPackDiscoveryInfo_UsesPythonFieldOrder(t *testing.T) {
@@ -538,9 +789,9 @@ func TestPackDiscoveryInfo_UsesPythonFieldOrder(t *testing.T) {
 		discoveryFieldIFACNetname:   "mesh",
 	}
 
-	packed, err := packDiscoveryInfo(info)
+	packed, err := packDiscoveryInfoForTest(info)
 	if err != nil {
-		t.Fatalf("packDiscoveryInfo: %v", err)
+		t.Fatalf("packDiscoveryInfoForTest: %v", err)
 	}
 
 	expectedKeys := []int{
@@ -622,13 +873,13 @@ func TestPackDiscoveryInfo_DeterministicAcrossMapInsertionOrder(t *testing.T) {
 		discoveryFieldInterfaceType: "KISSInterface",
 	}
 
-	packedA, err := packDiscoveryInfo(infoA)
+	packedA, err := packDiscoveryInfoForTest(infoA)
 	if err != nil {
-		t.Fatalf("packDiscoveryInfo(infoA): %v", err)
+		t.Fatalf("packDiscoveryInfoForTest(infoA): %v", err)
 	}
-	packedB, err := packDiscoveryInfo(infoB)
+	packedB, err := packDiscoveryInfoForTest(infoB)
 	if err != nil {
-		t.Fatalf("packDiscoveryInfo(infoB): %v", err)
+		t.Fatalf("packDiscoveryInfoForTest(infoB): %v", err)
 	}
 	if !bytes.Equal(packedA, packedB) {
 		t.Fatalf("packed outputs differ across insertion order\nA: %x\nB: %x", packedA, packedB)

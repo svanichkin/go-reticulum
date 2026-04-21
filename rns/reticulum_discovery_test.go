@@ -278,9 +278,14 @@ func TestBringUpSystemInterfaces_TracksBootstrapOnlyConfig(t *testing.T) {
 
 func TestReticulumDiscoveredInterfaces(t *testing.T) {
 	r := &Reticulum{StoragePath: t.TempDir()}
-	discovery, err := newInterfaceDiscoveryWithStorage(r.StoragePath, 14, nil, false)
-	if err != nil {
-		t.Fatalf("newInterfaceDiscoveryWithStorage: %v", err)
+	discovery := &InterfaceDiscovery{
+		requiredValue: 14,
+		storagePath:   filepath.Join(r.StoragePath, "discovery", "interfaces"),
+		monitorEvery:  discoveryMonitorInterval,
+		detachAfter:   discoveryDetachThreshold,
+	}
+	if err := os.MkdirAll(discovery.storagePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
 	}
 
 	discovery.interfaceDiscovered(map[string]any{
@@ -304,7 +309,21 @@ func TestReticulumDiscoveredInterfaces(t *testing.T) {
 	if got, _ := info["reachable_on"].(string); got != "reticulum.example" {
 		t.Fatalf("reachable_on=%q, want reticulum.example", got)
 	}
-	if got := asDiscoveryInt(info["port"]); got != 4242 {
+	intOf := func(v any) int {
+		switch x := v.(type) {
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case uint64:
+			return int(x)
+		case float64:
+			return int(x)
+		default:
+			return 0
+		}
+	}
+	if got := intOf(info["port"]); got != 4242 {
 		t.Fatalf("port=%v, want 4242", info["port"])
 	}
 }

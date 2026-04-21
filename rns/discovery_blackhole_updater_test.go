@@ -66,9 +66,27 @@ func TestBlackholeUpdater_UpdateOnce_MergesAndPersistsRemoteList(t *testing.T) {
 		}, nil
 	}
 
-	now := time.Now()
-	updater.updateOnce(now)
-	updater.updateOnce(now.Add(time.Minute))
+	updater.initialWait = 0
+	updater.sleep = func(time.Duration) {
+		updater.mu.Lock()
+		updater.shouldRun = false
+		updater.mu.Unlock()
+	}
+	updater.mu.Lock()
+	updater.shouldRun = true
+	updater.mu.Unlock()
+
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		updater.job()
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for blackhole updater job")
+	}
 
 	if fetchCalls != 1 {
 		t.Fatalf("fetch calls=%d, want 1", fetchCalls)

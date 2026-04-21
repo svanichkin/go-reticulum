@@ -846,7 +846,36 @@ func Start(owner *Reticulum) {
 						}
 						ts := asFloat64(re[IdxPTTimestamp])
 						nextHop, _ := re[IdxPTNextHop].([]byte)
-						hops := asInt(re[IdxPTHops])
+						hops := func(v any) int {
+							switch val := v.(type) {
+							case int:
+								return val
+							case int8:
+								return int(val)
+							case int16:
+								return int(val)
+							case int32:
+								return int(val)
+							case int64:
+								return int(val)
+							case uint:
+								return int(val)
+							case uint8:
+								return int(val)
+							case uint16:
+								return int(val)
+							case uint32:
+								return int(val)
+							case uint64:
+								return int(val)
+							case float32:
+								return int(val)
+							case float64:
+								return int(val)
+							default:
+								return 0
+							}
+						}(re[IdxPTHops])
 						exp := asFloat64(re[IdxPTExpires])
 
 						var randomBlobs [][]byte
@@ -1019,7 +1048,36 @@ func Start(owner *Reticulum) {
 								}
 								ts := asFloat64(elist[IdxPTTimestamp])
 								receivedFrom, _ := elist[IdxPTNextHop].([]byte)
-								hops := asInt(elist[IdxPTHops])
+								hops := func(v any) int {
+									switch val := v.(type) {
+									case int:
+										return val
+									case int8:
+										return int(val)
+									case int16:
+										return int(val)
+									case int32:
+										return int(val)
+									case int64:
+										return int(val)
+									case uint:
+										return int(val)
+									case uint8:
+										return int(val)
+									case uint16:
+										return int(val)
+									case uint32:
+										return int(val)
+									case uint64:
+										return int(val)
+									case float32:
+										return int(val)
+									case float64:
+										return int(val)
+									default:
+										return 0
+									}
+								}(elist[IdxPTHops])
 								exp := asFloat64(elist[IdxPTExpires])
 
 								blobs := make([][]byte, 0)
@@ -2764,7 +2822,36 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 			}
 		}
 		if len(args) > 2 {
-			maxHops = asInt(args[2])
+			maxHops = func(v any) int {
+				switch val := v.(type) {
+				case int:
+					return val
+				case int8:
+					return int(val)
+				case int16:
+					return int(val)
+				case int32:
+					return int(val)
+				case int64:
+					return int(val)
+				case uint:
+					return int(val)
+				case uint8:
+					return int(val)
+				case uint16:
+					return int(val)
+				case uint32:
+					return int(val)
+				case uint64:
+					return int(val)
+				case float32:
+					return int(val)
+				case float64:
+					return int(val)
+				default:
+					return 0
+				}
+			}(args[2])
 		}
 
 		switch command {

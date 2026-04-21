@@ -37,36 +37,3 @@ func asFloat64(v any) float64 {
 		return 0
 	}
 }
-
-func asInt(v any) int {
-	switch val := v.(type) {
-	case nil:
-		return 0
-	case int:
-		return val
-	case int8:
-		return int(val)
-	case int16:
-		return int(val)
-	case int32:
-		return int(val)
-	case int64:
-		return int(val)
-	case uint:
-		return int(val)
-	case uint8:
-		return int(val)
-	case uint16:
-		return int(val)
-	case uint32:
-		return int(val)
-	case uint64:
-		return int(val)
-	case float32:
-		return int(val)
-	case float64:
-		return int(val)
-	default:
-		return 0
-	}
-}

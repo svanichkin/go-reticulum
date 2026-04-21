@@ -235,10 +235,13 @@ func (r *Reticulum) DiscoveredInterfaces() []map[string]any {
 	if r == nil {
 		return nil
 	}
-	discovery, err := newInterfaceDiscoveryWithStorage(r.StoragePath, effectiveRequiredDiscoveryValue(), nil, false)
-	if err != nil {
-		return nil
+	discovery := &InterfaceDiscovery{
+		requiredValue: effectiveRequiredDiscoveryValue(),
+		storagePath:   filepath.Join(r.StoragePath, "discovery", "interfaces"),
+		monitorEvery:  discoveryMonitorInterval,
+		detachAfter:   discoveryDetachThreshold,
 	}
+	_ = os.MkdirAll(discovery.storagePath, 0o755)
 	return discovery.ListDiscoveredInterfaces(false, false)
 }
 
