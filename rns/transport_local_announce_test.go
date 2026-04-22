@@ -41,8 +41,8 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 	}
 
 	publicKey := dst.identity.GetPublicKey()
-	nameHash := copyBytes(dst.nameHash)
-	destinationHash := copyBytes(dst.Hash)
+	nameHash := append([]byte(nil), dst.nameHash...)
+	destinationHash := append([]byte(nil), dst.Hash...)
 
 	signed := make([]byte, 0, len(destinationHash)+len(publicKey)+len(nameHash)+len(randomBlob)+len(appData))
 	signed = append(signed, destinationHash...)
@@ -801,12 +801,12 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
 		identity:  announceIdentity,
-		Hash:      copyBytes(localAnnounce.DestinationHash),
+		Hash:      append([]byte(nil), localAnnounce.DestinationHash...),
 		hexhash:   PrettyHexRep(localAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
 		announceDestination,
-		copyBytes(localAnnounce.Data),
+		append([]byte(nil), localAnnounce.Data...),
 		WithPacketType(PacketANNOUNCE),
 		WithPacketContext(byte(PacketNONE)),
 		WithHeaderType(HeaderType2),
@@ -817,9 +817,9 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 		t.Fatal("returned announce was nil")
 	}
 	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
-		returnedAnnounce.TransportID = copyBytes(TransportIdentity.Hash)
+		returnedAnnounce.TransportID = append([]byte(nil), TransportIdentity.Hash...)
 	}
-	returnedAnnounce.DestinationHash = copyBytes(localAnnounce.DestinationHash)
+	returnedAnnounce.DestinationHash = append([]byte(nil), localAnnounce.DestinationHash...)
 	returnedAnnounce.DestinationType = byte(DestinationSINGLE)
 	returnedAnnounce.Hops = localAnnounce.Hops
 	if err := returnedAnnounce.Pack(); err != nil {
@@ -943,12 +943,12 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
 		identity:  announceIdentity,
-		Hash:      copyBytes(normalAnnounce.DestinationHash),
+		Hash:      append([]byte(nil), normalAnnounce.DestinationHash...),
 		hexhash:   PrettyHexRep(normalAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
 		announceDestination,
-		copyBytes(normalAnnounce.Data),
+		append([]byte(nil), normalAnnounce.Data...),
 		WithPacketType(PacketANNOUNCE),
 		WithPacketContext(byte(PacketNONE)),
 		WithHeaderType(HeaderType2),
@@ -959,9 +959,9 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 		t.Fatal("returned announce was nil")
 	}
 	if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
-		returnedAnnounce.TransportID = copyBytes(TransportIdentity.Hash)
+		returnedAnnounce.TransportID = append([]byte(nil), TransportIdentity.Hash...)
 	}
-	returnedAnnounce.DestinationHash = copyBytes(normalAnnounce.DestinationHash)
+	returnedAnnounce.DestinationHash = append([]byte(nil), normalAnnounce.DestinationHash...)
 	returnedAnnounce.DestinationType = byte(DestinationSINGLE)
 	returnedAnnounce.Hops = normalAnnounce.Hops
 	if err := returnedAnnounce.Pack(); err != nil {

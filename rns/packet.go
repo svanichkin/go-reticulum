@@ -179,7 +179,7 @@ func WithHeaderType(t byte) PacketOption {
 
 func WithTransportID(id []byte) PacketOption {
 	return func(o *packetOptions) {
-		o.transportID = copyBytes(id)
+		o.transportID = append([]byte(nil), id...)
 	}
 }
 
@@ -286,8 +286,8 @@ func panicPacketState(message string) {
 func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 	if target == nil {
 		return &Packet{
-			Raw:           copyBytes(data),
-			Data:          copyBytes(data),
+			Raw:           append([]byte(nil), data...),
+			Data:          append([]byte(nil), data...),
 			Packed:        true,
 			FromPacked:    true,
 			CreateReceipt: false,
@@ -336,8 +336,8 @@ func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 		ContextFlag:       cfg.contextFlag,
 		Hops:              0,
 		Destination:       dest,
-		TransportID:       copyBytes(cfg.transportID),
-		Data:              copyBytes(data),
+		TransportID:       append([]byte(nil), cfg.transportID...),
+		Data:              append([]byte(nil), data...),
 		CreateReceipt:     cfg.createReceipt,
 		FromPacked:        false,
 		AttachedInterface: cfg.attached,
@@ -392,9 +392,9 @@ func (p *Packet) Pack() error {
 	}
 
 	if p.Link != nil {
-		p.DestinationHash = copyBytes(p.Link.LinkID)
+		p.DestinationHash = append([]byte(nil), p.Link.LinkID...)
 	} else {
-		p.DestinationHash = copyBytes(p.Destination.Hash)
+		p.DestinationHash = append([]byte(nil), p.Destination.Hash...)
 	}
 	if len(p.DestinationHash) != truncatedHashBytes {
 		return fmt.Errorf("invalid destination hash length %d (expected %d)", len(p.DestinationHash), truncatedHashBytes)
@@ -523,18 +523,18 @@ func (p *Packet) Unpack() bool {
 		if len(p.Raw) < 2+2*dstLen+1 {
 			return false
 		}
-		p.TransportID = copyBytes(p.Raw[2 : dstLen+2])
-		p.DestinationHash = copyBytes(p.Raw[dstLen+2 : 2*dstLen+2])
+		p.TransportID = append([]byte(nil), p.Raw[2 : dstLen+2]...)
+		p.DestinationHash = append([]byte(nil), p.Raw[dstLen+2 : 2*dstLen+2]...)
 		p.Context = p.Raw[2*dstLen+2]
-		p.Data = copyBytes(p.Raw[2*dstLen+3:])
+		p.Data = append([]byte(nil), p.Raw[2*dstLen+3:]...)
 	} else {
 		if len(p.Raw) < 2+dstLen+1 {
 			return false
 		}
 		p.TransportID = nil
-		p.DestinationHash = copyBytes(p.Raw[2 : dstLen+2])
+		p.DestinationHash = append([]byte(nil), p.Raw[2 : dstLen+2]...)
 		p.Context = p.Raw[dstLen+2]
-		p.Data = copyBytes(p.Raw[dstLen+3:])
+		p.Data = append([]byte(nil), p.Raw[dstLen+3:]...)
 	}
 
 	p.Packed = false
@@ -676,7 +676,7 @@ func (p *Packet) getHashablePart() []byte {
 // Raw returns a copy of the packed bytes. If the packet has not been packed yet,
 // it returns nil.
 func (p *Packet) RawBytes() []byte {
-	return copyBytes(p.Raw)
+	return append([]byte(nil), p.Raw...)
 }
 
 // Metrics

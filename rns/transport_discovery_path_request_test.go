@@ -92,12 +92,12 @@ func TestPathRequestHandler_DuplicateDiscoveryRequestDoesNotReflood(t *testing.T
 		tagB[i] = byte(0x90 + i)
 	}
 
-	pathRequestHandler(append(copyBytes(destHash), tagA...), &Packet{ReceivingInterface: attached})
+	pathRequestHandler(append(append([]byte(nil), destHash...), tagA...), &Packet{ReceivingInterface: attached})
 	if got := len(sink.packets); got != 2 {
 		t.Fatalf("first outbound requests=%d, want 2", got)
 	}
 
-	pathRequestHandler(append(copyBytes(destHash), tagB...), &Packet{ReceivingInterface: attached})
+	pathRequestHandler(append(append([]byte(nil), destHash...), tagB...), &Packet{ReceivingInterface: attached})
 	if got := len(sink.packets); got != 2 {
 		t.Fatalf("duplicate discovery request reflooded, outbound=%d want 2", got)
 	}
@@ -176,7 +176,7 @@ func TestHandleInboundAnnounce_AnswersWaitingDiscoveryPathRequest(t *testing.T) 
 		tag[i] = byte(0xA0 + i)
 	}
 
-	pathRequestHandler(append(copyBytes(announce.DestinationHash), tag...), &Packet{ReceivingInterface: requester})
+	pathRequestHandler(append(append([]byte(nil), announce.DestinationHash...), tag...), &Packet{ReceivingInterface: requester})
 	if got := len(sink.packets); got != 2 {
 		t.Fatalf("path discovery outbound=%d, want 2", got)
 	}

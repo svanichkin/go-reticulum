@@ -6,7 +6,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -27,7 +26,6 @@ const (
 	x25519KeyLen          = 32 // length of X25519 private/public keys
 	truncatedHashBytes    = 16 // 128 bits, like LinkID
 	derivedKeyLen         = 64 // 64 bytes for Token (32 signing + 32 enc)
-	derivedKeyLenLegacy   = 32 // legacy Token length (16 signing + 16 enc)
 	ratchetExpiry         = 30 * 24 * time.Hour
 	identityPubKeyLen     = x25519KeyLen + ed25519.PublicKeySize
 	announceRandomHashLen = 10
@@ -76,6 +74,7 @@ var (
 	knownDestinationsLoadMu        sync.Mutex
 	knownDestinationsLoaded        atomic.Bool
 	knownDestinationsLoadAttempted atomic.Bool
+	knownDestinationsSaving        atomic.Bool
 )
 
 type ratchetRecord struct {
@@ -95,9 +94,7 @@ func NewIdentity() (*Identity, error) {
 	id := &Identity{
 		curve: ecdh.X25519(),
 	}
-	if err := id.CreateKeys(); err != nil {
-		return nil, err
-	}
+	id.CreateKeys()
 	return id, nil
 }
 
@@ -123,26 +120,30 @@ func IdentityFromFile(path string) (*Identity, error) {
 
 // Save mirrors to_file(path).
 func (id *Identity) Save(path string) error {
-	if id.prvBytes == nil || len(id.prvBytes) != x25519KeyLen {
+	if len(id.prvBytes) != x25519KeyLen || len(id.sigPrivBytes) != ed25519SeedLen {
 		return errors.New("identity has no private key material")
 	}
+	return os.WriteFile(path, id.GetPrivateKey(), 0o600)
+}
 
-	seed := id.sigPrivBytes
-	if len(seed) == 0 && len(id.sigPriv) > 0 {
-		seed = id.sigPriv.Seed()
+// Load mirrors load(path).
+func (id *Identity) Load(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		Log("Error while loading identity from "+path, LogError)
+		Log("The contained exception was: "+err.Error(), LogError)
+		return false
 	}
-	if len(seed) != ed25519SeedLen {
-		return errors.New("identity has no private key material")
+	if err := id.LoadPrivateKey(data); err != nil {
+		Log("Error while loading identity from "+path, LogError)
+		Log("The contained exception was: "+err.Error(), LogError)
+		return false
 	}
-
-	all := append([]byte{}, id.prvBytes...)
-	all = append(all, seed...)
-
-	return os.WriteFile(path, all, 0o600)
+	return true
 }
 
 // CreateKeys generates X25519 + Ed25519 keypairs.
-func (id *Identity) CreateKeys() error {
+func (id *Identity) CreateKeys() {
 	if id.curve == nil {
 		id.curve = ecdh.X25519()
 	}
@@ -150,7 +151,7 @@ func (id *Identity) CreateKeys() error {
 	// X25519
 	prv, err := id.curve.GenerateKey(rand.Reader)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	id.prv = prv
 	id.prvBytes = prv.Bytes()
@@ -161,7 +162,7 @@ func (id *Identity) CreateKeys() error {
 	// Ed25519
 	pubSig, prvSig, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	id.sigPriv = prvSig
 	id.sigPrivBytes = prvSig.Seed()
@@ -169,35 +170,17 @@ func (id *Identity) CreateKeys() error {
 	id.sigPubBytes = pubSig
 
 	id.updateHashes()
-	return nil
+	Logf(LogVerbose, "Identity keys created for %s", PrettyHexRep(id.Hash))
 }
 
 // GetPrivateKey mirrors get_private_key().
 func (id *Identity) GetPrivateKey() []byte {
-	if id.prvBytes == nil || len(id.prvBytes) != x25519KeyLen {
-		return nil
-	}
-
-	seed := id.sigPrivBytes
-	if len(seed) == 0 && len(id.sigPriv) > 0 {
-		seed = id.sigPriv.Seed()
-	}
-	if len(seed) != ed25519SeedLen {
-		return nil
-	}
-	out := append([]byte{}, id.prvBytes...)
-	out = append(out, seed...)
-	return out
+	return append(append([]byte{}, id.prvBytes...), id.sigPrivBytes...)
 }
 
 // GetPublicKey mirrors get_public_key().
 func (id *Identity) GetPublicKey() []byte {
-	if id.pubBytes == nil || id.sigPubBytes == nil {
-		return nil
-	}
-	out := append([]byte{}, id.pubBytes...)
-	out = append(out, id.sigPubBytes...)
-	return out
+	return append(append([]byte{}, id.pubBytes...), id.sigPubBytes...)
 }
 
 // LoadPrivateKey mirrors load_private_key().
@@ -217,15 +200,10 @@ func (id *Identity) LoadPrivateKey(all []byte) error {
 		return err
 	}
 
-	// Python stores 32-byte Ed25519 seed. For backwards compatibility with older
-	// Go versions of this port, also accept a full 64-byte Ed25519 private key.
 	switch len(suffix) {
 	case ed25519SeedLen:
 		id.sigPrivBytes = append([]byte{}, suffix...)
 		id.sigPriv = ed25519.NewKeyFromSeed(id.sigPrivBytes)
-	case ed25519.PrivateKeySize:
-		id.sigPriv = ed25519.PrivateKey(append([]byte{}, suffix...))
-		id.sigPrivBytes = id.sigPriv.Seed()
 	default:
 		return errors.New("invalid private key length")
 	}
@@ -284,59 +262,11 @@ func TruncatedHash(data []byte) []byte {
 	return h[:truncatedHashBytes]
 }
 
-func copyBytes(b []byte) []byte {
-	if len(b) == 0 {
-		return nil
-	}
-	out := make([]byte, len(b))
-	copy(out, b)
-	return out
-}
-
-func nowSeconds() float64 {
-	return float64(time.Now().UnixNano()) / 1e9
-}
-
-func identityStorageBasePath() string {
-	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-		return inst.StoragePath
-	}
-	return filepath.Join(osUserDir(), ".reticulum", "storage")
-}
-
-func knownDestinationsPath() string {
-	return filepath.Join(identityStorageBasePath(), "known_destinations")
-}
-
-func ensureKnownDestinationsLoaded() {
-	if knownDestinationsLoaded.Load() || knownDestinationsLoadAttempted.Load() {
-		return
-	}
-
-	knownDestinationsLoadMu.Lock()
-	defer knownDestinationsLoadMu.Unlock()
-
-	if knownDestinationsLoaded.Load() || knownDestinationsLoadAttempted.Load() {
-		return
-	}
-
-	knownDestinationsLoadAttempted.Store(true)
-	if err := IdentityLoadKnownDestinations(); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			Logf(LogWarning, "Could not load known destinations: %v", err)
-		}
-	}
-}
-
 // IdentityGetRandomHash returns a random truncated hash.
 func IdentityGetRandomHash() []byte {
 	buf := make([]byte, truncatedHashBytes)
 	if _, err := rand.Read(buf); err != nil {
-		// fallback: deterministic hash of timestamp
-		ts := time.Now().UnixNano()
-		var tmp [8]byte
-		binary.BigEndian.PutUint64(tmp[:], uint64(ts))
-		copy(buf, tmp[:])
+		panic(err)
 	}
 	return TruncatedHash(buf)
 }
@@ -354,44 +284,35 @@ func (id *Identity) GetContext() []byte {
 // ---- Known destination storage ----
 
 // IdentityRemember persists a public key and app_data for a destination.
-func IdentityRemember(packetHash, destinationHash, publicKey, appData []byte) error {
-	ensureKnownDestinationsLoaded()
-
+func IdentityRemember(packetHash, destinationHash, publicKey, appData []byte) {
 	if len(publicKey) != identityPubKeyLen {
-		return fmt.Errorf("can't remember %s, public key length %d is invalid", PrettyHexRep(destinationHash), len(publicKey))
+		panic(fmt.Errorf("Can't remember %s, the public key size of %d is not valid.", PrettyHexRep(destinationHash), len(publicKey)))
 	}
 
 	entry := &knownDestinationEntry{
-		SeenAt:     nowSeconds(),
-		PacketHash: copyBytes(packetHash),
-		PublicKey:  copyBytes(publicKey),
-		AppData:    copyBytes(appData),
+		SeenAt:     float64(time.Now().UnixNano()) / 1e9,
+		PacketHash: append([]byte(nil), packetHash...),
+		PublicKey:  append([]byte(nil), publicKey...),
+		AppData:    append([]byte(nil), appData...),
 	}
 
 	key := string(destinationHash)
 	knownDestinations.Lock()
 	knownDestinations.entries[key] = entry
 	knownDestinations.Unlock()
-	return nil
 }
 
 // IdentityRecall looks up an identity by destination hash or identity hash.
 func IdentityRecall(targetHash []byte, fromIdentityHash ...bool) *Identity {
-	ensureKnownDestinationsLoaded()
-
-	if len(targetHash) == 0 {
-		return nil
-	}
 	searchIdentityHash := len(fromIdentityHash) > 0 && fromIdentityHash[0]
 
 	if searchIdentityHash {
 		knownDestinations.RLock()
 		for _, entry := range knownDestinations.entries {
-			if entry == nil || len(entry.PublicKey) == 0 {
-				continue
-			}
 			if bytes.Equal(targetHash, TruncatedHash(entry.PublicKey)) {
-				id := identityFromKnownEntry(entry)
+				id := &Identity{}
+				_ = id.LoadPublicKey(entry.PublicKey)
+				id.AppData = entry.AppData
 				knownDestinations.RUnlock()
 				return id
 			}
@@ -404,22 +325,20 @@ func IdentityRecall(targetHash []byte, fromIdentityHash ...bool) *Identity {
 	entry := knownDestinations.entries[string(targetHash)]
 	knownDestinations.RUnlock()
 	if entry != nil {
-		return identityFromKnownEntry(entry)
+		id := &Identity{}
+		_ = id.LoadPublicKey(entry.PublicKey)
+		id.AppData = entry.AppData
+		return id
 	}
 
 	for _, dst := range Destinations {
-		if dst == nil || dst.identity == nil || len(dst.Hash) == 0 {
+		if dst == nil {
 			continue
 		}
 		if bytes.Equal(targetHash, dst.Hash) {
-			pub := dst.identity.GetPublicKey()
-			if len(pub) == 0 {
-				return nil
-			}
-			id := &Identity{curve: ecdh.X25519()}
-			if err := id.LoadPublicKey(pub); err != nil {
-				return nil
-			}
+			id := &Identity{}
+			_ = id.LoadPublicKey(dst.identity.GetPublicKey())
+			id.AppData = nil
 			return id
 		}
 	}
@@ -429,40 +348,114 @@ func IdentityRecall(targetHash []byte, fromIdentityHash ...bool) *Identity {
 
 // IdentityRecallAppData returns the last app_data.
 func IdentityRecallAppData(destinationHash []byte) []byte {
-	ensureKnownDestinationsLoaded()
-
 	knownDestinations.RLock()
 	defer knownDestinations.RUnlock()
 	if entry, ok := knownDestinations.entries[string(destinationHash)]; ok {
-		return copyBytes(entry.AppData)
+		return entry.AppData
 	}
 	return nil
 }
 
 // IdentitySaveKnownDestinations writes the map to disk.
 func IdentitySaveKnownDestinations() error {
-	ensureKnownDestinationsLoaded()
+	if knownDestinationsSaving.Load() {
+		waitInterval := 200 * time.Millisecond
+		waitTimeout := 5 * time.Second
+		waitStart := time.Now()
+		for knownDestinationsSaving.Load() {
+			time.Sleep(waitInterval)
+			if time.Since(waitStart) > waitTimeout {
+				err := errors.New("Could not save known destinations to storage, waiting for previous save operation timed out.")
+				Logf(LogError, "%v", err)
+				return err
+			}
+		}
+	}
 
 	knownDestinationsSaveMu.Lock()
 	defer knownDestinationsSaveMu.Unlock()
+	knownDestinationsSaving.Store(true)
+	defer knownDestinationsSaving.Store(false)
 
-	path := knownDestinationsPath()
-	if err := ensureParentDir(path); err != nil {
+	saveStart := time.Now()
+
+	path := filepath.Join(osUserDir(), ".reticulum", "storage", "known_destinations")
+	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
+		path = filepath.Join(inst.StoragePath, "known_destinations")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 
 	// Merge on-disk data so we don't lose entries from other processes.
-	diskEntries, err := readKnownDestinationsFromDisk(path)
-	if err == nil {
-		knownDestinations.Lock()
-		for k, v := range diskEntries {
-			if _, ok := knownDestinations.entries[k]; !ok {
-				knownDestinations.entries[k] = v
+	if data, err := os.ReadFile(path); err == nil {
+		var raw map[any]any
+		if err := umsgpack.Unpackb(data, &raw); err == nil {
+			diskEntries := make(map[string]*knownDestinationEntry, len(raw))
+			for k, v := range raw {
+				var keyBytes []byte
+				switch kt := k.(type) {
+				case []byte:
+					keyBytes = kt
+				case umsgpack.BinaryKey:
+					keyBytes = []byte(string(kt))
+				case string:
+					keyBytes = []byte(kt)
+				default:
+					continue
+				}
+				if len(keyBytes) != ReticulumTruncatedHashLength/8 {
+					continue
+				}
+				var values []any
+				switch vt := v.(type) {
+				case []any:
+					values = vt
+				default:
+					continue
+				}
+				entry := &knownDestinationEntry{}
+				if len(values) > 0 {
+					entry.SeenAt = asFloat64(values[0])
+				}
+				if len(values) > 1 {
+					switch val := values[1].(type) {
+					case nil:
+					case []byte:
+						entry.PacketHash = append([]byte(nil), val...)
+					case string:
+						entry.PacketHash = []byte(val)
+					}
+				}
+				if len(values) > 2 {
+					switch val := values[2].(type) {
+					case nil:
+					case []byte:
+						entry.PublicKey = append([]byte(nil), val...)
+					case string:
+						entry.PublicKey = []byte(val)
+					}
+				}
+				if len(values) > 3 {
+					switch val := values[3].(type) {
+					case nil:
+					case []byte:
+						entry.AppData = append([]byte(nil), val...)
+					case string:
+						entry.AppData = []byte(val)
+					}
+				}
+				diskEntries[string(keyBytes)] = entry
 			}
+
+			knownDestinations.Lock()
+			for k, v := range diskEntries {
+				if _, ok := knownDestinations.entries[k]; !ok {
+					knownDestinations.entries[k] = v
+				}
+			}
+			knownDestinations.Unlock()
 		}
-		knownDestinations.Unlock()
-	} else if !errors.Is(err, os.ErrNotExist) {
-		Logf(LogWarning, "Could not merge known destinations from disk: %v", err)
 	}
 
 	knownDestinations.RLock()
@@ -473,90 +466,15 @@ func IdentitySaveKnownDestinations() error {
 		}
 		snapshot[k] = &knownDestinationEntry{
 			SeenAt:     v.SeenAt,
-			PacketHash: copyBytes(v.PacketHash),
-			PublicKey:  copyBytes(v.PublicKey),
-			AppData:    copyBytes(v.AppData),
+			PacketHash: append([]byte(nil), v.PacketHash...),
+			PublicKey:  append([]byte(nil), v.PublicKey...),
+			AppData:    append([]byte(nil), v.AppData...),
 		}
 	}
 	knownDestinations.RUnlock()
 
-	data, err := encodeKnownDestinations(snapshot)
-	if err != nil {
-		return err
-	}
-
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return err
-	}
-
-	Logf(LogDebug, "Saved %d known destinations to storage", len(snapshot))
-	return nil
-}
-
-// IdentityLoadKnownDestinations reads the map from storage/known_destinations.
-func IdentityLoadKnownDestinations() error {
-	path := knownDestinationsPath()
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		Logf(LogVerbose, "Destinations file does not exist, no known destinations loaded")
-		knownDestinationsLoaded.Store(true)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	entries, err := decodeKnownDestinations(data)
-	if err != nil {
-		return err
-	}
-
-	knownDestinations.Lock()
-	knownDestinations.entries = entries
-	knownDestinations.Unlock()
-
-	Logf(LogVerbose, "Loaded %d known destinations from storage", len(entries))
-	knownDestinationsLoaded.Store(true)
-	return nil
-}
-
-// IdentityPersistData persists the map if we are a standalone instance.
-func IdentityPersistData() {
-	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
-		return
-	}
-	if err := IdentitySaveKnownDestinations(); err != nil {
-		Logf(LogError, "Error while saving known destinations to disk: %v", err)
-	}
-}
-
-// IdentityExitHandler runs during Reticulum shutdown.
-func IdentityExitHandler() {
-	IdentityPersistData()
-}
-
-func ensureParentDir(path string) error {
-	dir := filepath.Dir(path)
-	return os.MkdirAll(dir, 0o755)
-}
-
-func readKnownDestinationsFromDisk(path string) (map[string]*knownDestinationEntry, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return decodeKnownDestinations(data)
-}
-
-func encodeKnownDestinations(entries map[string]*knownDestinationEntry) ([]byte, error) {
-	// Persist with fixed-size byte-array keys so msgpack encodes them as binary,
-	// matching Python's bytes-keyed storage format.
-	payload := make(map[[truncatedHashBytes]byte][]any, len(entries))
-	for key, entry := range entries {
+	payload := make(map[[truncatedHashBytes]byte][]any, len(snapshot))
+	for key, entry := range snapshot {
 		if len(key) != truncatedHashBytes {
 			continue
 		}
@@ -569,14 +487,51 @@ func encodeKnownDestinations(entries map[string]*knownDestinationEntry) ([]byte,
 			entry.AppData,
 		}
 	}
-	return umsgpack.Packb(payload)
+
+	data, err := umsgpack.Packb(payload)
+	if err != nil {
+		return err
+	}
+
+	Logf(LogDebug, "Saving %d known destinations to storage...", len(snapshot))
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+
+	saveTime := time.Since(saveStart).Seconds()
+	if saveTime < 1 {
+		Logf(LogDebug, "Saved known destinations to storage in %.2fms", saveTime*1000)
+	} else {
+		Logf(LogDebug, "Saved known destinations to storage in %.2fs", saveTime)
+	}
+	return nil
 }
 
-func decodeKnownDestinations(data []byte) (map[string]*knownDestinationEntry, error) {
-	// Python compatibility: keys can be bytes; older Go versions might have written string keys.
+// IdentityLoadKnownDestinations reads the map from storage/known_destinations.
+func IdentityLoadKnownDestinations() error {
+	path := filepath.Join(osUserDir(), ".reticulum", "storage", "known_destinations")
+	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
+		path = filepath.Join(inst.StoragePath, "known_destinations")
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		Logf(LogVerbose, "Destinations file does not exist, no known destinations loaded")
+		return nil
+	}
+	if err != nil {
+		Logf(LogError, "Error loading known destinations from disk, file will be recreated on exit")
+		return nil
+	}
+
 	var raw map[any]any
 	if err := umsgpack.Unpackb(data, &raw); err != nil {
-		return nil, err
+		Logf(LogError, "Error loading known destinations from disk, file will be recreated on exit")
+		return nil
 	}
 
 	entries := make(map[string]*knownDestinationEntry, len(raw))
@@ -595,8 +550,6 @@ func decodeKnownDestinations(data []byte) (map[string]*knownDestinationEntry, er
 		if len(keyBytes) != ReticulumTruncatedHashLength/8 {
 			continue
 		}
-		key := string(keyBytes)
-
 		var values []any
 		switch vt := v.(type) {
 		case []any:
@@ -610,77 +563,57 @@ func decodeKnownDestinations(data []byte) (map[string]*knownDestinationEntry, er
 			entry.SeenAt = asFloat64(values[0])
 		}
 		if len(values) > 1 {
-			entry.PacketHash = asBytes(values[1])
+			switch val := values[1].(type) {
+			case nil:
+			case []byte:
+				entry.PacketHash = append([]byte(nil), val...)
+			case string:
+				entry.PacketHash = []byte(val)
+			}
 		}
 		if len(values) > 2 {
-			entry.PublicKey = asBytes(values[2])
+			switch val := values[2].(type) {
+			case nil:
+			case []byte:
+				entry.PublicKey = append([]byte(nil), val...)
+			case string:
+				entry.PublicKey = []byte(val)
+			}
 		}
 		if len(values) > 3 {
-			entry.AppData = asBytes(values[3])
+			switch val := values[3].(type) {
+			case nil:
+			case []byte:
+				entry.AppData = append([]byte(nil), val...)
+			case string:
+				entry.AppData = []byte(val)
+			}
 		}
-		if len(entry.PublicKey) != identityPubKeyLen {
-			continue
-		}
-		entries[key] = entry
+		entries[string(keyBytes)] = entry
 	}
-	return entries, nil
+
+	knownDestinations.Lock()
+	knownDestinations.entries = entries
+	knownDestinations.Unlock()
+
+	Logf(LogVerbose, "Loaded %d known destination from storage", len(entries))
+	return nil
 }
 
-func asBytes(v interface{}) []byte {
-	switch val := v.(type) {
-	case nil:
-		return nil
-	case []byte:
-		return copyBytes(val)
-	case string:
-		return []byte(val)
-	default:
-		return nil
-	}
-}
-
-func identityFromKnownEntry(entry *knownDestinationEntry) *Identity {
-	if entry == nil || len(entry.PublicKey) != identityPubKeyLen {
-		return nil
-	}
-	id := &Identity{curve: ecdh.X25519()}
-	if err := id.LoadPublicKey(entry.PublicKey); err != nil {
-		return nil
-	}
-	id.AppData = copyBytes(entry.AppData)
-	return id
-}
-
-func logAnnounceReception(packet *Packet) {
-	if packet == nil {
+// IdentityPersistData persists the map if we are a standalone instance.
+func IdentityPersistData() {
+	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
 		return
 	}
-	dest := PrettyHexRep(packet.DestinationHash)
-	signal := packetSignalString(packet)
-	if len(packet.TransportID) > 0 {
-		Logf(LogExtreme, "Valid announce for %s %d hops away, received via %s on %v%s",
-			dest, packet.Hops, PrettyHexRep(packet.TransportID), packet.ReceivingInterface, signal)
-	} else {
-		Logf(LogExtreme, "Valid announce for %s %d hops away, received on %v%s",
-			dest, packet.Hops, packet.ReceivingInterface, signal)
+	if err := IdentitySaveKnownDestinations(); err != nil {
+		Logf(LogError, "Error while saving known destinations to disk, the contained exception was: %v", err)
+		TraceException(err)
 	}
 }
 
-func packetSignalString(packet *Packet) string {
-	if packet == nil {
-		return ""
-	}
-	parts := []string{}
-	if packet.RSSI != nil {
-		parts = append(parts, fmt.Sprintf("RSSI %.0fdBm", *packet.RSSI))
-	}
-	if packet.SNR != nil {
-		parts = append(parts, fmt.Sprintf("SNR %.0fdB", *packet.SNR))
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return " [" + strings.Join(parts, ", ") + "]"
+// IdentityExitHandler runs during Reticulum shutdown.
+func IdentityExitHandler() {
+	IdentityPersistData()
 }
 
 // IdentityCurrentRatchetID returns the ID of the current ratchet if known.
@@ -693,11 +626,17 @@ func IdentityCurrentRatchetID(destinationHash []byte) []byte {
 }
 
 // ValidateAnnounce mirrors Python's validate_announce().
-func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
+func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Error occurred while validating announce. The contained exception was: %v", r)
+			valid = false
+		}
+	}()
+
 	if packet == nil || packet.PacketType != PacketTypeAnnounce {
 		return false
 	}
-	ensureKnownDestinationsLoaded()
 
 	data := packet.Data
 	keySize := identityPubKeyLen
@@ -731,7 +670,7 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	signature := data[offset : offset+sigLen]
 	offset += sigLen
 
-	var appData []byte
+	appData := []byte{}
 	if len(data) > offset {
 		appData = append([]byte(nil), data[offset:]...)
 	}
@@ -751,8 +690,7 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 
 	announced := &Identity{curve: ecdh.X25519()}
 	if err := announced.LoadPublicKey(publicKey); err != nil {
-		Logf(LogDebug, "Received invalid announce for %s: %v", PrettyHexRep(packet.DestinationHash), err)
-		return false
+		Logf(LogError, "Error while loading public key, the contained exception was: %v", err)
 	}
 	if key, ok := func(hash []byte) (hashKey, bool) {
 		if len(hash) < truncatedHashBytes {
@@ -771,8 +709,8 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 		}
 	}
 
-	if !announced.Validate(signature, signed) {
-		Logf(LogDebug, "Received invalid announce for %s: signature mismatch", PrettyHexRep(packet.DestinationHash))
+	if !(announced.pub != nil && announced.Validate(signature, signed)) {
+		Logf(LogDebug, "Received invalid announce for %s: Invalid signature.", PrettyHexRep(packet.DestinationHash))
 		return false
 	}
 
@@ -784,44 +722,53 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) bool {
 	hashMaterial = append(hashMaterial, announced.Hash...)
 	expectedHash := FullHash(hashMaterial)[:ReticulumTruncatedHashLength/8]
 	if len(packet.DestinationHash) != ReticulumTruncatedHashLength/8 || !bytes.Equal(packet.DestinationHash, expectedHash) {
-		Logf(LogDebug, "Received invalid announce for %s: destination mismatch", PrettyHexRep(packet.DestinationHash))
+		Logf(LogDebug, "Received invalid announce for %s: Destination mismatch.", PrettyHexRep(packet.DestinationHash))
 		return false
 	}
 
 	knownDestinations.RLock()
-	if entry, ok := knownDestinations.entries[string(packet.DestinationHash)]; ok && entry != nil && len(entry.PublicKey) > 0 && !bytes.Equal(entry.PublicKey, publicKey) {
+	if entry, ok := knownDestinations.entries[string(packet.DestinationHash)]; ok && entry != nil && !bytes.Equal(entry.PublicKey, publicKey) {
 		knownDestinations.RUnlock()
-		Log("Received announce with mismatched public key; rejecting", LogCritical)
+		Log("Received announce with valid signature and destination hash, but announced public key does not match already known public key.", LogCritical)
+		Log("This may indicate an attempt to modify network paths, or a random hash collision. The announce was rejected.", LogCritical)
 		return false
 	}
 	knownDestinations.RUnlock()
 
-	packetHash := packet.PacketHash
-	if len(packetHash) == 0 {
-		packetHash = packet.GetHash()
-	}
-	if err := IdentityRemember(packetHash, packet.DestinationHash, publicKey, appData); err != nil {
-		Logf(LogWarning, "Could not remember announce for %s: %v", PrettyHexRep(packet.DestinationHash), err)
-	}
+	IdentityRemember(packet.GetHash(), packet.DestinationHash, publicKey, appData)
 
 	if len(ratchet) == ratchetLen {
 		IdentityRememberRatchet(packet.DestinationHash, ratchet)
 	}
 
-	logAnnounceReception(packet)
+	signal := ""
+	if packet.RSSI != nil || packet.SNR != nil {
+		parts := []string{}
+		if packet.RSSI != nil {
+			parts = append(parts, fmt.Sprintf("RSSI %.0fdBm", *packet.RSSI))
+		}
+		if packet.SNR != nil {
+			parts = append(parts, fmt.Sprintf("SNR %.0fdB", *packet.SNR))
+		}
+		if len(parts) > 0 {
+			signal = " [" + strings.Join(parts, ", ") + "]"
+		}
+	}
+	if len(packet.TransportID) > 0 {
+		Logf(LogExtreme, "Valid announce for %s %d hops away, received via %s on %v%s",
+			PrettyHexRep(packet.DestinationHash), packet.Hops, PrettyHexRep(packet.TransportID), packet.ReceivingInterface, signal)
+	} else {
+		Logf(LogExtreme, "Valid announce for %s %d hops away, received on %v%s",
+			PrettyHexRep(packet.DestinationHash), packet.Hops, packet.ReceivingInterface, signal)
+	}
 	return true
-}
-
-// deriveKey — HKDF(shared, salt, info)
-func deriveKey(shared, salt, info []byte, length int) ([]byte, error) {
-	return Cryptography.HKDF(length, shared, salt, info)
 }
 
 // Encrypt mirrors encrypt(self, plaintext, ratchet=None).
 // Returns ephemeral_pub || ciphertext.
 func (id *Identity) Encrypt(plaintext []byte, ratchet []byte) ([]byte, error) {
 	if id.pub == nil {
-		return nil, errors.New("identity has no public key")
+		panic(errors.New("Encryption failed because identity does not hold a public key"))
 	}
 	if id.curve == nil {
 		id.curve = ecdh.X25519()
@@ -849,7 +796,7 @@ func (id *Identity) Encrypt(plaintext []byte, ratchet []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	derived, err := deriveKey(shared, id.GetSalt(), id.GetContext(), derivedKeyLen)
+	derived, err := Cryptography.HKDF(derivedKeyLen, shared, id.GetSalt(), id.GetContext())
 	if err != nil {
 		return nil, err
 	}
@@ -868,7 +815,7 @@ func (id *Identity) Encrypt(plaintext []byte, ratchet []byte) ([]byte, error) {
 
 // decryptWithShared mirrors __decrypt().
 func (id *Identity) decryptWithShared(shared, ciphertext []byte) ([]byte, error) {
-	derived, err := deriveKey(shared, id.GetSalt(), id.GetContext(), derivedKeyLen)
+	derived, err := Cryptography.HKDF(derivedKeyLen, shared, id.GetSalt(), id.GetContext())
 	if err != nil {
 		return nil, err
 	}
@@ -877,50 +824,20 @@ func (id *Identity) decryptWithShared(shared, ciphertext []byte) ([]byte, error)
 		return nil, err
 	}
 	plaintext, err := tok.Decrypt(ciphertext)
-	if err == nil {
-		return plaintext, nil
-	}
-
-	// Python has DERIVED_KEY_LENGTH_LEGACY for backwards compatibility.
-	derivedLegacy, derr := deriveKey(shared, id.GetSalt(), id.GetContext(), derivedKeyLenLegacy)
-	if derr != nil {
+	if err != nil {
 		return nil, err
 	}
-	tokLegacy, terr := Cryptography.NewToken(derivedLegacy)
-	if terr != nil {
-		return nil, err
-	}
-	if ptLegacy, lerr := tokLegacy.Decrypt(ciphertext); lerr == nil {
-		return ptLegacy, nil
-	}
-	return nil, err
+	return plaintext, nil
 }
 
 // Decrypt mirrors decrypt(self, ciphertext_token, ratchets=None, enforce_ratchets=False).
 func (id *Identity) Decrypt(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool) ([]byte, error) {
-	plaintext, _, err := id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
-	return plaintext, err
-}
-
-func (id *Identity) DecryptWithRatchetID(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool) ([]byte, []byte, error) {
-	return id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
-}
-
-func (id *Identity) DecryptWithRatchetReceiver(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool, setLatestRatchetID func([]byte)) ([]byte, error) {
-	plaintext, ratchetID, err := id.decryptWithRatchetID(ciphertextToken, ratchets, enforceRatchets)
-	if setLatestRatchetID != nil {
-		setLatestRatchetID(ratchetID)
-	}
-	return plaintext, err
-}
-
-func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]byte, enforceRatchets bool) ([]byte, []byte, error) {
 	if id.prv == nil {
-		return nil, nil, errors.New("identity has no private key")
+		panic(errors.New("Decryption failed because identity does not hold a private key"))
 	}
 	if len(ciphertextToken) <= x25519KeyLen {
 		Log("Decryption failed because the token size was invalid.", LogDebug)
-		return nil, nil, nil
+		return nil, nil
 	}
 	if id.curve == nil {
 		id.curve = ecdh.X25519()
@@ -932,7 +849,7 @@ func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 	peerPub, err := id.curve.NewPublicKey(peerPubBytes)
 	if err != nil {
 		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	for _, ratchet := range ratchets {
@@ -949,61 +866,58 @@ func (id *Identity) decryptWithRatchetID(ciphertextToken []byte, ratchets [][]by
 		}
 		pt, err := id.decryptWithShared(shared, ciphertext)
 		if err == nil {
-			ratchetPub := ratchetPrv.PublicKey().Bytes()
-			ratchetID := IdentityGetRatchetID(ratchetPub)
-			return pt, ratchetID, nil
+			return pt, nil
 		}
 	}
 
 	if enforceRatchets {
 		Logf(LogDebug, "Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(id.Hash))
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	shared, err := id.prv.ECDH(peerPub)
 	if err != nil {
 		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
-		return nil, nil, nil
+		return nil, nil
 	}
 	pt, err := id.decryptWithShared(shared, ciphertext)
 	if err != nil {
 		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
-		return nil, nil, nil
+		return nil, nil
 	}
-	return pt, nil, nil
+	return pt, nil
 }
 
 // Sign mirrors sign().
-func (id *Identity) Sign(msg []byte) ([]byte, error) {
+func (id *Identity) Sign(msg []byte) (sig []byte, err error) {
 	if id.sigPriv == nil {
-		return nil, errors.New("identity has no signing key")
+		panic(errors.New("Signing failed because identity does not hold a private key"))
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "The identity %s could not sign the requested message. The contained exception was: %v", id, r)
+			panic(r)
+		}
+	}()
 	return ed25519.Sign(id.sigPriv, msg), nil
 }
 
 // Validate mirrors validate().
 func (id *Identity) Validate(sig, msg []byte) bool {
 	if id.sigPub == nil {
-		return false
+		panic(errors.New("Signature validation failed because identity does not hold a public key"))
 	}
 	return ed25519.Verify(id.sigPub, msg, sig)
 }
 
 // String mirrors __str__().
 func (id *Identity) String() string {
-	if id.HexHash == "" {
-		return "<identity>"
-	}
-	return id.HexHash
+	return PrettyHexRep(id.Hash)
 }
 
 // Prove sends a proof packet to confirm delivery.
 func (id *Identity) Prove(packet *Packet, destination *Destination) {
 	if id == nil || packet == nil {
-		return
-	}
-	if id.sigPriv == nil {
-		Log("Identity cannot send proof without a signing key", LogError)
 		return
 	}
 
@@ -1012,11 +926,13 @@ func (id *Identity) Prove(packet *Packet, destination *Destination) {
 		packetHash = packet.GetHash()
 	}
 
-	signature, err := id.Sign(packetHash)
-	if err != nil {
-		Logf(LogError, "Could not sign proof for %s: %v", PrettyHexRep(packetHash), err)
-		return
-	}
+	signature := func() []byte {
+		sig, err := id.Sign(packetHash)
+		if err != nil {
+			panic(err)
+		}
+		return sig
+	}()
 
 	var proofData []byte
 	if ShouldUseImplicitProof() {
@@ -1027,10 +943,6 @@ func (id *Identity) Prove(packet *Packet, destination *Destination) {
 
 	if destination == nil {
 		destination = packet.GenerateProofDestination()
-	}
-	if destination == nil {
-		Log("Could not determine proof destination", LogError)
-		return
 	}
 
 	proof := NewPacket(
@@ -1051,31 +963,35 @@ func (id *Identity) Prove(packet *Packet, destination *Destination) {
 
 // ---- Ratchet helpers ----
 
-func IdentityGenerateRatchet() ([]byte, error) {
+func IdentityGenerateRatchet() []byte {
 	curve := ecdh.X25519()
 	priv, err := curve.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return priv.Bytes(), nil
+	return priv.Bytes()
 }
 
-func IdentityRatchetPublicBytes(private []byte) ([]byte, error) {
+func IdentityRatchetPublicBytes(private []byte) []byte {
 	if len(private) != x25519KeyLen {
-		return nil, errors.New("invalid ratchet length")
+		panic(errors.New("invalid ratchet length"))
 	}
 	curve := ecdh.X25519()
 	key, err := curve.NewPrivateKey(private)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return key.PublicKey().Bytes(), nil
+	return key.PublicKey().Bytes()
 }
 
 func IdentityRememberRatchet(destHash, ratchet []byte) {
-	if len(destHash) == 0 || len(ratchet) == 0 {
-		return
-	}
+	defer func() {
+		if r := recover(); r != nil {
+			Logf(LogError, "Could not persist ratchet for %s to storage.", PrettyHexRep(destHash))
+			Logf(LogVerbose, "The contained exception was: %v", r)
+			TraceException(r)
+		}
+	}()
 
 	var needsPersist bool
 	knownRatchets.Lock()
@@ -1100,16 +1016,45 @@ func IdentityRememberRatchet(destHash, ratchet []byte) {
 	destCopy := append([]byte{}, destHash...)
 	ratchetCopy := append([]byte{}, ratchet...)
 	go func() {
-		if err := persistRatchet(destCopy, ratchetCopy); err != nil {
-			Logf(LogError, "Could not persist ratchet for %s: %v", PrettyHexRep(destCopy), err)
+		defer func() {
+			if r := recover(); r != nil {
+				Logf(LogError, "Could not persist ratchet for %s to storage.", PrettyHexRep(destCopy))
+				Logf(LogError, "The contained exception was: %v", r)
+			}
+		}()
+
+		ratchetPersistLock.Lock()
+		defer ratchetPersistLock.Unlock()
+
+		dir := filepath.Join(func() string {
+			if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
+				return inst.StoragePath
+			}
+			return filepath.Join(osUserDir(), ".reticulum", "storage")
+		}(), "ratchets")
+		ensureDir(dir)
+
+		hexHash := hex.EncodeToString(destCopy)
+		tmpPath := filepath.Join(dir, hexHash+".tmp")
+		finalPath := filepath.Join(dir, hexHash)
+
+		payload, err := umsgpack.Packb(map[string]any{
+			"ratchet":  ratchetCopy,
+			"received": float64(time.Now().UnixNano()) / 1e9,
+		})
+		if err != nil {
+			return
+		}
+		if err := os.WriteFile(tmpPath, payload, 0o600); err != nil {
+			return
+		}
+		if err := os.Rename(tmpPath, finalPath); err != nil {
+			return
 		}
 	}()
 }
 
 func IdentityGetRatchet(destHash []byte) []byte {
-	if len(destHash) == 0 {
-		return nil
-	}
 	knownRatchets.RLock()
 	if ratchet, ok := knownRatchets.store[string(destHash)]; ok {
 		knownRatchets.RUnlock()
@@ -1117,12 +1062,39 @@ func IdentityGetRatchet(destHash []byte) []byte {
 	}
 	knownRatchets.RUnlock()
 
-	ratchet, err := loadRatchetFromDisk(destHash)
+	path := filepath.Join(func() string {
+		if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
+			return inst.StoragePath
+		}
+		return filepath.Join(osUserDir(), ".reticulum", "storage")
+	}(), "ratchets", hex.EncodeToString(destHash))
+	data, err := os.ReadFile(path)
 	if err != nil {
-		Logf(LogError, "Could not load ratchet for %s: %v", PrettyHexRep(destHash), err)
+		if os.IsNotExist(err) {
+			Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+			return nil
+		}
+		Logf(LogError, "An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash))
+		Logf(LogError, "The contained exception was: %v", err)
 		return nil
 	}
+	var rec ratchetRecord
+	if err := umsgpack.Unpackb(data, &rec); err != nil {
+		Logf(LogError, "An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash))
+		Logf(LogError, "The contained exception was: %v", err)
+		return nil
+	}
+	if len(rec.Ratchet) != x25519KeyLen {
+		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+		return nil
+	}
+	if time.Since(time.Unix(int64(math.Floor(rec.Received)), int64((rec.Received-math.Floor(rec.Received))*1e9))) > ratchetExpiry {
+		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+		return nil
+	}
+	ratchet := rec.Ratchet
 	if len(ratchet) == 0 {
+		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
 		return nil
 	}
 
@@ -1135,13 +1107,18 @@ func IdentityGetRatchet(destHash []byte) []byte {
 // IdentityCleanRatchets removes expired or corrupted records from storage/ratchets.
 func IdentityCleanRatchets() {
 	Log("Cleaning ratchets...", LogDebug)
-	dir := ratchetDirectory()
+	dir := filepath.Join(func() string {
+		if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
+			return inst.StoragePath
+		}
+		return filepath.Join(osUserDir(), ".reticulum", "storage")
+	}(), "ratchets")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
 		}
-		Logf(LogError, "An error occurred while cleaning ratchets: %v", err)
+		Logf(LogError, "An error occurred while cleaning ratchets. The contained exception was: %v", err)
 		return
 	}
 
@@ -1151,118 +1128,39 @@ func IdentityCleanRatchets() {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			Logf(LogError, "Could not read ratchet file %s: %v", path, err)
-			continue
-		}
+		func() {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				Logf(LogError, "An error occurred while cleaning ratchets, in the processing of %s.", path)
+				Logf(LogError, "The contained exception was: %v", err)
+				return
+			}
 
-		remove := false
-		var rec ratchetRecord
-		if err := umsgpack.Unpackb(data, &rec); err != nil {
-			Logf(LogError, "Corrupted ratchet data while reading %s, removing file", path)
-			remove = true
-		} else {
-			if rec.Received == 0 {
-				rec.Received = float64(now.Unix())
-			}
-			if len(rec.Ratchet) != x25519KeyLen {
-				remove = true
-			} else {
-				sec, frac := math.Modf(rec.Received)
-				stored := time.Unix(int64(sec), int64(frac*1e9))
-				if sec < 0 {
-					stored = time.Unix(0, 0)
+			var rec ratchetRecord
+			if err := umsgpack.Unpackb(data, &rec); err != nil {
+				Logf(LogError, "Corrupted ratchet data while reading %s, removing file", path)
+				if err := os.Remove(path); err != nil {
+					Logf(LogError, "Could not remove ratchet file %s: %v", path, err)
 				}
-				if now.Sub(stored) > ratchetExpiry {
-					remove = true
-				}
+				return
 			}
-		}
 
-		if remove {
-			if err := os.Remove(path); err != nil {
-				Logf(LogError, "Could not remove ratchet file %s: %v", path, err)
+			sec, frac := math.Modf(rec.Received)
+			stored := time.Unix(int64(sec), int64(frac*1e9))
+			if sec < 0 {
+				stored = time.Unix(0, 0)
 			}
-		}
+			if now.Sub(stored) > ratchetExpiry {
+				if err := os.Remove(path); err != nil {
+					Logf(LogError, "Could not remove ratchet file %s: %v", path, err)
+				}
+			}
+		}()
 	}
 }
 
 func IdentityGetRatchetID(ratchet []byte) []byte {
-	if len(ratchet) == 0 {
-		return nil
-	}
 	hash := FullHash(ratchet)
 	size := IdentityNameHashLength / 8
-	if size <= 0 || size > len(hash) {
-		return append([]byte{}, hash...)
-	}
 	return append([]byte{}, hash[:size]...)
-}
-
-func ratchetDirectory() string {
-	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-		return filepath.Join(inst.StoragePath, "ratchets")
-	}
-	return filepath.Join(osUserDir(), ".reticulum", "storage", "ratchets")
-}
-
-func persistRatchet(destHash, ratchet []byte) error {
-	ratchetPersistLock.Lock()
-	defer ratchetPersistLock.Unlock()
-
-	dir := ratchetDirectory()
-	ensureDir(dir)
-
-	hexHash := hex.EncodeToString(destHash)
-	tmpPath := filepath.Join(dir, hexHash+".tmp")
-	finalPath := filepath.Join(dir, hexHash)
-
-	payload, err := umsgpack.Packb(map[string]any{
-		"ratchet":  append([]byte{}, ratchet...),
-		"received": float64(time.Now().UnixNano()) / 1e9,
-	})
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(tmpPath, payload, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmpPath, finalPath)
-}
-
-func loadRatchetFromDisk(destHash []byte) ([]byte, error) {
-	ratchetPersistLock.Lock()
-	defer ratchetPersistLock.Unlock()
-
-	path := filepath.Join(ratchetDirectory(), hex.EncodeToString(destHash))
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var rec ratchetRecord
-	if err := umsgpack.Unpackb(data, &rec); err != nil {
-		_ = os.Remove(path)
-		return nil, err
-	}
-	if len(rec.Ratchet) != x25519KeyLen {
-		_ = os.Remove(path)
-		return nil, errors.New("invalid ratchet size on disk")
-	}
-	if rec.Received == 0 {
-		rec.Received = float64(time.Now().UnixNano()) / 1e9
-	}
-	sec, frac := math.Modf(rec.Received)
-	stored := time.Unix(int64(sec), int64(frac*1e9))
-	if sec < 0 {
-		stored = time.Unix(0, 0)
-	}
-	if time.Since(stored) > ratchetExpiry {
-		_ = os.Remove(path)
-		return nil, nil
-	}
-	return rec.Ratchet, nil
 }

@@ -696,12 +696,12 @@ func TestAnswerPathRequest_LocalClientCasesQueueImmediateResponse(t *testing.T) 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			pathTable[key] = &PathEntry{
-				NextHop:       copyBytes(announce.DestinationHash),
+				NextHop:       append([]byte(nil), announce.DestinationHash...),
 				RecvInterface: tc.recv,
 				Hops:          1,
 				Timestamp:     time.Now(),
 				ExpiresAt:     time.Now().Add(time.Minute),
-				PacketHash:    copyBytes(announce.PacketHash),
+				PacketHash:    append([]byte(nil), announce.PacketHash...),
 			}
 			announceTable = make(map[hashKey]*announceEntry)
 			heldAnnounces = make(map[hashKey]*heldAnnounce)

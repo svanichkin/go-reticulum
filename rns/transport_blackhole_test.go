@@ -67,9 +67,7 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	}
 	destHash := make([]byte, truncatedHashBytes)
 	copy(destHash, []byte("dest-blackhole-1"))
-	if err := IdentityRemember([]byte("pkt"), destHash, remoteID.GetPublicKey(), nil); err != nil {
-		t.Fatalf("IdentityRemember: %v", err)
-	}
+	IdentityRemember([]byte("pkt"), destHash, remoteID.GetPublicKey(), nil)
 	key, ok := func(hash []byte) (hashKey, bool) {
 		if len(hash) < truncatedHashBytes {
 			return hashKey{}, false
@@ -229,9 +227,7 @@ func TestReloadBlackhole_LoadsEnabledSourcesAndDropsPaths(t *testing.T) {
 
 	destHash := make([]byte, truncatedHashBytes)
 	copy(destHash, []byte("dest-blackhole-2"))
-	if err := IdentityRemember([]byte("pkt2"), destHash, remoteVictim.GetPublicKey(), nil); err != nil {
-		t.Fatalf("IdentityRemember(remote): %v", err)
-	}
+	IdentityRemember([]byte("pkt2"), destHash, remoteVictim.GetPublicKey(), nil)
 	pathKey, _ := func(hash []byte) (hashKey, bool) {
 		if len(hash) < truncatedHashBytes {
 			return hashKey{}, false
@@ -475,7 +471,7 @@ func TestBlackholedIdentities_ReturnsSnapshot(t *testing.T) {
 	for key, entry := range blackholedIdentities {
 		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
 		if entry != nil {
-			serialised["source"] = copyBytes(entry.Source)
+			serialised["source"] = append([]byte(nil), entry.Source...)
 			if entry.Until != nil && !entry.Until.IsZero() {
 				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
 			}
@@ -498,7 +494,7 @@ func TestBlackholedIdentities_ReturnsSnapshot(t *testing.T) {
 	for key, entry := range blackholedIdentities {
 		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
 		if entry != nil {
-			serialised["source"] = copyBytes(entry.Source)
+			serialised["source"] = append([]byte(nil), entry.Source...)
 			if entry.Until != nil && !entry.Until.IsZero() {
 				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
 			}

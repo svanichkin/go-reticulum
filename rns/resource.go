@@ -1662,7 +1662,7 @@ func (r *Resource) Request(requestData []byte) {
 	if r.status == ResourceFailed {
 		return
 	}
-	r.lastRequestData = copyBytes(requestData)
+	r.lastRequestData = append([]byte(nil), requestData...)
 
 	rtt := time.Since(r.advSent).Seconds()
 	if r.rtt == 0 {
@@ -1958,7 +1958,7 @@ func (r *Resource) GetTransferSize() int { return r.size }
 func (r *Resource) GetDataSize() int     { return r.totalSize }
 func (r *Resource) GetParts() int        { return r.totalParts }
 func (r *Resource) GetSegments() int     { return r.totalSegments }
-func (r *Resource) GetHash() []byte      { return copyBytes(r.hash) }
+func (r *Resource) GetHash() []byte      { return append([]byte(nil), r.hash...) }
 func (r *Resource) IsCompressed() bool   { return r.comp }
 
 func (r *Resource) Progress() float64        { return r.GetProgress() }

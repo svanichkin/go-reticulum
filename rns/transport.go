@@ -1366,7 +1366,7 @@ func reloadBlackhole() {
 				if !ok {
 					continue
 				}
-				decodedEntry := &blackholeEntry{Source: copyBytes(sourceIdentityHash)}
+				decodedEntry := &blackholeEntry{Source: append([]byte(nil), sourceIdentityHash...)}
 				if untilVal, exists := entryMap["until"]; exists && untilVal != nil {
 					untilUnix := asFloat64(untilVal)
 					if untilUnix > 0 {
@@ -1477,7 +1477,7 @@ func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) (r
 		return false
 	}
 
-	entry := &blackholeEntry{Source: copyBytes(TransportIdentity.Hash)}
+	entry := &blackholeEntry{Source: append([]byte(nil), TransportIdentity.Hash...)}
 	if until != nil && !until.IsZero() {
 		t := *until
 		entry.Until = &t
@@ -1548,7 +1548,7 @@ func persistBlackhole() {
 			continue
 		}
 		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
-		serialised["source"] = copyBytes(entry.Source)
+		serialised["source"] = append([]byte(nil), entry.Source...)
 		if entry.Until != nil && !entry.Until.IsZero() {
 			serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
 		}
@@ -2214,7 +2214,7 @@ func Jobs() {
 				Type:      DestinationSINGLE,
 				Direction: DestinationOUT,
 				identity:  announceIdentity,
-				Hash:      copyBytes(entry.Packet.DestinationHash),
+				Hash:      append([]byte(nil), entry.Packet.DestinationHash...),
 				hexhash:   PrettyHexRep(entry.Packet.DestinationHash),
 			}
 			announceContext := byte(PacketNONE)
@@ -2223,7 +2223,7 @@ func Jobs() {
 			}
 			send := NewPacket(
 				announceDestination,
-				copyBytes(entry.Packet.Data),
+				append([]byte(nil), entry.Packet.Data...),
 				WithPacketType(PacketANNOUNCE),
 				WithPacketContext(announceContext),
 				WithHeaderType(HeaderType2),
@@ -2236,10 +2236,10 @@ func Jobs() {
 				continue
 			}
 			if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
-				send.TransportID = copyBytes(TransportIdentity.Hash)
+				send.TransportID = append([]byte(nil), TransportIdentity.Hash...)
 			}
 			send.Hops = entry.Packet.Hops
-			send.DestinationHash = copyBytes(entry.Packet.DestinationHash)
+			send.DestinationHash = append([]byte(nil), entry.Packet.DestinationHash...)
 			send.DestinationType = byte(DestinationSINGLE)
 			if entry.BlockRebroadcasts {
 				Logf(LogDebug, "Rebroadcasting announce as path response for %s with hop count %d", PrettyHexRep(entry.Packet.DestinationHash), send.Hops)
@@ -3028,17 +3028,17 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		dest := &Destination{
 			Type:      DestinationSINGLE,
 			Direction: DestinationOUT,
-			Hash:      copyBytes(destinationHash),
+			Hash:      append([]byte(nil), destinationHash...),
 			hexhash:   PrettyHexRep(destinationHash),
 		}
 		resp := NewPacket(
 			dest,
-			copyBytes(announcePacket.Data),
+			append([]byte(nil), announcePacket.Data...),
 			WithPacketType(PacketANNOUNCE),
 			WithPacketContext(PacketPATH_RESPONSE),
 			WithTransportType(TransportDirect),
 			WithHeaderType(HeaderType2),
-			WithTransportID(copyBytes(TransportIdentity.Hash)),
+			WithTransportID(append([]byte(nil), TransportIdentity.Hash...)),
 			WithContextFlag(announcePacket.ContextFlag),
 			WithAttachedInterface(attachedInterface),
 			WithoutReceipt(),
@@ -3055,7 +3055,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 			h = 255
 		}
 		resp.Hops = uint8(h)
-		resp.DestinationHash = copyBytes(destinationHash)
+		resp.DestinationHash = append([]byte(nil), destinationHash...)
 		resp.DestinationType = byte(DestinationSINGLE)
 
 		if key, ok := func(hash []byte) (hashKey, bool) {
@@ -3302,13 +3302,13 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 				randomBlobs = deduped
 			}
 			newEntry := &PathEntry{
-				NextHop:       copyBytes(entry.ReceivedFrom),
+				NextHop:       append([]byte(nil), entry.ReceivedFrom...),
 				RecvInterface: ifc,
 				Hops:          entry.Hops,
 				Timestamp:     now,
 				ExpiresAt:     entry.ExpiresAt,
 				RandomBlobs:   randomBlobs,
-				PacketHash:    copyBytes(entry.PacketHash),
+				PacketHash:    append([]byte(nil), entry.PacketHash...),
 			}
 
 			shouldAdd := false
@@ -3647,15 +3647,15 @@ func Outbound(p *Packet) bool {
 												existing.Time = outboundTime
 												existing.Hops = int(p.Hops)
 												existing.Emitted = emitted
-												existing.Raw = copyBytes(p.Raw)
+												existing.Raw = append([]byte(nil), p.Raw...)
 											}
 										} else {
 											entry := ifaces.AnnounceQueueEntry{
 												Time:        outboundTime,
-												Destination: copyBytes(p.DestinationHash),
+												Destination: append([]byte(nil), p.DestinationHash...),
 												Hops:        int(p.Hops),
 												Emitted:     emitted,
-												Raw:         copyBytes(p.Raw),
+												Raw:         append([]byte(nil), p.Raw...),
 											}
 											queuedBefore := len(ifc.AnnounceQueue) > 0
 											ifc.AnnounceQueue = append(ifc.AnnounceQueue, entry)
@@ -4033,7 +4033,7 @@ func Inbound(raw []byte, ifc *Interface) {
 	transportHandling := TransportEnabled() || fromLocal || forLocalClient || forLocalClientLink
 
 	if p.TransportID == nil && forLocalClient {
-		p.TransportID = copyBytes(TransportIdentity.Hash)
+		p.TransportID = append([]byte(nil), TransportIdentity.Hash...)
 	}
 
 	if transportHandling && p.Context == PacketCacheRequest {
@@ -4161,12 +4161,12 @@ func Inbound(raw []byte, ifc *Interface) {
 				proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*rem)*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
 				le := &linkEntry{
 					Timestamp:         now,
-					NextHopID:         copyBytes(nextHop),
+					NextHopID:         append([]byte(nil), nextHop...),
 					NextHopInterface:  entry.RecvInterface,
 					RemainingHops:     remainingHops,
 					ReceivedInterface: ifc,
 					Hops:              int(p.Hops),
-					DestinationHash:   copyBytes(p.DestinationHash),
+					DestinationHash:   append([]byte(nil), p.DestinationHash...),
 					Validated:         false,
 					ProofTimeout:      proofTimeout,
 				}
@@ -4228,12 +4228,12 @@ func Inbound(raw []byte, ifc *Interface) {
 					proofTimeout := now.Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT*rem)*time.Second + ExtraLinkProofTimeout(entry.RecvInterface))
 					le := &linkEntry{
 						Timestamp:         now,
-						NextHopID:         copyBytes(entry.NextHop),
+						NextHopID:         append([]byte(nil), entry.NextHop...),
 						NextHopInterface:  entry.RecvInterface,
 						RemainingHops:     entry.Hops,
 						ReceivedInterface: ifc,
 						Hops:              int(p.Hops),
-						DestinationHash:   copyBytes(p.DestinationHash),
+						DestinationHash:   append([]byte(nil), p.DestinationHash...),
 						Validated:         false,
 						ProofTimeout:      proofTimeout,
 					}
@@ -4285,7 +4285,7 @@ func Inbound(raw []byte, ifc *Interface) {
 		// Python parity: apply ingress limiting for unknown destinations.
 		if ifc != nil && !HasPath(p.DestinationHash) {
 			if ifc.ShouldIngressLimit() {
-				ifc.HoldAnnounce(append([]byte(nil), p.Raw...), p.ReceivingInterface, copyBytes(p.DestinationHash), p.Hops)
+				ifc.HoldAnnounce(append([]byte(nil), p.Raw...), p.ReceivingInterface, append([]byte(nil), p.DestinationHash...), p.Hops)
 				return
 			}
 		}
@@ -4369,7 +4369,7 @@ func Inbound(raw []byte, ifc *Interface) {
 				if end > len(p.Data) {
 					end = len(p.Data)
 				}
-				randomBlob = copyBytes(p.Data[offset:end])
+				randomBlob = append([]byte(nil), p.Data[offset:end]...)
 			}
 			var existing *PathEntry
 			if key, ok := func(hash []byte) (hashKey, bool) {
@@ -4464,14 +4464,14 @@ func Inbound(raw []byte, ifc *Interface) {
 				}
 
 				entry := &PathEntry{
-					NextHop:       copyBytes(nextHop),
+					NextHop:       append([]byte(nil), nextHop...),
 					RecvInterface: ifc,
 					Hops:          int(p.Hops),
 					Timestamp:     now,
 					ExpiresAt:     expiresAt,
 					RandomBlobs:   blobs,
 					AnnounceAt:    emitted,
-					PacketHash:    copyBytes(packetHash),
+					PacketHash:    append([]byte(nil), packetHash...),
 				}
 
 				pathTableMu.Lock()
@@ -4486,7 +4486,7 @@ func Inbound(raw []byte, ifc *Interface) {
 						}
 						te.Paths[string(p.DestinationHash)] = &tunnelPathEntry{
 							Timestamp:    entry.Timestamp,
-							ReceivedFrom: copyBytes(entry.NextHop),
+							ReceivedFrom: append([]byte(nil), entry.NextHop...),
 							Hops:         entry.Hops,
 							ExpiresAt:    entry.ExpiresAt,
 							RandomBlobs: func(in [][]byte) [][]byte {
@@ -4499,7 +4499,7 @@ func Inbound(raw []byte, ifc *Interface) {
 								}
 								return out
 							}(entry.RandomBlobs),
-							PacketHash: copyBytes(entry.PacketHash),
+							PacketHash: append([]byte(nil), entry.PacketHash...),
 						}
 						te.ExpiresAt = time.Now().Add(DestinationTimeout)
 						tunnels[string(ifc.TunnelID)] = te
@@ -4531,7 +4531,7 @@ func Inbound(raw []byte, ifc *Interface) {
 				Type:      DestinationSINGLE,
 				Direction: DestinationOUT,
 				identity:  announceIdentity,
-				Hash:      copyBytes(p.DestinationHash),
+				Hash:      append([]byte(nil), p.DestinationHash...),
 				hexhash:   PrettyHexRep(p.DestinationHash),
 			}
 			for _, cif := range LocalClientInterfaces {
@@ -4540,7 +4540,7 @@ func Inbound(raw []byte, ifc *Interface) {
 				}
 				send := NewPacket(
 					announceDestination,
-					copyBytes(p.Data),
+					append([]byte(nil), p.Data...),
 					WithPacketType(PacketANNOUNCE),
 					WithPacketContext(byte(PacketNONE)),
 					WithHeaderType(HeaderType2),
@@ -4552,10 +4552,10 @@ func Inbound(raw []byte, ifc *Interface) {
 					continue
 				}
 				if TransportIdentity != nil && len(TransportIdentity.Hash) > 0 {
-					send.TransportID = copyBytes(TransportIdentity.Hash)
+					send.TransportID = append([]byte(nil), TransportIdentity.Hash...)
 				}
 				send.Hops = p.Hops
-				send.DestinationHash = copyBytes(p.DestinationHash)
+				send.DestinationHash = append([]byte(nil), p.DestinationHash...)
 				send.DestinationType = byte(DestinationSINGLE)
 				if err := send.Pack(); err != nil {
 					continue
@@ -4593,25 +4593,25 @@ func Inbound(raw []byte, ifc *Interface) {
 					dest := &Destination{
 						Type:      DestinationSINGLE,
 						Direction: DestinationOUT,
-						Hash:      copyBytes(p.DestinationHash),
+						Hash:      append([]byte(nil), p.DestinationHash...),
 						hexhash:   PrettyHexRep(p.DestinationHash),
 					}
 
 					response := NewPacket(
 						dest,
-						copyBytes(p.Data),
+						append([]byte(nil), p.Data...),
 						WithPacketType(PacketANNOUNCE),
 						WithPacketContext(PacketPATH_RESPONSE),
 						WithTransportType(TransportDirect),
 						WithHeaderType(HeaderType2),
-						WithTransportID(copyBytes(TransportIdentity.Hash)),
+						WithTransportID(append([]byte(nil), TransportIdentity.Hash...)),
 						WithContextFlag(p.ContextFlag),
 						WithAttachedInterface(entry.RequestingInterface),
 						WithoutReceipt(),
 					)
 					if response != nil {
 						response.Hops = p.Hops
-						response.DestinationHash = copyBytes(p.DestinationHash)
+						response.DestinationHash = append([]byte(nil), p.DestinationHash...)
 						response.DestinationType = byte(DestinationSINGLE)
 						_ = response.Send()
 					}
@@ -4643,7 +4643,7 @@ func Inbound(raw []byte, ifc *Interface) {
 					if !ok {
 						continue
 					}
-					expectedHash, err := Destination{}.HashFromNameAndIdentity(filter, announced)
+					expectedHash, err := (&Destination{}).HashFromNameAndIdentity(filter, announced)
 					if err != nil || !bytes.Equal(expectedHash, p.DestinationHash) {
 						continue
 					}
@@ -4666,15 +4666,15 @@ func Inbound(raw []byte, ifc *Interface) {
 					}()
 
 					appData := IdentityRecallAppData(p.DestinationHash)
-					packetHash := copyBytes(p.PacketHash)
+					packetHash := append([]byte(nil), p.PacketHash...)
 					if len(packetHash) == 0 {
-						packetHash = copyBytes(p.GetHash())
+						packetHash = append([]byte(nil), p.GetHash()...)
 					}
 
 					switch typed := handler.(type) {
 					case AnnounceHandlerWithPacketInfo:
 						typed.ReceivedAnnounceWithPacketInfo(
-							copyBytes(p.DestinationHash),
+							append([]byte(nil), p.DestinationHash...),
 							announced,
 							appData,
 							packetHash,
@@ -4682,13 +4682,13 @@ func Inbound(raw []byte, ifc *Interface) {
 						)
 					case AnnounceHandlerWithPacketHash:
 						typed.ReceivedAnnounceWithPacketHash(
-							copyBytes(p.DestinationHash),
+							append([]byte(nil), p.DestinationHash...),
 							announced,
 							appData,
 							packetHash,
 						)
 					default:
-						announceHandler.ReceivedAnnounce(copyBytes(p.DestinationHash), announced, appData)
+						announceHandler.ReceivedAnnounce(append([]byte(nil), p.DestinationHash...), announced, appData)
 					}
 				}(handler)
 			}
@@ -5329,12 +5329,12 @@ func Inbound(raw []byte, ifc *Interface) {
 					proofTmo := time.Now().Add(time.Duration(DEFAULT_PER_HOP_TIMEOUT)*time.Second*time.Duration(rem) + ExtraLinkProofTimeout(entry.RecvInterface))
 					le := &linkEntry{
 						Timestamp:         time.Now(),
-						NextHopID:         copyBytes(entry.NextHop),
+						NextHopID:         append([]byte(nil), entry.NextHop...),
 						NextHopInterface:  entry.RecvInterface,
 						RemainingHops:     remainingHops,
 						ReceivedInterface: ifc,
 						Hops:              int(p.Hops),
-						DestinationHash:   copyBytes(p.DestinationHash),
+						DestinationHash:   append([]byte(nil), p.DestinationHash...),
 						Validated:         false,
 						ProofTimeout:      proofTmo,
 					}

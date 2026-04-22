@@ -41,9 +41,9 @@ func (h *hashAwareAnnounceHandler) ReceivedAnnounce(_ []byte, _ *Identity, _ []b
 
 func (h *hashAwareAnnounceHandler) ReceivedAnnounceWithPacketHash(destinationHash []byte, _ *Identity, appData []byte, announcePacketHash []byte) {
 	h.calls++
-	h.lastHash = copyBytes(announcePacketHash)
-	h.lastDest = copyBytes(destinationHash)
-	h.lastAppData = copyBytes(appData)
+	h.lastHash = append([]byte(nil), announcePacketHash...)
+	h.lastDest = append([]byte(nil), destinationHash...)
+	h.lastAppData = append([]byte(nil), appData...)
 }
 
 type fullAnnounceHandler struct {
@@ -61,7 +61,7 @@ func (h *fullAnnounceHandler) ReceivedAnnounce(_ []byte, _ *Identity, _ []byte) 
 
 func (h *fullAnnounceHandler) ReceivedAnnounceWithPacketInfo(_ []byte, _ *Identity, _ []byte, announcePacketHash []byte, isPathResponse bool) {
 	h.calls++
-	h.lastHash = copyBytes(announcePacketHash)
+	h.lastHash = append([]byte(nil), announcePacketHash...)
 	h.lastIsPathResponse = isPathResponse
 }
 
@@ -138,7 +138,7 @@ func notifyAnnounceHandlersForTest(packet *Packet) {
 			if !ok {
 				continue
 			}
-			expectedHash, err := Destination{}.HashFromNameAndIdentity(filter, announced)
+			expectedHash, err := (&Destination{}).HashFromNameAndIdentity(filter, announced)
 			if err != nil || !bytes.Equal(expectedHash, packet.DestinationHash) {
 				continue
 			}
@@ -159,15 +159,15 @@ func notifyAnnounceHandlersForTest(packet *Packet) {
 			}()
 
 			appData := IdentityRecallAppData(packet.DestinationHash)
-			packetHash := copyBytes(packet.PacketHash)
+			packetHash := append([]byte(nil), packet.PacketHash...)
 			if len(packetHash) == 0 {
-				packetHash = copyBytes(packet.GetHash())
+				packetHash = append([]byte(nil), packet.GetHash()...)
 			}
 
 			switch typed := handler.(type) {
 			case AnnounceHandlerWithPacketInfo:
 				typed.ReceivedAnnounceWithPacketInfo(
-					copyBytes(packet.DestinationHash),
+					append([]byte(nil), packet.DestinationHash...),
 					announced,
 					appData,
 					packetHash,
@@ -175,13 +175,13 @@ func notifyAnnounceHandlersForTest(packet *Packet) {
 				)
 			case AnnounceHandlerWithPacketHash:
 				typed.ReceivedAnnounceWithPacketHash(
-					copyBytes(packet.DestinationHash),
+					append([]byte(nil), packet.DestinationHash...),
 					announced,
 					appData,
 					packetHash,
 				)
 			default:
-				announceHandler.ReceivedAnnounce(copyBytes(packet.DestinationHash), announced, appData)
+				announceHandler.ReceivedAnnounce(append([]byte(nil), packet.DestinationHash...), announced, appData)
 			}
 		}(handler)
 	}

@@ -14,7 +14,7 @@ func attachOutboundCapture(t *testing.T, sink *outboundCapture, ifc *Interface) 
 	}
 	ifc.OUT = true
 	ifc.SetProcessOutgoingFunc(func(data []byte) error {
-		pkt := &Packet{Raw: copyBytes(data)}
+		pkt := &Packet{Raw: append([]byte(nil), data...)}
 		if !pkt.Unpack() {
 			t.Fatalf("failed to unpack captured packet from %s", ifc)
 		}

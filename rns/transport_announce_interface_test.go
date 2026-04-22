@@ -25,7 +25,7 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDestination: %v", err)
 	}
-	dstHash := copyBytes(dst.Hash)
+	dstHash := append([]byte(nil), dst.Hash...)
 
 	ap := &Interface{Name: "ap", Mode: InterfaceModeAccessPoint}
 	roaming := &Interface{Name: "roaming", Mode: InterfaceModeRoaming}
@@ -130,7 +130,7 @@ func TestShouldAnnounceOnInterface_ModesMatchPython(t *testing.T) {
 				pathTable[key] = &PathEntry{RecvInterface: tc.nextHop, Timestamp: time.Now()}
 			}
 
-			packet := &Packet{DestinationHash: copyBytes(dstHash), AttachedInterface: tc.attached}
+			packet := &Packet{DestinationHash: append([]byte(nil), dstHash...), AttachedInterface: tc.attached}
 			got := true
 			if packet == nil || tc.ifc == nil {
 				got = false

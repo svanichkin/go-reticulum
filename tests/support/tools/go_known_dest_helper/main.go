@@ -31,10 +31,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "start reticulum: %v\n", err)
 		os.Exit(1)
 	}
-	if err := rns.IdentityRemember([]byte("pkt"), destinationHash, publicKey, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "remember destination: %v\n", err)
-		os.Exit(1)
-	}
+	rns.IdentityRemember([]byte("pkt"), destinationHash, publicKey, nil)
 	if err := rns.IdentitySaveKnownDestinations(); err != nil {
 		fmt.Fprintf(os.Stderr, "save known destinations: %v\n", err)
 		os.Exit(1)

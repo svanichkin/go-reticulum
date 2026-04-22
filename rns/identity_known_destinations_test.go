@@ -54,15 +54,80 @@ func TestIdentityKnownDestinations_EncodeDecode_PythonCompatibleKeys(t *testing.
 		},
 	}
 
-	enc, err := encodeKnownDestinations(in)
-	if err != nil {
-		t.Fatalf("encode: %v", err)
+	payload := make(map[[truncatedHashBytes]byte][]any, len(in))
+	for key, entry := range in {
+		var keyBytes [truncatedHashBytes]byte
+		copy(keyBytes[:], []byte(key))
+		payload[keyBytes] = []any{entry.SeenAt, entry.PacketHash, entry.PublicKey, entry.AppData}
 	}
 
-	out, err := decodeKnownDestinations(enc)
+	enc, err := umsgpack.Packb(payload)
 	if err != nil {
-		t.Fatalf("decode: %v", err)
+		t.Fatalf("Packb: %v", err)
 	}
+
+	decode := func(raw []byte) map[string]*knownDestinationEntry {
+		var unpacked map[any]any
+		if err := umsgpack.Unpackb(raw, &unpacked); err != nil {
+			t.Fatalf("Unpackb: %v", err)
+		}
+		out := make(map[string]*knownDestinationEntry, len(unpacked))
+		for k, v := range unpacked {
+			var keyBytes []byte
+			switch kt := k.(type) {
+			case []byte:
+				keyBytes = kt
+			case umsgpack.BinaryKey:
+				keyBytes = []byte(string(kt))
+			case string:
+				keyBytes = []byte(kt)
+			default:
+				continue
+			}
+			if len(keyBytes) != ReticulumTruncatedHashLength/8 {
+				continue
+			}
+			values, ok := v.([]any)
+			if !ok {
+				continue
+			}
+			entry := &knownDestinationEntry{}
+			if len(values) > 0 {
+				entry.SeenAt = asFloat64(values[0])
+			}
+			if len(values) > 1 {
+				switch val := values[1].(type) {
+				case []byte:
+					entry.PacketHash = append([]byte(nil), val...)
+				case string:
+					entry.PacketHash = []byte(val)
+				}
+			}
+			if len(values) > 2 {
+				switch val := values[2].(type) {
+				case []byte:
+					entry.PublicKey = append([]byte(nil), val...)
+				case string:
+					entry.PublicKey = []byte(val)
+				}
+			}
+			if len(values) > 3 {
+				switch val := values[3].(type) {
+				case []byte:
+					entry.AppData = append([]byte(nil), val...)
+				case string:
+					entry.AppData = []byte(val)
+				}
+			}
+			if len(entry.PublicKey) != identityPubKeyLen {
+				continue
+			}
+			out[string(keyBytes)] = entry
+		}
+		return out
+	}
+
+	out := decode(enc)
 
 	got := out[string(key)]
 	if got == nil {
@@ -96,10 +161,68 @@ func TestIdentityKnownDestinations_Decode_AcceptsStringKeys(t *testing.T) {
 		t.Fatalf("pack: %v", err)
 	}
 
-	out, err := decodeKnownDestinations(raw)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
+	decode := func(raw []byte) map[string]*knownDestinationEntry {
+		var unpacked map[any]any
+		if err := umsgpack.Unpackb(raw, &unpacked); err != nil {
+			t.Fatalf("Unpackb: %v", err)
+		}
+		out := make(map[string]*knownDestinationEntry, len(unpacked))
+		for k, v := range unpacked {
+			var keyBytes []byte
+			switch kt := k.(type) {
+			case []byte:
+				keyBytes = kt
+			case umsgpack.BinaryKey:
+				keyBytes = []byte(string(kt))
+			case string:
+				keyBytes = []byte(kt)
+			default:
+				continue
+			}
+			if len(keyBytes) != ReticulumTruncatedHashLength/8 {
+				continue
+			}
+			values, ok := v.([]any)
+			if !ok {
+				continue
+			}
+			entry := &knownDestinationEntry{}
+			if len(values) > 0 {
+				entry.SeenAt = asFloat64(values[0])
+			}
+			if len(values) > 1 {
+				switch val := values[1].(type) {
+				case []byte:
+					entry.PacketHash = append([]byte(nil), val...)
+				case string:
+					entry.PacketHash = []byte(val)
+				}
+			}
+			if len(values) > 2 {
+				switch val := values[2].(type) {
+				case []byte:
+					entry.PublicKey = append([]byte(nil), val...)
+				case string:
+					entry.PublicKey = []byte(val)
+				}
+			}
+			if len(values) > 3 {
+				switch val := values[3].(type) {
+				case []byte:
+					entry.AppData = append([]byte(nil), val...)
+				case string:
+					entry.AppData = []byte(val)
+				}
+			}
+			if len(entry.PublicKey) != identityPubKeyLen {
+				continue
+			}
+			out[string(keyBytes)] = entry
+		}
+		return out
 	}
+
+	out := decode(raw)
 	if out[keyStr] == nil {
 		t.Fatalf("missing decoded entry")
 	}
@@ -114,9 +237,62 @@ func TestIdentityKnownDestinations_Decode_PythonBytesKeys(t *testing.T) {
 	pub = append(pub, bytes.Repeat([]byte{0x03}, 32)...)
 
 	raw := pythonKnownDestinationsMsgpack(key, []byte("ph"), pub, []byte("ad"), 1.0)
-	out, err := decodeKnownDestinations(raw)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
+	var unpacked map[any]any
+	if err := umsgpack.Unpackb(raw, &unpacked); err != nil {
+		t.Fatalf("Unpackb: %v", err)
+	}
+	out := make(map[string]*knownDestinationEntry, len(unpacked))
+	for k, v := range unpacked {
+		var keyBytes []byte
+		switch kt := k.(type) {
+		case []byte:
+			keyBytes = kt
+		case umsgpack.BinaryKey:
+			keyBytes = []byte(string(kt))
+		case string:
+			keyBytes = []byte(kt)
+		default:
+			continue
+		}
+		if len(keyBytes) != ReticulumTruncatedHashLength/8 {
+			continue
+		}
+		values, ok := v.([]any)
+		if !ok {
+			continue
+		}
+		entry := &knownDestinationEntry{}
+		if len(values) > 0 {
+			entry.SeenAt = asFloat64(values[0])
+		}
+		if len(values) > 1 {
+			switch val := values[1].(type) {
+			case []byte:
+				entry.PacketHash = append([]byte(nil), val...)
+			case string:
+				entry.PacketHash = []byte(val)
+			}
+		}
+		if len(values) > 2 {
+			switch val := values[2].(type) {
+			case []byte:
+				entry.PublicKey = append([]byte(nil), val...)
+			case string:
+				entry.PublicKey = []byte(val)
+			}
+		}
+		if len(values) > 3 {
+			switch val := values[3].(type) {
+			case []byte:
+				entry.AppData = append([]byte(nil), val...)
+			case string:
+				entry.AppData = []byte(val)
+			}
+		}
+		if len(entry.PublicKey) != identityPubKeyLen {
+			continue
+		}
+		out[string(keyBytes)] = entry
 	}
 	if out[string(key)] == nil {
 		t.Fatalf("missing decoded entry")

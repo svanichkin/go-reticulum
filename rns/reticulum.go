@@ -335,7 +335,7 @@ func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
 	for key, entry := range blackholedIdentities {
 		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
 		if entry != nil {
-			serialised["source"] = copyBytes(entry.Source)
+			serialised["source"] = append([]byte(nil), entry.Source...)
 			if entry.Until != nil && !entry.Until.IsZero() {
 				serialised["until"] = float64(entry.Until.UnixNano()) / 1e9
 			}

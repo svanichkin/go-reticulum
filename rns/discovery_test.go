@@ -274,11 +274,11 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	nameWithIdentity, err := (Destination{}).ExpandName(TransportIdentity, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := (&Destination{}).ExpandName(TransportIdentity, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(identity): %v", err)
 	}
-	nameWithoutIdentity, err := (Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
+	nameWithoutIdentity, err := (&Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(nil): %v", err)
 	}
@@ -567,11 +567,11 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 		t.Fatalf("GetInterfaceAnnounceData: %v", err)
 	}
 
-	nameWithIdentity, err := (Destination{}).ExpandName(remoteID, TransportAppName, "discovery", "interface")
+	nameWithIdentity, err := (&Destination{}).ExpandName(remoteID, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(identity): %v", err)
 	}
-	nameWithoutIdentity, err := (Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
+	nameWithoutIdentity, err := (&Destination{}).ExpandName(nil, TransportAppName, "discovery", "interface")
 	if err != nil {
 		t.Fatalf("DestinationExpandName(nil): %v", err)
 	}

@@ -167,7 +167,7 @@ func programSetup(
 		return exitError{code: 0, msg: "The full destination name including application name aspects must be specified for the destination"}
 	}
 
-	appName, aspects := rns.Destination{}.AppAndAspectsFromName(fullName)
+	appName, aspects := (&rns.Destination{}).AppAndAspectsFromName(fullName)
 
 	destLen := (rns.ReticulumTruncatedHashLength / 8) * 2
 	if len(destinationHex) != destLen {

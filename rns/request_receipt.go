@@ -67,12 +67,12 @@ func newRequestReceipt(
 	}
 
 	if len(requestID) > 0 {
-		rr.requestID = copyBytes(requestID)
+		rr.requestID = append([]byte(nil), requestID...)
 	}
 
 	if packetReceipt != nil {
 		if rr.requestID == nil {
-			rr.requestID = copyBytes(packetReceipt.TruncatedHash)
+			rr.requestID = append([]byte(nil), packetReceipt.TruncatedHash...)
 		}
 		rr.startedAt = time.Now()
 		packetReceipt.SetTimeout(timeout)
@@ -99,7 +99,7 @@ func newRequestReceipt(
 func (rr *RequestReceipt) RequestID() []byte {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
-	return copyBytes(rr.requestID)
+	return append([]byte(nil), rr.requestID...)
 }
 
 func (rr *RequestReceipt) Status() byte {

@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"crypto/ecdh"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -149,7 +150,7 @@ func pathResponseKey(tag []byte) string {
 
 // ---- static helpers (internal to package) ----
 
-func (Destination) ExpandName(identity *Identity, appName string, aspects ...string) (string, error) {
+func (*Destination) ExpandName(identity *Identity, appName string, aspects ...string) (string, error) {
 	if strings.Contains(appName, ".") {
 		return "", errors.New("dots can't be used in app names")
 	}
@@ -169,7 +170,7 @@ func (Destination) ExpandName(identity *Identity, appName string, aspects ...str
 func destinationHash(identity interface{}, appName string, aspects ...string) ([]byte, error) {
 	// Python parity: Destination.hash() computes name_hash from expand_name(None,...),
 	// ie. without appending identity hexhash, even when an identity is supplied.
-	name, err := (Destination{}).ExpandName(nil, appName, aspects...)
+	name, err := (&Destination{}).ExpandName(nil, appName, aspects...)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +199,7 @@ func destinationHash(identity interface{}, appName string, aspects ...string) ([
 	return full[:ReticulumTruncatedHashLength/8], nil
 }
 
-func (Destination) AppAndAspectsFromName(fullName string) (string, []string) {
+func (*Destination) AppAndAspectsFromName(fullName string) (string, []string) {
 	parts := strings.Split(fullName, ".")
 	if len(parts) == 0 {
 		return "", nil
@@ -211,8 +212,8 @@ func (Destination) AppAndAspectsFromName(fullName string) (string, []string) {
 	return app, aspects
 }
 
-func (Destination) HashFromNameAndIdentity(fullName string, identity *Identity) ([]byte, error) {
-	app, aspects := Destination{}.AppAndAspectsFromName(fullName)
+func (*Destination) HashFromNameAndIdentity(fullName string, identity *Identity) ([]byte, error) {
+	app, aspects := (&Destination{}).AppAndAspectsFromName(fullName)
 	return destinationHash(identity, app, aspects...)
 }
 
@@ -265,7 +266,7 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 
 	d.identity = identity
 
-	nameWithIdentity, err := (Destination{}).ExpandName(identity, appName, aspects...)
+	nameWithIdentity, err := (&Destination{}).ExpandName(identity, appName, aspects...)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +278,7 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 	}
 	d.Hash = hash
 
-	nameWithoutIdentity, err := (Destination{}).ExpandName(nil, appName, aspects...)
+	nameWithoutIdentity, err := (&Destination{}).ExpandName(nil, appName, aspects...)
 	if err != nil {
 		return nil, err
 	}
@@ -399,10 +400,7 @@ func (d *Destination) RotateRatchets() bool {
 	now := float64(time.Now().UnixNano()) / 1e9
 	if now > d.latestRatchetTime+float64(d.ratchetInterval) {
 		Log("Rotating ratchets for "+str(d), LOG_DEBUG)
-		newRatchet, err := IdentityGenerateRatchet()
-		if err != nil {
-			panic(err)
-		}
+		newRatchet := IdentityGenerateRatchet()
 		d.ratchets = append([][]byte{newRatchet}, d.ratchets...)
 		d.latestRatchetTime = now
 		d.cleanRatchets()
@@ -453,12 +451,8 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 		if d.ratchets != nil {
 			_ = d.RotateRatchets()
 			if len(d.ratchets) > 0 {
-				if pub, err := IdentityRatchetPublicBytes(d.ratchets[0]); err == nil {
-					ratchetPub = pub
-					IdentityRememberRatchet(destHash, ratchetPub)
-				} else {
-					panic(err)
-				}
+				ratchetPub = IdentityRatchetPublicBytes(d.ratchets[0])
+				IdentityRememberRatchet(destHash, ratchetPub)
 			}
 		}
 
@@ -802,43 +796,79 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 	if d.Type == DestinationSINGLE && d.identity != nil {
 		d.latestRatchetID = nil
 		if len(d.ratchets) > 0 {
-			decrypted, err := d.identity.DecryptWithRatchetReceiver(ciphertext, d.ratchets, d.enforceRatchets, func(ratchetID []byte) {
-				if len(ratchetID) == 0 {
-					d.latestRatchetID = nil
-					return
+			if d.identity.prv == nil {
+				panic(errors.New("Decryption failed because identity does not hold a private key"))
+			}
+			if len(ciphertext) <= x25519KeyLen {
+				Log("Decryption failed because the token size was invalid.", LogDebug)
+				return nil
+			}
+			if d.identity.curve == nil {
+				d.identity.curve = ecdh.X25519()
+			}
+
+			peerPubBytes := ciphertext[:x25519KeyLen]
+			ciphertextBody := ciphertext[x25519KeyLen:]
+
+			peerPub, err := d.identity.curve.NewPublicKey(peerPubBytes)
+			if err != nil {
+				Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+				return nil
+			}
+
+			decrypted := []byte(nil)
+			for _, ratchet := range d.ratchets {
+				if ratchet == nil {
+					continue
 				}
-				d.latestRatchetID = append([]byte{}, ratchetID...)
-			})
-			if err != nil || decrypted == nil {
-				Log("Decryption with ratchets failed on "+str(d)+", reloading ratchets from storage and retrying", LOG_ERROR)
-				if err2 := d.reloadRatchets(d.ratchetsPath); err2 != nil {
-					Log("Decryption still failing after ratchet reload. The contained exception was: "+err2.Error(), LOG_ERROR)
-					panic(err2)
+				ratchetPrv, err := d.identity.curve.NewPrivateKey(ratchet)
+				if err != nil {
+					continue
 				}
-				decrypted, err = d.identity.DecryptWithRatchetReceiver(ciphertext, d.ratchets, d.enforceRatchets, func(ratchetID []byte) {
+				shared, err := ratchetPrv.ECDH(peerPub)
+				if err != nil {
+					continue
+				}
+				pt, err := d.identity.decryptWithShared(shared, ciphertextBody)
+				if err == nil {
+					ratchetPub := ratchetPrv.PublicKey().Bytes()
+					ratchetID := IdentityGetRatchetID(ratchetPub)
 					if len(ratchetID) == 0 {
 						d.latestRatchetID = nil
-						return
+					} else {
+						d.latestRatchetID = append([]byte{}, ratchetID...)
 					}
-					d.latestRatchetID = append([]byte{}, ratchetID...)
-				})
+					decrypted = pt
+					break
+				}
+			}
+
+			if d.enforceRatchets && decrypted == nil {
+				Logf(LogDebug, "Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(d.identity.Hash))
+				d.latestRatchetID = nil
+				return nil
+			}
+
+			if decrypted == nil {
+				shared, err := d.identity.prv.ECDH(peerPub)
 				if err != nil {
-					Log("Decryption still failing after ratchet reload. The contained exception was: "+err.Error(), LOG_ERROR)
-					panic(err)
+					Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+					d.latestRatchetID = nil
+					return nil
 				}
-				if decrypted != nil {
-					Log("Decryption succeeded after ratchet reload", LOG_NOTICE)
+				pt, err := d.identity.decryptWithShared(shared, ciphertextBody)
+				if err != nil {
+					Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+					d.latestRatchetID = nil
+					return nil
 				}
+				d.latestRatchetID = nil
+				return pt
 			}
 			return decrypted
 		}
-		decrypted, _ := d.identity.DecryptWithRatchetReceiver(ciphertext, nil, d.enforceRatchets, func(ratchetID []byte) {
-			if len(ratchetID) == 0 {
-				d.latestRatchetID = nil
-				return
-			}
-			d.latestRatchetID = append([]byte{}, ratchetID...)
-		})
+		decrypted, _ := d.identity.Decrypt(ciphertext, nil, d.enforceRatchets)
+		d.latestRatchetID = nil
 		return decrypted
 	}
 

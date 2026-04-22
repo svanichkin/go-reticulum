@@ -592,7 +592,7 @@ func (l *Link) Request(
 	}
 
 	pathHash := TruncatedHash([]byte(path))
-	unpacked := []any{nowSeconds(), pathHash, data}
+	unpacked := []any{float64(time.Now().UnixNano()) / 1e9, pathHash, data}
 	packedRequest, err := umsgpack.Packb(unpacked)
 	if err != nil {
 		Log(fmt.Sprintf("Could not pack request payload for %s: %v", path, err), LOG_ERROR)
@@ -968,14 +968,14 @@ func (l *Link) requestResourceConcluded(res *Resource) {
 		Log(fmt.Sprintf("Could not decode request resource payload: %v", err), LOG_ERROR)
 		return
 	}
-	l.handleRequest(copyBytes(res.requestID), unpacked)
+	l.handleRequest(append([]byte(nil), res.requestID...), unpacked)
 }
 
 func (l *Link) responseResourceConcluded(res *Resource) {
 	if res == nil {
 		return
 	}
-	reqID := copyBytes(res.requestID)
+	reqID := append([]byte(nil), res.requestID...)
 	pending := l.pendingRequestByID(reqID)
 	if pending == nil {
 		return

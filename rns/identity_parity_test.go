@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	umsgpack "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
 func resetKnownDestinationsForTestIdentityParity() {
@@ -64,7 +66,7 @@ func TestIdentityValidateAnnounce_RejectsBlackholedIdentity(t *testing.T) {
 	}
 }
 
-func TestIdentityValidateAnnounce_LoadsPersistedKnownDestinationsBeforeCollisionCheck(t *testing.T) {
+func TestIdentityValidateAnnounce_UsesLoadedKnownDestinationsForCollisionCheck(t *testing.T) {
 	dir := t.TempDir()
 	prevInstance := instance
 	instance = &Reticulum{StoragePath: dir}
@@ -91,15 +93,13 @@ func TestIdentityValidateAnnounce_LoadsPersistedKnownDestinationsBeforeCollision
 		t.Fatalf("NewIdentity(other): %v", err)
 	}
 
-	raw, err := encodeKnownDestinations(map[string]*knownDestinationEntry{
-		string(ap.DestinationHash): {
-			SeenAt:     1,
-			PacketHash: []byte("pkt"),
-			PublicKey:  other.GetPublicKey(),
-		},
+	var key [truncatedHashBytes]byte
+	copy(key[:], ap.DestinationHash[:truncatedHashBytes])
+	raw, err := umsgpack.Packb(map[[truncatedHashBytes]byte][]any{
+		key: []any{1.0, []byte("pkt"), other.GetPublicKey(), nil},
 	})
 	if err != nil {
-		t.Fatalf("encodeKnownDestinations: %v", err)
+		t.Fatalf("Packb: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "known_destinations"), raw, 0o600); err != nil {
 		t.Fatalf("WriteFile(known_destinations): %v", err)
@@ -111,6 +111,10 @@ func TestIdentityValidateAnnounce_LoadsPersistedKnownDestinationsBeforeCollision
 	knownDestinationsLoadAttempted.Store(false)
 	knownDestinationsLoadMu.Unlock()
 	t.Cleanup(resetKnownDestinationsForTest)
+
+	if err := IdentityLoadKnownDestinations(); err != nil {
+		t.Fatalf("IdentityLoadKnownDestinations(): %v", err)
+	}
 
 	if ok := ValidateAnnounce(ap, false); ok {
 		t.Fatal("ValidateAnnounce() = true, want false for persisted key collision")
@@ -185,16 +189,13 @@ func TestIdentityKnownDestinations_Encode_UsesPythonBinKeys(t *testing.T) {
 	pub = append(pub, bytes.Repeat([]byte{0x02}, 32)...)
 	pub = append(pub, bytes.Repeat([]byte{0x03}, 32)...)
 
-	raw, err := encodeKnownDestinations(map[string]*knownDestinationEntry{
-		string(key): {
-			SeenAt:     123,
-			PacketHash: []byte("ph"),
-			PublicKey:  pub,
-			AppData:    []byte("ad"),
-		},
+	var packedKey [truncatedHashBytes]byte
+	copy(packedKey[:], key)
+	raw, err := umsgpack.Packb(map[[truncatedHashBytes]byte][]any{
+		packedKey: []any{123.0, []byte("ph"), pub, []byte("ad")},
 	})
 	if err != nil {
-		t.Fatalf("encodeKnownDestinations: %v", err)
+		t.Fatalf("Packb: %v", err)
 	}
 	if len(raw) < 2 || raw[1] != 0xC4 {
 		t.Fatalf("encoded key prefix=%#x, want msgpack bin8 (0xC4)", raw)
