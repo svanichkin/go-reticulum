@@ -948,11 +948,14 @@ func (id *Identity) Prove(packet *Packet, destination *Destination) {
 	proof := NewPacket(
 		destination,
 		proofData,
-		WithPacketType(PacketTypeProof),
-		WithPacketContext(PacketCtxNone),
-		WithTransportType(Broadcast),
-		WithAttachedInterface(packet.ReceivingInterface),
-		WithCreateReceipt(false),
+		PacketTypeProof,
+		PacketCtxNone,
+		Broadcast,
+		HeaderType1,
+		nil,
+		packet.ReceivingInterface,
+		false,
+		FlagUnset,
 	)
 	proof.FromPacked = true
 	proof.Destination = destination

@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -129,7 +130,7 @@ func TestBlackholeIdentity_PersistsAndDropsPaths(t *testing.T) {
 	case string:
 		source = []byte(v)
 	}
-	if !bytesEqual(source, TransportIdentity.Hash) {
+	if !bytes.Equal(source, TransportIdentity.Hash) {
 		t.Fatalf("persisted source=%x, want %x", source, TransportIdentity.Hash)
 	}
 	var got string

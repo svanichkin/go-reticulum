@@ -138,7 +138,7 @@ func runClient(configDir *string, destinationHexHash string, timeout *time.Durat
 				return fmt.Errorf("NewDestination(out): %w", err)
 			}
 
-			req := rns.NewPacket(dest, rns.IdentityGetRandomHash())
+			req := rns.NewPacket(dest, rns.IdentityGetRandomHash(), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 			rc := req.Send()
 			if rc == nil {
 				return errors.New("send returned nil receipt")

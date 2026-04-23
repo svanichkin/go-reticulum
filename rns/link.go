@@ -189,9 +189,9 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	}
 
 	l := &Link{
-		Mode:                   mode,
-		Status:                 LinkPending,
-		Initiator:              destination != nil,
+		Mode:      mode,
+		Status:    LinkPending,
+		Initiator: destination != nil,
 		MTU: func() int {
 			mtu := MTU
 			if phyParamsSnapshot.PhysicalLayerMTU > 0 {
@@ -287,9 +287,14 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		packet := NewPacket(
 			destination,
 			payload,
-			WithPacketType(PacketTypeLinkRequest),
-			WithTransportType(TransportDirect),
-			WithCreateReceipt(true),
+			PacketTypeLinkRequest,
+			PacketCtxNone,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			true,
+			FlagUnset,
 		)
 		if packet == nil {
 			return nil, errors.New("could not build link request packet")
@@ -486,7 +491,14 @@ func (l *Link) Request(
 		packet := NewPacket(
 			l,
 			packedRequest,
-			WithPacketContext(PacketCtxRequest),
+			PacketTypeData,
+			PacketCtxRequest,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			true,
+			FlagUnset,
 		)
 		if packet == nil {
 			Log("Failed to build request packet", LOG_ERROR)
@@ -1010,8 +1022,14 @@ func (l *Link) Receive(packet *Packet) {
 				p := NewPacket(
 					l,
 					[]byte{0xFE},
-					WithPacketContext(PacketCtxKeepalive),
-					WithoutReceipt(),
+					PacketTypeData,
+					PacketCtxKeepalive,
+					Broadcast,
+					HeaderType1,
+					nil,
+					nil,
+					false,
+					FlagUnset,
 				)
 				if p == nil {
 					return
@@ -1188,10 +1206,10 @@ func (l *Link) Receive(packet *Packet) {
 						ResourceReject(packet)
 					}
 				}()
-		case LinkAcceptAll:
-			ResourceAccept(packet, l.callbacks.ResourceConcluded, nil, nil)
+			case LinkAcceptAll:
+				ResourceAccept(packet, l.callbacks.ResourceConcluded, nil, nil)
+			}
 		}
-	}
 	case PacketCtxResourceReq:
 		payload, err := l.Decrypt(packet.Data)
 		if err != nil || len(payload) == 0 {
@@ -1414,8 +1432,14 @@ func (l *Link) sendKeepalive() {
 	p := NewPacket(
 		l,
 		[]byte{0xFF},
-		WithPacketContext(PacketCtxKeepalive),
-		WithoutReceipt(),
+		PacketTypeData,
+		PacketCtxKeepalive,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		false,
+		FlagUnset,
 	)
 	if p == nil {
 		return
@@ -1453,9 +1477,14 @@ func (l *Link) prove() {
 	proof := NewPacket(
 		l,
 		proofData,
-		WithPacketType(PacketTypeProof),
-		WithPacketContext(PacketCtxLRProof),
-		WithoutReceipt(),
+		PacketTypeProof,
+		PacketCtxLRProof,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		false,
+		FlagUnset,
 	)
 	if proof == nil {
 		return
@@ -1549,7 +1578,7 @@ func (l *Link) validateProof(packet *Packet) {
 	}
 
 	peerPub := proofData[ed25519.SignatureSize : ed25519.SignatureSize+linkEcPubSize/2]
-	peerSigPub := l.destination.identity.GetPublicKey()[linkEcPubSize/2:linkEcPubSize]
+	peerSigPub := l.destination.identity.GetPublicKey()[linkEcPubSize/2 : linkEcPubSize]
 	if err := l.loadPeer(peerPub, peerSigPub); err != nil {
 		panic(err)
 	}
@@ -1594,7 +1623,7 @@ func (l *Link) validateProof(packet *Packet) {
 
 	l.updateKeepalive()
 	if rttData, err := umsgpack.Packb(l.RTT.Seconds()); err == nil {
-		rttPacket := NewPacket(l, rttData, WithPacketContext(PacketCtxLRRTT), WithoutReceipt())
+		rttPacket := NewPacket(l, rttData, PacketTypeData, PacketCtxLRRTT, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 		if rttPacket != nil {
 			_ = rttPacket.Send()
 			l.hadOutbound(false)
@@ -1758,7 +1787,7 @@ func (l *Link) ProvePacket(packet *Packet) {
 	proofData := make([]byte, 0, len(hash)+len(sig))
 	proofData = append(proofData, hash...)
 	proofData = append(proofData, sig...)
-	proof := NewPacket(l, proofData, WithPacketType(PacketTypeProof), WithoutReceipt())
+	proof := NewPacket(l, proofData, PacketTypeProof, PacketCtxNone, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 	if proof == nil {
 		return
 	}
@@ -1819,8 +1848,14 @@ func (l *Link) Identify(identity *Identity) {
 	packet := NewPacket(
 		l,
 		payload,
-		WithPacketContext(PacketCtxLinkIdentify),
-		WithCreateReceipt(false),
+		PacketTypeData,
+		PacketCtxLinkIdentify,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		false,
+		FlagUnset,
 	)
 	if packet == nil {
 		Log("Failed to create link identify packet", LOG_ERROR)
@@ -1999,7 +2034,7 @@ func (l *Link) teardown(reason int) {
 	linkID := append([]byte(nil), l.LinkID...)
 	l.mu.Unlock()
 	if sendClose {
-		p := NewPacket(l, linkID, WithPacketContext(PacketCtxLinkClose), WithoutReceipt())
+		p := NewPacket(l, linkID, PacketTypeData, PacketCtxLinkClose, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 		if p != nil {
 			_ = p.Send()
 			l.hadOutbound(false)
@@ -2142,8 +2177,14 @@ func (l *Link) handleRequest(requestID []byte, unpacked []any, packet *Packet) {
 		responsePacket := NewPacket(
 			l,
 			payload,
-			WithPacketContext(PacketCtxResponse),
-			WithoutReceipt(),
+			PacketTypeData,
+			PacketCtxResponse,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			false,
+			FlagUnset,
 		)
 		if responsePacket == nil {
 			Log("Failed to create response packet", LOG_ERROR)

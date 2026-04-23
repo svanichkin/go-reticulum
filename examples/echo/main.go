@@ -118,7 +118,7 @@ func runClient(destinationHex string, configDir *string, timeout float64) {
 				rns.Log("Could not create request destination: "+err.Error(), rns.LogError)
 				continue
 			}
-			echoReq := rns.NewPacket(requestDest, rns.IdentityGetRandomHash())
+			echoReq := rns.NewPacket(requestDest, rns.IdentityGetRandomHash(), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 			if echoReq == nil {
 				continue
 			}

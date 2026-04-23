@@ -92,7 +92,7 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		pub:         append([]byte(nil), initPub...),
 		sigPub:      append([]byte(nil), initSigPub...),
 	}
-	packet := NewPacket(link, proofData, WithPacketType(PacketTypeProof), WithPacketContext(PacketCtxLRProof), WithCreateReceipt(false))
+	packet := NewPacket(link, proofData, PacketTypeProof, PacketCtxLRProof, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 	if packet == nil {
 		t.Fatal("NewPacket returned nil")
 	}
@@ -158,13 +158,13 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		t.Fatal("expected packet to be for local-client link")
 	}
 
-	Inbound(packet.RawBytes(), external)
+	Inbound(packet.Raw, external)
 
 	if got := len(captured); got != 1 {
 		t.Fatalf("captured packets=%d, want 1", got)
 	}
 
-	expected := append([]byte(nil), packet.RawBytes()...)
+	expected := append([]byte(nil), packet.Raw...)
 	expected[1] = 1
 	if !bytes.Equal(captured[0], expected) {
 		t.Fatalf("forwarded raw=%x, want %x", captured[0], expected)

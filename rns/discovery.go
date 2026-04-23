@@ -613,7 +613,7 @@ func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, anno
 	if len(sources) > 0 {
 		allowed := false
 		for _, src := range sources {
-			if bytesEqual(src, announcedIdentity.Hash) {
+			if bytes.Equal(src, announcedIdentity.Hash) {
 				allowed = true
 				break
 			}
@@ -1158,7 +1158,7 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			}
 			allowed := false
 			for _, src := range InterfaceDiscoverySources() {
-				if bytesEqual(src, decoded) {
+				if bytes.Equal(src, decoded) {
 					allowed = true
 					break
 				}
@@ -1300,7 +1300,7 @@ func (d *InterfaceDiscovery) interfaceExists(info map[string]any) bool {
 		if ifc == nil {
 			continue
 		}
-		if len(ifc.AutoconnectHash) > 0 && bytesEqual(ifc.AutoconnectHash, endpointHash) {
+		if len(ifc.AutoconnectHash) > 0 && bytes.Equal(ifc.AutoconnectHash, endpointHash) {
 			return true
 		}
 		targetHost := ifc.DiscoveryTargetHost()

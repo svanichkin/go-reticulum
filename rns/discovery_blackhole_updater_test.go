@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestBlackholeUpdater_UpdateOnce_MergesAndPersistsRemoteList(t *testing.T) {
 	}
 	updater.fetchList = func(source []byte, timeout time.Duration) (any, error) {
 		fetchCalls++
-		if !bytesEqual(source, sourceHash) {
+		if !bytes.Equal(source, sourceHash) {
 			t.Fatalf("fetch source=%x, want %x", source, sourceHash)
 		}
 		if timeout != blackholeSourceTimeout {

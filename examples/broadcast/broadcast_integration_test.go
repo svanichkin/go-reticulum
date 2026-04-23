@@ -46,7 +46,7 @@ func TestIntegration_Broadcast_InboundDeliversToPlainDestination(t *testing.T) {
 		got <- string(data)
 	})
 
-	pkt := rns.NewPacket(dest, []byte("hello"))
+	pkt := rns.NewPacket(dest, []byte("hello"), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 	if pkt == nil {
 		t.Fatalf("NewPacket returned nil")
 	}

@@ -903,7 +903,14 @@ func (o *LinkChannelOutlet) Send(raw []byte) any {
 	packet := NewPacket(
 		o.link,
 		raw,
-		WithPacketContext(PacketCtxChannel),
+		PacketTypeData,
+		PacketCtxChannel,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 
 	if status == LinkActive {

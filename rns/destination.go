@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"crypto/ecdh"
 	"encoding/binary"
 	"errors"
@@ -515,10 +516,14 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 	pkt := NewPacket(
 		d,
 		announceData,
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(announceContext),
-		WithAttachedInterface(attachedInterface),
-		WithContextFlag(contextFlag),
+		PacketANNOUNCE,
+		announceContext,
+		Broadcast,
+		HeaderType1,
+		nil,
+		attachedInterface,
+		true,
+		contextFlag,
 	)
 	if send {
 		_ = pkt.Send()
@@ -633,7 +638,7 @@ func destinationRequestAllowed(handler *RequestHandler, remote *Identity) bool {
 			return false
 		}
 		for _, entry := range handler.AllowedList {
-			if bytesEqual(entry, remote.Hash) {
+			if bytes.Equal(entry, remote.Hash) {
 				return true
 			}
 		}

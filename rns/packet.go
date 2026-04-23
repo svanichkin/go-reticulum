@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -66,6 +67,11 @@ const (
 )
 
 const (
+	PacketHEADER_1 = HeaderType1
+	PacketHEADER_2 = HeaderType2
+)
+
+const (
 	PacketNONE           = PacketCtxNone
 	PacketRESOURCE       = PacketCtxResource
 	PacketRESOURCE_ADV   = PacketCtxResourceAdv
@@ -75,6 +81,8 @@ const (
 	PacketRESOURCE_ICL   = PacketCtxResourceICL
 	PacketRESOURCE_RCL   = PacketCtxResourceRCL
 	PacketCACHE_REQUEST  = PacketCtxCacheRequest
+	PacketREQUEST        = PacketCtxRequest
+	PacketRESPONSE       = PacketCtxResponse
 	PacketPATH_RESPONSE  = PacketCtxPathResponse
 	PacketCOMMAND        = PacketCtxCommand
 	PacketCOMMAND_STATUS = PacketCtxCommandStatus
@@ -124,94 +132,17 @@ const (
 )
 
 var (
-	PacketMDU          = MDU
-	PacketPlainMDU     = MDU
-	PacketEncryptedMDU = computeEncryptedPacketMDU(MDU)
+	PacketHEADER_MAXSIZE = HEADER_MAXSIZE
+	PacketMDU            = MDU
+	PacketPLAIN_MDU      = MDU
+	PacketENCRYPTED_MDU  = computeEncryptedPacketMDU(MDU)
+	PacketPlainMDU       = MDU
+	PacketEncryptedMDU   = computeEncryptedPacketMDU(MDU)
 )
-
-type packetOptions struct {
-	packetType    byte
-	context       byte
-	transportType byte
-	headerType    byte
-	transportID   []byte
-	attached      *Interface
-	createReceipt bool
-	contextFlag   byte
-}
-
-type PacketOption func(*packetOptions)
-
-func defaultPacketOptions() packetOptions {
-	return packetOptions{
-		packetType:    PacketTypeData,
-		context:       PacketCtxNone,
-		transportType: Broadcast,
-		headerType:    HeaderType1,
-		createReceipt: true,
-		contextFlag:   FlagUnset,
-	}
-}
-
-func WithPacketType(t byte) PacketOption {
-	return func(o *packetOptions) {
-		o.packetType = t
-	}
-}
-
-func WithPacketContext(ctx byte) PacketOption {
-	return func(o *packetOptions) {
-		o.context = ctx
-	}
-}
-
-func WithTransportType(t byte) PacketOption {
-	return func(o *packetOptions) {
-		o.transportType = t
-	}
-}
-
-func WithHeaderType(t byte) PacketOption {
-	return func(o *packetOptions) {
-		o.headerType = t
-	}
-}
-
-func WithTransportID(id []byte) PacketOption {
-	return func(o *packetOptions) {
-		o.transportID = append([]byte(nil), id...)
-	}
-}
-
-func WithAttachedInterface(ifc *Interface) PacketOption {
-	return func(o *packetOptions) {
-		o.attached = ifc
-	}
-}
-
-func WithCreateReceipt(enable bool) PacketOption {
-	return func(o *packetOptions) {
-		o.createReceipt = enable
-	}
-}
-
-func WithoutReceipt() PacketOption {
-	return WithCreateReceipt(false)
-}
-
-func WithContextFlag(flag byte) PacketOption {
-	return func(o *packetOptions) {
-		o.contextFlag = flag
-	}
-}
 
 // Python: Packet.TIMEOUT_PER_HOP = Reticulum.DEFAULT_PER_HOP_TIMEOUT
 const TimeoutPerHop = float64(DEFAULT_PER_HOP_TIMEOUT)
-
-// Python parity: Link.TRAFFIC_TIMEOUT_MIN = 5 seconds.
-// This is a lower bound for per-packet receipt timeouts on links, ensuring that
-// early link RTT estimates (often 0 at startup) don't cause immediate timeouts.
-const trafficTimeoutMin = 5 * time.Second
+const PacketTIMEOUT_PER_HOP = TimeoutPerHop
 
 // ===== Minimal transport interface =====
 
@@ -283,21 +214,19 @@ func panicPacketState(message string) {
 
 // NewPacket constructs a packet destined for either a Destination or Link.
 // When target is nil, the packet represents already-packed raw data.
-func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
+func NewPacket(target interface{}, data []byte, packetType byte, context byte, transportType byte, headerType byte, transportID []byte, attachedInterface *Interface, createReceipt bool, contextFlag byte) *Packet {
 	if target == nil {
 		return &Packet{
-			Raw:           append([]byte(nil), data...),
-			Data:          append([]byte(nil), data...),
-			Packed:        true,
-			FromPacked:    true,
-			CreateReceipt: false,
-		}
-	}
-
-	cfg := defaultPacketOptions()
-	for _, opt := range opts {
-		if opt != nil {
-			opt(&cfg)
+			Raw:                append([]byte(nil), data...),
+			Packed:             true,
+			FromPacked:         true,
+			CreateReceipt:      false,
+			MTU:                MTU,
+			AttachedInterface:  attachedInterface,
+			ReceivingInterface: nil,
+			RSSI:               nil,
+			SNR:                nil,
+			Q:                  nil,
 		}
 	}
 
@@ -310,13 +239,11 @@ func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 	case *Destination:
 		dest = v
 	case *Link:
-		if v == nil || len(v.LinkID) == 0 {
-			Log("Cannot create packet for nil link or link without link ID", LogError)
+		if v == nil {
+			Log("Cannot create packet for nil link", LogError)
 			return nil
 		}
 		link = v
-		// For link packets, the destination is still the owning Destination.
-		// The packet header uses the link ID as destination hash.
 		dest = v.destination
 	default:
 		Log(fmt.Sprintf("Unsupported packet target %T", target), LogError)
@@ -328,19 +255,19 @@ func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 	}
 
 	packet := &Packet{
-		HeaderType:        cfg.headerType,
-		PacketType:        cfg.packetType,
-		Type:              cfg.packetType,
-		TransportType:     cfg.transportType,
-		Context:           cfg.context,
-		ContextFlag:       cfg.contextFlag,
+		HeaderType:        headerType,
+		PacketType:        packetType,
+		Type:              packetType,
+		TransportType:     transportType,
+		Context:           context,
+		ContextFlag:       contextFlag,
 		Hops:              0,
 		Destination:       dest,
-		TransportID:       append([]byte(nil), cfg.transportID...),
+		TransportID:       append([]byte(nil), transportID...),
 		Data:              append([]byte(nil), data...),
-		CreateReceipt:     cfg.createReceipt,
+		CreateReceipt:     createReceipt,
 		FromPacked:        false,
-		AttachedInterface: cfg.attached,
+		AttachedInterface: attachedInterface,
 		Link:              link,
 	}
 
@@ -356,11 +283,6 @@ func NewPacket(target interface{}, data []byte, opts ...PacketOption) *Packet {
 	}
 
 	return packet
-}
-
-// NewRawPacket mirrors Python Packet(None, raw) construction for already-packed bytes.
-func NewRawPacket(raw []byte) *Packet {
-	return NewPacket(nil, raw)
 }
 
 func (p *Packet) getPackedFlags() byte {
@@ -396,20 +318,14 @@ func (p *Packet) Pack() error {
 	} else {
 		p.DestinationHash = append([]byte(nil), p.Destination.Hash...)
 	}
-	if len(p.DestinationHash) != truncatedHashBytes {
-		return fmt.Errorf("invalid destination hash length %d (expected %d)", len(p.DestinationHash), truncatedHashBytes)
-	}
 	header := make([]byte, 0, 64)
 
 	header = append(header, p.Flags)
 	header = append(header, byte(p.Hops))
 
 	if p.Context == PacketCtxLRProof {
-		if p.Link == nil || len(p.Link.LinkID) == 0 {
+		if p.Link == nil {
 			return errors.New("LRPROOF packet requires link_id")
-		}
-		if len(p.Link.LinkID) != truncatedHashBytes {
-			return fmt.Errorf("invalid link_id length %d (expected %d)", len(p.Link.LinkID), truncatedHashBytes)
 		}
 		header = append(header, p.Link.LinkID...)
 		p.Ciphertext = p.Data
@@ -433,11 +349,24 @@ func (p *Packet) Pack() error {
 			case p.Context == PacketCtxCacheRequest:
 				p.Ciphertext = p.Data
 			default:
-				ct, err := p.encryptForDestination(p.Data)
-				if err != nil {
-					return err
+				if p.Link != nil {
+					ct, err := p.Link.Encrypt(p.Data)
+					if err != nil {
+						return err
+					}
+					p.Ciphertext = ct
+				} else if p.Destination != nil && p.Destination.Type == DestinationSINGLE && p.Destination.identity == nil {
+					// Python ProofDestination: type SINGLE, but no encryption.
+					p.Ciphertext = p.Data
+				} else if p.Destination != nil {
+					ct := p.Destination.Encrypt(p.Data)
+					if ct == nil && p.Data != nil {
+						return errors.New("destination encryption failed")
+					}
+					p.Ciphertext = ct
+				} else {
+					return errors.New("no destination")
 				}
-				p.Ciphertext = ct
 				if p.Destination != nil && len(p.Destination.latestRatchetID) > 0 {
 					p.RatchetID = append([]byte{}, p.Destination.latestRatchetID...)
 				}
@@ -448,18 +377,12 @@ func (p *Packet) Pack() error {
 			if len(p.TransportID) == 0 {
 				return errors.New("header type 2 packet must have transportID")
 			}
-			if len(p.TransportID) != truncatedHashBytes {
-				return fmt.Errorf("invalid transportID length %d (expected %d)", len(p.TransportID), truncatedHashBytes)
-			}
 			header = append(header, p.TransportID...)
 			header = append(header, p.DestinationHash...)
-			// Python only uses Packet.pack() with HEADER_2 for announces; other
-			// transported packets are inserted into transport by rewriting raw bytes.
-			if p.PacketType != PacketTypeAnnounce {
-				return fmt.Errorf("header type 2 Pack() is only supported for announce packets (got type 0x%02x)", p.PacketType)
+			if p.PacketType == PacketTypeAnnounce {
+				// Announce packets are not encrypted.
+				p.Ciphertext = p.Data
 			}
-			// Announce packets are not encrypted.
-			p.Ciphertext = p.Data
 		}
 	}
 
@@ -476,36 +399,13 @@ func (p *Packet) Pack() error {
 	return nil
 }
 
-func (p *Packet) encryptForDestination(plaintext []byte) ([]byte, error) {
-	if p.Link != nil {
-		return p.Link.Encrypt(plaintext)
-	}
-	if p.Destination == nil {
-		return nil, errors.New("no destination")
-	}
-	// ProofDestination compatibility: Python uses a special Destination-like object
-	// with type SINGLE that performs no encryption.
-	if p.Destination.Type == DestinationSINGLE && p.Destination.identity == nil {
-		return plaintext, nil
-	}
-	ct := p.Destination.Encrypt(plaintext)
-	if ct == nil && plaintext != nil {
-		return nil, errors.New("destination encryption failed")
-	}
-	return ct, nil
-}
-
 // Unpack mirrors unpack().
-func (p *Packet) Unpack() bool {
+func (p *Packet) Unpack() (ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			// swallow like Python, just return false
+			Logf(LogExtreme, "Received malformed packet, dropping it. The contained exception was: %v", r)
 		}
 	}()
-
-	if len(p.Raw) < 2 {
-		return false
-	}
 
 	p.Flags = p.Raw[0]
 	p.Hops = p.Raw[1]
@@ -520,17 +420,11 @@ func (p *Packet) Unpack() bool {
 	dstLen := truncatedHashBytes
 
 	if p.HeaderType == HeaderType2 {
-		if len(p.Raw) < 2+2*dstLen+1 {
-			return false
-		}
 		p.TransportID = append([]byte(nil), p.Raw[2:dstLen+2]...)
 		p.DestinationHash = append([]byte(nil), p.Raw[dstLen+2:2*dstLen+2]...)
 		p.Context = p.Raw[2*dstLen+2]
 		p.Data = append([]byte(nil), p.Raw[2*dstLen+3:]...)
 	} else {
-		if len(p.Raw) < 2+dstLen+1 {
-			return false
-		}
 		p.TransportID = nil
 		p.DestinationHash = append([]byte(nil), p.Raw[2:dstLen+2]...)
 		p.Context = p.Raw[dstLen+2]
@@ -547,14 +441,9 @@ func (p *Packet) Send() *PacketReceipt {
 	if p.Sent {
 		panicPacketState("Packet was already sent")
 	}
-	if p.Destination == nil && p.Link == nil {
-		Log("Cannot send packet without destination", LogError)
-		return nil
-	}
 	if p.Link != nil {
 		if p.Link.Status == LinkClosed {
 			Log("Attempt to transmit over a closed link, dropping packet", LogDebug)
-			// just exit
 			p.Sent = false
 			p.Receipt = nil
 			return nil
@@ -562,24 +451,15 @@ func (p *Packet) Send() *PacketReceipt {
 		now := time.Now()
 		p.Link.mu.Lock()
 		p.Link.lastOutbound = now
-		if p.Context == PacketCtxKeepalive {
-			p.Link.lastKeepalive = now
-		} else {
-			p.Link.lastData = now
-		}
+		p.Link.tx++
+		p.Link.txBytes += uint64(len(p.Data))
 		p.Link.mu.Unlock()
 	}
 
 	if !p.Packed {
 		if err := p.Pack(); err != nil {
-			Logf(LogError, "Could not pack packet: %v", err)
-			return nil
+			panic(err)
 		}
-	}
-
-	if Transport == nil {
-		Log("Transport backend not initialised", LogError)
-		return nil
 	}
 
 	if Outbound(p) {
@@ -588,7 +468,6 @@ func (p *Packet) Send() *PacketReceipt {
 
 	Log("No interfaces could process the outbound packet", LogError)
 	p.Sent = false
-	p.SentAt = time.Time{}
 	p.Receipt = nil
 	return nil
 }
@@ -599,13 +478,7 @@ func (p *Packet) Resend() *PacketReceipt {
 		panicPacketState("Packet was not sent yet")
 	}
 	if err := p.Pack(); err != nil {
-		Logf(LogError, "Could not repack packet before resend: %v", err)
-		return nil
-	}
-
-	if Transport == nil {
-		Log("Transport backend not initialised", LogError)
-		return nil
+		panic(err)
 	}
 
 	if Outbound(p) {
@@ -614,10 +487,11 @@ func (p *Packet) Resend() *PacketReceipt {
 
 	Log("No interfaces could process the outbound packet", LogError)
 	p.Sent = false
-	p.SentAt = time.Time{}
 	p.Receipt = nil
 	return nil
 }
+
+type ProofDestination = Destination
 
 // Prove / ProofDestination
 
@@ -627,11 +501,11 @@ func (p *Packet) Prove(dest *Destination) {
 	} else if p.FromPacked && p.Link != nil {
 		p.Link.ProvePacket(p)
 	} else {
-		Log("Could not prove packet without an associated destination or link", LogError)
+		Log("Could not prove packet associated with neither a destination nor a link", LogError)
 	}
 }
 
-func (p *Packet) GenerateProofDestination() *Destination {
+func (p *Packet) GenerateProofDestination() *ProofDestination {
 	// ProofDestination mirrors rns/packet.py: it is type SINGLE but performs no encryption.
 	return &Destination{
 		Type:      DestinationSINGLE,
@@ -641,16 +515,10 @@ func (p *Packet) GenerateProofDestination() *Destination {
 }
 
 func (p *Packet) ValidateProofPacket(proof *Packet) bool {
-	if p == nil || p.Receipt == nil || proof == nil {
-		return false
-	}
 	return p.Receipt.ValidateProofPacket(proof)
 }
 
 func (p *Packet) ValidateProof(proof []byte) bool {
-	if p == nil || p.Receipt == nil {
-		return false
-	}
 	return p.Receipt.ValidateProof(proof, nil)
 }
 
@@ -669,9 +537,6 @@ func (p *Packet) GetTruncatedHash() []byte {
 }
 
 func (p *Packet) getHashablePart() []byte {
-	if len(p.Raw) == 0 {
-		return nil
-	}
 	hashable := []byte{p.Raw[0] & 0x0F}
 	if p.HeaderType == HeaderType2 {
 		hashable = append(hashable, p.Raw[truncatedHashBytes+2:]...)
@@ -681,17 +546,14 @@ func (p *Packet) getHashablePart() []byte {
 	return hashable
 }
 
-// Raw returns a copy of the packed bytes. If the packet has not been packed yet,
-// it returns nil.
-func (p *Packet) RawBytes() []byte {
-	return append([]byte(nil), p.Raw...)
-}
-
 // Metrics
 
 func (p *Packet) GetRSSI() *float64 {
 	if p.RSSI != nil {
 		return p.RSSI
+	}
+	if Owner != nil {
+		return Owner.GetPacketRSSI(p.PacketHash)
 	}
 	localStatsMu.RLock()
 	v, ok := localRSSICache[string(p.PacketHash)]
@@ -706,6 +568,9 @@ func (p *Packet) GetSNR() *float64 {
 	if p.SNR != nil {
 		return p.SNR
 	}
+	if Owner != nil {
+		return Owner.GetPacketSNR(p.PacketHash)
+	}
 	localStatsMu.RLock()
 	v, ok := localSNRCache[string(p.PacketHash)]
 	localStatsMu.RUnlock()
@@ -718,6 +583,9 @@ func (p *Packet) GetSNR() *float64 {
 func (p *Packet) GetQ() *float64 {
 	if p.Q != nil {
 		return p.Q
+	}
+	if Owner != nil {
+		return Owner.GetPacketQ(p.PacketHash)
 	}
 	localStatsMu.RLock()
 	v, ok := localQCache[string(p.PacketHash)]
@@ -778,19 +646,18 @@ func NewPacketReceipt(p *Packet) *PacketReceipt {
 	}
 
 	if p.Link != nil {
-		r.Timeout = maxFloat(p.Link.RTT.Seconds()*p.Link.TrafficTimeoutFactor, trafficTimeoutMin.Seconds())
-	} else if Transport != nil && p.Destination != nil {
+		rttTimeout := p.Link.RTT.Seconds() * p.Link.TrafficTimeoutFactor
+		if rttTimeout < linkTrafficTimeoutMin.Seconds() {
+			rttTimeout = linkTrafficTimeoutMin.Seconds()
+		}
+		r.Timeout = rttTimeout
+	} else {
 		base := FirstHopTimeout(p.Destination.Hash).Seconds()
 		if Owner != nil {
 			base = Owner.GetFirstHopTimeout(p.Destination.Hash)
 		}
 		hops := HopsTo(p.Destination.Hash)
-		if hops <= 0 {
-			hops = 1
-		}
 		r.Timeout = base + TimeoutPerHop*float64(hops)
-	} else {
-		r.Timeout = 10.0
 	}
 
 	return r
@@ -808,13 +675,21 @@ func (r *PacketReceipt) ValidateProofPacket(proofPacket *Packet) bool {
 }
 
 func (r *PacketReceipt) validateLinkProof(proof []byte, link *Link, proofPacket *Packet) bool {
-	if len(proof) != ReceiptExplLength {
-		return false
+	proofHash := proof
+	if len(proofHash) > HashLengthBytes {
+		proofHash = proofHash[:HashLengthBytes]
 	}
-	proofHash := proof[:HashLengthBytes]
-	sig := proof[HashLengthBytes : HashLengthBytes+SigLengthBytes]
+	sig := proof[0:0]
+	if len(proof) > HashLengthBytes {
+		end := HashLengthBytes + SigLengthBytes
+		if len(proof) < end {
+			sig = proof[HashLengthBytes:]
+		} else {
+			sig = proof[HashLengthBytes:end]
+		}
+	}
 
-	if !bytesEqual(proofHash, r.Hash) {
+	if !bytes.Equal(proofHash, r.Hash) {
 		return false
 	}
 
@@ -829,25 +704,14 @@ func (r *PacketReceipt) validateLinkProof(proof []byte, link *Link, proofPacket 
 	link.mu.Lock()
 	link.lastProof = r.ConcludedAt
 	link.mu.Unlock()
-	if r.Link != nil {
-		rtt := r.GetRTT()
-		if rtt > 0 {
-			rttDur := time.Duration(rtt * float64(time.Second))
-			r.Link.mu.Lock()
-			if r.Link.RTT <= 0 {
-				r.Link.RTT = rttDur
-			} else {
-				r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
-			}
-			r.Link.mu.Unlock()
-		}
-	}
 
 	if r.Callbacks.Delivery != nil {
 		func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					Logf(LogError, "Error while executing packet receipt delivery callback: %v", rec)
+					Logf(LogError, "An error occurred while evaluating external delivery callback for %v", link)
+					Logf(LogError, "The contained exception was: %v", rec)
+					TraceException(rec)
 				}
 			}()
 			r.Callbacks.Delivery(r)
@@ -861,7 +725,7 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		proofHash := proof[:HashLengthBytes]
 		sig := proof[HashLengthBytes : HashLengthBytes+SigLengthBytes]
 
-		if !bytesEqual(proofHash, r.Hash) || r.Destination == nil || r.Destination.identity == nil {
+		if !bytes.Equal(proofHash, r.Hash) || r.Destination == nil || r.Destination.identity == nil {
 			return false
 		}
 		if !r.Destination.identity.Validate(sig, r.Hash) {
@@ -871,24 +735,11 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		r.Proved = true
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
-		if r.Link != nil {
-			rtt := r.GetRTT()
-			if rtt > 0 {
-				rttDur := time.Duration(rtt * float64(time.Second))
-				r.Link.mu.Lock()
-				if r.Link.RTT <= 0 {
-					r.Link.RTT = rttDur
-				} else {
-					r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
-				}
-				r.Link.mu.Unlock()
-			}
-		}
 		if r.Callbacks.Delivery != nil {
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						Logf(LogError, "Error while executing packet receipt delivery callback: %v", rec)
+						Logf(LogError, "Error while executing proof validated callback. The contained exception was: %v", rec)
 					}
 				}()
 				r.Callbacks.Delivery(r)
@@ -909,24 +760,11 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		r.Proved = true
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
-		if r.Link != nil {
-			rtt := r.GetRTT()
-			if rtt > 0 {
-				rttDur := time.Duration(rtt * float64(time.Second))
-				r.Link.mu.Lock()
-				if r.Link.RTT <= 0 {
-					r.Link.RTT = rttDur
-				} else {
-					r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
-				}
-				r.Link.mu.Unlock()
-			}
-		}
 		if r.Callbacks.Delivery != nil {
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						Logf(LogError, "Error while executing packet receipt delivery callback: %v", rec)
+						Logf(LogError, "Error while executing proof validated callback. The contained exception was: %v", rec)
 					}
 				}()
 				r.Callbacks.Delivery(r)
@@ -939,8 +777,8 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 }
 
 func (r *PacketReceipt) GetRTT() float64 {
-	if r.ConcludedAt.IsZero() {
-		return 0
+	if r.SentAt.IsZero() || r.ConcludedAt.IsZero() {
+		panic("packet receipt RTT is unavailable before conclusion")
 	}
 	return r.ConcludedAt.Sub(r.SentAt).Seconds()
 }
@@ -951,7 +789,7 @@ func (r *PacketReceipt) IsTimedOut() bool {
 
 func (r *PacketReceipt) CheckTimeout() {
 	if r.Status == ReceiptSent && r.IsTimedOut() {
-		if r.Timeout < 0 {
+		if r.Timeout == -1 {
 			r.Status = ReceiptCulled
 		} else {
 			r.Status = ReceiptFailed
@@ -980,25 +818,4 @@ func (r *PacketReceipt) SetDeliveryCallback(cb func(*PacketReceipt)) {
 
 func (r *PacketReceipt) SetTimeoutCallback(cb func(*PacketReceipt)) {
 	r.Callbacks.Timeout = cb
-}
-
-// ===== small utilities =====
-
-func maxFloat(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

@@ -128,8 +128,14 @@ func runReqListener(id *rns.Identity, waitSeconds float64) error {
 				packet := rns.NewPacket(
 					link,
 					[]byte("bad-response-payload"),
-					rns.WithPacketContext(rns.PacketCtxResponse),
-					rns.WithoutReceipt(),
+					rns.PacketTypeData,
+					rns.PacketCtxResponse,
+					rns.Broadcast,
+					rns.HeaderType1,
+					nil,
+					nil,
+					false,
+					rns.FlagUnset,
 				)
 				if packet != nil {
 					_ = packet.Send()

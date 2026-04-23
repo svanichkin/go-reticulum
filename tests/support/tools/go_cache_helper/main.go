@@ -75,7 +75,7 @@ func runListener(id *rns.Identity, payload string, waitSeconds float64) error {
 
 	doneCh := make(chan struct{}, 1)
 	dest.SetLinkEstablishedCallback(func(l *rns.Link) {
-		p := rns.NewPacket(l, []byte(payload), rns.WithoutReceipt())
+		p := rns.NewPacket(l, []byte(payload), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, false, rns.FlagUnset)
 		if p == nil {
 			return
 		}

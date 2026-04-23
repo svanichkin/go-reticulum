@@ -906,7 +906,7 @@ func Start(owner *Reticulum) {
 								var cached []any
 								if err := umsgpack.Unpackb(fileData, &cached); err == nil && len(cached) >= 1 {
 									if rawAnnounce, ok := cached[0].([]byte); ok && len(rawAnnounce) > 0 {
-										pkt := NewPacket(nil, rawAnnounce)
+										pkt := NewPacket(nil, rawAnnounce, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 										if pkt != nil && pkt.Unpack() {
 											announce = pkt
 										}
@@ -1117,7 +1117,7 @@ func Start(owner *Reticulum) {
 										var cached []any
 										if err := umsgpack.Unpackb(fileData, &cached); err == nil && len(cached) >= 1 {
 											if rawAnnounce, ok := cached[0].([]byte); ok && len(rawAnnounce) > 0 {
-												pkt := NewPacket(nil, rawAnnounce)
+												pkt := NewPacket(nil, rawAnnounce, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 												if pkt != nil && pkt.Unpack() {
 													tunnelAnnounce = pkt
 												}
@@ -1293,7 +1293,7 @@ func reloadBlackhole() {
 				}
 				enabled := false
 				for _, source := range BlackholeSources() {
-					if bytesEqual(source, decoded) {
+					if bytes.Equal(source, decoded) {
 						enabled = true
 						break
 					}
@@ -1366,7 +1366,7 @@ func reloadBlackhole() {
 				if !ok {
 					continue
 				}
-				if existing := blackholedIdentities[key]; existing != nil && TransportIdentity != nil && bytesEqual(existing.Source, TransportIdentity.Hash) {
+				if existing := blackholedIdentities[key]; existing != nil && TransportIdentity != nil && bytes.Equal(existing.Source, TransportIdentity.Hash) {
 					continue
 				}
 				entryMap, ok := rawValue.(map[any]any)
@@ -1551,7 +1551,7 @@ func persistBlackhole() {
 	blackholeMu.RLock()
 	localBlackhole := make(map[any]any)
 	for key, entry := range blackholedIdentities {
-		if entry == nil || TransportIdentity == nil || !bytesEqual(entry.Source, TransportIdentity.Hash) {
+		if entry == nil || TransportIdentity == nil || !bytes.Equal(entry.Source, TransportIdentity.Hash) {
 			continue
 		}
 		serialised := map[string]any{"source": nil, "until": nil, "reason": nil}
@@ -2231,12 +2231,14 @@ func Jobs() {
 			send := NewPacket(
 				announceDestination,
 				append([]byte(nil), entry.Packet.Data...),
-				WithPacketType(PacketANNOUNCE),
-				WithPacketContext(announceContext),
-				WithHeaderType(HeaderType2),
-				WithTransportType(TransportDirect),
-				WithAttachedInterface(entry.AttachedInterface),
-				WithContextFlag(entry.Packet.ContextFlag),
+				PacketANNOUNCE,
+				announceContext,
+				TransportDirect,
+				HeaderType2,
+				append([]byte(nil), entry.Packet.TransportID...),
+				entry.AttachedInterface,
+				true,
+				entry.Packet.ContextFlag,
 			)
 			if send == nil {
 				delete(announceTable, key)
@@ -3041,14 +3043,14 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		resp := NewPacket(
 			dest,
 			append([]byte(nil), announcePacket.Data...),
-			WithPacketType(PacketANNOUNCE),
-			WithPacketContext(PacketPATH_RESPONSE),
-			WithTransportType(TransportDirect),
-			WithHeaderType(HeaderType2),
-			WithTransportID(append([]byte(nil), TransportIdentity.Hash...)),
-			WithContextFlag(announcePacket.ContextFlag),
-			WithAttachedInterface(attachedInterface),
-			WithoutReceipt(),
+			PacketANNOUNCE,
+			PacketPATH_RESPONSE,
+			TransportDirect,
+			HeaderType2,
+			append([]byte(nil), TransportIdentity.Hash...),
+			attachedInterface,
+			false,
+			announcePacket.ContextFlag,
 		)
 		if resp == nil {
 			Logf(LogDebug, "Could not construct path response packet for %s", PrettyHash(destinationHash))
@@ -3223,11 +3225,14 @@ func SynthesizeTunnel(ifc *Interface) {
 	p := NewPacket(
 		dst,
 		data,
-		WithPacketType(PacketTypeData),
-		WithTransportType(Broadcast),
-		WithHeaderType(HeaderType1),
-		WithAttachedInterface(ifc),
-		WithoutReceipt(),
+		PacketTypeData,
+		PacketCtxNone,
+		Broadcast,
+		HeaderType1,
+		nil,
+		ifc,
+		false,
+		FlagUnset,
 	)
 	_ = p.Send()
 	ifc.WantsTunnel = false
@@ -3854,7 +3859,7 @@ func Inbound(raw []byte, ifc *Interface) {
 		return
 	}
 
-	p := NewPacket(nil, raw)
+	p := NewPacket(nil, raw, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if !p.Unpack() {
 		return
 	}
@@ -4548,12 +4553,14 @@ func Inbound(raw []byte, ifc *Interface) {
 				send := NewPacket(
 					announceDestination,
 					append([]byte(nil), p.Data...),
-					WithPacketType(PacketANNOUNCE),
-					WithPacketContext(byte(PacketNONE)),
-					WithHeaderType(HeaderType2),
-					WithTransportType(TransportDirect),
-					WithAttachedInterface(cif),
-					WithContextFlag(p.ContextFlag),
+					PacketANNOUNCE,
+					PacketNONE,
+					TransportDirect,
+					HeaderType2,
+					append([]byte(nil), p.TransportID...),
+					cif,
+					true,
+					p.ContextFlag,
 				)
 				if send == nil {
 					continue
@@ -4607,14 +4614,14 @@ func Inbound(raw []byte, ifc *Interface) {
 					response := NewPacket(
 						dest,
 						append([]byte(nil), p.Data...),
-						WithPacketType(PacketANNOUNCE),
-						WithPacketContext(PacketPATH_RESPONSE),
-						WithTransportType(TransportDirect),
-						WithHeaderType(HeaderType2),
-						WithTransportID(append([]byte(nil), TransportIdentity.Hash...)),
-						WithContextFlag(p.ContextFlag),
-						WithAttachedInterface(entry.RequestingInterface),
-						WithoutReceipt(),
+						PacketANNOUNCE,
+						PacketPATH_RESPONSE,
+						TransportDirect,
+						HeaderType2,
+						append([]byte(nil), TransportIdentity.Hash...),
+						entry.RequestingInterface,
+						false,
+						p.ContextFlag,
 					)
 					if response != nil {
 						response.Hops = p.Hops
@@ -5698,11 +5705,14 @@ func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool
 	}
 
 	p := NewPacket(dst, payload,
-		WithPacketType(PacketDATA),
-		WithTransportType(Broadcast),
-		WithHeaderType(HeaderType1),
-		WithAttachedInterface(onInterface),
-		WithoutReceipt(),
+		PacketDATA,
+		PacketNONE,
+		Broadcast,
+		HeaderType1,
+		nil,
+		onInterface,
+		false,
+		FlagUnset,
 	)
 	if p == nil {
 		return
@@ -5921,16 +5931,7 @@ func CacheRequest(hash []byte, link *Link) {
 			attached = entry.RecvInterface
 		}
 	}
-	var opts []PacketOption
-	opts = append(opts, WithPacketContext(PacketCONTEXT_CACHE_REQUEST), WithoutReceipt())
-	if attached != nil {
-		opts = append(opts, WithAttachedInterface(attached))
-	}
-	req := NewPacket(
-		link,
-		hash,
-		opts...,
-	)
+	req := NewPacket(link, hash, PacketTypeData, PacketCONTEXT_CACHE_REQUEST, Broadcast, HeaderType1, nil, attached, false, FlagUnset)
 	if req != nil {
 		req.Send()
 	}

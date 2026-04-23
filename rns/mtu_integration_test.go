@@ -56,7 +56,7 @@ func TestIntegration_MTU_PropagatesToLinkAndResource(t *testing.T) {
 		receipts := make([]*PacketReceipt, 0, numPackets)
 		for i := 0; i < numPackets; i++ {
 			data := make([]byte, packetSize)
-			pkt := NewPacket(l, data)
+			pkt := NewPacket(l, data, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 			if pkt == nil {
 				t.Fatalf("NewPacket returned nil")
 			}

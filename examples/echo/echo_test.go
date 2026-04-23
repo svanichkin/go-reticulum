@@ -22,7 +22,7 @@ func TestEchoExample_RequestGetsProof(t *testing.T) {
 		t.Fatalf("NewDestination(client): %v", err)
 	}
 
-	req := rns.NewPacket(clientDest, rns.IdentityGetRandomHash())
+	req := rns.NewPacket(clientDest, rns.IdentityGetRandomHash(), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 	if req == nil {
 		t.Fatalf("NewPacket returned nil")
 	}
@@ -40,7 +40,7 @@ func TestEchoExample_RequestGetsProof(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	proof := rns.NewPacket(req.GenerateProofDestination(), append(append([]byte(nil), packetHash...), sig...), rns.WithPacketType(rns.PacketTypeProof), rns.WithCreateReceipt(false))
+	proof := rns.NewPacket(req.GenerateProofDestination(), append(append([]byte(nil), packetHash...), sig...), rns.PacketTypeProof, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, false, rns.FlagUnset)
 	if proof == nil {
 		t.Fatalf("proof packet nil")
 	}

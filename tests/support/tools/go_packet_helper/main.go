@@ -172,7 +172,7 @@ func runSender(mode, destinationHex, groupKeyHex, payload string, waitSeconds fl
 		return fmt.Errorf("unsupported mode %q", mode)
 	}
 
-	pkt := rns.NewPacket(dest, []byte(payload))
+	pkt := rns.NewPacket(dest, []byte(payload), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 	if pkt == nil {
 		return fmt.Errorf("failed to build packet")
 	}

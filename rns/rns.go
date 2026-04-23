@@ -1042,6 +1042,8 @@ func applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen int) {
 	}
 	MDU = plain
 	PacketMDU = plain
+	PacketPLAIN_MDU = plain
+	PacketENCRYPTED_MDU = encrypted
 	PacketPlainMDU = plain
 	PacketEncryptedMDU = encrypted
 	LinkMDU = link

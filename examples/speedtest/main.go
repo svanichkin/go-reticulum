@@ -181,7 +181,7 @@ func runClient(configDir *string, destinationHexHash string, dataCap int) error 
 		dataSent := 0
 
 		for l.Status == rns.LinkActive && dataSent < int(float64(dataCap)*1.25) {
-			p := rns.NewPacket(l, payload, rns.WithoutReceipt())
+			p := rns.NewPacket(l, payload, rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, false, rns.FlagUnset)
 			if p == nil {
 				break
 			}

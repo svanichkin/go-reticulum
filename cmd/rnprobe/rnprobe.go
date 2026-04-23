@@ -242,9 +242,9 @@ func programSetup(
 		if _, err := rand.Read(payload); err != nil {
 			return err
 		}
-		probe := rns.NewPacket(reqDest, payload)
+		probe := rns.NewPacket(reqDest, payload, rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 		if err := probe.Pack(); err != nil {
-			fmt.Printf("Error: Probe packet size of %d bytes exceed MTU of %d bytes\n", len(probe.RawBytes()), rns.MTU)
+			fmt.Printf("Error: Probe packet size of %d bytes exceed MTU of %d bytes\n", len(probe.Raw), rns.MTU)
 			return mtuError{}
 		}
 

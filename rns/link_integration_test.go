@@ -1,6 +1,7 @@
 package rns
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"os"
@@ -98,7 +99,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 		receiptsMu.Unlock()
 	}
 
-	in := NewPacket(nil, p.Raw)
+	in := NewPacket(nil, p.Raw, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if in == nil || !in.Unpack() {
 		return false
 	}
@@ -107,7 +108,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 	deliver = func(pkt *Packet) bool {
 		// If this packet is associated with a link, we can deterministically route
 		// it to the peer link (initiator <-> responder) in this in-process harness.
-		if p.Link != nil && len(p.Link.LinkID) > 0 && bytesEqual(pkt.DestinationHash, p.Link.LinkID) {
+		if p.Link != nil && len(p.Link.LinkID) > 0 && bytes.Equal(pkt.DestinationHash, p.Link.LinkID) {
 			if p.Link.Initiator {
 				if responder := findResponderLinkByIDTest(p.Link.LinkID); responder != nil {
 					pkt.Link = responder
@@ -151,7 +152,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 						deadline := time.Now().Add(200 * time.Millisecond)
 						for time.Now().Before(deadline) {
 							if findInitiatorLinkByIDTest(destHash) != nil {
-								retry := NewPacket(nil, rawCopy)
+								retry := NewPacket(nil, rawCopy, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 								if retry == nil || !retry.Unpack() {
 									return
 								}
@@ -227,7 +228,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 	it.mu.Unlock()
 	for _, raws := range pending {
 		for _, raw := range raws {
-			pkt := NewPacket(nil, raw)
+			pkt := NewPacket(nil, raw, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 			if pkt == nil || !pkt.Unpack() {
 				continue
 			}
@@ -261,7 +262,7 @@ func findDestinationByHash(hash []byte) *Destination {
 		if d == nil || len(d.Hash) == 0 {
 			continue
 		}
-		if bytesEqual(d.Hash, hash) {
+		if bytes.Equal(d.Hash, hash) {
 			if d.Direction == DestinationIN {
 				return d
 			}
@@ -277,12 +278,12 @@ func findLinkByIDTest(linkID []byte) *Link {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for _, l := range ActiveLinks {
-		if l != nil && l.Status != LinkClosed && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
 	for _, l := range PendingLinks {
-		if l != nil && l.Status != LinkClosed && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
@@ -293,12 +294,12 @@ func findInitiatorLinkByIDTest(linkID []byte) *Link {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for _, l := range ActiveLinks {
-		if l != nil && l.Status != LinkClosed && l.Initiator && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && l.Initiator && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
 	for _, l := range PendingLinks {
-		if l != nil && l.Status != LinkClosed && l.Initiator && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && l.Initiator && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
@@ -309,12 +310,12 @@ func findResponderLinkByIDTest(linkID []byte) *Link {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for _, l := range ActiveLinks {
-		if l != nil && l.Status != LinkClosed && !l.Initiator && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && !l.Initiator && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
 	for _, l := range PendingLinks {
-		if l != nil && l.Status != LinkClosed && !l.Initiator && bytesEqual(l.LinkID, linkID) {
+		if l != nil && l.Status != LinkClosed && !l.Initiator && bytes.Equal(l.LinkID, linkID) {
 			return l
 		}
 	}
@@ -328,12 +329,12 @@ func findPeerLinkTest(self *Link) *Link {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for _, l := range ActiveLinks {
-		if l != nil && l != self && l.Status != LinkClosed && bytesEqual(l.LinkID, self.LinkID) {
+		if l != nil && l != self && l.Status != LinkClosed && bytes.Equal(l.LinkID, self.LinkID) {
 			return l
 		}
 	}
 	for _, l := range PendingLinks {
-		if l != nil && l != self && l.Status != LinkClosed && bytesEqual(l.LinkID, self.LinkID) {
+		if l != nil && l != self && l.Status != LinkClosed && bytes.Equal(l.LinkID, self.LinkID) {
 			return l
 		}
 	}
@@ -546,7 +547,7 @@ func TestIntegration_LinkPackets_WithReceipts(t *testing.T) {
 		for i := 0; i < numPackets; i++ {
 			data := make([]byte, packetSize)
 			_, _ = rand.Read(data)
-			pkt := NewPacket(l, data)
+			pkt := NewPacket(l, data, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 			if pkt == nil {
 				t.Fatalf("NewPacket returned nil")
 			}

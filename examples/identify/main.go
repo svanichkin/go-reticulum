@@ -104,7 +104,7 @@ func runServer(configDir *string) error {
 			rns.Log("Received data from "+remote+": "+text, rns.LogInfo)
 
 			reply := "I received \"" + text + "\" over the link from " + remote
-			_ = rns.NewPacket(l, []byte(reply)).Send()
+			_ = rns.NewPacket(l, []byte(reply), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset).Send()
 		})
 
 		latestMu.Lock()
@@ -244,7 +244,7 @@ func clientLoop(getLink func() *rns.Link) error {
 			rns.Log(fmt.Sprintf("Cannot send this packet, the data size of %d bytes exceeds the link packet MDU of %d bytes", len(data), l.MDU), rns.LogError)
 			continue
 		}
-		_ = rns.NewPacket(l, data).Send()
+		_ = rns.NewPacket(l, data, rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset).Send()
 	}
 }
 

@@ -61,7 +61,7 @@ func main() {
 		if entered == "" {
 			continue
 		}
-		pkt := rns.NewPacket(dest, []byte(entered))
+		pkt := rns.NewPacket(dest, []byte(entered), rns.PacketTypeData, rns.PacketCtxNone, rns.Broadcast, rns.HeaderType1, nil, nil, true, rns.FlagUnset)
 		if pkt == nil {
 			continue
 		}

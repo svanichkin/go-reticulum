@@ -17,7 +17,7 @@ func TestPacket_PackUnpack_Header1_Announce(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
-	p := NewPacket(dst, []byte("announce"), WithPacketType(PacketTypeAnnounce))
+	p := NewPacket(dst, []byte("announce"), PacketTypeAnnounce, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if p == nil {
 		t.Fatalf("NewPacket returned nil")
 	}
@@ -26,7 +26,7 @@ func TestPacket_PackUnpack_Header1_Announce(t *testing.T) {
 	}
 
 	var q Packet
-	q.Raw = p.RawBytes()
+	q.Raw = append([]byte(nil), p.Raw...)
 	if ok := q.Unpack(); !ok {
 		t.Fatalf("Unpack failed")
 	}
@@ -49,13 +49,13 @@ func TestPacket_HashIgnoresHops(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
-	p1 := NewPacket(dst, []byte("data"))
+	p1 := NewPacket(dst, []byte("data"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if err := p1.Pack(); err != nil {
 		t.Fatalf("Pack1: %v", err)
 	}
 	h1 := p1.GetHash()
 
-	p2 := NewPacket(dst, []byte("data"))
+	p2 := NewPacket(dst, []byte("data"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	p2.Hops = 3
 	if err := p2.Pack(); err != nil {
 		t.Fatalf("Pack2: %v", err)
@@ -78,11 +78,11 @@ func TestPacket_Header2_TransportID_NotInHash(t *testing.T) {
 	transportA := bytes.Repeat([]byte{0xAA}, ReticulumTruncatedHashLength/8)
 	transportB := bytes.Repeat([]byte{0xBB}, ReticulumTruncatedHashLength/8)
 
-	p1 := NewPacket(dst, []byte("a"), WithHeaderType(HeaderType2), WithTransportID(transportA), WithPacketType(PacketTypeAnnounce))
+	p1 := NewPacket(dst, []byte("a"), PacketTypeAnnounce, PacketCtxNone, Broadcast, HeaderType2, transportA, nil, true, FlagUnset)
 	if err := p1.Pack(); err != nil {
 		t.Fatalf("Pack1: %v", err)
 	}
-	p2 := NewPacket(dst, []byte("a"), WithHeaderType(HeaderType2), WithTransportID(transportB), WithPacketType(PacketTypeAnnounce))
+	p2 := NewPacket(dst, []byte("a"), PacketTypeAnnounce, PacketCtxNone, Broadcast, HeaderType2, transportB, nil, true, FlagUnset)
 	if err := p2.Pack(); err != nil {
 		t.Fatalf("Pack2: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestPacket_Send_PanicsWhenAlreadySent(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
-	p := NewPacket(dst, []byte("data"))
+	p := NewPacket(dst, []byte("data"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	p.Sent = true
 
 	defer func() {
@@ -128,7 +128,7 @@ func TestPacket_Resend_PanicsWhenNotSentYet(t *testing.T) {
 		t.Fatalf("NewDestination: %v", err)
 	}
 
-	p := NewPacket(dst, []byte("data"))
+	p := NewPacket(dst, []byte("data"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 
 	defer func() {
 		rec := recover()
@@ -151,14 +151,17 @@ func TestNewRawPacket_MirrorsPackedConstructor(t *testing.T) {
 	t.Parallel()
 
 	raw := []byte{1, 2, 3, 4}
-	p := NewRawPacket(raw)
+	p := NewPacket(nil, raw, PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if p == nil {
 		t.Fatalf("expected packet")
 	}
 	if !p.Packed || !p.FromPacked || p.CreateReceipt {
 		t.Fatalf("unexpected raw packet state: packed=%v fromPacked=%v createReceipt=%v", p.Packed, p.FromPacked, p.CreateReceipt)
 	}
-	if !bytes.Equal(p.Raw, raw) || !bytes.Equal(p.Data, raw) {
-		t.Fatalf("raw/data mismatch")
+	if !bytes.Equal(p.Raw, raw) {
+		t.Fatalf("raw mismatch")
+	}
+	if p.Data != nil {
+		t.Fatalf("expected raw packet data to be nil before unpack, got %v", p.Data)
 	}
 }

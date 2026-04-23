@@ -65,21 +65,22 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 	data = append(data, randomBlob...)
 	data = append(data, signature...)
 	data = append(data, appData...)
+	context := byte(PacketNONE)
+	if pathResponse {
+		context = byte(PacketPATH_RESPONSE)
+	}
 
 	packet := NewPacket(
 		dst,
 		data,
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(func() byte {
-			if pathResponse {
-				return PacketPATH_RESPONSE
-			}
-			return PacketNONE
-		}()),
-		WithHeaderType(HeaderType1),
-		WithTransportType(Broadcast),
-		WithContextFlag(FlagUnset),
-		WithoutReceipt(),
+		PacketANNOUNCE,
+		context,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		false,
+		FlagUnset,
 	)
 	if packet == nil {
 		t.Fatal("NewPacket returned nil")
@@ -402,13 +403,14 @@ func TestHandleInboundAnnounce_SharedInstanceClientProcessesAnnounceWhenTranspor
 	forwarded := NewPacket(
 		forwardedDst,
 		append([]byte(nil), announce.Data...),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(PacketNONE),
-		WithHeaderType(HeaderType2),
-		WithTransportType(TransportDirect),
-		WithTransportID(bytes.Repeat([]byte{0x42}, truncatedHashBytes)),
-		WithContextFlag(announce.ContextFlag),
-		WithoutReceipt(),
+		PacketANNOUNCE,
+		PacketNONE,
+		TransportDirect,
+		HeaderType2,
+		bytes.Repeat([]byte{0x42}, truncatedHashBytes),
+		nil,
+		false,
+		announce.ContextFlag,
 	)
 	if forwarded == nil {
 		t.Fatal("NewPacket returned nil")
@@ -893,11 +895,14 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	returnedAnnounce := NewPacket(
 		announceDestination,
 		append([]byte(nil), localAnnounce.Data...),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(byte(PacketNONE)),
-		WithHeaderType(HeaderType2),
-		WithTransportType(TransportDirect),
-		WithContextFlag(localAnnounce.ContextFlag),
+		PacketANNOUNCE,
+		PacketNONE,
+		TransportDirect,
+		HeaderType2,
+		nil,
+		nil,
+		true,
+		localAnnounce.ContextFlag,
 	)
 	if returnedAnnounce == nil {
 		t.Fatal("returned announce was nil")
@@ -1035,11 +1040,14 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	returnedAnnounce := NewPacket(
 		announceDestination,
 		append([]byte(nil), normalAnnounce.Data...),
-		WithPacketType(PacketANNOUNCE),
-		WithPacketContext(byte(PacketNONE)),
-		WithHeaderType(HeaderType2),
-		WithTransportType(TransportDirect),
-		WithContextFlag(normalAnnounce.ContextFlag),
+		PacketANNOUNCE,
+		PacketNONE,
+		TransportDirect,
+		HeaderType2,
+		nil,
+		nil,
+		true,
+		normalAnnounce.ContextFlag,
 	)
 	if returnedAnnounce == nil {
 		t.Fatal("returned announce was nil")
@@ -1237,7 +1245,7 @@ func TestOutbound_SharedInstanceOneHopRewritesHeader2(t *testing.T) {
 		ExpiresAt:     time.Now().Add(time.Hour),
 	}
 
-	packet := NewPacket(dst, []byte("payload"), WithPacketType(PacketTypeData), WithHeaderType(HeaderType1))
+	packet := NewPacket(dst, []byte("payload"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if packet == nil {
 		t.Fatal("NewPacket returned nil")
 	}

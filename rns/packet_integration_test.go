@@ -55,7 +55,7 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 	attachOutboundCapture(t, sink, ifc)
 	Interfaces = []*Interface{ifc}
 
-	p := NewPacket(dst, []byte("payload"), WithCreateReceipt(true))
+	p := NewPacket(dst, []byte("payload"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if p == nil {
 		t.Fatalf("NewPacket returned nil")
 	}
@@ -77,7 +77,7 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 	}
 	proofData := append(append([]byte(nil), packetHash...), sig...)
 
-	proof := NewPacket(p.GenerateProofDestination(), proofData, WithPacketType(PacketTypeProof), WithCreateReceipt(false))
+	proof := NewPacket(p.GenerateProofDestination(), proofData, PacketTypeProof, PacketCtxNone, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 	if proof == nil {
 		t.Fatalf("proof packet nil")
 	}
@@ -115,7 +115,7 @@ func TestPacketIntegration_ImplicitProof_ValidatesReceipt(t *testing.T) {
 	attachOutboundCapture(t, sink, ifc)
 	Interfaces = []*Interface{ifc}
 
-	p := NewPacket(dst, []byte("payload"), WithCreateReceipt(true))
+	p := NewPacket(dst, []byte("payload"), PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 	if p.Send() == nil || p.Receipt == nil {
 		t.Fatalf("expected receipt")
 	}
@@ -130,7 +130,7 @@ func TestPacketIntegration_ImplicitProof_ValidatesReceipt(t *testing.T) {
 	}
 
 	// Implicit proof = signature only.
-	proof := NewPacket(p.GenerateProofDestination(), sig, WithPacketType(PacketTypeProof), WithCreateReceipt(false))
+	proof := NewPacket(p.GenerateProofDestination(), sig, PacketTypeProof, PacketCtxNone, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
 	if err := proof.Pack(); err != nil {
 		t.Fatalf("proof pack: %v", err)
 	}
@@ -155,13 +155,13 @@ func TestPacketIntegration_Header2_Announce_RoundTripUnpack(t *testing.T) {
 	}
 
 	transportID := bytes.Repeat([]byte{0x10}, ReticulumTruncatedHashLength/8)
-	p := NewPacket(dst, []byte("announce"), WithHeaderType(HeaderType2), WithTransportID(transportID), WithPacketType(PacketTypeAnnounce))
+	p := NewPacket(dst, []byte("announce"), PacketTypeAnnounce, PacketCtxNone, Broadcast, HeaderType2, transportID, nil, true, FlagUnset)
 	if err := p.Pack(); err != nil {
 		t.Fatalf("pack: %v", err)
 	}
 
 	var q Packet
-	q.Raw = p.RawBytes()
+	q.Raw = append([]byte(nil), p.Raw...)
 	if ok := q.Unpack(); !ok {
 		t.Fatalf("unpack failed")
 	}

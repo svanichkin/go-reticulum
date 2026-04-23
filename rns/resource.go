@@ -330,7 +330,14 @@ func ResourceReject(advPkt *Packet) {
 	reject := NewPacket(
 		advPkt.Link,
 		resHash,
-		WithPacketContext(PacketCONTEXT_RESOURCE_RCL),
+		PacketTypeData,
+		PacketCONTEXT_RESOURCE_RCL,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 	_ = reject.Send()
 }
@@ -773,7 +780,14 @@ func (r *Resource) buildHashmap(enc []byte, entries int) (bool, error) {
 		partPkt := NewPacket(
 			r.link,
 			chunk,
-			WithPacketContext(PacketCONTEXT_RESOURCE),
+			PacketTypeData,
+			PacketCONTEXT_RESOURCE,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			true,
+			FlagUnset,
 		)
 		if partPkt == nil {
 			return false, errors.New("failed to create resource part packet")
@@ -926,7 +940,14 @@ func (r *Resource) resendAdvertisement() {
 	pkt := NewPacket(
 		r.link,
 		adv.Pack(0),
-		WithPacketContext(PacketCONTEXT_RESOURCE_ADV),
+		PacketANNOUNCE,
+		PacketCONTEXT_RESOURCE_ADV,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 	if pkt == nil {
 		Log("Could not build resource advertisement packet", LOG_ERROR)
@@ -953,7 +974,14 @@ func (r *Resource) advertiseJob() {
 	pkt := NewPacket(
 		r.link,
 		adv.Pack(0),
-		WithPacketContext(PacketCONTEXT_RESOURCE_ADV),
+		PacketANNOUNCE,
+		PacketCONTEXT_RESOURCE_ADV,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 	if pkt == nil {
 		Log("Could not build resource advertisement packet", LOG_ERROR)
@@ -1138,8 +1166,14 @@ func (r *Resource) watchdog() {
 					p := NewPacket(
 						r.link,
 						expectedData,
-						WithPacketType(PacketTypeProof),
-						WithPacketContext(PacketCONTEXT_RESOURCE_PRF),
+						PacketTypeProof,
+						PacketCONTEXT_RESOURCE_PRF,
+						Broadcast,
+						HeaderType1,
+						nil,
+						nil,
+						true,
+						FlagUnset,
 					)
 					p.Pack()
 					CacheRequest(p.PacketHash, r.link)
@@ -1292,8 +1326,14 @@ func (r *Resource) Prove(data []byte) {
 	p := NewPacket(
 		r.link,
 		proofData,
-		WithPacketType(PacketTypeProof),
-		WithPacketContext(PacketCONTEXT_RESOURCE_PRF),
+		PacketTypeProof,
+		PacketCONTEXT_RESOURCE_PRF,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 	p.Send()
 	if p.Sent {
@@ -1636,7 +1676,14 @@ func (r *Resource) RequestNext() {
 	pkt := NewPacket(
 		r.link,
 		requestData,
-		WithPacketContext(PacketCONTEXT_RESOURCE_REQ),
+		PacketTypeData,
+		PacketCONTEXT_RESOURCE_REQ,
+		Broadcast,
+		HeaderType1,
+		nil,
+		nil,
+		true,
+		FlagUnset,
 	)
 	if pkt == nil {
 		return
@@ -1786,7 +1833,14 @@ func (r *Resource) Request(requestData []byte) {
 		hmuPacket := NewPacket(
 			r.link,
 			hmu,
-			WithPacketContext(PacketCONTEXT_RESOURCE_HMU),
+			PacketTypeData,
+			PacketCONTEXT_RESOURCE_HMU,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			true,
+			FlagUnset,
 		)
 		if hmuPacket == nil {
 			return
@@ -1827,7 +1881,14 @@ func (r *Resource) Cancel() {
 			cancel := NewPacket(
 				r.link,
 				r.hash,
-				WithPacketContext(PacketCONTEXT_RESOURCE_ICL),
+				PacketTypeData,
+				PacketCONTEXT_RESOURCE_ICL,
+				Broadcast,
+				HeaderType1,
+				nil,
+				nil,
+				true,
+				FlagUnset,
 			)
 			if cancel != nil {
 				cancel.Send()
