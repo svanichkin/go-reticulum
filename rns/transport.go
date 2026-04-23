@@ -418,7 +418,14 @@ func activateLink(l *Link) {
 	Logf(LogExtreme, "Activating link %v", l)
 	linkMu.Lock()
 	defer linkMu.Unlock()
-	if !linkSliceContains(PendingLinks, l) {
+	found := false
+	for _, existing := range PendingLinks {
+		if existing == l {
+			found = true
+			break
+		}
+	}
+	if !found {
 		Log("Attempted to activate a link that was not in the pending table", LogError)
 		return
 	}
@@ -4269,7 +4276,7 @@ func Inbound(raw []byte, ifc *Interface) {
 		}
 	}
 
-	if !transportHandling {
+	if !transportHandling && p.Type != PacketAnnounce {
 		return
 	}
 

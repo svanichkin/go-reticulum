@@ -91,7 +91,7 @@ func runServer(configDir *string) error {
 		}
 		rns.Log("Client connected", rns.LogInfo)
 
-		_ = link.SetResourceStrategy(rns.LinkAcceptAll)
+		link.SetResourceStrategy(rns.LinkAcceptAll)
 		link.SetResourceConcludedCallback(func(res *rns.Resource) {
 			if res == nil {
 				return
@@ -177,7 +177,7 @@ func runClient(configDir *string, destinationHexHash string, sizeMB int) error {
 		serverLinkMu sync.Mutex
 		serverLink   *rns.Link
 	)
-	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, func(l *rns.Link) {
+	link, err := rns.NewLink(serverDest, nil, rns.LinkModeDefault, func(l *rns.Link) {
 		serverLinkMu.Lock()
 		serverLink = l
 		serverLinkMu.Unlock()

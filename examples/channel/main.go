@@ -177,7 +177,7 @@ func runClient(destinationHex string, configDir *string) {
 		os.Exit(1)
 	}
 
-	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, nil, nil)
+	link, err := rns.NewLink(serverDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "NewOutgoingLink:", err)
 		os.Exit(1)

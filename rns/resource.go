@@ -410,7 +410,7 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 		res.previousEIFR = prevEIFR
 	}
 
-	if advPkt.Link.HasIncomingResource(res.hash) {
+	if advPkt.Link.HasIncomingResource(res) {
 		Log("Ignoring resource advertisement, already transferring "+PrettyHex(res.hash), LOG_DEBUG)
 		return nil, nil
 	}
@@ -803,7 +803,10 @@ func (r *Resource) sduValue() int {
 		mtu = r.link.MTU
 	}
 	if mtu <= 0 {
-		mtu = defaultLinkMTU()
+		mtu = MTU
+		if phyParamsSnapshot.PhysicalLayerMTU > 0 {
+			mtu = phyParamsSnapshot.PhysicalLayerMTU
+		}
 	}
 	if mtu > 0 {
 		sdu := mtu - HEADER_MAXSIZE - IFAC_MIN_SIZE

@@ -30,7 +30,7 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -39,9 +39,7 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 		if peer == nil {
 			t.Fatalf("expected peer link")
 		}
-		if err := peer.SetResourceStrategy(LinkAcceptAll); err != nil {
-			t.Fatalf("peer SetResourceStrategy: %v", err)
-		}
+		peer.SetResourceStrategy(LinkAcceptAll)
 
 		var (
 			peerMu        sync.Mutex
@@ -353,7 +351,7 @@ func TestIntegration_Resource_MediumLarge_Slow(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -362,7 +360,7 @@ func TestIntegration_Resource_MediumLarge_Slow(t *testing.T) {
 		if peer == nil {
 			t.Fatalf("expected peer link")
 		}
-		_ = peer.SetResourceStrategy(LinkAcceptAll)
+		peer.SetResourceStrategy(LinkAcceptAll)
 
 		send := func(size int) {
 			t.Helper()
@@ -427,7 +425,7 @@ func TestIntegration_Resource_RejectStrategy(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -437,9 +435,7 @@ func TestIntegration_Resource_RejectStrategy(t *testing.T) {
 		if peer == nil {
 			t.Fatalf("expected peer link")
 		}
-		if err := peer.SetResourceStrategy(LinkAcceptNone); err != nil {
-			t.Fatalf("peer SetResourceStrategy: %v", err)
-		}
+		peer.SetResourceStrategy(LinkAcceptNone)
 
 		done := make(chan *Resource, 1)
 		data := make([]byte, 1024)
@@ -503,7 +499,7 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -513,9 +509,7 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 		if peer == nil {
 			t.Fatalf("expected peer link")
 		}
-		if err := peer.SetResourceStrategy(LinkAcceptAll); err != nil {
-			t.Fatalf("peer SetResourceStrategy: %v", err)
-		}
+		peer.SetResourceStrategy(LinkAcceptAll)
 
 		var expected []byte
 		if err := destIn.RegisterRequestHandler(
@@ -535,14 +529,15 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 		}
 
 		done := make(chan *RequestReceipt, 1)
-		rr := RequestReceiptFrom(l.Request(
+		result := l.Request(
 			"/big",
 			map[string]any{"ping": "pong"},
 			func(r *RequestReceipt) { done <- r },
 			func(r *RequestReceipt) { done <- r },
 			nil,
 			5,
-		))
+		)
+		rr, _ := result.(*RequestReceipt)
 		if rr == nil {
 			t.Fatalf("Request returned nil")
 		}

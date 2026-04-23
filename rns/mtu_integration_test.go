@@ -35,7 +35,7 @@ func TestIntegration_MTU_PropagatesToLinkAndResource(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}

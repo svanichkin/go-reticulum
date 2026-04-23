@@ -720,7 +720,7 @@ func execute(
 
 	if link == nil || link.Status == rns.LinkClosed || link.Status == rns.LinkPending {
 		var err error
-		link, err = rns.NewOutgoingLink(listenerDest, rns.LinkModeDefault, nil, nil)
+		link, err = rns.NewLink(listenerDest, nil, rns.LinkModeDefault, nil, nil)
 		if err != nil {
 			fmt.Println("Could not create link:", err)
 			os.Exit(243)
@@ -761,7 +761,8 @@ func execute(
 	rtt := link.RTT.Seconds()
 	rexecTimeout := timeout + rtt*4 + remoteExecGrace
 
-	receipt := rns.RequestReceiptFrom(link.Request("command", reqData, remoteExecutionDone, remoteExecutionDone, remoteExecutionProgress, rexecTimeout))
+	result := link.Request("command", reqData, remoteExecutionDone, remoteExecutionDone, remoteExecutionProgress, rexecTimeout)
+	receipt, _ := result.(*rns.RequestReceipt)
 	if receipt == nil {
 		fmt.Println("Could not request remote execution")
 		if interactive {
@@ -829,8 +830,8 @@ func execute(
 		os.Exit(249)
 	}
 
-	result, ok := resp.([]any)
-	if !ok || len(result) < 8 {
+	resultFields, ok := resp.([]any)
+	if !ok || len(resultFields) < 8 {
 		fmt.Println("Received invalid result")
 		if interactive {
 			return 0
@@ -838,14 +839,14 @@ func execute(
 		os.Exit(247)
 	}
 
-	executed, _ := result[0].(bool)
-	retval, hasRetval := intFromAny(result[1])
-	stdoutBytes := bytesFromAny(result[2])
-	stderrBytes := bytesFromAny(result[3])
-	outLen, _ := intFromAny(result[4])
-	errLen, _ := intFromAny(result[5])
-	started := floatFromAny(result[6])
-	concluded := floatFromAny(result[7])
+	executed, _ := resultFields[0].(bool)
+	retval, hasRetval := intFromAny(resultFields[1])
+	stdoutBytes := bytesFromAny(resultFields[2])
+	stderrBytes := bytesFromAny(resultFields[3])
+	outLen, _ := intFromAny(resultFields[4])
+	errLen, _ := intFromAny(resultFields[5])
+	started := floatFromAny(resultFields[6])
+	concluded := floatFromAny(resultFields[7])
 
 	if !executed {
 		fmt.Println("Remote could not execute command")

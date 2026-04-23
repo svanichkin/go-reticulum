@@ -1702,7 +1702,7 @@ func (u *BlackholeUpdater) job() {
 						} else {
 							establishedCh := make(chan *Link, 1)
 							var established *Link
-							link, derr := NewOutgoingLink(destination, LinkModeDefault, func(l *Link) {
+							link, derr := NewLink(destination, nil, LinkModeDefault, func(l *Link) {
 								select {
 								case establishedCh <- l:
 								default:
@@ -1724,7 +1724,8 @@ func (u *BlackholeUpdater) job() {
 										err = errors.New("blackhole update link was not established")
 									} else {
 										defer established.Teardown()
-										rr := RequestReceiptFrom(established.Request("/list", nil, nil, nil, nil, timeout.Seconds()))
+										result := established.Request("/list", nil, nil, nil, nil, timeout.Seconds())
+										rr, _ := result.(*RequestReceipt)
 										if rr == nil {
 											err = errors.New("blackhole list request could not be started")
 										} else {

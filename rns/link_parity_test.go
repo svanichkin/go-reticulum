@@ -38,7 +38,7 @@ func TestLinkTeardown_CancelsTrackedResources(t *testing.T) {
 	l.incomingResources = append(l.incomingResources, incoming)
 	l.outgoingResources = append(l.outgoingResources, outgoing)
 
-	l.teardownWithOptions(LinkInitiatorClose, false)
+	l.Teardown()
 
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -122,7 +122,7 @@ func TestLinkRequest_ReturnsFalseOnFailure(t *testing.T) {
 	if b, ok := result.(bool); !ok || b {
 		t.Fatalf("Request()=%T(%v), want literal false", result, result)
 	}
-	if rr := RequestReceiptFrom(result); rr != nil {
-		t.Fatalf("RequestReceiptFrom(false)=%v, want nil", rr)
+	if rr, ok := result.(*RequestReceipt); ok && rr != nil {
+		t.Fatalf("type assertion on false returned %v, want nil", rr)
 	}
 }

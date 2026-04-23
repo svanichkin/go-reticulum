@@ -289,14 +289,14 @@ func runClient(configDir *string, destinationHexHash string, outDir string) erro
 	serverDest.SetProofStrategy(rns.DestinationPROVE_ALL)
 
 	state := &clientState{outDir: outDir}
-	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, func(l *rns.Link) {
+	link, err := rns.NewLink(serverDest, nil, rns.LinkModeDefault, func(l *rns.Link) {
 		state.mu.Lock()
 		state.serverLink = l
 		state.mu.Unlock()
 
 		rns.Log("Link established with server", rns.LogInfo)
 		rns.Log("Requesting filelist...", rns.LogInfo)
-		_ = l.SetResourceStrategy(rns.LinkAcceptAll)
+		l.SetResourceStrategy(rns.LinkAcceptAll)
 		l.SetResourceStartedCallback(state.downloadBegan)
 		l.SetResourceConcludedCallback(state.downloadConcluded)
 

@@ -343,6 +343,92 @@ func TestHandleInboundAnnounce_LocalClientAnnounceQueuesImmediateTransportRebroa
 	}
 }
 
+func TestHandleInboundAnnounce_SharedInstanceClientProcessesAnnounceWhenTransportDisabled(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransportEnabled := transportEnabled
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+	prevPathTable := pathTable
+
+	Owner = &Reticulum{IsConnectedToSharedInstance: true}
+	transportEnabled = false
+	Interfaces = nil
+	LocalClientInterfaces = nil
+	Destinations = nil
+	pathTable = make(map[hashKey]*PathEntry)
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		transportEnabled = prevTransportEnabled
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+		pathTable = prevPathTable
+	})
+
+	clientIfc := &Interface{
+		Name:                "shared-client",
+		Type:                "LocalInterface",
+		IN:                  true,
+		OUT:                 true,
+		LocalIsSharedClient: true,
+	}
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "shared", "client")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+
+	forwardedDst := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		Hash:      append([]byte(nil), dst.Hash...),
+		hexhash:   PrettyHexRep(dst.Hash),
+	}
+	forwarded := NewPacket(
+		forwardedDst,
+		append([]byte(nil), announce.Data...),
+		WithPacketType(PacketANNOUNCE),
+		WithPacketContext(PacketNONE),
+		WithHeaderType(HeaderType2),
+		WithTransportType(TransportDirect),
+		WithTransportID(bytes.Repeat([]byte{0x42}, truncatedHashBytes)),
+		WithContextFlag(announce.ContextFlag),
+		WithoutReceipt(),
+	)
+	if forwarded == nil {
+		t.Fatal("NewPacket returned nil")
+	}
+	forwarded.Hops = 1
+	if err := forwarded.Pack(); err != nil {
+		t.Fatalf("forwarded.Pack(): %v", err)
+	}
+
+	Inbound(forwarded.Raw, clientIfc)
+
+	recalled := IdentityRecall(dst.Hash)
+	if recalled == nil {
+		t.Fatal("expected shared-instance client announce to be validated and remembered")
+	}
+	if !bytes.Equal(recalled.GetPublicKey(), announceID.GetPublicKey()) {
+		t.Fatal("recalled public key does not match announced identity")
+	}
+}
+
 func TestJobs_WaitsForInboundReadLockToProcessQueuedAnnounce(t *testing.T) {
 	resetKnownDestinationsForTest()
 

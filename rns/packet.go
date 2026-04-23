@@ -523,8 +523,8 @@ func (p *Packet) Unpack() bool {
 		if len(p.Raw) < 2+2*dstLen+1 {
 			return false
 		}
-		p.TransportID = append([]byte(nil), p.Raw[2 : dstLen+2]...)
-		p.DestinationHash = append([]byte(nil), p.Raw[dstLen+2 : 2*dstLen+2]...)
+		p.TransportID = append([]byte(nil), p.Raw[2:dstLen+2]...)
+		p.DestinationHash = append([]byte(nil), p.Raw[dstLen+2:2*dstLen+2]...)
 		p.Context = p.Raw[2*dstLen+2]
 		p.Data = append([]byte(nil), p.Raw[2*dstLen+3:]...)
 	} else {
@@ -532,7 +532,7 @@ func (p *Packet) Unpack() bool {
 			return false
 		}
 		p.TransportID = nil
-		p.DestinationHash = append([]byte(nil), p.Raw[2 : dstLen+2]...)
+		p.DestinationHash = append([]byte(nil), p.Raw[2:dstLen+2]...)
 		p.Context = p.Raw[dstLen+2]
 		p.Data = append([]byte(nil), p.Raw[dstLen+3:]...)
 	}
@@ -559,7 +559,15 @@ func (p *Packet) Send() *PacketReceipt {
 			p.Receipt = nil
 			return nil
 		}
-		p.Link.noteOutbound(p.Context, len(p.Data))
+		now := time.Now()
+		p.Link.mu.Lock()
+		p.Link.lastOutbound = now
+		if p.Context == PacketCtxKeepalive {
+			p.Link.lastKeepalive = now
+		} else {
+			p.Link.lastData = now
+		}
+		p.Link.mu.Unlock()
 	}
 
 	if !p.Packed {
@@ -822,7 +830,17 @@ func (r *PacketReceipt) validateLinkProof(proof []byte, link *Link, proofPacket 
 	link.lastProof = r.ConcludedAt
 	link.mu.Unlock()
 	if r.Link != nil {
-		r.Link.observeRTTSeconds(r.GetRTT())
+		rtt := r.GetRTT()
+		if rtt > 0 {
+			rttDur := time.Duration(rtt * float64(time.Second))
+			r.Link.mu.Lock()
+			if r.Link.RTT <= 0 {
+				r.Link.RTT = rttDur
+			} else {
+				r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
+			}
+			r.Link.mu.Unlock()
+		}
 	}
 
 	if r.Callbacks.Delivery != nil {
@@ -854,7 +872,17 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
 		if r.Link != nil {
-			r.Link.observeRTTSeconds(r.GetRTT())
+			rtt := r.GetRTT()
+			if rtt > 0 {
+				rttDur := time.Duration(rtt * float64(time.Second))
+				r.Link.mu.Lock()
+				if r.Link.RTT <= 0 {
+					r.Link.RTT = rttDur
+				} else {
+					r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
+				}
+				r.Link.mu.Unlock()
+			}
 		}
 		if r.Callbacks.Delivery != nil {
 			func() {
@@ -882,7 +910,17 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
 		if r.Link != nil {
-			r.Link.observeRTTSeconds(r.GetRTT())
+			rtt := r.GetRTT()
+			if rtt > 0 {
+				rttDur := time.Duration(rtt * float64(time.Second))
+				r.Link.mu.Lock()
+				if r.Link.RTT <= 0 {
+					r.Link.RTT = rttDur
+				} else {
+					r.Link.RTT = (r.Link.RTT*3 + rttDur) / 4
+				}
+				r.Link.mu.Unlock()
+			}
 		}
 		if r.Callbacks.Delivery != nil {
 			func() {

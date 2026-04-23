@@ -150,7 +150,7 @@ func runClient(configDir *string, destinationHexHash string) error {
 		serverLink   *rns.Link
 	)
 
-	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, func(l *rns.Link) {
+	link, err := rns.NewLink(serverDest, nil, rns.LinkModeDefault, func(l *rns.Link) {
 		serverLinkMu.Lock()
 		serverLink = l
 		serverLinkMu.Unlock()

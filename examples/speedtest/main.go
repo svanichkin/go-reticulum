@@ -166,7 +166,7 @@ func runClient(configDir *string, destinationHexHash string, dataCap int) error 
 		return fmt.Errorf("NewDestination(server out): %w", err)
 	}
 
-	link, err := rns.NewOutgoingLink(serverDest, rns.LinkModeDefault, func(l *rns.Link) {
+	link, err := rns.NewLink(serverDest, nil, rns.LinkModeDefault, func(l *rns.Link) {
 		rns.Log("Link established with server, sending...", rns.LogInfo)
 
 		mdu := l.MDU

@@ -57,7 +57,10 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 	linkID := bytes.Repeat([]byte{0x44}, truncatedHashBytes)
 	initPub := bytes.Repeat([]byte{0x22}, linkEcPubSize/2)
 	initSigPub := bytes.Repeat([]byte{0x33}, linkEcPubSize/2)
-	mtu := defaultLinkMTU()
+	mtu := MTU
+	if phyParamsSnapshot.PhysicalLayerMTU > 0 {
+		mtu = phyParamsSnapshot.PhysicalLayerMTU
+	}
 	signalling, err := linkSignallingBytes(mtu, linkDefaultMode)
 	if err != nil {
 		t.Fatalf("linkSignallingBytes(): %v", err)

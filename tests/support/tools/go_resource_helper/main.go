@@ -94,7 +94,7 @@ func runResourceListener(id *rns.Identity, mode string, waitSeconds float64, sma
 	seen := map[string]bool{}
 
 	dest.SetLinkEstablishedCallback(func(l *rns.Link) {
-		_ = l.SetResourceStrategy(rns.LinkAcceptApp)
+		l.SetResourceStrategy(rns.LinkAcceptApp)
 		l.SetResourceCallback(func(adv *rns.ResourceAdvertisement) bool {
 			if adv == nil {
 				return false
@@ -195,7 +195,7 @@ func runResourceClient(id *rns.Identity, mode, destinationHex string, waitSecond
 	if err != nil {
 		return err
 	}
-	link, err := rns.NewOutgoingLink(remoteDest, rns.LinkModeDefault, nil, nil)
+	link, err := rns.NewLink(remoteDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}

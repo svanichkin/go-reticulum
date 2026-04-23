@@ -381,7 +381,7 @@ func connectRemote(destHash []byte, auth *rns.Identity, timeout float64, noOutpu
 	if err != nil {
 		return err
 	}
-	if _, err := rns.NewOutgoingLink(dest, rns.LinkModeDefault, established, closed); err != nil {
+	if _, err := rns.NewLink(dest, nil, rns.LinkModeDefault, established, closed); err != nil {
 		return err
 	}
 
@@ -494,7 +494,8 @@ func obtainPathTable(destHash []byte, maxHops int, noOutput bool) ([]map[string]
 		fmt.Print("Sending request... ")
 	}
 	requestData := []any{"table", destHash, reqMax}
-	receipt := rns.RequestReceiptFrom(remoteLink.Request("/path", requestData, nil, nil, nil, 0))
+	result := remoteLink.Request("/path", requestData, nil, nil, nil, 0)
+	receipt, _ := result.(*rns.RequestReceipt)
 	if receipt == nil {
 		if !noOutput {
 			fmt.Print("\r                                                          \r")
@@ -526,7 +527,8 @@ func obtainRateTable(destHash []byte, noOutput bool) ([]map[string]any, error) {
 		fmt.Print("\r                                                          \r")
 		fmt.Print("Sending request... ")
 	}
-	receipt := rns.RequestReceiptFrom(remoteLink.Request("/path", []any{"rates", destHash}, nil, nil, nil, 0))
+	result := remoteLink.Request("/path", []any{"rates", destHash}, nil, nil, nil, 0)
+	receipt, _ := result.(*rns.RequestReceipt)
 	if receipt == nil {
 		if !noOutput {
 			fmt.Print("\r                                                          \r")

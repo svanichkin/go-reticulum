@@ -895,7 +895,11 @@ func (o *LinkChannelOutlet) Send(raw []byte) any {
 	status := o.link.Status
 	o.link.mu.Unlock()
 
-	o.link.noteOutbound(PacketCtxChannel, len(raw))
+	now := time.Now()
+	o.link.mu.Lock()
+	o.link.lastOutbound = now
+	o.link.lastData = now
+	o.link.mu.Unlock()
 	packet := NewPacket(
 		o.link,
 		raw,

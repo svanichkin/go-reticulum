@@ -148,7 +148,7 @@ func runClient(id *rns.Identity, destinationHex string, identify, teardown, expe
 	}
 
 	closedCh := make(chan struct{}, 1)
-	link, err := rns.NewOutgoingLink(remoteDest, rns.LinkModeDefault, nil, nil)
+	link, err := rns.NewLink(remoteDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}

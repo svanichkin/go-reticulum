@@ -171,7 +171,7 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 	if err != nil {
 		return err
 	}
-	link, err := rns.NewOutgoingLink(remoteDest, rns.LinkModeDefault, nil, nil)
+	link, err := rns.NewLink(remoteDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -190,11 +190,12 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 
 	respCh := make(chan *rns.RequestReceipt, 1)
 	failCh := make(chan *rns.RequestReceipt, 1)
-	rr := rns.RequestReceiptFrom(link.Request("echo", "hello", func(rr *rns.RequestReceipt) {
+	result := link.Request("echo", "hello", func(rr *rns.RequestReceipt) {
 		respCh <- rr
 	}, func(rr *rns.RequestReceipt) {
 		failCh <- rr
-	}, nil, 5))
+	}, nil, 5)
+	rr, _ := result.(*rns.RequestReceipt)
 	if rr == nil {
 		return fmt.Errorf("echo request not sent")
 	}
@@ -212,11 +213,12 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 
 	failCh = make(chan *rns.RequestReceipt, 1)
 	respCh = make(chan *rns.RequestReceipt, 1)
-	rr = rns.RequestReceiptFrom(link.Request("sleep", 3, func(rr *rns.RequestReceipt) {
+	result = link.Request("sleep", 3, func(rr *rns.RequestReceipt) {
 		respCh <- rr
 	}, func(rr *rns.RequestReceipt) {
 		failCh <- rr
-	}, nil, 1))
+	}, nil, 1)
+	rr, _ = result.(*rns.RequestReceipt)
 	if rr == nil {
 		return fmt.Errorf("sleep request not sent")
 	}
@@ -257,11 +259,12 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 func requestExpectNoResponse(link *rns.Link, path string, data any, timeout float64, wait time.Duration) (string, error) {
 	respCh := make(chan *rns.RequestReceipt, 1)
 	failCh := make(chan *rns.RequestReceipt, 1)
-	rr := rns.RequestReceiptFrom(link.Request(path, data, func(rr *rns.RequestReceipt) {
+	result := link.Request(path, data, func(rr *rns.RequestReceipt) {
 		respCh <- rr
 	}, func(rr *rns.RequestReceipt) {
 		failCh <- rr
-	}, nil, timeout))
+	}, nil, timeout)
+	rr, _ := result.(*rns.RequestReceipt)
 	if rr == nil {
 		return "", fmt.Errorf("%s request not sent", path)
 	}

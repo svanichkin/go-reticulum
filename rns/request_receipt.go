@@ -92,7 +92,9 @@ func newRequestReceipt(
 		}
 	}
 
-	link.addPendingRequest(rr)
+	link.mu.Lock()
+	link.pendingRequests = append(link.pendingRequests, rr)
+	link.mu.Unlock()
 	return rr
 }
 
@@ -212,7 +214,7 @@ func (rr *RequestReceipt) responseResourceProgress(res *Resource) {
 	}
 }
 
-func (rr *RequestReceipt) responseReceived(resp any, metadata any, transferSize int) {
+func (rr *RequestReceipt) responseReceived(resp any, metadata any, responseSize int, transferSize int) {
 	rr.mu.Lock()
 	if rr.status == ReceiptFailed {
 		rr.mu.Unlock()
@@ -228,8 +230,11 @@ func (rr *RequestReceipt) responseReceived(resp any, metadata any, transferSize 
 	rr.concludedAt = rr.responseConcludedAt
 	rr.progress = 1.0
 	rr.status = ReceiptReady
+	if responseSize > 0 {
+		rr.responseSize = responseSize
+	}
 	if transferSize > 0 {
-		rr.responseTransferSize = transferSize
+		rr.responseTransferSize += transferSize
 	}
 	rr.mu.Unlock()
 	rr.ensurePacketReceiptDelivered()
@@ -239,7 +244,14 @@ func (rr *RequestReceipt) responseReceived(resp any, metadata any, transferSize 
 	if rr.callbacks.Response != nil {
 		go rr.safeCallback(rr.callbacks.Response)
 	}
-	rr.link.removePendingRequest(rr)
+	rr.link.mu.Lock()
+	for i, pending := range rr.link.pendingRequests {
+		if pending == rr {
+			rr.link.pendingRequests = append(rr.link.pendingRequests[:i], rr.link.pendingRequests[i+1:]...)
+			break
+		}
+	}
+	rr.link.mu.Unlock()
 }
 
 func (rr *RequestReceipt) requestTimedOut() {
@@ -252,7 +264,14 @@ func (rr *RequestReceipt) requestTimedOut() {
 		rr.status = ReceiptFailed
 		rr.concludedAt = time.Now()
 		rr.mu.Unlock()
-		rr.link.removePendingRequest(rr)
+		rr.link.mu.Lock()
+		for i, pending := range rr.link.pendingRequests {
+			if pending == rr {
+				rr.link.pendingRequests = append(rr.link.pendingRequests[:i], rr.link.pendingRequests[i+1:]...)
+				break
+			}
+		}
+		rr.link.mu.Unlock()
 		if rr.callbacks.Failed != nil {
 			go rr.safeCallback(rr.callbacks.Failed)
 		}

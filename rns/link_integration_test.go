@@ -416,7 +416,7 @@ func TestIntegration_LinkEstablish_DefaultMode(t *testing.T) {
 		}
 		_ = destIn
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -458,7 +458,7 @@ func TestIntegration_LinkEstablish_AES256CBC_Mode(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeAES256CBC, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeAES256CBC, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -496,7 +496,7 @@ func TestIntegration_LinkEstablish_AES128CBC(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		_, err = NewOutgoingLink(destOut, LinkModeAES128CBC, nil, nil)
+		_, err = NewLink(destOut, nil, LinkModeAES128CBC, nil, nil)
 		if err == nil {
 			t.Fatalf("expected AES128CBC link mode to be disabled for Python parity")
 		}
@@ -527,7 +527,7 @@ func TestIntegration_LinkPackets_WithReceipts(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -603,7 +603,7 @@ func TestIntegration_BufferRoundTrip_Small(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -699,7 +699,7 @@ func TestIntegration_BufferRoundTrip_Big(t *testing.T) {
 			t.Fatalf("NewDestination(in): %v", err)
 		}
 
-		l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+		l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 		if err != nil {
 			t.Fatalf("NewOutgoingLink: %v", err)
 		}
@@ -877,7 +877,7 @@ func TestIntegration_BufferRoundTrip_Big_Slow(t *testing.T) {
 		t.Fatalf("NewDestination(in): %v", err)
 	}
 
-	l, err := NewOutgoingLink(destOut, LinkModeDefault, nil, nil)
+	l, err := NewLink(destOut, nil, LinkModeDefault, nil, nil)
 	if err != nil {
 		t.Fatalf("NewOutgoingLink: %v", err)
 	}

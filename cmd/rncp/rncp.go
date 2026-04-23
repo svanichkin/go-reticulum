@@ -418,13 +418,13 @@ func receiveResourceAdvertisementCallback(ad *rns.ResourceAdvertisement) bool {
 	if ad == nil || ad.Link == nil {
 		return false
 	}
-	sender := ad.Link.RemoteIdentity()
+	sender := ad.Link.GetRemoteIdentity()
 	return sender != nil && inHashList(sender.Hash, allowedIdentityHashes)
 }
 
 func receiveResourceStarted(res *rns.Resource) {
 	var idStr string
-	if ri := res.Link().RemoteIdentity(); ri != nil {
+	if ri := res.Link().GetRemoteIdentity(); ri != nil {
 		idStr = " from " + rns.PrettyHex(ri.Hash)
 	}
 	fmt.Println("Starting resource transfer " + rns.PrettyHex(res.Hash()) + idStr)
@@ -567,7 +567,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 		return err
 	}
 
-	link, err = rns.NewOutgoingLink(receiverDest, rns.LinkModeDefault, nil, nil)
+	link, err = rns.NewLink(receiverDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -774,7 +774,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		return err
 	}
 
-	link, err = rns.NewOutgoingLink(listenerDest, rns.LinkModeDefault, nil, nil)
+	link, err = rns.NewLink(listenerDest, nil, rns.LinkModeDefault, nil, nil)
 	if err != nil {
 		return err
 	}
