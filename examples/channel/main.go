@@ -207,16 +207,8 @@ func runClient(destinationHex string, configDir *string) {
 		os.Exit(0)
 	})
 
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if channel != nil {
-			break
-		}
+	for channel == nil {
 		time.Sleep(10 * time.Millisecond)
-	}
-	if channel == nil {
-		fmt.Fprintln(os.Stderr, "timeout waiting for link establishment")
-		os.Exit(1)
 	}
 
 	in := bufio.NewScanner(os.Stdin)

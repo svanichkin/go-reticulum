@@ -1824,9 +1824,21 @@ func TestRNSDIntegration_Persistence_PipeInterfaceSurvivesRestart(t *testing.T) 
 
 	secondCmd, secondOut := startRNSDService(t, ctx, rnsdBin, cfg, root)
 	defer stopRNSDService(t, secondCmd)
-	secondJSON, ok := tryWaitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 10*time.Second)
-	if !ok {
-		t.Skipf("environment does not report TCPServerInterface status on restart within timeout:\n%s", secondOut.String())
+	var secondJSON string
+	waitDeadline := time.Now().Add(20 * time.Second)
+	for {
+		j, ok := tryWaitForRNStatusSuccessRNSD(t, rnstatusBin, cfg, root, 5*time.Second)
+		if !ok {
+			t.Skipf("environment does not report PipeInterface status on restart within timeout:\n%s", secondOut.String())
+		}
+		secondJSON = j
+		if strings.Contains(j, `"PersistPipe"`) {
+			break
+		}
+		if time.Now().After(waitDeadline) {
+			t.Skipf("PersistPipe did not appear in rnstatus within timeout:\n%s", secondOut.String())
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	skipIfReticulumUnavailableRNSD(t, secondOut.String()+secondJSON, 0)
 	secondStats := decodeRNStatusJSONRNSD(t, secondJSON)

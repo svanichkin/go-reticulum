@@ -58,6 +58,10 @@ build_runner_image() {
   if [[ "$USE_DOCKER" != "1" ]]; then
     return 0
   fi
+  if docker image inspect "$RUNNER_IMAGE" >/dev/null 2>&1; then
+    echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] docker image $RUNNER_IMAGE already present"
+    return 0
+  fi
   echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] docker build $RUNNER_IMAGE"
   docker build -t "$RUNNER_IMAGE" -f "$ANNOUNCE_DIR/Dockerfile" "$ANNOUNCE_DIR" >/dev/null
 }
@@ -80,8 +84,11 @@ run_script() {
   local script="$1"
   local name
   name="$(basename "$script")"
+  local tool_name="${name%.sh}"
   local rel_script="${script#$ROOT/}"
   local container_iface="${ANNOUNCE_INTERFACE_NAME//\//-}"
+  local docker_tmp_root="/tmp/reticulum-parity-announce/${container_iface}/${TS}/${tool_name}"
+  local docker_out_dir="/workspace/tests/artifacts/logs/$TS/parity_announce_${ANNOUNCE_INTERFACE_NAME}_${tool_name}"
   if [[ "$USE_DOCKER" != "1" ]]; then
     bash "$script"
     return
@@ -110,6 +117,13 @@ run_script() {
     -e PARITY_BIN_DIR=
     -e PYTHONUNBUFFERED=1
   )
+  if [[ "${ANNOUNCE_DOCKER_ROOT:-0}" == "1" ]]; then
+    docker_args+=(
+      -e PARITY_GOTMP_ROOT="$docker_tmp_root/.gotmp"
+      -e PARITY_BUILD_ROOT="$docker_tmp_root/.build"
+      -e PARITY_WORK_ROOT="$docker_tmp_root/.work"
+    )
+  fi
   if [[ -n "${ANNOUNCE_DOCKER_ENV:-}" ]]; then
     local item
     for item in $ANNOUNCE_DOCKER_ENV; do
@@ -124,7 +138,7 @@ run_script() {
 
   if [[ "${ANNOUNCE_DOCKER_ROOT:-0}" == "1" ]]; then
     "${docker_args[@]}" \
-      bash -c 'bash "$1"; status=$?; chown -R "$HOST_UID:$HOST_GID" /workspace/tests/artifacts/logs /workspace/.gocache /workspace/.gotmp /workspace/.gopath /workspace/.gomodcache 2>/dev/null || true; exit "$status"' _ "$rel_script"
+      bash -c 'bash "$1"; status=$?; chown -R "$HOST_UID:$HOST_GID" "$2" 2>/dev/null || true; exit "$status"' _ "$rel_script" "$docker_out_dir"
   else
     "${docker_args[@]}" bash "$rel_script"
   fi

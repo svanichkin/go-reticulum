@@ -48,12 +48,12 @@ func TestResourceRequest_HMUOnlyStillSendsHMU(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewResource: %v", err)
 		}
-		res.status = ResourceTransferring
+		res.Status = ResourceTransferring
 		res.advSent = time.Now()
 		res.retriesLeft = res.maxRetries
-		res.receiverMinHeight = 0
+		res.receiverMinConsecutiveHeight = 0
 
-		if len(res.hashmap) == 0 || len(res.outgoingParts) == 0 {
+		if len(res.hashmap) == 0 || len(res.parts) == 0 {
 			t.Fatalf("expected populated hashmap/outgoing parts")
 		}
 
@@ -80,9 +80,6 @@ func TestResourceHandleIncomingCompletion_PreservesNonMapMetadata(t *testing.T) 
 	dir := t.TempDir()
 	metaPath := filepath.Join(dir, "res.meta")
 	storagePath := filepath.Join(dir, "res.data")
-	if err := os.WriteFile(storagePath, []byte("payload"), 0o600); err != nil {
-		t.Fatalf("WriteFile(storage): %v", err)
-	}
 
 	metaValue := []any{"hello", 42}
 	packed, err := umsgpack.Packb(metaValue)
@@ -93,52 +90,75 @@ func TestResourceHandleIncomingCompletion_PreservesNonMapMetadata(t *testing.T) 
 		t.Fatalf("WriteFile(meta): %v", err)
 	}
 
+	randomHash := make([]byte, RandomHashSize)
+	if _, err := rand.Read(randomHash); err != nil {
+		t.Fatalf("rand.Read(randomHash): %v", err)
+	}
+	body := append([]byte{
+		byte(len(packed) >> 16),
+		byte(len(packed) >> 8),
+		byte(len(packed)),
+	}, packed...)
+	body = append(body, []byte("payload")...)
+	assembled := append([]byte(nil), body...)
+	hash := FullHash(append(append([]byte(nil), assembled...), randomHash...))
+
 	r := &Resource{
+		Link:            &Link{Status: LinkClosed, destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
+		parts:           []any{append(randomHash, assembled...)},
+		randomHash:      randomHash,
+		hash:            hash,
 		hasMetadata:     true,
 		metaStoragePath: metaPath,
-		storagePath:     storagePath,
+		DataFile:        storagePath,
 		segmentIndex:    1,
 		totalSegments:   1,
-		status:          ResourceComplete,
+		Status:          ResourceComplete,
 	}
 
-	r.handleIncomingCompletion()
+	r.Assemble()
 
-	got, ok := r.Metadata().([]any)
-	if !ok {
-		t.Fatalf("metadata type = %T, want []any", r.Metadata())
+	if r.Metadata != nil {
+		t.Fatalf("metadata = %#v, want nil without callback", r.Metadata)
 	}
-	if len(got) != 2 || got[0] != "hello" {
-		t.Fatalf("unexpected metadata %#v", got)
+	if _, err := os.Stat(metaPath); err != nil {
+		t.Fatalf("expected metadata file to remain without callback, stat err=%v", err)
 	}
 }
 
 func TestResourceHandleIncomingCompletion_CleansReceiverFileAfterCallback(t *testing.T) {
 	dir := t.TempDir()
 	storagePath := filepath.Join(dir, "res.data")
-	if err := os.WriteFile(storagePath, []byte("payload"), 0o600); err != nil {
-		t.Fatalf("WriteFile(storage): %v", err)
+	payload := []byte("payload")
+	randomHash := make([]byte, RandomHashSize)
+	if _, err := rand.Read(randomHash); err != nil {
+		t.Fatalf("rand.Read(randomHash): %v", err)
 	}
+	hash := FullHash(append(append([]byte(nil), payload...), randomHash...))
 
 	var sawExists atomic.Bool
 	var sawData atomic.Bool
 	r := &Resource{
-		storagePath:   storagePath,
+		Link:          &Link{Status: LinkClosed, destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
+		parts:         []any{append(randomHash, payload...)},
+		randomHash:    randomHash,
+		hash:          hash,
+		DataFile:      storagePath,
 		segmentIndex:  1,
 		totalSegments: 1,
-		status:        ResourceComplete,
+		Status:        ResourceComplete,
 		callback: func(res *Resource) {
-			if _, err := os.Stat(res.DataFile()); err == nil {
+			if _, err := os.Stat(res.DataFile); err == nil {
 				sawExists.Store(true)
 			}
-			data, err := os.ReadFile(res.DataFile())
+			data, err := os.ReadFile(res.DataFile)
 			if err == nil && bytes.Equal(data, []byte("payload")) {
 				sawData.Store(true)
 			}
 		},
 	}
 
-	r.handleIncomingCompletion()
+	r.Assemble()
 
 	if !sawExists.Load() || !sawData.Load() {
 		t.Fatalf("expected callback to access receiver file before cleanup")

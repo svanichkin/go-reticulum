@@ -96,16 +96,16 @@ func runServer(configDir *string) error {
 			if res == nil {
 				return
 			}
-			if res.Status() != rns.ResourceComplete {
+			if res.Status != rns.ResourceComplete {
 				rns.Log(fmt.Sprintf("Receiving resource %s failed", res), rns.LogError)
 				return
 			}
 
 			rns.Log(fmt.Sprintf("Resource %s received", res), rns.LogInfo)
-			rns.Log(fmt.Sprintf("Metadata: %#v", res.Metadata()), rns.LogInfo)
-			rns.Log(fmt.Sprintf("Data can be moved or copied from: %s", res.DataFile()), rns.LogInfo)
+			rns.Log(fmt.Sprintf("Metadata: %#v", res.Metadata), rns.LogInfo)
+			rns.Log(fmt.Sprintf("Data can be moved or copied from: %s", res.DataFile), rns.LogInfo)
 
-			if first, err := readFirstN(res.DataFile(), 32); err == nil {
+			if first, err := readFirstN(res.DataFile, 32); err == nil {
 				rns.Log("First 32 bytes of data: "+rns.HexRep(first), rns.LogInfo)
 			}
 		})
@@ -245,7 +245,7 @@ func runClient(configDir *string, destinationHexHash string, sizeMB int) error {
 				if res == nil {
 					return
 				}
-				if res.Status() == rns.ResourceComplete {
+				if res.Status == rns.ResourceComplete {
 					rns.Log(fmt.Sprintf("The resource %s was sent successfully", res), rns.LogInfo)
 				} else {
 					rns.Log(fmt.Sprintf("Sending the resource %s failed", res), rns.LogError)

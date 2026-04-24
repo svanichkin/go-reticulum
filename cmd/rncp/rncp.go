@@ -424,20 +424,20 @@ func receiveResourceAdvertisementCallback(ad *rns.ResourceAdvertisement) bool {
 
 func receiveResourceStarted(res *rns.Resource) {
 	var idStr string
-	if ri := res.Link().GetRemoteIdentity(); ri != nil {
+	if ri := res.Link.GetRemoteIdentity(); ri != nil {
 		idStr = " from " + rns.PrettyHex(ri.Hash)
 	}
-	fmt.Println("Starting resource transfer " + rns.PrettyHex(res.Hash()) + idStr)
+	fmt.Println("Starting resource transfer " + rns.PrettyHex(res.GetHash()) + idStr)
 }
 
 func receiveResourceConcluded(res *rns.Resource) {
-	if res.Status() != rns.ResourceComplete {
+	if res.Status != rns.ResourceComplete {
 		fmt.Println("Resource failed")
 		return
 	}
 	fmt.Println(res.String(), "completed")
 
-	filename, ok := resourceMetadataName(res.Metadata())
+	filename, ok := resourceMetadataName(res.Metadata)
 	if !ok {
 		fmt.Println("Invalid data received, ignoring resource")
 		return
@@ -469,7 +469,7 @@ func receiveResourceConcluded(res *rns.Resource) {
 		full = fmt.Sprintf("%s.%d", savedFilename, counter)
 	}
 
-	if err := os.Rename(res.DataFile(), full); err != nil {
+	if err := os.Rename(res.DataFile, full); err != nil {
 		rns.Logf(rns.LogError, "Could not move received file: %v", err)
 	}
 	noteAcceptedResource()
@@ -619,7 +619,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	}
 	currentResource = res
 
-	for res.Status() < rns.ResourceTransferring {
+	for res.Status < rns.ResourceTransferring {
 		if !silent {
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("\b\b%c ", syms[i])
@@ -629,7 +629,7 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 
 	start := time.Now()
 
-	if res.Status() > rns.ResourceComplete {
+	if res.Status > rns.ResourceComplete {
 		if silent {
 			fmt.Println("File was not accepted by " + rns.PrettyHex(destHash))
 		} else {
@@ -654,14 +654,14 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	end := time.Now()
 	transferTime := end.Sub(start).Seconds()
 	if transferTime > 0 && currentResource != nil {
-		speed = float64(currentResource.TotalSize()) / transferTime
+		speed = float64(currentResource.GetDataSize()) / transferTime
 	}
 
 	if !silent {
 		_ = progressUpdate(syms, symsIdx, true)
 	}
 
-	if currentResource == nil || currentResource.Status() != rns.ResourceComplete {
+	if currentResource == nil || currentResource.Status != rns.ResourceComplete {
 		if silent {
 			fmt.Println("The transfer failed")
 		} else {
@@ -846,12 +846,12 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	fetchResourceConcluded := func(res *rns.Resource) {
 		defer func() { resourceResolved = true }()
 
-		if res.Status() != rns.ResourceComplete {
+		if res.Status != rns.ResourceComplete {
 			fmt.Println("Resource failed")
 			return
 		}
 
-		filename, ok := resourceMetadataName(res.Metadata())
+		filename, ok := resourceMetadataName(res.Metadata)
 		if !ok {
 			fmt.Println("Invalid data received, ignoring resource")
 			return
@@ -882,7 +882,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 			full = fmt.Sprintf("%s.%d", savedFilename, counter)
 		}
 
-		if err := os.Rename(res.DataFile(), full); err != nil {
+		if err := os.Rename(res.DataFile, full); err != nil {
 			fmt.Printf("An error occurred while saving received resource: %v\n", err)
 			return
 		}
@@ -935,14 +935,14 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		if !silent {
 			time.Sleep(100 * time.Millisecond)
 			if currentResource != nil {
-				prg := currentResource.Progress()
+				prg := currentResource.GetProgress()
 				percent := prg * 100
 				var phyStr string
 				if showPhyRates {
 					phyStr = fmt.Sprintf(" (%sps at physical layer)", sizeStr(int64(phySpeed), 'b'))
 				}
-				ps := sizeStr(int64(prg*float64(currentResource.TotalSize())), 'B')
-				ts := sizeStr(int64(currentResource.TotalSize()), 'B')
+				ps := sizeStr(int64(prg*float64(currentResource.GetDataSize())), 'B')
+				ts := sizeStr(int64(currentResource.GetDataSize()), 'B')
 				ss := sizeStr(int64(speed), 'b')
 				if prg != 1.0 {
 					fmt.Printf("%sTransferring file %c %.1f%% - %s of %s - %sps%s%s",
@@ -950,7 +950,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 				} else {
 					delta := float64(time.Now().UnixNano())/1e9 - currentTransferStarted
 					if delta > 0 {
-						speed = float64(currentResource.TotalSize()) / delta
+						speed = float64(currentResource.GetDataSize()) / delta
 					}
 					dtStr := rns.PrettyTime(delta, false, false)
 					ss = sizeStr(int64(speed), 'b')
@@ -964,7 +964,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 		}
 	}
 
-	if currentResource == nil || currentResource.Status() != rns.ResourceComplete {
+	if currentResource == nil || currentResource.Status != rns.ResourceComplete {
 		if silent {
 			fmt.Println("The transfer failed")
 		} else {
@@ -993,8 +993,8 @@ func senderProgress(res *rns.Resource) {
 	currentResource = res
 
 	now := float64(time.Now().UnixNano()) / 1e9
-	got := res.Progress() * float64(res.TotalSize())
-	phyGot := res.SegmentProgress() * float64(res.GetTransferSize())
+	got := res.GetProgress() * float64(res.GetDataSize())
+	phyGot := res.GetSegmentProgress() * float64(res.GetTransferSize())
 
 	entry := []float64{now, got, phyGot}
 	stats = append(stats, entry)
@@ -1013,7 +1013,7 @@ func senderProgress(res *rns.Resource) {
 			phySpeed = phyDiff / span
 		}
 	}
-	if res.Status() < rns.ResourceComplete {
+	if res.Status < rns.ResourceComplete {
 		resourceDone = false
 	} else {
 		resourceDone = true
@@ -1025,14 +1025,14 @@ func progressUpdate(syms []rune, i int, done bool) int {
 	if currentResource == nil {
 		return i
 	}
-	prg := currentResource.Progress()
+	prg := currentResource.GetProgress()
 	percent := prg * 100
 	var phyStr string
 	if showPhyRates && !resourceDone {
 		phyStr = fmt.Sprintf(" (%sps at physical layer)", sizeStr(int64(phySpeed), 'b'))
 	}
-	cs := sizeStr(int64(prg*float64(currentResource.TotalSize())), 'B')
-	ts := sizeStr(int64(currentResource.TotalSize()), 'B')
+	cs := sizeStr(int64(prg*float64(currentResource.GetDataSize())), 'B')
+	ts := sizeStr(int64(currentResource.GetDataSize()), 'B')
 	ss := sizeStr(int64(speed), 'b')
 	stat := fmt.Sprintf("%.1f%% - %s of %s - %sps%s", percent, cs, ts, ss, phyStr)
 	if !done {

@@ -169,16 +169,8 @@ func runClient(destinationHex string, configDir *string) {
 	})
 
 	// Wait until link callback has created the buffer.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if buf != nil {
-			break
-		}
+	for buf == nil {
 		time.Sleep(10 * time.Millisecond)
-	}
-	if buf == nil {
-		fmt.Fprintln(os.Stderr, "timeout waiting for link establishment")
-		os.Exit(1)
 	}
 
 	in := bufio.NewScanner(os.Stdin)

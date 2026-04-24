@@ -367,17 +367,6 @@ func RegisterDestination(d *Destination) error {
 	}
 	Destinations = append(Destinations, d)
 	destinationsMu.Unlock()
-
-	if Owner != nil && Owner.IsConnectedToSharedInstance {
-		if d.Type == DestinationSINGLE {
-			go func(dst *Destination) {
-				time.Sleep(250 * time.Millisecond)
-				if dst != nil {
-					dst.Announce(nil, true, nil, nil, true)
-				}
-			}(d)
-		}
-	}
 	return nil
 }
 
@@ -3544,6 +3533,20 @@ func Outbound(p *Packet) bool {
 		}
 	}
 
+	// Python parity: LINK-type packets (with attached link interface) are transmitted
+	// directly via the link's attached interface, bypassing the OUT flag check.
+	// This covers LRPROOF and other link-level packets sent back to the peer
+	// (e.g. via LocalClientInterface which has OUT=false).
+	if sendBroadcast {
+		if attached := linkAttachedInterface(); attached != nil {
+			AddPacketHash(p.PacketHash)
+			transmit(attached, p.Raw)
+			packetSent(p)
+			sent = true
+			return sent
+		}
+	}
+
 	if sendBroadcast {
 		// path unknown: broadcast via all OUT interfaces
 		storedHash := false
@@ -4996,6 +4999,7 @@ func Inbound(raw []byte, ifc *Interface) {
 	// Proof packets are handled before generic destination routing.
 	if p.Type == PacketProof {
 		if p.Context == PacketLRProof {
+			handledTransport := false
 			if (TransportEnabled() || forLocalClientLink || fromLocal) && len(p.DestinationHash) > 0 {
 				key, ok := func(hash []byte) (hashKey, bool) {
 					if len(hash) < truncatedHashBytes {
@@ -5010,6 +5014,7 @@ func Inbound(raw []byte, ifc *Interface) {
 					entry := linkTable[key]
 					linkTableMu.RUnlock()
 					if entry != nil {
+						handledTransport = true
 						if int(p.Hops) == entry.RemainingHops {
 							if p.ReceivingInterface == entry.NextHopInterface {
 								tryValidate := false
@@ -5079,7 +5084,8 @@ func Inbound(raw []byte, ifc *Interface) {
 						}
 					}
 				}
-			} else {
+			}
+			if !handledTransport {
 				linkMu.Lock()
 				pendingLinks := append([]*Link(nil), PendingLinks...)
 				linkMu.Unlock()
@@ -5089,7 +5095,8 @@ func Inbound(raw []byte, ifc *Interface) {
 					}
 					if p.Hops == uint8(link.expectedHops) || link.expectedHops == PathfinderMaxHops {
 						AddPacketHash(p.PacketHash)
-						link.Receive(p)
+						p.Link = link
+						link.validateProof(p)
 						return
 					}
 				}
@@ -5170,6 +5177,7 @@ func Inbound(raw []byte, ifc *Interface) {
 		}
 		linkMu.Unlock()
 		if link != nil {
+			p.Link = link
 			link.Receive(p)
 			return
 		}
@@ -5202,6 +5210,7 @@ func Inbound(raw []byte, ifc *Interface) {
 	}
 	destinationsMu.Unlock()
 	if dst != nil {
+		p.Destination = dst
 		// Python parity: LINKREQUEST packets are only delivered to local destinations
 		// if transport_id is absent or matches our own identity (Transport.py:1932).
 		if p.PacketType == PacketLINKREQUEST && len(p.TransportID) > 0 &&

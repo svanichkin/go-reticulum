@@ -57,11 +57,11 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 		peer.SetResourceConcludedCallback(func(res *Resource) {
 			var cp []byte
 			var meta any
-			if res != nil && res.Status() == ResourceComplete {
-				if data, err := os.ReadFile(res.DataFile()); err == nil {
+			if res != nil && res.Status == ResourceComplete {
+				if data, err := os.ReadFile(res.DataFile); err == nil {
 					cp = append([]byte(nil), data...)
 				}
-				meta = res.Metadata()
+				meta = res.Metadata
 			}
 			peerMu.Lock()
 			lastIncoming = res
@@ -132,12 +132,12 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 
 			waitUntil := time.Now().Add(30 * time.Second)
 			for time.Now().Before(waitUntil) {
-				if res.Status() == ResourceComplete {
+				if res.Status == ResourceComplete {
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
-			if res.Status() != ResourceComplete {
+			if res.Status != ResourceComplete {
 				sentReq, sentData, delReq, delData := 0, 0, 0, 0
 				delReqInit, delReqResp := 0, 0
 				if it := getIntegrationTransport(); it != nil {
@@ -152,9 +152,9 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 				}
 				linkMTU := 0
 				linkMDU := 0
-				if res.link != nil {
-					linkMTU = res.link.MTU
-					linkMDU = res.link.MDU
+				if res.Link != nil {
+					linkMTU = res.Link.MTU
+					linkMDU = res.Link.MDU
 				}
 				peerMu.Lock()
 				s := started
@@ -188,7 +188,7 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 						raw = res.advPacket.Plaintext
 					}
 					if len(raw) > 0 {
-						if adv, err := ResourceAdvertisementUnpack(raw); err == nil && adv != nil {
+						if adv, err := (ResourceAdvertisement{}).Unpack(raw); err == nil && adv != nil {
 							peerAdvT = adv.T
 							peerAdvN = adv.N
 							peerAdvMLen = len(adv.M)
@@ -211,25 +211,7 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 						}
 					}
 				}
-				reqHashes := 0
-				reqMatched := 0
-				if len(res.lastRequestData) > 0 && len(res.outgoingPartByMapHash) > 0 {
-					pad := 1
-					if res.lastRequestData[0] == HashmapExhausted {
-						pad += MapHashLen
-					}
-					off := pad + (sha256Bits / 8)
-					if off < len(res.lastRequestData) {
-						requested := res.lastRequestData[off:]
-						for i := 0; i+MapHashLen <= len(requested); i += MapHashLen {
-							reqHashes++
-							if res.outgoingPartByMapHash[string(requested[i:i+MapHashLen])] != nil {
-								reqMatched++
-							}
-						}
-					}
-				}
-				t.Fatalf("resource status=%d want %d (sent_req=%d sent_data=%d delivered_req=%d delivered_data=%d delivered_req_init=%d delivered_req_resp=%d sentParts=%d totalParts=%d size=%d sdu=%d link.MTU=%d link.MDU=%d adv_t=%d adv_n=%d adv_m_len=%d sender_missing_first4=%d last_req_hashes=%d last_req_matched=%d peer_hash_len=%d peer_size=%d peer_sdu=%d peer_totalParts=%d peer_hashmapHeight=%d peer_outstanding=%d peer_received=%d peer_consecutive=%d peer_reqSent=%v)", res.Status(), ResourceComplete, sentReq, sentData, delReq, delData, delReqInit, delReqResp, res.sentParts, res.totalParts, res.size, res.sdu, linkMTU, linkMDU, peerAdvT, peerAdvN, peerAdvMLen, missing, reqHashes, reqMatched, peerHash, peerSize, peerSDU, peerParts, peerHashmapHeight, peerOutstanding, peerReceived, peerConsecutive, peerReqSent)
+				t.Fatalf("resource status=%d want %d (sent_req=%d sent_data=%d delivered_req=%d delivered_data=%d delivered_req_init=%d delivered_req_resp=%d sentParts=%d totalParts=%d size=%d sdu=%d link.MTU=%d link.MDU=%d adv_t=%d adv_n=%d adv_m_len=%d sender_missing_first4=%d peer_hash_len=%d peer_size=%d peer_sdu=%d peer_totalParts=%d peer_hashmapHeight=%d peer_outstanding=%d peer_received=%d peer_consecutive=%d peer_reqSent=%v)", res.Status, ResourceComplete, sentReq, sentData, delReq, delData, delReqInit, delReqResp, res.sentParts, res.totalParts, res.size, res.sdu, linkMTU, linkMDU, peerAdvT, peerAdvN, peerAdvMLen, missing, peerHash, peerSize, peerSDU, peerParts, peerHashmapHeight, peerOutstanding, peerReceived, peerConsecutive, peerReqSent)
 			}
 
 			// The sender may mark complete slightly before the receiver callback fires.
@@ -240,13 +222,13 @@ func TestIntegration_Resource_MicroMiniSmall(t *testing.T) {
 					peerMu.Lock()
 					pr = lastIncoming
 					peerMu.Unlock()
-					if pr != nil && pr.Status() == ResourceComplete {
+					if pr != nil && pr.Status == ResourceComplete {
 						break
 					}
 					time.Sleep(5 * time.Millisecond)
 				}
 			}
-			if pr == nil || pr.Status() != ResourceComplete {
+			if pr == nil || pr.Status != ResourceComplete {
 				t.Fatalf("peer did not complete incoming resource (size=%d meta=%v)", size, withMeta)
 			}
 			peerMu.Lock()
@@ -390,10 +372,10 @@ func TestIntegration_Resource_MediumLarge_Slow(t *testing.T) {
 			select {
 			case <-done:
 			case <-time.After(120 * time.Second):
-				t.Fatalf("timeout waiting resource completion (size=%d) status=%d", size, res.Status())
+				t.Fatalf("timeout waiting resource completion (size=%d) status=%d", size, res.Status)
 			}
-			if res.Status() != ResourceComplete {
-				t.Fatalf("resource status=%d want %d", res.Status(), ResourceComplete)
+			if res.Status != ResourceComplete {
+				t.Fatalf("resource status=%d want %d", res.Status, ResourceComplete)
 			}
 		}
 
@@ -466,11 +448,11 @@ func TestIntegration_Resource_RejectStrategy(t *testing.T) {
 			if r == nil {
 				t.Fatalf("callback returned nil resource")
 			}
-			if r.Status() != ResourceRejected {
-				t.Fatalf("expected resource rejected, got status=%d", r.Status())
+			if r.Status != ResourceRejected {
+				t.Fatalf("expected resource rejected, got status=%d", r.Status)
 			}
 		case <-time.After(5 * time.Second):
-			t.Fatalf("timeout waiting resource rejection, status=%d", res.Status())
+			t.Fatalf("timeout waiting resource rejection, status=%d", res.Status)
 		}
 
 		l.Teardown()

@@ -29,7 +29,9 @@
       "Bash(awk 'NR>=1590 && NR<=1930' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
       "Bash(awk 'NR>=4230 && NR<=4810' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/rns/transport.go)",
       "Bash(awk 'NR>=1590 && NR<=1730' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
-      "Bash(awk 'NR>=1590 && NR<=1800' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)"
+      "Bash(awk 'NR>=1590 && NR<=1800' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
+      "Bash(bash tests/runners/smoke/run.sh)",
+      "Bash(python3 -)"
     ]
   }
 }

@@ -15,29 +15,44 @@ PY_RNS=("$PYTHON" "$ROOT/tests/runners/parity/announce/common/python_no_epoll.py
 START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-20}"
 STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-5}"
 
-mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
-export GOCACHE="$ROOT/.gocache"
-GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$ROOT/.gotmp/run.XXXXXX")}"
+PARITY_GOCACHE_ROOT="${PARITY_GOCACHE_ROOT:-$ROOT/.gocache}"
+PARITY_GOTMP_ROOT="${PARITY_GOTMP_ROOT:-$ROOT/.gotmp}"
+PARITY_GOPATH_ROOT="${PARITY_GOPATH_ROOT:-$ROOT/.gopath}"
+PARITY_GOMODCACHE_ROOT="${PARITY_GOMODCACHE_ROOT:-$ROOT/.gomodcache}"
+PARITY_BUILD_ROOT="${PARITY_BUILD_ROOT:-$PARITY_GOTMP_ROOT}"
+PARITY_WORK_ROOT="${PARITY_WORK_ROOT:-$PARITY_GOTMP_ROOT}"
+PARITY_LOG_ROOT="${PARITY_LOG_ROOT:-$ROOT/tests/artifacts/logs}"
+
+mkdir -p \
+  "$PARITY_GOCACHE_ROOT" \
+  "$PARITY_GOTMP_ROOT" \
+  "$PARITY_GOPATH_ROOT" \
+  "$PARITY_GOMODCACHE_ROOT" \
+  "$PARITY_BUILD_ROOT" \
+  "$PARITY_WORK_ROOT" \
+  "$PARITY_LOG_ROOT"
+export GOCACHE="$PARITY_GOCACHE_ROOT"
+GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$PARITY_GOTMP_ROOT/run.XXXXXX")}"
 export GOTMPDIR
-export GOPATH="$ROOT/.gopath"
-export GOMODCACHE="$ROOT/.gomodcache"
+export GOPATH="$PARITY_GOPATH_ROOT"
+export GOMODCACHE="$PARITY_GOMODCACHE_ROOT"
 export PYTHONPATH="${PYTHONPATH:-"$ROOT/python"}"
 export PYTHONUNBUFFERED=1
 
 TS="${TS:-"$(date +"%Y%m%d-%H%M%S")"}"
-OUT_DIR="$ROOT/tests/artifacts/logs/$TS/parity_announce_${ANNOUNCE_INTERFACE_NAME}_rnsd"
+OUT_DIR="$PARITY_LOG_ROOT/$TS/parity_announce_${ANNOUNCE_INTERFACE_NAME}_rnsd"
 mkdir -p "$OUT_DIR"
 
 BUILD_DIR=""
 if [[ -n "${PARITY_BIN_DIR:-}" ]] && [[ -x "${PARITY_BIN_DIR}/rnsd" ]]; then
   GO_RNSD="${PARITY_BIN_DIR}/rnsd"
 else
-  BUILD_DIR="$(mktemp -d "$ROOT/.gotmp/parity-rnsd.XXXXXX")"
+  BUILD_DIR="$(mktemp -d "$PARITY_BUILD_ROOT/parity-rnsd.XXXXXX")"
   GO_RNSD="$BUILD_DIR/rnsd"
   go build -o "$GO_RNSD" ./cmd/rnsd
 fi
 
-WORK_DIR="$(mktemp -d "$ROOT/.gotmp/parity-announce-${ANNOUNCE_INTERFACE_NAME}-rnsd.XXXXXX")"
+WORK_DIR="$(mktemp -d "$PARITY_WORK_ROOT/parity-announce-${ANNOUNCE_INTERFACE_NAME}-rnsd.XXXXXX")"
 PY_DIR="$WORK_DIR/py"
 GO_DIR="$WORK_DIR/go"
 mkdir -p "$PY_DIR" "$GO_DIR"

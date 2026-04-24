@@ -133,7 +133,7 @@ func runServer(configDir *string, serveDir string) error {
 					if res == nil {
 						return
 					}
-					if res.Status() == rns.ResourceComplete {
+					if res.Status == rns.ResourceComplete {
 						rns.Log("Done sending "+filename+" to client", rns.LogInfo)
 					} else {
 						rns.Log("Sending "+filename+" to client failed", rns.LogError)
@@ -456,14 +456,14 @@ func (s *clientState) downloadConcluded(res *rns.Resource) {
 		return
 	}
 
-	if res.Status() != rns.ResourceComplete {
+	if res.Status != rns.ResourceComplete {
 		fmt.Println("")
 		fmt.Println("The download failed! Press enter to return to the menu.")
 		_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 		return
 	}
 
-	src := res.DataFile()
+	src := res.DataFile
 	dst := uniquePath(filepath.Join(outDir, filename))
 	if err := copyFile(dst, src); err != nil {
 		fmt.Println("")

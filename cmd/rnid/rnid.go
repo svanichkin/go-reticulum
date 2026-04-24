@@ -444,6 +444,13 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 	app := aspects[0]
 	aspects = aspects[1:]
 
+	postAnnounceDelay := 250 * time.Millisecond
+	if inst := rns.GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
+		// Short-lived shared-instance clients need a wider exit window so the
+		// shared transport can rebroadcast the announce before IPC teardown.
+		postAnnounceDelay = 2500 * time.Millisecond
+	}
+
 	if len(id.GetPrivateKey()) > 0 {
 		dst, err := rns.NewDestination(id, rns.DestinationIN, rns.DestinationSINGLE, app, aspects...)
 		if err != nil {
@@ -454,7 +461,7 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash), rns.LogNotice)
 		time.Sleep(1100 * time.Millisecond)
 		dst.Announce(nil, false, nil, nil, true)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(postAnnounceDelay)
 		rns.Exit(0)
 	} else {
 		dst, err := rns.NewDestination(id, rns.DestinationOUT, rns.DestinationSINGLE, app, aspects...)

@@ -8,21 +8,36 @@ START_TIMEOUT_SECS="${START_TIMEOUT_SECS:-25}"
 STOP_TIMEOUT_SECS="${STOP_TIMEOUT_SECS:-5}"
 CMD_TIMEOUT_SECS="${CMD_TIMEOUT_SECS:-30}"
 
-mkdir -p "$ROOT/.gocache" "$ROOT/.gotmp" "$ROOT/.gopath" "$ROOT/.gomodcache" "$ROOT/tests/artifacts/logs"
-export GOCACHE="$ROOT/.gocache"
-GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$ROOT/.gotmp/run.XXXXXX")}"
+PARITY_GOCACHE_ROOT="${PARITY_GOCACHE_ROOT:-$ROOT/.gocache}"
+PARITY_GOTMP_ROOT="${PARITY_GOTMP_ROOT:-$ROOT/.gotmp}"
+PARITY_GOPATH_ROOT="${PARITY_GOPATH_ROOT:-$ROOT/.gopath}"
+PARITY_GOMODCACHE_ROOT="${PARITY_GOMODCACHE_ROOT:-$ROOT/.gomodcache}"
+PARITY_BUILD_ROOT="${PARITY_BUILD_ROOT:-$PARITY_GOTMP_ROOT}"
+PARITY_WORK_ROOT="${PARITY_WORK_ROOT:-$PARITY_GOTMP_ROOT}"
+PARITY_LOG_ROOT="${PARITY_LOG_ROOT:-$ROOT/tests/artifacts/logs}"
+
+mkdir -p \
+  "$PARITY_GOCACHE_ROOT" \
+  "$PARITY_GOTMP_ROOT" \
+  "$PARITY_GOPATH_ROOT" \
+  "$PARITY_GOMODCACHE_ROOT" \
+  "$PARITY_BUILD_ROOT" \
+  "$PARITY_WORK_ROOT" \
+  "$PARITY_LOG_ROOT"
+export GOCACHE="$PARITY_GOCACHE_ROOT"
+GOTMPDIR="${GOTMPDIR:-$(mktemp -d "$PARITY_GOTMP_ROOT/run.XXXXXX")}"
 export GOTMPDIR
-export GOPATH="$ROOT/.gopath"
-export GOMODCACHE="$ROOT/.gomodcache"
+export GOPATH="$PARITY_GOPATH_ROOT"
+export GOMODCACHE="$PARITY_GOMODCACHE_ROOT"
 export PYTHONPATH="${PYTHONPATH:-"$ROOT/python"}"
 export PYTHONUNBUFFERED=1
 
 TS="${TS:-"$(date +"%Y%m%d-%H%M%S")"}"
-OUT_DIR="$ROOT/tests/artifacts/logs/$TS/parity_announce_${ANNOUNCE_INTERFACE_NAME}_${ANNOUNCE_TOOL_NAME}"
+OUT_DIR="$PARITY_LOG_ROOT/$TS/parity_announce_${ANNOUNCE_INTERFACE_NAME}_${ANNOUNCE_TOOL_NAME}"
 mkdir -p "$OUT_DIR"
 
 BUILD_DIR=""
-WORK_DIR="$(mktemp -d "$ROOT/.gotmp/parity-announce-${ANNOUNCE_INTERFACE_NAME}-${ANNOUNCE_TOOL_NAME}.XXXXXX")"
+WORK_DIR="$(mktemp -d "$PARITY_WORK_ROOT/parity-announce-${ANNOUNCE_INTERFACE_NAME}-${ANNOUNCE_TOOL_NAME}.XXXXXX")"
 declare -a PIDS=()
 
 announce_prefix() {
@@ -52,7 +67,7 @@ announce_init_bins() {
     return 0
   fi
 
-  BUILD_DIR="$(mktemp -d "$ROOT/.gotmp/parity-${ANNOUNCE_TOOL_NAME}.XXXXXX")"
+  BUILD_DIR="$(mktemp -d "$PARITY_BUILD_ROOT/parity-${ANNOUNCE_TOOL_NAME}.XXXXXX")"
   local bin var
   for bin in "${bins[@]}"; do
     var="GO_${bin^^}"

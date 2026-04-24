@@ -116,21 +116,21 @@ func runResourceListener(id *rns.Identity, mode string, waitSeconds float64, sma
 			if res == nil {
 				return
 			}
-			if mode == "cancel" && res.Status() == rns.ResourceFailed {
+			if mode == "cancel" && res.Status == rns.ResourceFailed {
 				fmt.Println("EVENT canceled_by_initiator")
 				doneCh <- "canceled"
 				return
 			}
-			if res.Status() != rns.ResourceComplete {
-				fmt.Printf("EVENT resource_failed status=%d\n", res.Status())
+			if res.Status != rns.ResourceComplete {
+				fmt.Printf("EVENT resource_failed status=%d\n", res.Status)
 				return
 			}
-			data, err := os.ReadFile(res.DataFile())
+			data, err := os.ReadFile(res.DataFile)
 			if err != nil {
 				fmt.Printf("EVENT resource_read_failed %v\n", err)
 				return
 			}
-			metaKind := metadataKind(res.Metadata())
+			metaKind := metadataKind(res.Metadata)
 			sum := sha256.Sum256(data)
 			fmt.Printf("EVENT concluded kind=%s bytes=%d sha256=%s\n", metaKind, len(data), hex.EncodeToString(sum[:]))
 			switch metaKind {
@@ -279,7 +279,7 @@ func sendResourceAndCancel(link *rns.Link, kind string, payload []byte, timeout 
 	}
 	cancelDeadline := time.Now().Add(minDuration(timeout, 5*time.Second))
 	for time.Now().Before(cancelDeadline) {
-		if res.Status() >= rns.ResourceTransferring {
+		if res.Status >= rns.ResourceTransferring {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -291,16 +291,16 @@ func sendResourceAndCancel(link *rns.Link, kind string, payload []byte, timeout 
 			return "", fmt.Errorf("%s resource concluded nil", kind)
 		}
 		settleDeadline := time.Now().Add(minDuration(timeout, 2*time.Second))
-		for concluded.Status() == rns.ResourceAdvertised || concluded.Status() == rns.ResourceTransferring {
+		for concluded.Status == rns.ResourceAdvertised || concluded.Status == rns.ResourceTransferring {
 			if time.Now().After(settleDeadline) {
 				break
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
-		if concluded.Status() == rns.ResourceFailed {
+		if concluded.Status == rns.ResourceFailed {
 			return "canceled", nil
 		}
-		return "", fmt.Errorf("%s unexpected status=%d", kind, concluded.Status())
+		return "", fmt.Errorf("%s unexpected status=%d", kind, concluded.Status)
 	case <-time.After(timeout):
 		return "", fmt.Errorf("%s resource timeout", kind)
 	}
@@ -345,13 +345,13 @@ func sendResourceExpectFailure(link *rns.Link, kind string, payload []byte, time
 		if concluded == nil {
 			return "", fmt.Errorf("%s resource concluded nil", kind)
 		}
-		switch concluded.Status() {
+		switch concluded.Status {
 		case rns.ResourceRejected:
 			return "rejected", nil
 		case rns.ResourceFailed:
 			return "canceled", nil
 		default:
-			return "", fmt.Errorf("%s unexpected status=%d", kind, concluded.Status())
+			return "", fmt.Errorf("%s unexpected status=%d", kind, concluded.Status)
 		}
 	case <-time.After(timeout):
 		return "", fmt.Errorf("%s resource timeout", kind)
@@ -391,8 +391,8 @@ func sendResource(link *rns.Link, kind string, payload []byte, timeout time.Dura
 		if concluded == nil {
 			return fmt.Errorf("%s resource concluded nil", kind)
 		}
-		if concluded.Status() != rns.ResourceComplete {
-			return fmt.Errorf("%s resource status=%d", kind, concluded.Status())
+		if concluded.Status != rns.ResourceComplete {
+			return fmt.Errorf("%s resource status=%d", kind, concluded.Status)
 		}
 		sum := sha256.Sum256(payload)
 		fmt.Printf("EVENT sent kind=%s bytes=%d sha256=%s segments=%d parts=%d compressed=%v\n", kind, len(payload), hex.EncodeToString(sum[:]), concluded.GetSegments(), concluded.GetParts(), concluded.IsCompressed())

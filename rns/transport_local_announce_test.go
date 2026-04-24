@@ -791,6 +791,461 @@ func TestOutbound_LocalAnnounceDoesNotQueueTransportRetransmit(t *testing.T) {
 	}
 }
 
+func TestJobs_RebroadcastsQueuedLocalAnnounceAfterLocalClientDisconnect(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevPathTable := pathTable
+	prevAnnLast := AnnLast
+	prevLastTablesPersisted := lastTablesPersisted
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevBlackholeLastChecked := blackholeLastChecked
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevMgmtDestinations := mgmtDestinations
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+
+	transportEnabled = true
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	pathTable = make(map[hashKey]*PathEntry)
+	sink := &outboundCapture{}
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
+	external := &Interface{Name: "tcp-peer", Type: "TCPClientInterface", OUT: true}
+	attachOutboundCapture(t, sink, external)
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	LocalClientInterfaces = []*Interface{localClient}
+	Interfaces = []*Interface{shared, localClient, external}
+	Destinations = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		pathTable = prevPathTable
+		AnnLast = prevAnnLast
+		lastTablesPersisted = prevLastTablesPersisted
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		blackholeLastChecked = prevBlackholeLastChecked
+		InterfaceLastJobs = prevInterfaceLastJobs
+		mgmtDestinations = prevMgmtDestinations
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+	})
+
+	announceID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(announce): %v", err)
+	}
+	dst, err := NewDestination(announceID, DestinationIN, DestinationSINGLE, "test", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+	announce := dst.Announce([]byte("payload"), false, nil, nil, false)
+	if announce == nil {
+		t.Fatal("Announce returned nil")
+	}
+	if err := announce.Pack(); err != nil {
+		t.Fatalf("Pack(): %v", err)
+	}
+	Destinations = nil
+	announce.ReceivingInterface = localClient
+	announce.Hops = 0
+
+	Inbound(append([]byte(nil), announce.Raw...), localClient)
+
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(announce.DestinationHash)
+	if !ok {
+		t.Fatal("announce destination hash invalid")
+	}
+	if announceTable[key] == nil {
+		t.Fatal("expected local announce to be queued")
+	}
+
+	localClient.Teardown()
+
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
+
+	Jobs()
+
+	if len(sink.packets) != 1 {
+		t.Fatalf("outgoing packets=%d, want 1 after local-client disconnect", len(sink.packets))
+	}
+}
+
+func TestJobs_RebroadcastsLocalAnnounceWhileExternalAnnounceRemainsQueued(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevPathTable := pathTable
+	prevAnnLast := AnnLast
+	prevLastTablesPersisted := lastTablesPersisted
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevBlackholeLastChecked := blackholeLastChecked
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevMgmtDestinations := mgmtDestinations
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+
+	transportEnabled = true
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	pathTable = make(map[hashKey]*PathEntry)
+	sink := &outboundCapture{}
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", LocalIsSharedInstance: true}
+	localClient := &Interface{Name: "local-client", Type: "LocalInterface", Parent: shared}
+	external := &Interface{Name: "pipe-peer", Type: "PipeInterface", OUT: true}
+	attachOutboundCapture(t, sink, external)
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	LocalClientInterfaces = []*Interface{localClient}
+	Interfaces = []*Interface{shared, localClient, external}
+	Destinations = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		pathTable = prevPathTable
+		AnnLast = prevAnnLast
+		lastTablesPersisted = prevLastTablesPersisted
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		blackholeLastChecked = prevBlackholeLastChecked
+		InterfaceLastJobs = prevInterfaceLastJobs
+		mgmtDestinations = prevMgmtDestinations
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+	})
+
+	remoteID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(remote): %v", err)
+	}
+	remoteDst, err := NewDestination(remoteID, DestinationIN, DestinationSINGLE, "test", "remote")
+	if err != nil {
+		t.Fatalf("NewDestination(remote): %v", err)
+	}
+	remoteAnnounce := remoteDst.Announce([]byte("remote"), false, nil, nil, false)
+	if remoteAnnounce == nil {
+		t.Fatal("remote announce returned nil")
+	}
+	if err := remoteAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(remote): %v", err)
+	}
+	remoteAnnounce.ReceivingInterface = external
+	remoteAnnounce.Hops = 1
+	Destinations = nil
+
+	Inbound(append([]byte(nil), remoteAnnounce.Raw...), external)
+
+	remoteKey, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(remoteAnnounce.DestinationHash)
+	if !ok {
+		t.Fatal("remote announce destination hash invalid")
+	}
+	if entry := announceTable[remoteKey]; entry == nil {
+		t.Fatal("expected remote announce to be queued")
+	} else {
+		entry.Next = time.Now().Add(5 * time.Second)
+		announceTable[remoteKey] = entry
+	}
+
+	localID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(local): %v", err)
+	}
+	localDst, err := NewDestination(localID, DestinationIN, DestinationSINGLE, "test", "local")
+	if err != nil {
+		t.Fatalf("NewDestination(local): %v", err)
+	}
+	localAnnounce := localDst.Announce([]byte("local"), false, nil, nil, false)
+	if localAnnounce == nil {
+		t.Fatal("local announce returned nil")
+	}
+	if err := localAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(local): %v", err)
+	}
+	Destinations = nil
+	localAnnounce.ReceivingInterface = localClient
+	localAnnounce.Hops = 0
+
+	Inbound(append([]byte(nil), localAnnounce.Raw...), localClient)
+
+	// Mirror the duplicate local announce seen in the failing pipe runner.
+	Inbound(append([]byte(nil), localAnnounce.Raw...), localClient)
+
+	localKey, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(localAnnounce.DestinationHash)
+	if !ok {
+		t.Fatal("local announce destination hash invalid")
+	}
+	if entry := announceTable[localKey]; entry == nil {
+		t.Fatal("expected local announce to remain queued alongside remote announce")
+	}
+
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
+	Jobs()
+
+	if len(sink.packets) != 1 {
+		t.Fatalf("outgoing packets after local announce=%d, want 1", len(sink.packets))
+	}
+	if !bytes.Equal(sink.packets[0].DestinationHash, localAnnounce.DestinationHash) {
+		t.Fatalf("outgoing announce=%x, want local %x", sink.packets[0].DestinationHash, localAnnounce.DestinationHash)
+	}
+}
+
+func TestHandleInboundAnnounce_SharedClientOutboundRawStillQueuesLocalRebroadcast(t *testing.T) {
+	resetKnownDestinationsForTest()
+
+	prevOwner := Owner
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevAnnounceTable := announceTable
+	prevHeldAnnounces := heldAnnounces
+	prevPathTable := pathTable
+	prevAnnLast := AnnLast
+	prevLastTablesPersisted := lastTablesPersisted
+	prevTablesLastCulled := TablesLastCulled
+	prevLastCacheCleaned := LastCacheCleaned
+	prevBlackholeLastChecked := blackholeLastChecked
+	prevInterfaceLastJobs := InterfaceLastJobs
+	prevMgmtDestinations := mgmtDestinations
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		announceTable = prevAnnounceTable
+		heldAnnounces = prevHeldAnnounces
+		pathTable = prevPathTable
+		AnnLast = prevAnnLast
+		lastTablesPersisted = prevLastTablesPersisted
+		TablesLastCulled = prevTablesLastCulled
+		LastCacheCleaned = prevLastCacheCleaned
+		blackholeLastChecked = prevBlackholeLastChecked
+		InterfaceLastJobs = prevInterfaceLastJobs
+		mgmtDestinations = prevMgmtDestinations
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+	})
+
+	clientTransportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(client transport): %v", err)
+	}
+	clientIfc := &Interface{
+		Name:                "shared-client",
+		Type:                "LocalInterface",
+		IN:                  true,
+		OUT:                 true,
+		LocalIsSharedClient: true,
+	}
+	clientSink := &outboundCapture{}
+	attachOutboundCapture(t, clientSink, clientIfc)
+
+	Owner = &Reticulum{IsConnectedToSharedInstance: true, SharedInstanceInterface: clientIfc}
+	transportEnabled = false
+	TransportIdentity = clientTransportID
+	Interfaces = []*Interface{clientIfc}
+	LocalClientInterfaces = nil
+	Destinations = nil
+
+	localID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(local): %v", err)
+	}
+	localDst, err := NewDestination(localID, DestinationIN, DestinationSINGLE, "test", "client", "announce")
+	if err != nil {
+		t.Fatalf("NewDestination(local): %v", err)
+	}
+	Destinations = nil
+	if pkt := localDst.Announce([]byte("payload"), false, nil, nil, true); pkt != nil {
+		t.Fatal("send=true announce should not return a packet")
+	}
+	if len(clientSink.packets) != 1 {
+		t.Fatalf("shared client outbound packets=%d, want 1", len(clientSink.packets))
+	}
+	rawFromClient := append([]byte(nil), clientSink.packets[0].Raw...)
+	clientPacket := clientSink.packets[0]
+
+	serverTransportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(server transport): %v", err)
+	}
+	shared := &Interface{Name: "Shared Instance[test]", Type: "LocalInterface", OUT: true, LocalIsSharedInstance: true}
+	serverLocalClient := &Interface{Name: "local-client", Type: "LocalInterface", OUT: true, Parent: shared}
+	external := &Interface{Name: "pipe-peer", Type: "PipeInterface", OUT: true}
+	serverSink := &outboundCapture{}
+	attachOutboundCapture(t, serverSink, shared)
+	attachOutboundCapture(t, serverSink, serverLocalClient)
+	attachOutboundCapture(t, serverSink, external)
+
+	Owner = &Reticulum{SharedInstanceInterface: shared}
+	transportEnabled = true
+	TransportIdentity = serverTransportID
+	announceTable = make(map[hashKey]*announceEntry)
+	heldAnnounces = make(map[hashKey]*heldAnnounce)
+	pathTable = make(map[hashKey]*PathEntry)
+	Interfaces = []*Interface{shared, serverLocalClient, external}
+	LocalClientInterfaces = []*Interface{serverLocalClient}
+	Destinations = nil
+
+	remoteID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(remote): %v", err)
+	}
+	remoteDst, err := NewDestination(remoteID, DestinationIN, DestinationSINGLE, "test", "remote")
+	if err != nil {
+		t.Fatalf("NewDestination(remote): %v", err)
+	}
+	remoteAnnounce := remoteDst.Announce([]byte("remote"), false, nil, nil, false)
+	if remoteAnnounce == nil {
+		t.Fatal("remote announce returned nil")
+	}
+	if err := remoteAnnounce.Pack(); err != nil {
+		t.Fatalf("Pack(remote): %v", err)
+	}
+	Destinations = nil
+	remoteAnnounce.ReceivingInterface = external
+	remoteAnnounce.Hops = 1
+	Inbound(append([]byte(nil), remoteAnnounce.Raw...), external)
+
+	Inbound(rawFromClient, serverLocalClient)
+
+	localKey, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(localDst.Hash)
+	if !ok {
+		t.Fatal("local destination hash invalid")
+	}
+	localEntry := announceTable[localKey]
+	queuedLocal := localEntry != nil
+
+	AnnLast = time.Now().Add(-2 * time.Second)
+	lastTablesPersisted = time.Now()
+	TablesLastCulled = time.Now()
+	LastCacheCleaned = time.Now()
+	blackholeLastChecked = time.Now()
+	InterfaceLastJobs = time.Now()
+	mgmtDestinations = nil
+	Jobs()
+
+	sawLocalOnExternal := false
+	ifNames := make([]string, 0, len(serverSink.ifaces))
+	ifPairs := make([]string, 0, len(serverSink.ifaces))
+	for idx, ifc := range serverSink.ifaces {
+		name := "<nil>"
+		if ifc != nil {
+			name = ifc.Name
+		}
+		ifNames = append(ifNames, name)
+		if idx < len(serverSink.packets) {
+			ifPairs = append(ifPairs, name+":"+PrettyHexRep(serverSink.packets[idx].DestinationHash))
+		}
+		if ifc != external || idx >= len(serverSink.packets) {
+			continue
+		}
+		if bytes.Equal(serverSink.packets[idx].DestinationHash, localDst.Hash) {
+			sawLocalOnExternal = true
+		}
+	}
+	if !sawLocalOnExternal {
+		localRetries := -1
+		localNextIn := time.Duration(0)
+		if localEntry != nil {
+			localRetries = localEntry.Retries
+			localNextIn = time.Until(localEntry.Next)
+		}
+		t.Fatalf(
+			"missing local announce on external iface: sent_via=%v sent_pairs=%v client packet header=%d hops=%d transport_id=%x context=%d queued_local=%t local_retries=%d local_next_in=%s announce_table=%d",
+			ifNames,
+			ifPairs,
+			clientPacket.HeaderType,
+			clientPacket.Hops,
+			clientPacket.TransportID,
+			clientPacket.Context,
+			queuedLocal,
+			localRetries,
+			localNextIn,
+			len(announceTable),
+		)
+	}
+}
+
 func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnored(t *testing.T) {
 	resetKnownDestinationsForTest()
 

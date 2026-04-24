@@ -166,6 +166,7 @@ type Link struct {
 	token      *Cryptography.Token
 
 	mu             sync.Mutex
+	watchdogLock   bool
 	watchdogOnce   sync.Once
 	watchdogStop   chan struct{}
 	remoteIdentity *Identity
@@ -243,9 +244,6 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	l.watchdogStop = make(chan struct{})
 	if l.Initiator {
 		mtu := MTU
-		if phyParamsSnapshot.PhysicalLayerMTU > 0 {
-			mtu = phyParamsSnapshot.PhysicalLayerMTU
-		}
 		if desc, ok := linkModeDescriptions[l.Mode]; ok {
 			Logf(LOG_DEBUG, "Establishing link with mode %s", desc)
 		}
@@ -278,12 +276,6 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		payload = append(payload, signalling...)
 		l.requestData = payload
 
-		// Python parity: register the outgoing link before sending LINKREQUEST so
-		// an early LRPROOF can be resolved back to this pending initiator link.
-		registerLink(l)
-		l.requestTime = time.Now()
-		l.startWatchdog()
-
 		packet := NewPacket(
 			destination,
 			payload,
@@ -303,14 +295,16 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 			return nil, err
 		}
 
-		l.setLinkID(packet)
-		l.packet = packet
 		l.EstablishmentCost += len(packet.Raw)
+		l.setLinkID(packet)
+		// Python parity: register the outgoing link after set_link_id() and before
+		// the request is sent, so the pending entry mirrors Link.__init__ exactly.
+		registerLink(l)
+		l.requestTime = time.Now()
+		l.startWatchdog()
+		l.packet = packet
 
 		receipt := packet.Send()
-		if l.estTimeout <= 0 {
-			l.estTimeout = linkDefaultPerHop + linkKeepaliveMax
-		}
 		now := time.Now()
 		l.mu.Lock()
 		l.lastOutbound = now
@@ -322,8 +316,6 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 			return nil, errors.New("link request send failed")
 		}
 		l.hadOutbound(false)
-	} else {
-		registerLink(l)
 	}
 	return l, nil
 }
@@ -720,11 +712,11 @@ func (l *Link) requestResourceConcluded(res *Resource) {
 	if res == nil {
 		return
 	}
-	if res.Status() != ResourceComplete {
-		Log(fmt.Sprintf("Incoming request resource failed with status: %x", []byte{byte(res.Status())}), LOG_DEBUG)
+	if res.Status != ResourceComplete {
+		Log(fmt.Sprintf("Incoming request resource failed with status: %x", []byte{byte(res.Status)}), LOG_DEBUG)
 		return
 	}
-	data, err := os.ReadFile(res.DataFile())
+	data, err := os.ReadFile(res.DataFile)
 	if err != nil {
 		Log(fmt.Sprintf("Could not read completed request resource: %v", err), LOG_ERROR)
 		return
@@ -751,8 +743,8 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		}
 	}
 	l.mu.Unlock()
-	if res.Status() != ResourceComplete {
-		Log(fmt.Sprintf("Incoming response resource failed with status: %x", []byte{byte(res.Status())}), LOG_DEBUG)
+	if res.Status != ResourceComplete {
+		Log(fmt.Sprintf("Incoming response resource failed with status: %x", []byte{byte(res.Status)}), LOG_DEBUG)
 		if pending != nil {
 			pending.requestTimedOut()
 		}
@@ -762,10 +754,10 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		return
 	}
 	if res.hasMetadata {
-		pending.responseReceived(res, res.Metadata(), res.TotalSize(), res.size)
+		pending.responseReceived(res, res.Metadata, res.GetDataSize(), res.size)
 		return
 	}
-	data, err := os.ReadFile(res.DataFile())
+	data, err := os.ReadFile(res.DataFile)
 	if err != nil {
 		Log(fmt.Sprintf("Could not read response resource data: %v", err), LOG_ERROR)
 		pending.requestTimedOut()
@@ -778,7 +770,7 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		return
 	}
 	response := unpacked[1]
-	pending.responseReceived(response, nil, res.TotalSize(), res.size)
+	pending.responseReceived(response, nil, res.GetDataSize(), res.size)
 }
 
 func (l *Link) responseResourceProgress(res *Resource) {
@@ -830,9 +822,6 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	if len(data) == linkEcPubSize+linkSignalSize {
 		Log("Link request includes MTU signalling", LOG_DEBUG)
 		mtu := MTU
-		if phyParamsSnapshot.PhysicalLayerMTU > 0 {
-			mtu = phyParamsSnapshot.PhysicalLayerMTU
-		}
 		if mtus, ok := linkMTUFromLRPacket(packet); ok {
 			mtu = mtus
 		}
@@ -848,6 +837,7 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	if packet != nil {
 		link.attachedInterface = packet.ReceivingInterface
 		link.destination = packet.Destination
+		link.EstablishmentCost += len(packet.Raw)
 	}
 
 	// Python: establishment_timeout = PER_HOP*max(1, packet.hops) + KEEPALIVE
@@ -864,9 +854,6 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	if err := link.Handshake(); err != nil {
 		Log(fmt.Sprintf("Handshake failed: %v", err), LOG_ERROR)
 		return nil
-	}
-	if packet != nil {
-		link.EstablishmentCost += len(packet.Raw)
 	}
 	link.prove()
 	link.requestTime = time.Now()
@@ -903,6 +890,14 @@ func (l *Link) Receive(packet *Packet) {
 	if packet == nil {
 		return
 	}
+	l.mu.Lock()
+	l.watchdogLock = true
+	l.mu.Unlock()
+	defer func() {
+		l.mu.Lock()
+		l.watchdogLock = false
+		l.mu.Unlock()
+	}()
 	if l.Status == LinkClosed {
 		return
 	}
@@ -1135,7 +1130,7 @@ func (l *Link) Receive(packet *Packet) {
 		packet.Plaintext = plaintext
 		packet.Link = l
 
-		adv, err := ResourceAdvertisementUnpack(plaintext)
+		adv, err := (ResourceAdvertisement{}).Unpack(plaintext)
 		if err != nil {
 			Log(fmt.Sprintf("Could not unpack resource advertisement: %v", err), LOG_DEBUG)
 			return
@@ -1149,15 +1144,12 @@ func (l *Link) Receive(packet *Packet) {
 
 		switch {
 		case adv.IsRequest():
-			_, err := ResourceAccept(
+			(&Resource{}).accept(
 				packet,
 				l.requestResourceConcluded,
 				nil,
 				adv.Q,
 			)
-			if err != nil {
-				Log(fmt.Sprintf("Could not accept request resource: %v", err), LOG_DEBUG)
-			}
 		case adv.IsResponse():
 			l.mu.Lock()
 			var pending *RequestReceipt
@@ -1169,18 +1161,17 @@ func (l *Link) Receive(packet *Packet) {
 			}
 			l.mu.Unlock()
 			if pending == nil {
-				ResourceReject(packet)
+				(&Resource{}).reject(packet)
 				return
 			}
 			pending.noteResponseAdvertisement(adv)
-			res, err := ResourceAccept(
+			res := (&Resource{}).accept(
 				packet,
 				l.responseResourceConcluded,
 				l.responseResourceProgress,
 				adv.Q,
 			)
-			if err != nil || res == nil {
-				Log(fmt.Sprintf("Could not accept response resource: %v", err), LOG_DEBUG)
+			if res == nil {
 				return
 			}
 			if res != nil {
@@ -1201,13 +1192,13 @@ func (l *Link) Receive(packet *Packet) {
 						}
 					}()
 					if l.callbacks.Resource(adv) {
-						_, _ = ResourceAccept(packet, l.callbacks.ResourceConcluded, nil, nil)
+						(&Resource{}).accept(packet, l.callbacks.ResourceConcluded, nil, nil)
 					} else {
-						ResourceReject(packet)
+						(&Resource{}).reject(packet)
 					}
 				}()
 			case LinkAcceptAll:
-				ResourceAccept(packet, l.callbacks.ResourceConcluded, nil, nil)
+				(&Resource{}).accept(packet, l.callbacks.ResourceConcluded, nil, nil)
 			}
 		}
 	case PacketCtxResourceReq:
@@ -1483,7 +1474,7 @@ func (l *Link) prove() {
 		HeaderType1,
 		nil,
 		nil,
-		false,
+		true,
 		FlagUnset,
 	)
 	if proof == nil {
@@ -1623,7 +1614,7 @@ func (l *Link) validateProof(packet *Packet) {
 
 	l.updateKeepalive()
 	if rttData, err := umsgpack.Packb(l.RTT.Seconds()); err == nil {
-		rttPacket := NewPacket(l, rttData, PacketTypeData, PacketCtxLRRTT, Broadcast, HeaderType1, nil, nil, false, FlagUnset)
+		rttPacket := NewPacket(l, rttData, PacketTypeData, PacketCtxLRRTT, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
 		if rttPacket != nil {
 			_ = rttPacket.Send()
 			l.hadOutbound(false)
@@ -1878,6 +1869,18 @@ func (l *Link) startWatchdog() {
 					l.mu.Unlock()
 					return
 				}
+				locked := l.watchdogLock
+				rtt := l.RTT
+				l.mu.Unlock()
+
+				if locked {
+					sleepFor := 25 * time.Millisecond
+					if rtt > 0 && rtt > sleepFor {
+						sleepFor = rtt
+					}
+					time.Sleep(sleepFor)
+					continue
+				}
 
 				sleepTime := 1 * time.Millisecond
 
@@ -1892,7 +1895,6 @@ func (l *Link) startWatchdog() {
 						l.Status = LinkClosed
 						l.TeardownReason = LinkTimeout
 						initiator := l.Initiator
-						l.mu.Unlock()
 						l.linkClosed()
 						if initiator {
 							Log("Timeout waiting for link request proof", LOG_DEBUG)
@@ -1947,7 +1949,6 @@ func (l *Link) startWatchdog() {
 						sleepTime = lastInbound.Add(l.Keepalive).Sub(now)
 					}
 				} else if l.Status == LinkStale {
-					l.mu.Unlock()
 					l.teardown(LinkTimeout)
 					time.Sleep(time.Millisecond)
 					continue
@@ -1958,21 +1959,21 @@ func (l *Link) startWatchdog() {
 				}
 				if sleepTime < 0 {
 					Log(fmt.Sprintf("Timing error! Tearing down link %s now.", l), LOG_ERROR)
-					l.mu.Unlock()
 					l.Teardown()
 					sleepTime = 100 * time.Millisecond
 					time.Sleep(sleepTime)
 					if !l.trackPhyStats {
+						l.mu.Lock()
 						l.rssi = nil
 						l.snr = nil
 						l.q = nil
+						l.mu.Unlock()
 					}
 					continue
 				}
 				if sleepTime > linkWatchdogMaxSleep {
 					sleepTime = linkWatchdogMaxSleep
 				}
-				l.mu.Unlock()
 				time.Sleep(sleepTime)
 				if !l.trackPhyStats {
 					l.mu.Lock()
@@ -2067,7 +2068,7 @@ func (l *Link) linkClosed() {
 	l.incomingResources = nil
 	l.outgoingResources = nil
 	cb := l.callbacks.LinkClosed
-	owner := l.owner
+	destination := l.destination
 	l.mu.Unlock()
 
 	for _, resource := range incomingResources {
@@ -2081,6 +2082,17 @@ func (l *Link) linkClosed() {
 		}
 	}
 
+	if destination != nil && destination.Direction == DestinationIN {
+		destination.linksMu.Lock()
+		for i, existing := range destination.links {
+			if existing == l {
+				destination.links = append(destination.links[:i], destination.links[i+1:]...)
+				break
+			}
+		}
+		destination.linksMu.Unlock()
+	}
+
 	if cb != nil {
 		go func() {
 			defer func() {
@@ -2090,16 +2102,6 @@ func (l *Link) linkClosed() {
 			}()
 			cb(l)
 		}()
-	}
-	if owner != nil {
-		owner.linksMu.Lock()
-		for i, existing := range owner.links {
-			if existing == l {
-				owner.links = append(owner.links[:i], owner.links[i+1:]...)
-				break
-			}
-		}
-		owner.linksMu.Unlock()
 	}
 }
 
@@ -2268,9 +2270,6 @@ func linkSignallingBytes(mtu int, mode int) ([]byte, error) {
 	}
 	if mtu <= 0 {
 		mtu = MTU
-		if phyParamsSnapshot.PhysicalLayerMTU > 0 {
-			mtu = phyParamsSnapshot.PhysicalLayerMTU
-		}
 	}
 	signallingValue := (mtu & linkMTUMask) | (((mode << 5) & linkModeMask) << 16)
 	return []byte{

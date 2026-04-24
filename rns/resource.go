@@ -82,7 +82,9 @@ type Resource struct {
 	size             int
 	totalSize        int
 	uncompressedSize int
+	compressedSize   int
 	hash             []byte
+	truncatedHash    []byte
 	originalHash     []byte
 	randomHash       []byte
 	hashmapRaw       []byte
@@ -90,6 +92,8 @@ type Resource struct {
 	hashmapHeight    int
 	expectedProof    []byte
 	encr, comp       bool
+	encrypted        bool
+	compressed       bool
 	initiator        bool
 	hasMetadata      bool
 	split            bool
@@ -97,8 +101,12 @@ type Resource struct {
 	totalSegments    int
 	requestID        []byte
 	isResponse       bool
+	reqHashlist      [][]byte
+	data             []byte
+	uncompressedData []byte
+	compressedData   []byte
 
-	link *Link
+	Link *Link
 	// Python parity: HASHMAP_MAX_LEN/COLLISION_GUARD_SIZE are global and based
 	// on Link.MDU, not per-link negotiated MDU.
 	hashmapMaxLen     int
@@ -107,22 +115,21 @@ type Resource struct {
 	// SDU and parts
 	sdu                   int
 	totalParts            int
-	parts                 [][]byte // payload only, without headers
-	outgoingParts         []*resourcePart
+	parts                 []any
 	outgoingPartByMapHash map[string]*Packet
 	sentParts             int
 	receivedCount         int
 	outstanding           int
 
 	// window
-	window            int
-	windowMax         int
-	windowMin         int
-	windowFlexibility int
-	waitingForHMU     bool
-	receivingPart     bool
-	consecutiveHeight int
-	receiverMinHeight int
+	window                       int
+	windowMax                    int
+	windowMin                    int
+	windowFlexibility            int
+	waitingForHMU                bool
+	receivingPart                bool
+	consecutiveHeight            int
+	receiverMinConsecutiveHeight int
 
 	// timing/RTT
 	timeout             float64
@@ -158,24 +165,25 @@ type Resource struct {
 	autoCompressOption any
 
 	// files/paths
-	storagePath     string
+	DataFile        string
 	metaStoragePath string
 	inputFile       *os.File
 	tempInputPath   string
 
 	metadata     []byte
 	metadataSize int
-	metadataObj  any
+	Metadata     any
 	dataFile     *os.File
 
-	status byte
+	Status byte
 
 	callback         func(*Resource)
 	progressCallback func(*Resource)
 
-	advPacket       *Packet
-	advSent         time.Time
-	lastRequestData []byte
+	advPacket          *Packet
+	advSent            time.Time
+	processedParts     float64
+	progressTotalParts float64
 
 	// helper fields
 	assemblyLock  bool
@@ -209,67 +217,6 @@ type ResourceAdvertisement struct {
 	X bool // has metadata
 }
 
-// helpers mirroring Python ResourceAdvertisement static methods
-
-func unpackResourceAdvertisement(packet *Packet) *ResourceAdvertisement {
-	if packet == nil {
-		return nil
-	}
-	data := packet.Plaintext
-	if len(data) == 0 {
-		data = packet.Data
-		if len(data) == 0 {
-			return nil
-		}
-	}
-	adv, err := ResourceAdvertisementUnpack(data)
-	if err != nil {
-		return nil
-	}
-	if adv.Link == nil {
-		adv.Link = packet.Link
-	}
-	return adv
-}
-
-func ResourceAdvertisementIsRequest(packet *Packet) bool {
-	adv := unpackResourceAdvertisement(packet)
-	if adv == nil {
-		return false
-	}
-	return adv.IsRequest()
-}
-
-func ResourceAdvertisementIsResponse(packet *Packet) bool {
-	adv := unpackResourceAdvertisement(packet)
-	if adv == nil {
-		return false
-	}
-	return adv.IsResponse()
-}
-
-func ResourceAdvertisementReadRequestID(packet *Packet) []byte {
-	adv := unpackResourceAdvertisement(packet)
-	if adv == nil {
-		return nil
-	}
-	return adv.RequestID()
-}
-
-func ResourceAdvertisementReadTransferSize(packet *Packet) int {
-	if adv := unpackResourceAdvertisement(packet); adv != nil {
-		return adv.TransferSize()
-	}
-	return 0
-}
-
-func ResourceAdvertisementReadDataSize(packet *Packet) int {
-	if adv := unpackResourceAdvertisement(packet); adv != nil {
-		return adv.DataSize()
-	}
-	return 0
-}
-
 const (
 	AdvOverhead = 134
 )
@@ -278,54 +225,27 @@ var (
 	// HASHMAP_MAX_LEN depends on MTU. In Python: floor((Link.MDU-OVERHEAD)/MAPHASH_LEN)
 	// In Go this can be computed dynamically from link.MDU during pack(), but we keep it
 	// global for now (works fine when MDU is fixed).
-	HashmapMaxLen = resourceHashmapCapacity(LinkMDU)
+	HashmapMaxLen = int(math.Floor(float64(LinkMDU-AdvOverhead) / float64(MapHashLen)))
 
 	CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
 )
 
-func resourceHashmapCapacity(linkMDU int) int {
-	usable := linkMDU - AdvOverhead
-	if usable <= 0 {
-		return 0
-	}
-	return int(math.Floor(float64(usable) / float64(MapHashLen)))
-}
-
-func setResourceSizing(hashLen int) {
-	HashmapMaxLen = hashLen
-	CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
-}
-
-type resourcePart struct {
-	packet  *Packet
-	mapHash []byte
-}
-
-func init() {
-	if HashmapMaxLen <= 0 {
-		// Avoid panicking on import; align with Python behaviour where this would
-		// just make resources unusable until configuration is fixed.
-		Log("Configured MTU is too small to include any map hashes in resource advertisements; forcing HashmapMaxLen=1", LogError)
-		HashmapMaxLen = 1
-		CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
-	}
-}
-
 // ---------------- static operations ----------------
 
-// ResourceReject mirrors Resource.reject().
-func ResourceReject(advPkt *Packet) {
+// reject mirrors Resource.reject().
+func (r *Resource) reject(advPkt *Packet) {
 	defer func() {
 		if r := recover(); r != nil {
-			Log(fmt.Sprintf("panic in ResourceReject: %v", r), LOG_ERROR)
+			Log(fmt.Sprintf("An error ocurred while rejecting advertised resource: %v", r), LOG_ERROR)
+			TraceException(r)
 		}
 	}()
-	adv, err := ResourceAdvertisementUnpack(advPkt.Plaintext)
+	adv, err := (ResourceAdvertisement{}).Unpack(advPkt.Plaintext)
 	if err != nil {
-		Log(fmt.Sprintf("Error rejecting resource: %v", err), LOG_ERROR)
+		Log(fmt.Sprintf("An error ocurred while rejecting advertised resource: %v", err), LOG_ERROR)
+		TraceException(err)
 		return
 	}
-	adv.Link = advPkt.Link
 	resHash := adv.H
 	reject := NewPacket(
 		advPkt.Link,
@@ -342,56 +262,64 @@ func ResourceReject(advPkt *Packet) {
 	_ = reject.Send()
 }
 
-// ResourceAccept mirrors Resource.accept().
-func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), reqID []byte) (*Resource, error) {
-	adv, err := ResourceAdvertisementUnpack(advPkt.Plaintext)
+// accept mirrors Resource.accept().
+func (r *Resource) accept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), reqID []byte) (res *Resource) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			Log("Could not decode resource advertisement, dropping resource", LOG_DEBUG)
+			res = nil
+		}
+	}()
+	adv, err := (ResourceAdvertisement{}).Unpack(advPkt.Plaintext)
 	if err != nil {
 		Log("Could not decode resource advertisement, dropping resource", LOG_DEBUG)
-		return nil, err
-	}
-	adv.Link = advPkt.Link
-
-	res := &Resource{
-		flags:             adv.F,
-		size:              adv.T,
-		totalSize:         adv.D,
-		uncompressedSize:  adv.D,
-		hash:              adv.H,
-		originalHash:      adv.O,
-		randomHash:        adv.R,
-		hashmapRaw:        adv.M,
-		encr:              (adv.F & 0x01) != 0,
-		comp:              ((adv.F >> 1) & 0x01) != 0,
-		initiator:         false,
-		callback:          cb,
-		progressCallback:  progCb,
-		link:              advPkt.Link,
-		segmentIndex:      adv.I,
-		totalSegments:     adv.L,
-		requestID:         reqID,
-		status:            ResourceTransferring,
-		window:            ResourceWindow,
-		windowMax:         ResourceWindowMaxSlow,
-		windowMin:         ResourceWindowMin,
-		windowFlexibility: ResourceWindowFlexibility,
-		consecutiveHeight: -1,
+		return nil
 	}
 
-	res.totalParts = int(math.Ceil(float64(res.size) / float64(res.sduValue())))
-	res.sdu = res.sduValue()
+	res, err = NewResource(nil, nil, advPkt.Link, nil, false, true, nil, progCb, nil, 1, nil, reqID, false, 0)
+	if err != nil {
+		Log("Could not decode resource advertisement, dropping resource", LOG_DEBUG)
+		return nil
+	}
+	res.flags = adv.F
+	res.size = adv.T
+	res.totalSize = adv.D
+	res.uncompressedSize = adv.D
+	res.hash = adv.H
+	res.originalHash = adv.O
+	res.randomHash = adv.R
+	res.hashmapRaw = adv.M
+	res.encr = (adv.F & 0x01) != 0
+	res.comp = ((adv.F >> 1) & 0x01) != 0
+	res.encrypted = (adv.F & 0x01) != 0
+	res.compressed = ((adv.F >> 1) & 0x01) != 0
+	res.initiator = false
+	res.callback = cb
+	res.progressCallback = progCb
+	res.Link = advPkt.Link
+	res.segmentIndex = adv.I
+	res.totalSegments = adv.L
+	res.requestID = reqID
+	res.Status = ResourceTransferring
+	res.window = ResourceWindow
+	res.windowMax = ResourceWindowMaxSlow
+	res.windowMin = ResourceWindowMin
+	res.windowFlexibility = ResourceWindowFlexibility
+	res.consecutiveHeight = -1
+	res.totalParts = int(math.Ceil(float64(res.size) / float64(res.sdu)))
 	res.receivedCount = 0
 	res.outstanding = 0
-	res.parts = make([][]byte, res.totalParts)
+	res.parts = make([]any, res.totalParts)
 	res.lastActivity = time.Now()
 	res.startedTransferring = res.lastActivity
+	basePath := ""
 	if inst := GetInstance(); inst != nil && inst.ResourcePath != "" {
-		res.storagePath = filepath.Join(inst.ResourcePath, hex.EncodeToString(res.originalHash))
+		basePath = inst.ResourcePath
 	} else if Owner != nil && Owner.ResourcePath != "" {
-		res.storagePath = filepath.Join(Owner.ResourcePath, hex.EncodeToString(res.originalHash))
-	} else {
-		res.storagePath = filepath.Join(os.TempDir(), "rns_resources", hex.EncodeToString(res.originalHash))
+		basePath = Owner.ResourcePath
 	}
-	res.metaStoragePath = res.storagePath + ".meta"
+	res.DataFile = basePath + "/" + hex.EncodeToString(res.originalHash)
+	res.metaStoragePath = res.DataFile + ".meta"
 
 	// split / metadata
 	res.split = adv.L > 1
@@ -403,9 +331,6 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 	res.receivingPart = false
 
 	res.hashmapMaxLen = HashmapMaxLen
-	if res.hashmapMaxLen <= 0 {
-		return nil, fmt.Errorf("the configured MTU is too small to include any map hashes in resource advertisements")
-	}
 	res.collisionGuardLen = CollisionGuardSize
 
 	prevWin := advPkt.Link.GetLastResourceWindow()
@@ -418,13 +343,13 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 	}
 
 	if advPkt.Link.HasIncomingResource(res) {
-		Log("Ignoring resource advertisement, already transferring "+PrettyHex(res.hash), LOG_DEBUG)
-		return nil, nil
+		Log("Ignoring resource advertisement for "+PrettyHex(res.hash)+", resource already transferring", LOG_DEBUG)
+		return nil
 	}
 
 	advPkt.Link.RegisterIncomingResource(res)
 	Log(fmt.Sprintf(
-		"Accepting resource advertisement for %s. Transfer size %s in %d parts.",
+		"Accepting resource advertisement for %s. Transfer size is %s in %d parts.",
 		PrettyHex(res.hash), PrettySize(float64(res.size)), res.totalParts,
 	), LOG_DEBUG)
 
@@ -432,7 +357,7 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Log(fmt.Sprintf("Error in resource started callback: %v", r), LOG_ERROR)
+					Log(fmt.Sprintf("Error while executing resource started callback from %s. The contained exception was: %v", res, r), LOG_ERROR)
 				}
 			}()
 			advPkt.Link.callbacks.ResourceStarted(res)
@@ -441,7 +366,7 @@ func ResourceAccept(advPkt *Packet, cb func(*Resource), progCb func(*Resource), 
 
 	res.HashmapUpdate(0, res.hashmapRaw)
 	res.WatchdogJob()
-	return res, nil
+	return res
 }
 
 // ---------------- outgoing resource constructor ----------------
@@ -464,26 +389,27 @@ func NewResource(
 ) (*Resource, error) {
 
 	res := &Resource{
-		link:               link,
-		assemblyLock:       false,
-		preparingNext:      false,
-		nextSegment:        nil,
-		hasMetadata:        sentMetadataSize > 0,
-		metadataSize:       sentMetadataSize,
-		maxRetries:         MaxRetries,
-		maxAdvRetries:      MaxAdvRetries,
-		retriesLeft:        MaxRetries,
-		timeoutFactor:      link.TrafficTimeoutFactor,
-		partTimeoutFactor:  PartTimeoutFactor,
-		senderGraceTime:    SenderGraceTime,
-		hmuRetryOK:         false,
-		progressCallback:   progCb,
-		requestID:          requestID,
-		isResponse:         isResponse,
-		autoCompressLimit:  AutoCompressMaxSize,
-		autoCompressOption: autoCompress,
-		receiverMinHeight:  0,
-		consecutiveHeight:  -1,
+		Link:                         link,
+		assemblyLock:                 false,
+		preparingNext:                false,
+		nextSegment:                  nil,
+		hasMetadata:                  sentMetadataSize > 0,
+		metadataSize:                 sentMetadataSize,
+		maxRetries:                   MaxRetries,
+		maxAdvRetries:                MaxAdvRetries,
+		retriesLeft:                  MaxRetries,
+		timeoutFactor:                link.TrafficTimeoutFactor,
+		partTimeoutFactor:            PartTimeoutFactor,
+		senderGraceTime:              SenderGraceTime,
+		hmuRetryOK:                   false,
+		progressCallback:             progCb,
+		requestID:                    requestID,
+		isResponse:                   isResponse,
+		reqHashlist:                  make([][]byte, 0),
+		autoCompressLimit:            AutoCompressMaxSize,
+		autoCompressOption:           autoCompress,
+		receiverMinConsecutiveHeight: 0,
+		consecutiveHeight:            -1,
 	}
 
 	// Python parity: if data is large bytes, wrap in a temp file so we can segment.
@@ -509,7 +435,7 @@ func NewResource(
 
 	// metadata
 	if metadata != nil && sentMetadataSize == 0 {
-		packed, err := msgpackMarshal(metadata)
+		packed, err := umsgpack.Packb(metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -527,6 +453,8 @@ func NewResource(
 		res.hasMetadata = true
 	} else if sentMetadataSize > 0 {
 		res.hasMetadata = true
+	} else {
+		res.metadata = []byte{}
 	}
 
 	// compute total size and segmentation
@@ -623,17 +551,20 @@ func NewResource(
 		}
 	}
 
-	res.status = ResourceNone
-	res.sdu = res.sduValue()
+	res.Status = ResourceNone
+	if res.Link != nil && res.Link.MTU > 0 {
+		res.sdu = res.Link.MTU - HEADER_MAXSIZE - IFAC_MIN_SIZE
+	} else if res.Link != nil && res.Link.MDU > 0 {
+		res.sdu = res.Link.MDU
+	} else if PacketMDU > 0 {
+		res.sdu = PacketMDU
+	}
 	res.timeout = float64(link.RTT) * link.TrafficTimeoutFactor
 	if timeout != nil {
 		res.timeout = *timeout
 	}
 
 	res.hashmapMaxLen = HashmapMaxLen
-	if res.hashmapMaxLen <= 0 {
-		return nil, fmt.Errorf("the configured MTU is too small to include any map hashes in resource advertisements")
-	}
 	res.collisionGuardLen = CollisionGuardSize
 
 	if fullData != nil {
@@ -641,7 +572,8 @@ func NewResource(
 		res.callback = cb
 
 		// auto-compression
-		uncompressed := fullData
+		res.uncompressedData = append([]byte(nil), fullData...)
+		uncompressed := res.uncompressedData
 		res.uncompressedSize = len(uncompressed)
 
 		switch v := autoCompress.(type) {
@@ -670,17 +602,25 @@ func NewResource(
 				return nil, err
 			}
 			compressed := compressedBuf.Bytes()
+			res.compressedSize = len(compressed)
+			res.compressedData = append([]byte(nil), compressed...)
 			res.comp = len(compressed) < len(uncompressed)
+			res.compressed = res.comp
 			if res.comp {
-				toSend = compressed
+				toSend = res.compressedData
 				Log(fmt.Sprintf("Compression saved %d bytes, sending compressed",
 					len(uncompressed)-len(compressed)), LOG_EXTREME)
 			} else {
-				toSend = uncompressed
+				res.compressedData = append([]byte(nil), uncompressed...)
+				res.compressedSize = len(uncompressed)
+				toSend = res.compressedData
 				Log("Compression did not decrease size, sending uncompressed", LOG_EXTREME)
 			}
 		} else {
 			res.comp = false
+			res.compressed = false
+			res.compressedData = append([]byte(nil), uncompressed...)
+			res.compressedSize = len(uncompressed)
 			toSend = uncompressed
 		}
 
@@ -689,15 +629,6 @@ func NewResource(
 		// - a 4-byte prefix embedded in the encrypted stream (stripped by receiver)
 		// - a 4-byte random hash used for map hashes and resource hash validation
 		streamPrefix := IdentityGetRandomHash()[:RandomHashSize]
-		res.randomHash = IdentityGetRandomHash()[:RandomHashSize]
-
-		// Python parity: resource hash and expected proof are computed over the
-		// segment payload before optional compression, but after metadata has
-		// been prepended for the first segment.
-		hashInput := append(append([]byte(nil), fullData...), res.randomHash...)
-		res.hash = FullHash(hashInput)
-		proofInput := append(append([]byte(nil), fullData...), res.hash...)
-		res.expectedProof = FullHash(proofInput)
 
 		payload := append(streamPrefix, toSend...)
 
@@ -707,27 +638,91 @@ func NewResource(
 			return nil, err
 		}
 		res.encr = true
+		res.encrypted = true
 		res.size = len(enc)
-
-		if originalHash != nil {
-			res.originalHash = originalHash
-		} else {
-			res.originalHash = res.hash
-		}
+		res.data = append([]byte(nil), enc...)
 
 		// parts and hashmap
 		hashmapEntries := int(math.Ceil(float64(res.size) / float64(res.sdu)))
 		res.totalParts = hashmapEntries
-		for {
-			ok, err := res.buildHashmap(enc, hashmapEntries)
-			if err != nil {
-				return nil, err
+		hashmapOk := false
+		for !hashmapOk {
+			hashmapComputationBegan := time.Now()
+			Log(fmt.Sprintf("Starting resource hashmap computation with %d entries...", hashmapEntries), LOG_EXTREME)
+			res.randomHash = IdentityGetRandomHash()[:RandomHashSize]
+			hashInput := append(append([]byte(nil), fullData...), res.randomHash...)
+			res.hash = FullHash(hashInput)
+			res.truncatedHash = TruncatedHash(hashInput)
+			proofInput := append(append([]byte(nil), fullData...), res.hash...)
+			res.expectedProof = FullHash(proofInput)
+			if originalHash != nil {
+				res.originalHash = originalHash
+			} else {
+				res.originalHash = res.hash
 			}
-			if ok {
-				break
+
+			res.parts = make([]any, 0, hashmapEntries)
+			res.hashmap = make([][]byte, 0, hashmapEntries)
+			res.hashmapHeight = 0
+			res.outgoingPartByMapHash = make(map[string]*Packet, hashmapEntries)
+			collisionGuard := make([][]byte, 0)
+			hashmapOk = true
+
+			for i := 0; i < hashmapEntries; i++ {
+				start := i * res.sdu
+				end := start + res.sdu
+				if end > len(res.data) {
+					end = len(res.data)
+				}
+				chunk := res.data[start:end]
+				mapHash := res.getMapHash(chunk)
+
+				for _, h := range collisionGuard {
+					if bytes.Equal(h, mapHash) {
+						Log("Found hash collision in resource map, remapping...", LOG_DEBUG)
+						hashmapOk = false
+						break
+					}
+				}
+				if !hashmapOk {
+					break
+				}
+
+				collisionGuard = append(collisionGuard, mapHash)
+				if len(collisionGuard) > res.collisionGuardLen {
+					collisionGuard = collisionGuard[1:]
+				}
+
+				partPkt := NewPacket(
+					res.Link,
+					chunk,
+					PacketTypeData,
+					PacketCONTEXT_RESOURCE,
+					Broadcast,
+					HeaderType1,
+					nil,
+					nil,
+					true,
+					FlagUnset,
+				)
+				if partPkt == nil {
+					return nil, errors.New("failed to create resource part packet")
+				}
+				if err := partPkt.Pack(); err != nil {
+					return nil, err
+				}
+				partPkt.MapHash = mapHash
+
+				res.hashmap = append(res.hashmap, partPkt.MapHash)
+				res.parts = append(res.parts, partPkt)
+				res.outgoingPartByMapHash[string(mapHash)] = partPkt
 			}
-			// retry randomHash on collisions
+			Log(fmt.Sprintf("Hashmap computation concluded in %.3f seconds",
+				time.Since(hashmapComputationBegan).Seconds()), LOG_EXTREME)
 		}
+		res.data = nil
+		res.uncompressedData = nil
+		res.compressedData = nil
 
 		if advertise {
 			res.Advertise()
@@ -735,106 +730,6 @@ func NewResource(
 	}
 
 	return res, nil
-}
-
-// buildHashmap mirrors the collision_guard_list loop.
-func (r *Resource) buildHashmap(enc []byte, entries int) (bool, error) {
-	hashmapStart := time.Now()
-	if len(r.randomHash) == 0 {
-		r.randomHash = IdentityGetRandomHash()[:RandomHashSize]
-	}
-	r.hashmap = make([][]byte, 0, entries)
-	r.outgoingParts = make([]*resourcePart, 0, entries)
-	r.outgoingPartByMapHash = make(map[string]*Packet, entries)
-	var collisionGuard [][]byte
-	collisionGuardLen := r.collisionGuardLen
-	if collisionGuardLen <= 0 {
-		collisionGuardLen = CollisionGuardSize
-	}
-
-	ok := true
-	for i := 0; i < entries; i++ {
-		start := i * r.sdu
-		end := start + r.sdu
-		if end > len(enc) {
-			end = len(enc)
-		}
-		chunk := enc[start:end]
-		mapHash := r.getMapHash(chunk)
-
-		// collision check
-		for _, h := range collisionGuard {
-			if bytes.Equal(h, mapHash) {
-				Log("Found hash collision in resource map, remapping...", LOG_DEBUG)
-				ok = false
-				break
-			}
-		}
-		if !ok {
-			break
-		}
-		collisionGuard = append(collisionGuard, mapHash)
-		if len(collisionGuard) > collisionGuardLen {
-			collisionGuard = collisionGuard[1:]
-		}
-		partPkt := NewPacket(
-			r.link,
-			chunk,
-			PacketTypeData,
-			PacketCONTEXT_RESOURCE,
-			Broadcast,
-			HeaderType1,
-			nil,
-			nil,
-			true,
-			FlagUnset,
-		)
-		if partPkt == nil {
-			return false, errors.New("failed to create resource part packet")
-		}
-		partPkt.MapHash = mapHash
-		if err := partPkt.Pack(); err != nil {
-			return false, err
-		}
-
-		r.outgoingParts = append(r.outgoingParts, &resourcePart{
-			packet:  partPkt,
-			mapHash: mapHash,
-		})
-		r.hashmap = append(r.hashmap, mapHash)
-		r.outgoingPartByMapHash[string(mapHash)] = partPkt
-	}
-	r.hashmapHeight = len(r.hashmap)
-	Log(fmt.Sprintf("Hashmap computation concluded in %.3f seconds",
-		time.Since(hashmapStart).Seconds()), LOG_EXTREME)
-	return ok, nil
-}
-
-// sduValue computes SDU like in __init__.
-func (r *Resource) sduValue() int {
-	mtu := 0
-	if r.link != nil {
-		mtu = r.link.MTU
-	}
-	if mtu <= 0 {
-		mtu = MTU
-		if phyParamsSnapshot.PhysicalLayerMTU > 0 {
-			mtu = phyParamsSnapshot.PhysicalLayerMTU
-		}
-	}
-	if mtu > 0 {
-		sdu := mtu - HEADER_MAXSIZE - IFAC_MIN_SIZE
-		if sdu > 0 {
-			return sdu
-		}
-	}
-	if r.link != nil && r.link.MDU > 0 {
-		return r.link.MDU
-	}
-	if PacketMDU > 0 {
-		return PacketMDU
-	}
-	return 1
 }
 
 func (r *Resource) getMapHash(data []byte) []byte {
@@ -848,24 +743,24 @@ func (r *Resource) getMapHash(data []byte) []byte {
 // ---------------- Hashmap update ----------------
 
 func (r *Resource) HashmapUpdatePacket(plaintext []byte) {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
 	r.lastActivity = time.Now()
 	r.retriesLeft = r.maxRetries
 
 	off := sha256Bits / 8
-	if len(plaintext) <= off {
-		return
+	payload := plaintext
+	if off > len(payload) {
+		payload = payload[:0]
+	} else {
+		payload = payload[off:]
 	}
-	update, err := msgpackUnmarshal(plaintext[off:])
-	if err != nil {
-		return
+	var update []any
+	if err := umsgpack.Unpackb(payload, &update); err != nil {
+		panic(err)
 	}
-	if len(update) < 2 {
-		return
-	}
-	seg := 0
+	var seg int
 	switch v := update[0].(type) {
 	case int:
 		seg = v
@@ -892,31 +787,27 @@ func (r *Resource) HashmapUpdatePacket(plaintext []byte) {
 	case float64:
 		seg = int(v)
 	default:
-		return
+		panic(fmt.Sprintf("unexpected hashmap update segment type %T", update[0]))
 	}
 	switch hm := update[1].(type) {
 	case []byte:
 		r.HashmapUpdate(seg, hm)
 	case string:
 		r.HashmapUpdate(seg, []byte(hm))
+	default:
+		panic(fmt.Sprintf("unexpected hashmap update payload type %T", update[1]))
 	}
 }
 
 func (r *Resource) HashmapUpdate(segment int, hashmap []byte) {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
-	r.status = ResourceTransferring
+	r.Status = ResourceTransferring
 	segLen := r.hashmapMaxLen
-	if segLen <= 0 {
-		segLen = HashmapMaxLen
-	}
 	hashes := len(hashmap) / MapHashLen
 	for i := 0; i < hashes; i++ {
 		idx := i + segment*segLen
-		if idx < 0 || idx >= len(r.hashmap) {
-			break
-		}
 		if r.hashmap[idx] == nil {
 			r.hashmapHeight++
 		}
@@ -935,46 +826,58 @@ func (r *Resource) Advertise() {
 	}
 }
 
-func (r *Resource) resendAdvertisement() {
-	adv := NewResourceAdvertisementFromResource(r)
-	pkt := NewPacket(
-		r.link,
-		adv.Pack(0),
-		PacketANNOUNCE,
-		PacketCONTEXT_RESOURCE_ADV,
-		Broadcast,
-		HeaderType1,
-		nil,
-		nil,
-		true,
-		FlagUnset,
-	)
-	if pkt == nil {
-		Log("Could not build resource advertisement packet", LOG_ERROR)
-		r.Cancel()
-		return
-	}
-	pkt.Send()
-	if !pkt.Sent {
-		Log("Could not resend advertisement packet, cancelling resource", LOG_VERBOSE)
-		r.Cancel()
-		return
-	}
-
-	now := time.Now()
-	r.lastActivity = now
-	r.advSent = now
-	r.advPacket = pkt
-	Log("Sent resource advertisement for "+PrettyHex(r.hash), LOG_EXTREME)
-}
-
 func (r *Resource) advertiseJob() {
-	adv := &ResourceAdvertisement{ /* filled below */ }
-	*adv = NewResourceAdvertisementFromResource(r)
+	adv := ResourceAdvertisement{
+		T: r.size,
+		D: r.totalSize,
+		N: r.totalParts,
+		H: r.hash,
+		R: r.randomHash,
+		O: r.originalHash,
+		M: func() []byte {
+			var b []byte
+			for _, h := range r.hashmap {
+				b = append(b, h...)
+			}
+			return b
+		}(),
+		F: func() byte {
+			var f byte
+			if r.encr {
+				f |= 0x01
+			}
+			if r.comp {
+				f |= 0x02
+			}
+			if r.split {
+				f |= 0x04
+			}
+			if r.requestID != nil && !r.isResponse {
+				f |= 0x08
+			}
+			if r.requestID != nil && r.isResponse {
+				f |= 0x10
+			}
+			if r.hasMetadata {
+				f |= 0x20
+			}
+			return f
+		}(),
+		I:    r.segmentIndex,
+		L:    r.totalSegments,
+		Q:    r.requestID,
+		Link: r.Link,
+		E:    r.encr,
+		C:    r.comp,
+		S:    r.split,
+		U:    r.requestID != nil && !r.isResponse,
+		P:    r.requestID != nil && r.isResponse,
+		X:    r.hasMetadata,
+	}
 	pkt := NewPacket(
-		r.link,
+		r.Link,
 		adv.Pack(0),
-		PacketANNOUNCE,
+		PacketTypeData,
 		PacketCONTEXT_RESOURCE_ADV,
 		Broadcast,
 		HeaderType1,
@@ -988,39 +891,33 @@ func (r *Resource) advertiseJob() {
 		r.Cancel()
 		return
 	}
-	r.status = ResourceQueued
+	r.advPacket = pkt
 
-	queuedSince := time.Now()
-	for !r.link.ReadyForNewResource() {
-		r.status = ResourceQueued
-		if time.Since(queuedSince) > time.Second {
-			Log(fmt.Sprintf("Resource %s waiting for ReadyForNewResource on %s", r, r.link), LOG_WARNING)
-			queuedSince = time.Now()
-		}
+	for !r.Link.ReadyForNewResource() {
+		r.Status = ResourceQueued
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	// Register before sending so part requests that race in right after the
-	// advertisement can be resolved to this resource.
-	r.link.RegisterOutgoingResource(r)
-
+	func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				Log("Could not advertise resource, the contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+				r.Cancel()
+			}
+		}()
+		pkt.Send()
+	}()
+	if r.Status == ResourceFailed {
+		return
+	}
 	now := time.Now()
 	r.lastActivity = now
 	r.startedTransferring = now
 	r.advSent = now
 	r.rtt = 0
-	r.status = ResourceAdvertised
+	r.Status = ResourceAdvertised
 	r.retriesLeft = r.maxAdvRetries
-	r.advPacket = pkt
-
-	pkt.Send()
-	if !pkt.Sent {
-		Log("Could not advertise resource, transport refused packet", LOG_ERROR)
-		r.link.CancelOutgoingResource(r)
-		r.Cancel()
-		return
-	}
-	Log(fmt.Sprintf("Advertised resource segment %d/%d for %s on %s", r.segmentIndex, r.totalSegments, r, r.link), LOG_WARNING)
+	r.Link.RegisterOutgoingResource(r)
 	Log("Sent resource advertisement for "+PrettyHex(r.hash), LOG_EXTREME)
 	r.WatchdogJob()
 }
@@ -1030,7 +927,7 @@ func (r *Resource) advertiseJob() {
 func (r *Resource) updateEIFR() {
 	var rtt float64
 	if r.rtt == 0 {
-		rtt = r.link.RTT.Seconds()
+		rtt = r.Link.RTT.Seconds()
 	} else {
 		rtt = r.rtt
 	}
@@ -1040,208 +937,346 @@ func (r *Resource) updateEIFR() {
 	} else if r.previousEIFR != 0 {
 		expected = r.previousEIFR
 	} else {
-		expected = float64(r.link.EstablishmentCost*8) / rtt
+		if rtt <= 0 {
+			panic("division by zero in updateEIFR")
+		}
+		expected = float64(r.Link.EstablishmentCost*8) / rtt
 	}
 	r.eifr = expected
-	r.link.ExpectedRate = expected
+	r.Link.ExpectedRate = expected
 }
 
 // ---------------- watchdog ----------------
 
 func (r *Resource) WatchdogJob() {
-	go r.watchdog()
-}
+	go func() {
+		r.watchdogMu.Lock()
+		r.watchdogJobID++
+		jobID := r.watchdogJobID
+		r.watchdogMu.Unlock()
 
-func (r *Resource) watchdog() {
-	r.watchdogMu.Lock()
-	r.watchdogJobID++
-	jobID := r.watchdogJobID
-	r.watchdogMu.Unlock()
-
-	for r.status < ResourceAssembling && jobID == r.watchdogJobID {
-		for r.watchdogLock {
-			time.Sleep(25 * time.Millisecond)
-		}
-
-		var sleepTime time.Duration
-		now := time.Now()
-
-		switch r.status {
-		case ResourceAdvertised:
-			exp := r.advSentTime().Add(time.Duration(r.timeout*float64(time.Second)) +
-				time.Duration(ProcessingGrace*float64(time.Second)))
-			if now.After(exp) {
-				if r.retriesLeft <= 0 {
-					Log("Resource transfer timeout after sending advertisement", LOG_DEBUG)
-					r.Cancel()
-					sleepTime = time.Millisecond
-				} else {
-					Log("No part requests received, retrying resource advertisement...", LOG_DEBUG)
-					r.retriesLeft--
-					r.resendAdvertisement()
-					sleepTime = time.Millisecond
-				}
-			} else {
-				sleepTime = exp.Sub(now)
+		for r.Status < ResourceAssembling && jobID == r.watchdogJobID {
+			for r.watchdogLock {
+				time.Sleep(25 * time.Millisecond)
 			}
 
-		case ResourceTransferring:
-			if !r.initiator {
-				retriesUsed := r.maxRetries - r.retriesLeft
-				extraWait := time.Duration(float64(retriesUsed) * PerRetryDelay * float64(time.Second))
-				r.updateEIFR()
-				expectedTOF := float64(r.outstanding*r.sdu*8) / r.eifr
-				var base time.Time
-				if r.reqRespRTTRate != 0 {
-					base = r.lastActivity.Add(time.Duration(
-						r.partTimeoutFactor*expectedTOF*float64(time.Second) +
-							RetryGraceTime*float64(time.Second)))
-				} else {
-					base = r.lastActivity.Add(time.Duration(
-						r.partTimeoutFactor*((3*float64(r.sdu))/r.eifr)*float64(time.Second) +
-							RetryGraceTime*float64(time.Second)))
-				}
-				exp := base.Add(extraWait)
+			var sleepTime time.Duration
+			sleepSet := false
+			now := time.Now()
+
+			switch r.Status {
+			case ResourceAdvertised:
+				sleepSet = true
+				exp := r.advSent.Add(time.Duration(r.timeout*float64(time.Second)) +
+					time.Duration(ProcessingGrace*float64(time.Second)))
 				if now.After(exp) {
-					if r.retriesLeft > 0 {
-						ms := ""
-						if r.outstanding != 1 {
-							ms = "s"
-						}
-						Log(fmt.Sprintf(
-							"Timed out waiting for %d part%s, requesting retry on %v",
-							r.outstanding, ms, r,
-						), LOG_DEBUG)
-						if r.window > r.windowMin {
-							r.window--
-							if r.windowMax > r.windowMin {
-								r.windowMax--
-								if (r.windowMax - r.window) > (r.windowFlexibility - 1) {
-									r.windowMax--
-								}
-							}
-						}
-						r.retriesLeft--
-						r.waitingForHMU = false
-						r.RequestNext()
+					if r.retriesLeft <= 0 {
+						Log("Resource transfer timeout after sending advertisement", LOG_DEBUG)
+						r.Cancel()
 						sleepTime = time.Millisecond
 					} else {
-						r.Cancel()
+						Log("No part requests received, retrying resource advertisement...", LOG_DEBUG)
+						r.retriesLeft--
+						adv := ResourceAdvertisement{
+							T: r.size,
+							D: r.totalSize,
+							N: r.totalParts,
+							H: r.hash,
+							R: r.randomHash,
+							O: r.originalHash,
+							M: func() []byte {
+								var b []byte
+								for _, h := range r.hashmap {
+									b = append(b, h...)
+								}
+								return b
+							}(),
+							F: func() byte {
+								var f byte
+								if r.encr {
+									f |= 0x01
+								}
+								if r.comp {
+									f |= 0x02
+								}
+								if r.split {
+									f |= 0x04
+								}
+								if r.requestID != nil && !r.isResponse {
+									f |= 0x08
+								}
+								if r.requestID != nil && r.isResponse {
+									f |= 0x10
+								}
+								if r.hasMetadata {
+									f |= 0x20
+								}
+								return f
+							}(),
+							I:    r.segmentIndex,
+							L:    r.totalSegments,
+							Q:    r.requestID,
+							Link: r.Link,
+							E:    r.encr,
+							C:    r.comp,
+							S:    r.split,
+							U:    r.requestID != nil && !r.isResponse,
+							P:    r.requestID != nil && r.isResponse,
+							X:    r.hasMetadata,
+						}
+						pkt := NewPacket(
+							r.Link,
+							adv.Pack(0),
+							PacketTypeData,
+							PacketCONTEXT_RESOURCE_ADV,
+							Broadcast,
+							HeaderType1,
+							nil,
+							nil,
+							true,
+							FlagUnset,
+						)
+						if pkt == nil {
+							Log("Could not build resource advertisement packet", LOG_ERROR)
+							r.Cancel()
+							sleepTime = time.Millisecond
+							break
+						}
+						r.advPacket = pkt
+						func() {
+							defer func() {
+								if rec := recover(); rec != nil {
+									Log("Could not resend advertisement packet, cancelling resource. The contained exception was: "+fmt.Sprint(rec), LOG_VERBOSE)
+									r.Cancel()
+								}
+							}()
+							pkt.Send()
+						}()
+						if r.Status == ResourceFailed {
+							sleepTime = time.Millisecond
+							break
+						}
+						r.lastActivity = time.Now()
+						r.advSent = r.lastActivity
 						sleepTime = time.Millisecond
 					}
 				} else {
 					sleepTime = exp.Sub(now)
 				}
-			} else {
-				maxExtra := time.Duration(0)
-				for rtry := 0; rtry < MaxRetries; rtry++ {
-					maxExtra += time.Duration(float64(rtry+1) * PerRetryDelay * float64(time.Second))
+
+			case ResourceTransferring:
+				sleepSet = true
+				if !r.initiator {
+					retriesUsed := r.maxRetries - r.retriesLeft
+					extraWait := time.Duration(float64(retriesUsed) * PerRetryDelay * float64(time.Second))
+					r.updateEIFR()
+					expectedTOF := float64(r.outstanding*r.sdu*8) / r.eifr
+					var base time.Time
+					if r.reqRespRTTRate != 0 {
+						base = r.lastActivity.Add(time.Duration(
+							r.partTimeoutFactor*expectedTOF*float64(time.Second) +
+								RetryGraceTime*float64(time.Second)))
+					} else {
+						base = r.lastActivity.Add(time.Duration(
+							r.partTimeoutFactor*((3*float64(r.sdu))/r.eifr)*float64(time.Second) +
+								RetryGraceTime*float64(time.Second)))
+					}
+					exp := base.Add(extraWait)
+					if now.After(exp) {
+						if r.retriesLeft > 0 {
+							ms := ""
+							if r.outstanding != 1 {
+								ms = "s"
+							}
+							Log(fmt.Sprintf(
+								"Timed out waiting for %d part%s, requesting retry on %v",
+								r.outstanding, ms, r,
+							), LOG_DEBUG)
+							if r.window > r.windowMin {
+								r.window--
+								if r.windowMax > r.windowMin {
+									r.windowMax--
+									if (r.windowMax - r.window) > (r.windowFlexibility - 1) {
+										r.windowMax--
+									}
+								}
+							}
+							r.retriesLeft--
+							r.waitingForHMU = false
+							r.RequestNext()
+							sleepTime = time.Millisecond
+						} else {
+							r.Cancel()
+							sleepTime = time.Millisecond
+						}
+					} else {
+						sleepTime = exp.Sub(now)
+					}
+				} else {
+					maxExtra := time.Duration(0)
+					for rtry := 0; rtry < MaxRetries; rtry++ {
+						maxExtra += time.Duration(float64(rtry+1) * PerRetryDelay * float64(time.Second))
+					}
+					maxWait := time.Duration(r.rtt*float64(r.timeoutFactor)*float64(time.Second)*float64(r.maxRetries)) +
+						time.Duration(r.senderGraceTime*float64(time.Second)) + maxExtra
+					exp := r.lastActivity.Add(maxWait)
+					if now.After(exp) {
+						Log("Resource timed out waiting for part requests", LOG_DEBUG)
+						r.Cancel()
+						sleepTime = time.Millisecond
+					} else {
+						sleepTime = exp.Sub(now)
+					}
 				}
-				maxWait := time.Duration(r.rtt*float64(r.timeoutFactor)*float64(time.Second)*float64(r.maxRetries)) +
-					time.Duration(SenderGraceTime*float64(time.Second)) + maxExtra
-				exp := r.lastActivity.Add(maxWait)
+
+			case ResourceAwaitingProof:
+				sleepSet = true
+				r.timeoutFactor = ProofTimeoutFactor
+				exp := r.lastPartSent.Add(
+					time.Duration(r.rtt*r.timeoutFactor*float64(time.Second) + r.senderGraceTime*float64(time.Second)),
+				)
 				if now.After(exp) {
-					Log("Resource timed out waiting for part requests", LOG_DEBUG)
-					r.Cancel()
-					sleepTime = time.Millisecond
+					if r.retriesLeft <= 0 {
+						Log("Resource timed out waiting for proof", LOG_DEBUG)
+						r.Cancel()
+						sleepTime = time.Millisecond
+					} else {
+						Log("All parts sent, but no resource proof received, querying network cache...", LOG_DEBUG)
+						r.retriesLeft--
+						expectedData := append(r.hash, r.expectedProof...)
+						p := NewPacket(
+							r.Link,
+							expectedData,
+							PacketTypeProof,
+							PacketCONTEXT_RESOURCE_PRF,
+							Broadcast,
+							HeaderType1,
+							nil,
+							nil,
+							true,
+							FlagUnset,
+						)
+						p.Pack()
+						CacheRequest(p.PacketHash, r.Link)
+						r.lastPartSent = time.Now()
+						sleepTime = time.Millisecond
+					}
 				} else {
 					sleepTime = exp.Sub(now)
 				}
+
+			case ResourceRejected:
+				sleepSet = true
+				sleepTime = time.Millisecond
 			}
 
-		case ResourceAwaitingProof:
-			r.timeoutFactor = ProofTimeoutFactor
-			exp := r.lastPartSent.Add(
-				time.Duration(r.rtt*r.timeoutFactor*float64(time.Second) + SenderGraceTime*float64(time.Second)),
-			)
-			if now.After(exp) {
-				if r.retriesLeft <= 0 {
-					Log("Resource timed out waiting for proof", LOG_DEBUG)
-					r.Cancel()
-					sleepTime = time.Millisecond
-				} else {
-					Log("All parts sent, but no resource proof received, querying network cache...", LOG_DEBUG)
-					r.retriesLeft--
-					expectedData := append(r.hash, r.expectedProof...)
-					p := NewPacket(
-						r.link,
-						expectedData,
-						PacketTypeProof,
-						PacketCONTEXT_RESOURCE_PRF,
-						Broadcast,
-						HeaderType1,
-						nil,
-						nil,
-						true,
-						FlagUnset,
-					)
-					p.Pack()
-					CacheRequest(p.PacketHash, r.link)
-					r.lastPartSent = time.Now()
-					sleepTime = time.Millisecond
-				}
-			} else {
-				sleepTime = exp.Sub(now)
+			if !sleepSet || sleepTime < 0 {
+				Log("Timing error, cancelling resource transfer.", LOG_ERROR)
+				r.Cancel()
+				sleepTime = time.Millisecond
 			}
-
-		case ResourceRejected:
-			sleepTime = time.Millisecond
-		default:
-			sleepTime = WatchdogMaxSleep
+			if sleepTime == 0 {
+				Log("Warning! Link watchdog sleep time of 0!", LOG_DEBUG)
+			}
+			if sleepTime > WatchdogMaxSleep {
+				sleepTime = WatchdogMaxSleep
+			}
+			time.Sleep(sleepTime)
 		}
-
-		if sleepTime < 0 {
-			Log("Timing error, cancelling resource transfer.", LOG_ERROR)
-			r.Cancel()
-			sleepTime = time.Millisecond
-		}
-		if sleepTime == 0 {
-			sleepTime = time.Millisecond
-		}
-		if sleepTime > WatchdogMaxSleep {
-			sleepTime = WatchdogMaxSleep
-		}
-		time.Sleep(sleepTime)
-	}
-}
-
-func (r *Resource) advSentTime() time.Time {
-	if !r.advSent.IsZero() {
-		return r.advSent
-	}
-	return r.startedTransferring
+	}()
 }
 
 // ---------------- assemble ----------------
 
 func (r *Resource) Assemble() {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
 
-	concluded := false
 	defer func() {
-		if !concluded && r.link != nil {
-			r.link.ResourceConcluded(r)
+		if r.Link != nil {
+			r.Link.ResourceConcluded(r)
+		}
+
+		if r.segmentIndex != r.totalSegments {
+			Log(fmt.Sprintf("Resource segment %d of %d received, waiting for next segment to be announced", r.segmentIndex, r.totalSegments), LOG_DEBUG)
+			return
+		}
+
+		if r.callback != nil {
+			if r.hasMetadata {
+				if _, err := os.Stat(r.metaStoragePath); err != nil {
+					if !os.IsNotExist(err) {
+						panic(err)
+					}
+					r.Metadata = nil
+				} else if data, err := os.ReadFile(r.metaStoragePath); err == nil {
+					var meta any
+					if err := umsgpack.Unpackb(data, &meta); err == nil {
+						r.Metadata = meta
+					} else {
+						panic(err)
+					}
+					_ = os.Remove(r.metaStoragePath)
+				} else {
+					panic(err)
+				}
+			}
+
+			file, err := os.Open(r.DataFile)
+			if err != nil {
+				panic(err)
+			}
+			r.dataFile = file
+
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						Log("Error while executing resource assembled callback from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+					}
+				}()
+				r.callback(r)
+			}()
+
+			if r.dataFile != nil {
+				_ = r.dataFile.Close()
+				r.dataFile = nil
+			}
+		}
+		if r.DataFile != "" {
+			_ = os.Remove(r.DataFile)
+		}
+	}()
+	defer func() {
+		if rec := recover(); rec != nil {
+			Log("Error while assembling received resource.", LOG_ERROR)
+			Log("The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+			r.Status = ResourceCorrupt
 		}
 	}()
 
-	r.status = ResourceAssembling
-	stream := bytes.Join(r.parts, nil)
+	r.Status = ResourceAssembling
+	stream := make([]byte, 0)
+	for _, part := range r.parts {
+		data, ok := part.([]byte)
+		if !ok || len(data) == 0 {
+			continue
+		}
+		stream = append(stream, data...)
+	}
 
 	var data []byte
 	if r.encr {
 		var err error
-		data, err = r.link.Decrypt(stream)
+		data, err = r.Link.Decrypt(stream)
 		if err != nil {
-			r.status = ResourceCorrupt
-			return
+			panic(err)
 		}
 	} else {
 		data = stream
 	}
 	if len(data) < RandomHashSize {
-		r.status = ResourceCorrupt
+		r.Status = ResourceCorrupt
 		return
 	}
 	data = data[RandomHashSize:]
@@ -1249,16 +1284,12 @@ func (r *Resource) Assemble() {
 	if r.comp {
 		reader, err := bzip2.NewReader(bytes.NewReader(data), nil)
 		if err != nil {
-			Log(fmt.Sprintf("Error while bz2 decompress resource: %v", err), LOG_ERROR)
-			r.status = ResourceCorrupt
-			return
+			panic(err)
 		}
 		decompressed, err := io.ReadAll(reader)
 		reader.Close()
 		if err != nil {
-			Log(fmt.Sprintf("Error while bz2 decompress resource: %v", err), LOG_ERROR)
-			r.status = ResourceCorrupt
-			return
+			panic(err)
 		}
 		data = decompressed
 	}
@@ -1266,51 +1297,43 @@ func (r *Resource) Assemble() {
 	fullData := append([]byte(nil), data...)
 	calculated := FullHash(append(fullData, r.randomHash...))
 	if !bytes.Equal(calculated, r.hash) {
-		r.status = ResourceCorrupt
+		r.Status = ResourceCorrupt
 		return
 	}
 
 	payload := fullData
 	if r.hasMetadata && r.segmentIndex == 1 {
 		if len(fullData) < 3 {
-			r.status = ResourceCorrupt
+			r.Status = ResourceCorrupt
 			return
 		}
 		metaSize := int(fullData[0])<<16 | int(fullData[1])<<8 | int(fullData[2])
 		if len(fullData) < 3+metaSize {
-			r.status = ResourceCorrupt
+			r.Status = ResourceCorrupt
 			return
 		}
 		packedMeta := fullData[3 : 3+metaSize]
-		_ = os.WriteFile(r.metaStoragePath, packedMeta, 0o644)
+		if err := os.WriteFile(r.metaStoragePath, packedMeta, 0o644); err != nil {
+			panic(err)
+		}
 		payload = fullData[3+metaSize:]
 	}
 
-	if dir := filepath.Dir(r.storagePath); dir != "" {
+	if dir := filepath.Dir(r.DataFile); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
 	}
-	f, err := os.OpenFile(r.storagePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(r.DataFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		Log(fmt.Sprintf("Error opening resource file: %v", err), LOG_ERROR)
-		r.status = ResourceCorrupt
-		return
+		panic(err)
 	}
 	if _, err = f.Write(payload); err != nil {
-		Log(fmt.Sprintf("Error writing resource file: %v", err), LOG_ERROR)
-		r.status = ResourceCorrupt
 		_ = f.Close()
-		return
+		panic(err)
 	}
 	_ = f.Close()
 
-	r.status = ResourceComplete
+	r.Status = ResourceComplete
 	r.Prove(fullData)
-	// Incoming resources are concluded via handleIncomingCompletion(), which
-	// invokes the resource callback after metadata decoding and before the
-	// temporary storage file is removed. Mark this as handled so the deferred
-	// tail-call does not fire a second concluded callback after cleanup.
-	concluded = true
-	r.handleIncomingCompletion()
 	for i := range fullData {
 		fullData[i] = 0
 	}
@@ -1318,13 +1341,13 @@ func (r *Resource) Assemble() {
 
 // Prove sends the proof.
 func (r *Resource) Prove(data []byte) {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
 	proof := FullHash(append(data, r.hash...))
 	proofData := append(r.hash, proof...)
 	p := NewPacket(
-		r.link,
+		r.Link,
 		proofData,
 		PacketTypeProof,
 		PacketCONTEXT_RESOURCE_PRF,
@@ -1335,70 +1358,30 @@ func (r *Resource) Prove(data []byte) {
 		true,
 		FlagUnset,
 	)
-	p.Send()
-	if p.Sent {
-		Log(fmt.Sprintf("RESOURCE_PRF sent for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_DEBUG)
-		Cache(p, true)
-		return
-	}
-	Log("Could not send proof packet, cancelling resource", LOG_DEBUG)
-	r.Cancel()
-}
-
-func (r *Resource) handleIncomingCompletion() {
-	Log(fmt.Sprintf("Incoming resource segment %d/%d complete for %s", r.segmentIndex, r.totalSegments, r), LOG_DEBUG)
-	if r.link != nil {
-		r.link.ResourceConcluded(r)
-	}
-
-	if r.segmentIndex != r.totalSegments {
-		Log(fmt.Sprintf("Resource segment %d of %d received, waiting for next segment to be announced", r.segmentIndex, r.totalSegments), LOG_DEBUG)
-		return
-	}
-
-	if r.hasMetadata {
-		if data, err := os.ReadFile(r.metaStoragePath); err == nil {
-			var meta any
-			if err := umsgpack.Unpackb(data, &meta); err == nil {
-				r.metadataObj = meta
-			} else {
-				Log(fmt.Sprintf("Error decoding resource metadata: %v", err), LOG_ERROR)
+	func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				Log("Could not send proof packet, cancelling resource", LOG_DEBUG)
+				Log("The contained exception was: "+fmt.Sprint(rec), LOG_DEBUG)
+				r.Cancel()
 			}
-			_ = os.Remove(r.metaStoragePath)
-		}
-	}
-
-	file, err := os.Open(r.storagePath)
-	if err != nil {
-		Log(fmt.Sprintf("Error opening completed resource file: %v", err), LOG_ERROR)
+		}()
+		p.Send()
+	}()
+	if r.Status == ResourceFailed {
 		return
 	}
-	r.dataFile = file
-
-	if r.callback != nil {
-		safeResourceCallback(r.callback, r)
-	}
-
-	if r.dataFile != nil {
-		_ = r.dataFile.Close()
-		r.dataFile = nil
-	}
-	if r.storagePath != "" {
-		_ = os.Remove(r.storagePath)
-	}
+	Cache(p, true)
 }
 
 // prepareNextSegment prepares the next segment for large resources.
 func (r *Resource) prepareNextSegment() {
-	if r.preparingNext || r.inputFile == nil || r.segmentIndex >= r.totalSegments {
-		return
-	}
 	Log(fmt.Sprintf("Preparing segment %d of %d for resource %s", r.segmentIndex+1, r.totalSegments, r), LOG_DEBUG)
 	r.preparingNext = true
 	next, err := NewResource(
 		nil,
 		r.inputFile,
-		r.link,
+		r.Link,
 		nil,
 		false,
 		r.autoCompressOption,
@@ -1412,78 +1395,82 @@ func (r *Resource) prepareNextSegment() {
 		r.metadataSize,
 	)
 	if err != nil {
-		Log(fmt.Sprintf("Error preparing next resource segment: %v", err), LOG_ERROR)
-		return
+		panic(err)
 	}
 	r.nextSegment = next
 }
 
 // ValidateProof validates a proof from the resource receiver.
 func (r *Resource) ValidateProof(proofData []byte) {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
 
 	hashLen := sha256Bits / 8
 	if len(proofData) != hashLen*2 {
-		Log(fmt.Sprintf("Ignoring resource proof with invalid length %d for %s", len(proofData), r), LOG_WARNING)
 		return
 	}
 
 	if !bytes.Equal(proofData[hashLen:], r.expectedProof) {
-		Log(fmt.Sprintf("Ignoring resource proof with mismatched digest for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_WARNING)
 		return
 	}
 
-	Log(fmt.Sprintf("Validated resource proof for %s (segment %d/%d)", r, r.segmentIndex, r.totalSegments), LOG_WARNING)
-	r.status = ResourceComplete
-	if r.link != nil {
-		r.link.ResourceConcluded(r)
+	r.Status = ResourceComplete
+	if r.Link != nil {
+		r.Link.ResourceConcluded(r)
 	}
 
 	if r.segmentIndex == r.totalSegments {
-		r.finishSender()
+		if r.callback != nil {
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						Log("Error while executing resource concluded callback from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+					}
+				}()
+				r.callback(r)
+			}()
+		}
+		if r.inputFile != nil {
+			if err := r.inputFile.Close(); err != nil {
+				Log("Error while closing resource input file: "+err.Error(), LOG_ERROR)
+			}
+			r.inputFile = nil
+		}
+		if r.tempInputPath != "" {
+			_ = os.Remove(r.tempInputPath)
+			r.tempInputPath = ""
+		}
 	} else {
 		if r.nextSegment == nil && !r.preparingNext {
-			Log(fmt.Sprintf("Next segment preparation for resource %s was not started yet, preparing now. This will slow down transfer.", r), LOG_WARNING)
+			Log(fmt.Sprintf("Next segment preparation for resource %s was not started yet, manually preparing now. This will cause transfer slowdown.", r), LOG_WARNING)
 			r.prepareNextSegment()
 		}
 		for r.nextSegment == nil {
 			time.Sleep(50 * time.Millisecond)
 		}
-		Log(fmt.Sprintf("Advertising next resource segment %d/%d for %s", r.nextSegment.segmentIndex, r.nextSegment.totalSegments, r.nextSegment), LOG_WARNING)
-		r.releaseSenderState()
+		r.data = nil
+		r.metadata = nil
+		r.parts = nil
+		r.inputFile = nil
+		r.Link = nil
+		r.reqHashlist = nil
+		r.hashmap = nil
 		r.nextSegment.Advertise()
 	}
-}
-
-func (r *Resource) finishSender() {
-	if r.callback != nil {
-		safeResourceCallback(r.callback, r)
-	}
-	if r.inputFile != nil {
-		_ = r.inputFile.Close()
-		r.inputFile = nil
-	}
-	if r.tempInputPath != "" {
-		_ = os.Remove(r.tempInputPath)
-		r.tempInputPath = ""
-	}
-}
-
-func (r *Resource) releaseSenderState() {
-	r.metadata = nil
-	r.parts = nil
-	r.outgoingParts = nil
-	r.inputFile = nil
-	r.link = nil
-	r.hashmap = nil
 }
 
 // ReceivePart handles an incoming resource packet.
 func (r *Resource) ReceivePart(packet *Packet) {
 	r.receiveLock.Lock()
 	r.receivingPart = true
+	locked := true
+	defer func() {
+		if locked {
+			r.receivingPart = false
+			r.receiveLock.Unlock()
+		}
+	}()
 
 	now := time.Now()
 	r.lastActivity = now
@@ -1492,13 +1479,10 @@ func (r *Resource) ReceivePart(packet *Packet) {
 	if r.reqResp.IsZero() {
 		r.reqResp = now
 		rtt := now.Sub(r.reqSent).Seconds()
-		if rtt < 0 {
-			rtt = 0
-		}
 		r.partTimeoutFactor = PartTimeoutFactorAfterRTT
 		switch {
 		case r.rtt == 0:
-			r.rtt = r.link.RTT.Seconds()
+			r.rtt = r.Link.RTT.Seconds()
 			r.WatchdogJob()
 		case rtt < r.rtt:
 			r.rtt = math.Max(r.rtt-r.rtt*0.05, rtt)
@@ -1508,9 +1492,6 @@ func (r *Resource) ReceivePart(packet *Packet) {
 
 		if rtt > 0 {
 			reqRespCost := len(packet.Raw)
-			if reqRespCost == 0 {
-				reqRespCost = len(packet.Data)
-			}
 			reqRespCost += r.reqSentBytes
 			r.reqRespRTTRate = float64(reqRespCost) / rtt
 			if r.reqRespRTTRate > RateFast && r.fastRateRounds < ResourceFastRateThreshold {
@@ -1522,16 +1503,13 @@ func (r *Resource) ReceivePart(packet *Packet) {
 		}
 	}
 
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
 
-	r.status = ResourceTransferring
+	r.Status = ResourceTransferring
 
 	partData := packet.Data
-	if len(partData) == 0 {
-		partData = packet.Ciphertext
-	}
 	partHash := r.getMapHash(partData)
 
 	start := r.consecutiveHeight
@@ -1543,7 +1521,6 @@ func (r *Resource) ReceivePart(packet *Packet) {
 		windowEnd = len(r.hashmap)
 	}
 
-	updated := false
 	for idx := start; idx < windowEnd; idx++ {
 		mapHash := r.hashmap[idx]
 		if mapHash == nil || !bytes.Equal(mapHash, partHash) {
@@ -1553,9 +1530,7 @@ func (r *Resource) ReceivePart(packet *Packet) {
 			r.parts[idx] = append([]byte(nil), partData...)
 			r.rttRxBytes += len(partData)
 			r.receivedCount++
-			if r.outstanding > 0 {
-				r.outstanding--
-			}
+			r.outstanding--
 
 			if idx == r.consecutiveHeight+1 {
 				r.consecutiveHeight = idx
@@ -1566,19 +1541,24 @@ func (r *Resource) ReceivePart(packet *Packet) {
 				cp++
 			}
 
-			updated = true
+			if r.progressCallback != nil {
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							Log("Error while executing progress callback from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+						}
+					}()
+					r.progressCallback(r)
+				}()
+			}
 		}
-		break
-	}
-
-	if updated && r.progressCallback != nil {
-		go safeResourceCallback(r.progressCallback, r)
 	}
 
 	if r.receivedCount == r.totalParts && !r.assemblyLock {
 		r.assemblyLock = true
 		r.receivingPart = false
 		r.receiveLock.Unlock()
+		locked = false
 		go r.Assemble()
 		return
 	}
@@ -1586,6 +1566,7 @@ func (r *Resource) ReceivePart(packet *Packet) {
 	shouldRequest := r.outstanding == 0
 	r.receivingPart = false
 	r.receiveLock.Unlock()
+	locked = false
 
 	if shouldRequest {
 		if r.window < r.windowMax {
@@ -1631,164 +1612,191 @@ func (r *Resource) RequestNext() {
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	if r.status == ResourceFailed || r.waitingForHMU {
+	if r.Status == ResourceFailed {
 		return
 	}
 
-	r.outstanding = 0
-	hashmapState := HashmapNotExhausted
-	requested := make([]byte, 0, r.window*MapHashLen)
+	if !r.waitingForHMU {
+		r.outstanding = 0
+		hashmapState := HashmapNotExhausted
+		requested := make([]byte, 0, r.window*MapHashLen)
+		requestedCount := 0
 
-	pn := r.consecutiveHeight + 1
-	searchEnd := pn + r.window
-	if searchEnd > len(r.parts) {
-		searchEnd = len(r.parts)
-	}
+		pn := r.consecutiveHeight + 1
+		searchEnd := pn + r.window
+		if searchEnd > len(r.parts) {
+			searchEnd = len(r.parts)
+		}
 
-	for idx := pn; idx < searchEnd; idx++ {
-		if r.parts[idx] == nil {
-			if r.hashmap[idx] != nil {
-				requested = append(requested, r.hashmap[idx]...)
-				r.outstanding++
-			} else {
-				hashmapState = HashmapExhausted
+		for _, part := range r.parts[pn:searchEnd] {
+			if part == nil {
+				if r.hashmap[pn] != nil {
+					requested = append(requested, r.hashmap[pn]...)
+					r.outstanding++
+					requestedCount++
+				} else {
+					hashmapState = HashmapExhausted
+				}
+			}
+			pn++
+			if requestedCount >= r.window || hashmapState == HashmapExhausted {
 				break
 			}
 		}
-	}
 
-	hmuPart := []byte{hashmapState}
-	if hashmapState == HashmapExhausted {
-		if r.hashmapHeight == 0 {
-			return
+		hmuPart := []byte{hashmapState}
+		if hashmapState == HashmapExhausted {
+			lastIndex := r.hashmapHeight - 1
+			if lastIndex < 0 {
+				lastIndex = len(r.hashmap) - 1
+			}
+			last := r.hashmap[lastIndex]
+			hmuPart = append(hmuPart, last...)
+			r.waitingForHMU = true
 		}
-		last := r.hashmap[r.hashmapHeight-1]
-		if last == nil {
-			return
+
+		requestData := append(hmuPart, r.hash...)
+		requestData = append(requestData, requested...)
+
+		pkt := NewPacket(
+			r.Link,
+			requestData,
+			PacketTypeData,
+			PacketCONTEXT_RESOURCE_REQ,
+			Broadcast,
+			HeaderType1,
+			nil,
+			nil,
+			true,
+			FlagUnset,
+		)
+		sentOK := true
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					sentOK = false
+					Log("Could not send resource request packet, cancelling resource", LOG_DEBUG)
+					Log("The contained exception was: "+fmt.Sprint(rec), LOG_DEBUG)
+					r.Cancel()
+				}
+			}()
+			pkt.Send()
+		}()
+		if sentOK {
+			r.lastActivity = time.Now()
+			r.reqSent = r.lastActivity
+			r.reqSentBytes = len(pkt.Raw)
+			r.reqResp = time.Time{}
 		}
-		hmuPart = append(hmuPart, last...)
-		r.waitingForHMU = true
 	}
-
-	requestData := append(hmuPart, r.hash...)
-	requestData = append(requestData, requested...)
-
-	pkt := NewPacket(
-		r.link,
-		requestData,
-		PacketTypeData,
-		PacketCONTEXT_RESOURCE_REQ,
-		Broadcast,
-		HeaderType1,
-		nil,
-		nil,
-		true,
-		FlagUnset,
-	)
-	if pkt == nil {
-		return
-	}
-
-	pkt.Send()
-	if !pkt.Sent {
-		Log("Could not send resource request packet, cancelling resource", LOG_DEBUG)
-		r.Cancel()
-		return
-	}
-	Log(fmt.Sprintf("RESOURCE_REQ sent for %s outstanding=%d wants_hmu=%t", r, r.outstanding, hashmapState == HashmapExhausted), LOG_DEBUG)
-
-	r.lastActivity = time.Now()
-	r.reqSent = r.lastActivity
-	if len(pkt.Raw) > 0 {
-		r.reqSentBytes = len(pkt.Raw)
-	} else {
-		r.reqSentBytes = len(requestData)
-	}
-	r.reqResp = time.Time{}
 }
 
 // Request handles an incoming request for parts on the receiver side.
 func (r *Resource) Request(requestData []byte) {
-	if r.status == ResourceFailed {
+	if r.Status == ResourceFailed {
 		return
 	}
-	r.lastRequestData = append([]byte(nil), requestData...)
 
 	rtt := time.Since(r.advSent).Seconds()
 	if r.rtt == 0 {
 		r.rtt = rtt
 	}
 
-	if r.status != ResourceTransferring {
-		r.status = ResourceTransferring
+	if r.Status != ResourceTransferring {
+		r.Status = ResourceTransferring
 		r.WatchdogJob()
 	}
 
 	r.retriesLeft = r.maxRetries
 
-	wantsHMU := len(requestData) > 0 && requestData[0] == HashmapExhausted
+	wantsHMU := requestData[0] == HashmapExhausted
 	pad := 1
 	if wantsHMU {
 		pad += MapHashLen
 	}
 
-	hashLen := sha256Bits / 8
-	if len(requestData) < pad+hashLen {
-		return
+	requestedHashStart := pad + sha256Bits/8
+	if requestedHashStart > len(requestData) {
+		requestedHashStart = len(requestData)
+	}
+	requestedHashes := requestData[requestedHashStart:]
+
+	searchStart := r.receiverMinConsecutiveHeight
+	searchEnd := r.receiverMinConsecutiveHeight + CollisionGuardSize
+	if searchStart > len(r.parts) {
+		searchStart = len(r.parts)
+	}
+	if searchEnd > len(r.parts) {
+		searchEnd = len(r.parts)
 	}
 
-	requestedHashes := requestData[pad+hashLen:]
-
+	mapHashes := make([][]byte, 0, len(requestedHashes)/MapHashLen)
 	for i := 0; i+MapHashLen <= len(requestedHashes); i += MapHashLen {
-		partPkt := r.outgoingPartByMapHash[string(requestedHashes[i:i+MapHashLen])]
-		if partPkt == nil {
-			continue
-		}
-
-		if !partPkt.Sent {
-			partPkt.Send()
-			r.sentParts++
-		} else {
-			partPkt.Resend()
-		}
-
-		if !partPkt.Sent {
-			Log("Resource could not send parts, cancelling transfer", LOG_DEBUG)
-			r.Cancel()
-			return
-		}
-		r.lastActivity = time.Now()
-		r.lastPartSent = r.lastActivity
+		mapHashes = append(mapHashes, append([]byte(nil), requestedHashes[i:i+MapHashLen]...))
 	}
-	if r.sentParts == 0 && len(requestedHashes) > 0 {
-		Log(fmt.Sprintf("Resource %s got part request but matched 0 hashes (requested_len=%d)", r, len(requestedHashes)), LOG_ERROR)
+
+	requestedParts := make([]*Packet, 0, len(mapHashes))
+	for _, item := range r.parts[searchStart:searchEnd] {
+		part := item.(*Packet)
+		for _, mapHash := range mapHashes {
+			if bytes.Equal(part.MapHash, mapHash) {
+				requestedParts = append(requestedParts, part)
+				break
+			}
+		}
+	}
+
+	for _, partPkt := range requestedParts {
+		sentOK := true
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					sentOK = false
+					Log("Resource could not send parts, cancelling transfer!", LOG_DEBUG)
+					Log("The contained exception was: "+fmt.Sprint(rec), LOG_DEBUG)
+					r.Cancel()
+				}
+			}()
+			if !partPkt.Sent {
+				partPkt.Send()
+				r.sentParts++
+			} else {
+				partPkt.Resend()
+			}
+		}()
+		if sentOK {
+			r.lastActivity = time.Now()
+			r.lastPartSent = r.lastActivity
+		}
 	}
 
 	if wantsHMU {
-		if len(requestData) < 1+MapHashLen {
-			return
+		lastMapStart := 1
+		if lastMapStart > len(requestData) {
+			lastMapStart = len(requestData)
 		}
-		lastMap := requestData[1 : 1+MapHashLen]
+		lastMapEnd := 1 + MapHashLen
+		if lastMapEnd > len(requestData) {
+			lastMapEnd = len(requestData)
+		}
+		lastMap := requestData[lastMapStart:lastMapEnd]
 		collisionGuardLen := r.collisionGuardLen
-		if collisionGuardLen <= 0 {
-			collisionGuardLen = CollisionGuardSize
-		}
 		segLen := r.hashmapMaxLen
-		if segLen <= 0 {
-			segLen = HashmapMaxLen
-		}
-		partIndex := r.receiverMinHeight
+		partIndex := r.receiverMinConsecutiveHeight
 		searchStart := partIndex
 		searchEnd := searchStart + collisionGuardLen
-		if searchEnd > len(r.outgoingParts) {
-			searchEnd = len(r.outgoingParts)
+		if searchStart > len(r.parts) {
+			searchStart = len(r.parts)
+		}
+		if searchEnd > len(r.parts) {
+			searchEnd = len(r.parts)
 		}
 
 		foundIndex := -1
 		for idx := searchStart; idx < searchEnd; idx++ {
 			partIndex++
-			part := r.outgoingParts[idx]
-			if part != nil && bytes.Equal(part.mapHash, lastMap) {
+			part := r.parts[idx].(*Packet)
+			if bytes.Equal(part.MapHash, lastMap) {
 				foundIndex = partIndex
 				break
 			}
@@ -1800,7 +1808,7 @@ func (r *Resource) Request(requestData []byte) {
 			return
 		}
 
-		r.receiverMinHeight = max(foundIndex-1-ResourceWindowMax, 0)
+		r.receiverMinConsecutiveHeight = max(foundIndex-1-ResourceWindowMax, 0)
 		if foundIndex%segLen != 0 {
 			Log("Resource sequencing error, cancelling transfer!", LOG_ERROR)
 			r.Cancel()
@@ -1810,28 +1818,23 @@ func (r *Resource) Request(requestData []byte) {
 		segment := foundIndex / segLen
 		hashmapStart := segment * segLen
 		hashmapEnd := hashmapStart + segLen
-		if hashmapEnd > len(r.hashmap) {
-			hashmapEnd = len(r.hashmap)
+		if hashmapEnd > len(r.parts) {
+			hashmapEnd = len(r.parts)
 		}
 
 		hm := make([]byte, 0, (hashmapEnd-hashmapStart)*MapHashLen)
 		for i := hashmapStart; i < hashmapEnd; i++ {
-			if i >= len(r.hashmap) || r.hashmap[i] == nil {
-				break
-			}
 			hm = append(hm, r.hashmap[i]...)
 		}
 
-		hmuPayload, err := msgpackMarshal([]any{segment, hm})
+		hmuPayload, err := umsgpack.Packb([]any{segment, hm})
 		if err != nil {
-			Log(fmt.Sprintf("Could not encode HMU payload: %v", err), LOG_ERROR)
-			r.Cancel()
-			return
+			panic(err)
 		}
 
 		hmu := append(r.hash, hmuPayload...)
 		hmuPacket := NewPacket(
-			r.link,
+			r.Link,
 			hmu,
 			PacketTypeData,
 			PacketCONTEXT_RESOURCE_HMU,
@@ -1842,106 +1845,112 @@ func (r *Resource) Request(requestData []byte) {
 			true,
 			FlagUnset,
 		)
-		if hmuPacket == nil {
-			return
+		sentOK := true
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					sentOK = false
+					Log("Could not send resource HMU packet, cancelling resource", LOG_DEBUG)
+					Log("The contained exception was: "+fmt.Sprint(rec), LOG_DEBUG)
+					r.Cancel()
+				}
+			}()
+			hmuPacket.Send()
+		}()
+		if sentOK {
+			r.lastActivity = time.Now()
 		}
-		hmuPacket.Send()
-		if !hmuPacket.Sent {
-			Log("Could not send resource HMU packet, cancelling resource", LOG_DEBUG)
-			r.Cancel()
-			return
-		}
-		Log(fmt.Sprintf("RESOURCE_HMU sent for %s segment=%d", r, segment), LOG_DEBUG)
-		r.lastActivity = time.Now()
 	}
 
-	if r.sentParts == len(r.outgoingParts) {
-		r.status = ResourceAwaitingProof
+	if r.sentParts == len(r.parts) {
+		r.Status = ResourceAwaitingProof
 		r.retriesLeft = ProofTimeoutFactor
 	}
 
 	if r.progressCallback != nil {
-		go safeResourceCallback(r.progressCallback, r)
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log("Error while executing progress callback from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+				}
+			}()
+			r.progressCallback(r)
+		}()
 	}
 }
 
 // Cancel cancels the resource transfer.
 func (r *Resource) Cancel() {
-	if r.status >= ResourceComplete {
-		return
-	}
 	if r.nextSegment != nil {
 		r.nextSegment.Cancel()
 	}
-	Log(fmt.Sprintf("Cancelling resource %s (segment %d/%d, status=%d, initiator=%t)", r, r.segmentIndex, r.totalSegments, r.status, r.initiator), LOG_WARNING)
-	r.status = ResourceFailed
+	if r.Status >= ResourceComplete {
+		return
+	}
+	r.Status = ResourceFailed
 
 	if r.initiator {
-		if r.link != nil && r.link.Status == LinkActive {
-			cancel := NewPacket(
-				r.link,
-				r.hash,
-				PacketTypeData,
-				PacketCONTEXT_RESOURCE_ICL,
-				Broadcast,
-				HeaderType1,
-				nil,
-				nil,
-				true,
-				FlagUnset,
-			)
-			if cancel != nil {
+		if r.Link.Status == LinkActive {
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						Log("Could not send resource cancel packet, the contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+					}
+				}()
+				cancel := NewPacket(
+					r.Link,
+					r.hash,
+					PacketTypeData,
+					PacketCONTEXT_RESOURCE_ICL,
+					Broadcast,
+					HeaderType1,
+					nil,
+					nil,
+					true,
+					FlagUnset,
+				)
 				cancel.Send()
-			}
+			}()
 		}
-		if r.link != nil {
-			r.link.CancelOutgoingResource(r)
-		}
-	} else if r.link != nil {
-		r.link.CancelIncomingResource(r)
+		r.Link.CancelOutgoingResource(r)
+	} else {
+		r.Link.CancelIncomingResource(r)
 	}
 
 	if r.callback != nil {
-		if r.link != nil {
-			r.link.ResourceConcluded(r)
-		}
-		go safeResourceCallback(r.callback, r)
-	}
-	if r.inputFile != nil {
-		_ = r.inputFile.Close()
-		r.inputFile = nil
-	}
-	if r.tempInputPath != "" {
-		_ = os.Remove(r.tempInputPath)
-		r.tempInputPath = ""
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log("Error while executing callbacks on resource cancel from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+				}
+			}()
+			r.Link.ResourceConcluded(r)
+			r.callback(r)
+		}()
 	}
 }
 
 func (r *Resource) rejected() {
-	if r.status >= ResourceComplete {
+	if r.Status >= ResourceComplete {
 		return
 	}
 	if r.initiator {
-		r.status = ResourceRejected
-		if r.link != nil {
-			r.link.CancelOutgoingResource(r)
-		}
+		r.Status = ResourceRejected
+		r.Link.CancelOutgoingResource(r)
 		if r.callback != nil {
-			if r.link != nil {
-				r.link.ResourceConcluded(r)
-			}
-			go safeResourceCallback(r.callback, r)
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						Log("Error while executing callbacks on resource reject from "+fmt.Sprint(r)+". The contained exception was: "+fmt.Sprint(rec), LOG_ERROR)
+					}
+				}()
+				r.Link.ResourceConcluded(r)
+				go func() {
+					r.callback(r)
+				}()
+			}()
 		}
 	}
-}
-
-func safeResourceCallback(cb func(*Resource), res *Resource) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			Log(fmt.Sprintf("panic in resource callback: %v", rec), LOG_ERROR)
-		}
-	}()
-	cb(res)
 }
 
 // SetCallback sets the completion callback.
@@ -1956,23 +1965,28 @@ func (r *Resource) SetProgressCallback(cb func(*Resource)) {
 
 // GetProgress returns the overall resource progress.
 func (r *Resource) GetProgress() float64 {
-	if r.status == ResourceComplete && r.segmentIndex == r.totalSegments {
+	if r.Status == ResourceComplete && r.segmentIndex == r.totalSegments {
 		return 1.0
 	}
 
 	var processed, total float64
-	maxPartsPerSegment := math.Ceil(float64(MaxEfficientSize) / float64(r.sdu))
-
 	if r.initiator {
 		if !r.split {
 			processed = float64(r.sentParts)
 			total = float64(r.totalParts)
 		} else {
+			if r.sdu == 0 {
+				panic("division by zero")
+			}
+			maxPartsPerSegment := math.Ceil(float64(MaxEfficientSize) / float64(r.sdu))
 			prevSegments := float64(r.segmentIndex - 1)
 			prevParts := prevSegments * maxPartsPerSegment
 			currentParts := float64(r.totalParts)
 			currentFactor := 1.0
-			if currentParts < maxPartsPerSegment && currentParts > 0 {
+			if currentParts < maxPartsPerSegment {
+				if currentParts == 0 {
+					panic("division by zero")
+				}
 				currentFactor = maxPartsPerSegment / currentParts
 			}
 			processed = prevParts + float64(r.sentParts)*currentFactor
@@ -1983,27 +1997,35 @@ func (r *Resource) GetProgress() float64 {
 			processed = float64(r.receivedCount)
 			total = float64(r.totalParts)
 		} else {
+			if r.sdu == 0 {
+				panic("division by zero")
+			}
+			maxPartsPerSegment := math.Ceil(float64(MaxEfficientSize) / float64(r.sdu))
 			prevSegments := float64(r.segmentIndex - 1)
 			prevParts := prevSegments * maxPartsPerSegment
 			currentParts := float64(r.totalParts)
 			currentFactor := 1.0
-			if currentParts < maxPartsPerSegment && currentParts > 0 {
+			if currentParts < maxPartsPerSegment {
+				if currentParts == 0 {
+					panic("division by zero")
+				}
 				currentFactor = maxPartsPerSegment / currentParts
 			}
 			processed = prevParts + float64(r.receivedCount)*currentFactor
 			total = float64(r.totalSegments) * maxPartsPerSegment
 		}
 	}
-
+	r.processedParts = processed
+	r.progressTotalParts = total
 	if total == 0 {
-		return 0
+		panic("division by zero")
 	}
 	return math.Min(1.0, processed/total)
 }
 
 // GetSegmentProgress returns progress for the current segment.
 func (r *Resource) GetSegmentProgress() float64 {
-	if r.status == ResourceComplete && r.segmentIndex == r.totalSegments {
+	if r.Status == ResourceComplete && r.segmentIndex == r.totalSegments {
 		return 1.0
 	}
 	var processed float64
@@ -2013,7 +2035,7 @@ func (r *Resource) GetSegmentProgress() float64 {
 		processed = float64(r.receivedCount)
 	}
 	if r.totalParts == 0 {
-		return 0
+		panic("division by zero")
 	}
 	return math.Min(1.0, processed/float64(r.totalParts))
 }
@@ -2025,71 +2047,8 @@ func (r *Resource) GetSegments() int     { return r.totalSegments }
 func (r *Resource) GetHash() []byte      { return append([]byte(nil), r.hash...) }
 func (r *Resource) IsCompressed() bool   { return r.comp }
 
-func (r *Resource) Progress() float64        { return r.GetProgress() }
-func (r *Resource) SegmentProgress() float64 { return r.GetSegmentProgress() }
-func (r *Resource) TotalSize() int           { return r.totalSize }
-func (r *Resource) Status() byte             { return r.status }
-func (r *Resource) Hash() []byte             { return r.GetHash() }
-func (r *Resource) Link() *Link              { return r.link }
-
-func (r *Resource) Metadata() any {
-	return r.metadataObj
-}
-
-func (r *Resource) DataFile() string {
-	return r.storagePath
-}
-
 func (r *Resource) String() string {
-	linkID := "unknown"
-	if r.link != nil && len(r.link.LinkID) > 0 {
-		linkID = PrettyHex(r.link.LinkID)
-	}
-	return fmt.Sprintf("<%s/%s>", PrettyHex(r.hash), linkID)
-}
-
-func NewResourceAdvertisementFromResource(r *Resource) ResourceAdvertisement {
-	// flags
-	var f byte
-	if r.encr {
-		f |= 0x01
-	}
-	if r.comp {
-		f |= 0x02
-	}
-	if r.split {
-		f |= 0x04
-	}
-	if r.requestID != nil && !r.isResponse {
-		f |= 0x08
-	}
-	if r.requestID != nil && r.isResponse {
-		f |= 0x10
-	}
-	if r.hasMetadata {
-		f |= 0x20
-	}
-
-	return ResourceAdvertisement{
-		T:    r.size,
-		D:    r.totalSize,
-		N:    r.totalParts,
-		H:    r.hash,
-		R:    r.randomHash,
-		O:    r.originalHash,
-		M:    flattenHashmap(r.hashmap),
-		F:    f,
-		I:    r.segmentIndex,
-		L:    r.totalSegments,
-		Q:    r.requestID,
-		Link: r.link,
-		E:    r.encr,
-		C:    r.comp,
-		S:    r.split,
-		U:    r.requestID != nil && !r.isResponse,
-		P:    r.requestID != nil && r.isResponse,
-		X:    r.hasMetadata,
-	}
+	return "<" + HexRep(r.hash, false) + "/" + HexRep(r.Link.LinkID, false) + ">"
 }
 
 func (a ResourceAdvertisement) Pack(segment int) []byte {
@@ -2104,8 +2063,11 @@ func (a ResourceAdvertisement) Pack(segment int) []byte {
 	for i := hashmapStart; i < hashmapEnd; i++ {
 		start := i * MapHashLen
 		end := start + MapHashLen
+		if start >= len(a.M) {
+			continue
+		}
 		if end > len(a.M) {
-			break
+			end = len(a.M)
 		}
 		hm = append(hm, a.M[start:end]...)
 	}
@@ -2124,7 +2086,7 @@ func (a ResourceAdvertisement) Pack(segment int) []byte {
 		"m": hm,
 	}
 
-	b, err := msgpackMarshal(dict)
+	b, err := umsgpack.Packb(dict)
 	if err != nil {
 		Log(fmt.Sprintf("Could not pack resource advertisement: %v", err), LOG_ERROR)
 		return []byte{}
@@ -2132,7 +2094,7 @@ func (a ResourceAdvertisement) Pack(segment int) []byte {
 	return b
 }
 
-func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
+func (ResourceAdvertisement) Unpack(data []byte) (*ResourceAdvertisement, error) {
 	// Python parity: the advertisement is a msgpack dict with short keys.
 	// The bundled umsgpack implementation does not reliably decode into tagged structs,
 	// so unpack into a map and extract the fields.
@@ -2143,7 +2105,7 @@ func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
 				err = fmt.Errorf("msgpack unpack panic: %v", rec)
 			}
 		}()
-		return msgpackUnmarshalInto(data, &dictAny)
+		return umsgpack.Unpackb(data, &dictAny)
 	}(); err != nil {
 		return nil, err
 	}
@@ -2168,92 +2130,163 @@ func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
 		return nil, false
 	}
 
-	readInt := func(key string) int {
-		if v, ok := get(key); ok {
-			switch i := v.(type) {
-			case int:
-				return i
-			case int8:
-				return int(i)
-			case int16:
-				return int(i)
-			case int32:
-				return int(i)
-			case int64:
-				return int(i)
-			case uint:
-				return int(i)
-			case uint8:
-				return int(i)
-			case uint16:
-				return int(i)
-			case uint32:
-				return int(i)
-			case uint64:
-				return int(i)
-			case float32:
-				return int(i)
-			case float64:
-				return int(i)
-			}
+	readInt := func(key string) (int, error) {
+		v, ok := get(key)
+		if !ok {
+			return 0, fmt.Errorf("missing msgpack key %q", key)
 		}
-		return 0
+		switch i := v.(type) {
+		case int:
+			return i, nil
+		case int8:
+			return int(i), nil
+		case int16:
+			return int(i), nil
+		case int32:
+			return int(i), nil
+		case int64:
+			return int(i), nil
+		case uint:
+			return int(i), nil
+		case uint8:
+			return int(i), nil
+		case uint16:
+			return int(i), nil
+		case uint32:
+			return int(i), nil
+		case uint64:
+			return int(i), nil
+		case float32:
+			return int(i), nil
+		case float64:
+			return int(i), nil
+		default:
+			return 0, fmt.Errorf("unexpected msgpack int type %T for key %q", v, key)
+		}
 	}
-	readBytes := func(key string) []byte {
-		if v, ok := get(key); ok {
-			switch b := v.(type) {
-			case []byte:
-				return append([]byte(nil), b...)
-			case string:
-				return append([]byte(nil), []byte(b)...)
-			}
+	readBytes := func(key string) ([]byte, error) {
+		v, ok := get(key)
+		if !ok {
+			return nil, fmt.Errorf("missing msgpack key %q", key)
 		}
-		return nil
+		switch b := v.(type) {
+		case []byte:
+			return append([]byte(nil), b...), nil
+		case string:
+			return append([]byte(nil), []byte(b)...), nil
+		default:
+			return nil, fmt.Errorf("unexpected msgpack bytes type %T for key %q", v, key)
+		}
 	}
-	readByte := func(key string) byte {
-		if v, ok := get(key); ok {
-			switch i := v.(type) {
-			case int:
-				return byte(i)
-			case int8:
-				return byte(i)
-			case int16:
-				return byte(i)
-			case int32:
-				return byte(i)
-			case int64:
-				return byte(i)
-			case uint:
-				return byte(i)
-			case uint8:
-				return byte(i)
-			case uint16:
-				return byte(i)
-			case uint32:
-				return byte(i)
-			case uint64:
-				return byte(i)
-			case float32:
-				return byte(i)
-			case float64:
-				return byte(i)
-			}
+	readOptionalBytes := func(key string) ([]byte, error) {
+		v, ok := get(key)
+		if !ok {
+			return nil, fmt.Errorf("missing msgpack key %q", key)
 		}
-		return 0
+		if v == nil {
+			return nil, nil
+		}
+		switch b := v.(type) {
+		case []byte:
+			return append([]byte(nil), b...), nil
+		case string:
+			return append([]byte(nil), []byte(b)...), nil
+		default:
+			return nil, fmt.Errorf("unexpected msgpack optional bytes type %T for key %q", v, key)
+		}
+	}
+	readByte := func(key string) (byte, error) {
+		v, ok := get(key)
+		if !ok {
+			return 0, fmt.Errorf("missing msgpack key %q", key)
+		}
+		switch i := v.(type) {
+		case int:
+			return byte(i), nil
+		case int8:
+			return byte(i), nil
+		case int16:
+			return byte(i), nil
+		case int32:
+			return byte(i), nil
+		case int64:
+			return byte(i), nil
+		case uint:
+			return byte(i), nil
+		case uint8:
+			return byte(i), nil
+		case uint16:
+			return byte(i), nil
+		case uint32:
+			return byte(i), nil
+		case uint64:
+			return byte(i), nil
+		case float32:
+			return byte(i), nil
+		case float64:
+			return byte(i), nil
+		default:
+			return 0, fmt.Errorf("unexpected msgpack byte type %T for key %q", v, key)
+		}
+	}
+
+	t, err := readInt("t")
+	if err != nil {
+		return nil, err
+	}
+	d, err := readInt("d")
+	if err != nil {
+		return nil, err
+	}
+	n, err := readInt("n")
+	if err != nil {
+		return nil, err
+	}
+	h, err := readBytes("h")
+	if err != nil {
+		return nil, err
+	}
+	r, err := readBytes("r")
+	if err != nil {
+		return nil, err
+	}
+	o, err := readBytes("o")
+	if err != nil {
+		return nil, err
+	}
+	i, err := readInt("i")
+	if err != nil {
+		return nil, err
+	}
+	l, err := readInt("l")
+	if err != nil {
+		return nil, err
+	}
+	q, err := readOptionalBytes("q")
+	if err != nil {
+		return nil, err
+	}
+	f, err := readByte("f")
+	if err != nil {
+		return nil, err
+	}
+	m, err := readBytes("m")
+	if err != nil {
+		return nil, err
 	}
 
 	adv := &ResourceAdvertisement{
-		T: readInt("t"),
-		D: readInt("d"),
-		N: readInt("n"),
-		H: readBytes("h"),
-		R: readBytes("r"),
-		O: readBytes("o"),
-		I: readInt("i"),
-		L: readInt("l"),
-		Q: readBytes("q"),
-		F: readByte("f"),
-		M: readBytes("m"),
+		T: t,
+		D: d,
+		N: n,
+		H: h,
+		R: r,
+		O: o,
+		I: i,
+		L: l,
+		Q: q,
+		F: f,
+		M: m,
 	}
 
 	adv.E = (adv.F & 0x01) == 0x01
@@ -2265,80 +2298,43 @@ func ResourceAdvertisementUnpack(data []byte) (*ResourceAdvertisement, error) {
 	return adv, nil
 }
 
-func flattenHashmap(hm [][]byte) []byte {
-	var b []byte
-	for _, h := range hm {
-		b = append(b, h...)
-	}
-	return b
-}
-
-func (a ResourceAdvertisement) GetTransferSize() int { return a.TransferSize() }
-func (a ResourceAdvertisement) GetDataSize() int     { return a.DataSize() }
+func (a ResourceAdvertisement) GetTransferSize() int { return a.T }
+func (a ResourceAdvertisement) GetDataSize() int     { return a.D }
 func (a ResourceAdvertisement) GetParts() int        { return a.N }
 func (a ResourceAdvertisement) GetSegments() int     { return a.L }
-func (a ResourceAdvertisement) GetHash() []byte      { return a.H }
+func (a ResourceAdvertisement) GetHash() []byte      { return append([]byte(nil), a.H...) }
 func (a ResourceAdvertisement) IsCompressed() bool   { return a.C }
 func (a ResourceAdvertisement) HasMetadata() bool    { return a.X }
+func (a ResourceAdvertisement) GetLink() *Link       { return a.Link }
 
 func (a *ResourceAdvertisement) IsRequest() bool {
-	if a == nil {
-		return false
-	}
-	return len(a.Q) > 0 && a.U
+	return a.Q != nil && a.U
 }
 
 func (a *ResourceAdvertisement) IsResponse() bool {
-	if a == nil {
-		return false
+	return a.Q != nil && a.P
+}
+
+func (ResourceAdvertisement) ReadRequestID(advertisementPacket *Packet) []byte {
+	adv, err := (ResourceAdvertisement{}).Unpack(advertisementPacket.Plaintext)
+	if err != nil {
+		panic(err)
 	}
-	return len(a.Q) > 0 && a.P
+	return append([]byte(nil), adv.Q...)
 }
 
-func (a *ResourceAdvertisement) RequestID() []byte {
-	if a == nil || len(a.Q) == 0 {
-		return nil
+func (ResourceAdvertisement) ReadTransferSize(advertisementPacket *Packet) int {
+	adv, err := (ResourceAdvertisement{}).Unpack(advertisementPacket.Plaintext)
+	if err != nil {
+		panic(err)
 	}
-	return append([]byte(nil), a.Q...)
+	return adv.T
 }
 
-func (a *ResourceAdvertisement) TransferSize() int {
-	if a == nil {
-		return 0
+func (ResourceAdvertisement) ReadSize(advertisementPacket *Packet) int {
+	adv, err := (ResourceAdvertisement{}).Unpack(advertisementPacket.Plaintext)
+	if err != nil {
+		panic(err)
 	}
-	return a.T
-}
-
-func (a *ResourceAdvertisement) DataSize() int {
-	if a == nil {
-		return 0
-	}
-	return a.D
-}
-
-// etc.
-
-// ---------------- msgpack helpers ----------------
-
-func msgpackMarshal(v any) ([]byte, error) {
-	return umsgpack.Packb(v)
-}
-
-func msgpackUnmarshal(data []byte) ([]any, error) {
-	var out []any
-	if err := umsgpack.Unpackb(data, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func msgpackUnmarshalInto(data []byte, v interface{}) error {
-	return umsgpack.Unpackb(data, v)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return adv.D
 }

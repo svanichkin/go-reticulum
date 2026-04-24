@@ -1003,7 +1003,7 @@ func SetMTU(mtu int) error {
 		return fmt.Errorf("MTU %d leaves no room for link payloads", mtu)
 	}
 
-	hashLen := resourceHashmapCapacity(link)
+	hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
 	if hashLen <= 0 {
 		return fmt.Errorf("MTU %d leaves no room for resource hashmaps", mtu)
 	}
@@ -1021,7 +1021,7 @@ func SetMTU(mtu int) error {
 func recalcMTUDerivedLocked() {
 	plain := computePlainMDU(MTU)
 	link := computeLinkMDU(MTU)
-	hashLen := resourceHashmapCapacity(link)
+	hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
 	encrypted := computeEncryptedPacketMDU(plain)
 	applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen)
 }
@@ -1047,7 +1047,8 @@ func applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen int) {
 	PacketPlainMDU = plain
 	PacketEncryptedMDU = encrypted
 	LinkMDU = link
-	setResourceSizing(hashLen)
+	HashmapMaxLen = hashLen
+	CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
 
 	if plain != prevPlain || encrypted != prevEncrypted || link != prevLink {
 		go propagateMTUChange(prevPlain, plain, prevLink, link)

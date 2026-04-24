@@ -645,19 +645,8 @@ overall=0
 build_go_examples
 
 examples=(
-  minimal
-  announce
-  broadcast
   link
   identify
-  echo
-  ratchets
-  channel
-  buffer
-  request
-  resource
-  filetransfer
-  speedtest
 )
 
 for ex in "${examples[@]}"; do

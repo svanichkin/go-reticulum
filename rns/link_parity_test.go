@@ -19,17 +19,17 @@ func TestLinkTeardown_CancelsTrackedResources(t *testing.T) {
 	var outgoingCalled atomic.Int32
 
 	incoming := &Resource{
-		link:      l,
+		Link:      l,
 		initiator: false,
-		status:    ResourceTransferring,
+		Status:    ResourceTransferring,
 		callback: func(*Resource) {
 			incomingCalled.Add(1)
 		},
 	}
 	outgoing := &Resource{
-		link:      l,
+		Link:      l,
 		initiator: true,
-		status:    ResourceTransferring,
+		Status:    ResourceTransferring,
 		callback: func(*Resource) {
 			outgoingCalled.Add(1)
 		},
@@ -48,11 +48,11 @@ func TestLinkTeardown_CancelsTrackedResources(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	if incoming.status != ResourceFailed {
-		t.Fatalf("incoming resource status=%d, want failed", incoming.status)
+	if incoming.Status != ResourceFailed {
+		t.Fatalf("incoming resource status=%d, want failed", incoming.Status)
 	}
-	if outgoing.status != ResourceFailed {
-		t.Fatalf("outgoing resource status=%d, want failed", outgoing.status)
+	if outgoing.Status != ResourceFailed {
+		t.Fatalf("outgoing resource status=%d, want failed", outgoing.Status)
 	}
 	if incomingCalled.Load() == 0 {
 		t.Fatalf("expected incoming resource callback after teardown")

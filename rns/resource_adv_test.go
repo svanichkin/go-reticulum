@@ -33,7 +33,7 @@ func TestResourceAdvertisement_RoundTrip_HashmapSegment(t *testing.T) {
 	var decodedMap map[any]any
 	_ = umsgpack.Unpackb(raw, &decodedMap)
 	t.Logf("decodedMap type=%T val=%#v", decodedMap, decodedMap)
-	b, err := ResourceAdvertisementUnpack(raw)
+	b, err := (ResourceAdvertisement{}).Unpack(raw)
 	if err != nil {
 		t.Fatalf("Unpack: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestResourceAdvertisement_RoundTrip_LargeIntegersAndHashmap(t *testing.T) {
 		t.Fatalf("umsgpack.Unpackb: %v", err)
 	}
 	t.Logf("decodedMap=%#v", decodedMap)
-	b, err := ResourceAdvertisementUnpack(raw)
+	b, err := (ResourceAdvertisement{}).Unpack(raw)
 	if err != nil {
 		t.Fatalf("Unpack: %v", err)
 	}

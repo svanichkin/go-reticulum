@@ -3,6 +3,7 @@ package rns
 import (
 	"bytes"
 	"testing"
+	"time"
 )
 
 func TestRegisterDestination_SetsMTUAndSkipsOutboundRegistration(t *testing.T) {
@@ -51,6 +52,46 @@ func TestRegisterDestination_DuplicateHashPanics(t *testing.T) {
 	}
 	if second.mtu != MTU {
 		t.Fatalf("second destination mtu=%d, want %d", second.mtu, MTU)
+	}
+}
+
+func TestRegisterDestination_SharedClientRegistrationDoesNotAutoAnnounce(t *testing.T) {
+	prevOwner := Owner
+	prevInterfaces := Interfaces
+	prevDestinations := Destinations
+
+	clientIfc := &Interface{
+		Name:                "shared-client",
+		Type:                "LocalInterface",
+		IN:                  true,
+		OUT:                 true,
+		LocalIsSharedClient: true,
+	}
+	sink := &outboundCapture{}
+	attachOutboundCapture(t, sink, clientIfc)
+
+	Owner = &Reticulum{IsConnectedToSharedInstance: true, SharedInstanceInterface: clientIfc}
+	Interfaces = []*Interface{clientIfc}
+	Destinations = nil
+
+	t.Cleanup(func() {
+		Owner = prevOwner
+		Interfaces = prevInterfaces
+		Destinations = prevDestinations
+	})
+
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	if _, err := NewDestination(id, DestinationIN, DestinationSINGLE, "test", "shared", "register"); err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	time.Sleep(400 * time.Millisecond)
+
+	if got := len(sink.packets); got != 0 {
+		t.Fatalf("automatic shared-client announces=%d, want 0", got)
 	}
 }
 

@@ -206,7 +206,7 @@ func (rr *RequestReceipt) responseResourceProgress(res *Resource) {
 		return
 	}
 	rr.status = ReceiptReceiving
-	rr.progress = res.Progress()
+	rr.progress = res.GetProgress()
 	rr.mu.Unlock()
 	rr.ensurePacketReceiptDelivered()
 	if rr.callbacks.Progress != nil {
