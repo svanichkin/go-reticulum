@@ -2173,7 +2173,7 @@ func Jobs() {
 		for i := 0; i < len(Receipts); {
 			rc := Receipts[i]
 			rc.CheckTimeout()
-			if rc.Status != ReceiptSent {
+			if rc.Status != PacketReceiptSENT {
 				Receipts = append(Receipts[:i], Receipts[i+1:]...)
 			} else {
 				i++
@@ -5135,7 +5135,7 @@ func Inbound(raw []byte, ifc *Interface) {
 		for i := 0; i < len(Receipts); {
 			rc := Receipts[i]
 			receiptValidated := false
-			if rc != nil && rc.Status == ReceiptSent {
+			if rc != nil && rc.Status == PacketReceiptSENT {
 				if proofHash != nil {
 					if bytes.Equal(rc.Hash, proofHash) {
 						receiptValidated = rc.ValidateProofPacket(p)

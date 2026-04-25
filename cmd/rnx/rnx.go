@@ -773,9 +773,9 @@ func execute(
 
 	spin(
 		func() bool {
-			st := receipt.Status()
+			st := receipt.GetStatus()
 			return link.Status == rns.LinkClosed ||
-				(st != rns.ReceiptFailed && st != rns.ReceiptSent)
+				(st != rns.RequestReceiptFailed && st != rns.RequestReceiptSent)
 		},
 		"Sending execution request",
 		rexecTimeout+0.5,
@@ -789,7 +789,7 @@ func execute(
 		os.Exit(244)
 	}
 
-	if receipt.Status() == rns.ReceiptFailed {
+	if receipt.GetStatus() == rns.RequestReceiptFailed {
 		fmt.Println("Could not request remote execution")
 		if interactive {
 			return 0
@@ -798,12 +798,12 @@ func execute(
 	}
 
 	spin(
-		func() bool { return receipt.Status() != rns.ReceiptDelivered },
+		func() bool { return receipt.GetStatus() != rns.RequestReceiptDelivered },
 		"Command delivered, awaiting result",
 		timeout,
 	)
 
-	if receipt.Status() == rns.ReceiptFailed {
+	if receipt.GetStatus() == rns.RequestReceiptFailed {
 		fmt.Println("No result was received")
 		if interactive {
 			return 0
@@ -811,9 +811,9 @@ func execute(
 		os.Exit(245)
 	}
 
-	spinStat(func() bool { return receipt.Status() != rns.ReceiptReceiving }, resultTimeout)
+	spinStat(func() bool { return receipt.GetStatus() != rns.RequestReceiptReceiving }, resultTimeout)
 
-	if receipt.Status() == rns.ReceiptFailed {
+	if receipt.GetStatus() == rns.RequestReceiptFailed {
 		fmt.Println("Receiving result failed")
 		if interactive {
 			return 0
@@ -821,7 +821,7 @@ func execute(
 		os.Exit(246)
 	}
 
-	resp := receipt.Response()
+	resp := receipt.GetResponse()
 	if resp == nil {
 		fmt.Println("No response")
 		if interactive {
@@ -871,11 +871,18 @@ func execute(
 			cmdDur := roundFloat(concluded-started, 3)
 			fmt.Printf("Remote command execution took %s seconds\n", pyFloat(cmdDur))
 
-			totalSize := receipt.ResponseSize()
-			if rs := receipt.RequestSize(); rs > 0 {
-				totalSize += rs
+			totalSize := 0
+			if responseSize := receipt.ResponseSize(); responseSize != nil {
+				totalSize = *responseSize
 			}
-			tdur := roundFloat(receipt.ResponseConcludedAt()-receipt.SentAt()-cmdDur, 3)
+			if rs := receipt.RequestSize(); rs != nil {
+				totalSize += *rs
+			}
+			responseTime := 0.0
+			if rt := receipt.GetResponseTime(); rt != nil {
+				responseTime = *rt
+			}
+			tdur := roundFloat(responseTime-cmdDur, 3)
 			tdStr := ""
 			if tdur == 1 {
 				tdStr = " in 1 second"
@@ -944,8 +951,12 @@ func remoteExecutionDone(rr *rns.RequestReceipt) {}
 
 func remoteExecutionProgress(rr *rns.RequestReceipt) {
 	const statsMax = 32
-	currentProgress = rr.Progress()
-	responseTransferSz = int64(rr.ResponseTransferSize())
+	currentProgress = rr.GetProgress()
+	if responseTransferSize := rr.ResponseTransferSize(); responseTransferSize != nil {
+		responseTransferSz = int64(*responseTransferSize)
+	} else {
+		responseTransferSz = 0
+	}
 	now := float64(time.Now().UnixNano()) / 1e9
 	got := currentProgress * float64(responseTransferSz)
 	entry := []float64{now, got}

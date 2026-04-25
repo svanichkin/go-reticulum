@@ -318,7 +318,7 @@ func (s *clientState) fileListReceived(rr *rns.RequestReceipt) {
 	if rr == nil {
 		return
 	}
-	resp := rr.Response()
+	resp := rr.GetResponse()
 	if resp == nil {
 		return
 	}

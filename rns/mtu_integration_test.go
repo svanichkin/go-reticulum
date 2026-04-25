@@ -70,7 +70,7 @@ func TestIntegration_MTU_PropagatesToLinkAndResource(t *testing.T) {
 		for time.Now().Before(waitUntil) {
 			allOK := true
 			for _, r := range receipts {
-				if r == nil || r.Status != ReceiptDelivered {
+				if r == nil || r.Status != PacketReceiptDELIVERED {
 					allOK = false
 					break
 				}
@@ -81,7 +81,7 @@ func TestIntegration_MTU_PropagatesToLinkAndResource(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 		for _, r := range receipts {
-			if r == nil || r.Status != ReceiptDelivered {
+			if r == nil || r.Status != PacketReceiptDELIVERED {
 				t.Fatalf("receipt not delivered")
 			}
 		}

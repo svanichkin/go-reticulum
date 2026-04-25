@@ -271,20 +271,20 @@ func programSetup(
 		respDeadline := time.Now().Add(time.Duration(useTimeout * float64(time.Second)))
 		spinnerIdx = 0
 
-		for receipt.GetStatus() == rns.ReceiptSent && time.Now().Before(respDeadline) {
+		for receipt.GetStatus() == rns.PacketReceiptSENT && time.Now().Before(respDeadline) {
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("\b\b%c ", syms[spinnerIdx])
 			os.Stdout.Sync()
 			spinnerIdx = (spinnerIdx + 1) % len(syms)
 		}
 
-		if receipt.GetStatus() == rns.ReceiptSent {
+		if receipt.GetStatus() == rns.PacketReceiptSENT {
 			fmt.Print("\r                                                                \rProbe timed out\n")
 		} else {
 			fmt.Print("\b\b \n")
 			os.Stdout.Sync()
 
-			if receipt.GetStatus() == rns.ReceiptDelivered {
+			if receipt.GetStatus() == rns.PacketReceiptDELIVERED {
 				replies++
 
 				hops := rns.HopsTo(destinationHash)

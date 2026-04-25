@@ -478,6 +478,7 @@ func (l *Link) Request(
 		Log(fmt.Sprintf("Could not pack request payload for %s: %v", path, err), LOG_ERROR)
 		return false
 	}
+	requestSize := len(packedRequest)
 
 	if len(packedRequest) <= l.MDU {
 		packet := NewPacket(
@@ -514,7 +515,7 @@ func (l *Link) Request(
 			packetReceipt,
 			nil,
 			timeout,
-			len(packedRequest),
+			&requestSize,
 			responseCb,
 			failedCb,
 			progressCb,
@@ -524,9 +525,57 @@ func (l *Link) Request(
 	requestID := TruncatedHash(packedRequest)
 	Log(fmt.Sprintf("Sending request %s as resource.", PrettyHexRep(requestID)), LOG_DEBUG)
 	timeoutCopy := timeout
+	var rr *RequestReceipt
 	callback := func(res *Resource) {
 		l.ResourceConcluded(res)
-		l.requestResourceConcluded(res)
+		if rr != nil {
+			if res.Status != ResourceComplete {
+				rr.mu.Lock()
+				if rr.status != RequestReceiptFailed && rr.status != RequestReceiptReady {
+					rr.status = RequestReceiptFailed
+					v := float64(time.Now().UnixNano()) / 1e9
+					rr.concludedAt = &v
+				}
+				rr.mu.Unlock()
+
+				rr.link.mu.Lock()
+				for i, pending := range rr.link.pendingRequests {
+					if pending == rr {
+						rr.link.pendingRequests = append(rr.link.pendingRequests[:i], rr.link.pendingRequests[i+1:]...)
+						break
+					}
+				}
+				rr.link.mu.Unlock()
+
+				if rr.callbacks.Failed != nil {
+					func() {
+						defer func() {
+							if rec := recover(); rec != nil {
+								Log("request receipt callback panic", LOG_ERROR)
+							}
+						}()
+						rr.callbacks.Failed(rr)
+					}()
+				}
+				return
+			}
+
+			rr.mu.Lock()
+			if rr.status != RequestReceiptSent {
+				rr.mu.Unlock()
+				return
+			}
+			if rr.startedAt == nil {
+				v := float64(time.Now().UnixNano()) / 1e9
+				rr.startedAt = &v
+			}
+			rr.status = RequestReceiptDelivered
+			rr.mu.Unlock()
+
+			time.AfterFunc(time.Duration(rr.timeout), func() {
+				rr.requestTimedOut()
+			})
+		}
 	}
 	res, err := NewResource(
 		packedRequest,
@@ -552,16 +601,38 @@ func (l *Link) Request(
 		Log("NewResource returned nil for request", LOG_ERROR)
 		return false
 	}
-	return newRequestReceipt(
+	rr = newRequestReceipt(
 		l,
 		nil,
 		requestID,
 		timeout,
-		len(packedRequest),
+		&requestSize,
 		responseCb,
 		failedCb,
 		progressCb,
 	)
+	res.SetCallback(callback)
+	if res.Status == ResourceComplete {
+		if res.Status != ResourceComplete {
+			return false
+		}
+		rr.mu.Lock()
+		if rr.status != RequestReceiptSent {
+			rr.mu.Unlock()
+			return rr
+		}
+		if rr.startedAt == nil {
+			v := float64(time.Now().UnixNano()) / 1e9
+			rr.startedAt = &v
+		}
+		rr.status = RequestReceiptDelivered
+		rr.mu.Unlock()
+
+		time.AfterFunc(time.Duration(rr.timeout), func() {
+			rr.requestTimedOut()
+		})
+	}
+	return rr
 }
 
 func (l *Link) SetResourceStrategy(strategy int) {
@@ -571,6 +642,314 @@ func (l *Link) SetResourceStrategy(strategy int) {
 	l.mu.Lock()
 	l.resourceStrategy = strategy
 	l.mu.Unlock()
+}
+
+// ==== Request receipts ====
+
+type RequestReceiptCallbacks struct {
+	Response func(*RequestReceipt)
+	Failed   func(*RequestReceipt)
+	Progress func(*RequestReceipt)
+}
+
+const (
+	RequestReceiptFailed    = 0x00
+	RequestReceiptSent      = 0x01
+	RequestReceiptDelivered = 0x02
+	RequestReceiptReceiving = 0x03
+	RequestReceiptReady     = 0x04
+)
+
+type RequestReceipt struct {
+	link *Link
+
+	packetReceipt *PacketReceipt
+
+	mu sync.Mutex
+
+	requestID   []byte
+	requestSize *int
+
+	response             any
+	responseSize         *int
+	responseTransferSize *int
+	responseMetadata     any
+	responseConcludedAt  *float64
+	startedAt            *float64
+	sentAt               time.Time
+	concludedAt          *float64
+	status               byte
+	progress             float64
+	timeout              time.Duration
+	callbacks            RequestReceiptCallbacks
+}
+
+func newRequestReceipt(
+	link *Link,
+	packetReceipt *PacketReceipt,
+	requestID []byte,
+	timeout float64,
+	requestSize *int,
+	responseCb func(*RequestReceipt),
+	failedCb func(*RequestReceipt),
+	progressCb func(*RequestReceipt),
+) *RequestReceipt {
+	rr := &RequestReceipt{
+		link:          link,
+		packetReceipt: packetReceipt,
+		requestID:     nil,
+		status:        RequestReceiptSent,
+		progress:      0,
+		sentAt:        time.Now(),
+		timeout:       time.Duration(timeout * float64(time.Second)),
+		callbacks: RequestReceiptCallbacks{
+			Response: responseCb,
+			Failed:   failedCb,
+			Progress: progressCb,
+		},
+	}
+
+	if rr.timeout <= 0 {
+		rr.timeout = time.Duration(float64(link.RTT)*link.TrafficTimeoutFactor) + time.Duration(1.125*float64(ResponseMaxGraceTime))
+	}
+
+	if len(requestID) > 0 {
+		rr.requestID = append([]byte(nil), requestID...)
+	}
+	rr.requestSize = requestSize
+
+	if packetReceipt != nil {
+		if rr.requestID == nil {
+			rr.requestID = append([]byte(nil), packetReceipt.TruncatedHash...)
+		}
+		startedAt := float64(time.Now().UnixNano()) / 1e9
+		rr.startedAt = &startedAt
+		packetReceipt.SetTimeout(timeout)
+		packetReceipt.SetDeliveryCallback(func(*PacketReceipt) {
+			rr.mu.Lock()
+			if rr.status != RequestReceiptFailed && rr.status != RequestReceiptReady {
+				if rr.startedAt == nil {
+					v := float64(time.Now().UnixNano()) / 1e9
+					rr.startedAt = &v
+				}
+				rr.status = RequestReceiptDelivered
+			}
+			rr.mu.Unlock()
+		})
+		packetReceipt.SetTimeoutCallback(func(*PacketReceipt) {
+			rr.requestTimedOut()
+		})
+		// In the in-process integration transport, the delivery proof can arrive
+		// synchronously during Packet.Send(), before we attach callbacks here.
+		// Mirror Python semantics by observing already-delivered receipts.
+		switch packetReceipt.Status {
+		case PacketReceiptDELIVERED:
+			rr.mu.Lock()
+			if rr.status != RequestReceiptFailed && rr.status != RequestReceiptReady {
+				if rr.startedAt == nil {
+					v := float64(time.Now().UnixNano()) / 1e9
+					rr.startedAt = &v
+				}
+				rr.status = RequestReceiptDelivered
+			}
+			rr.mu.Unlock()
+		case PacketReceiptFAILED:
+			rr.requestTimedOut()
+		}
+	}
+
+	link.mu.Lock()
+	link.pendingRequests = append(link.pendingRequests, rr)
+	link.mu.Unlock()
+	return rr
+}
+
+func (rr *RequestReceipt) GetRequestID() []byte {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return append([]byte(nil), rr.requestID...)
+}
+
+func (rr *RequestReceipt) GetStatus() byte {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return rr.status
+}
+
+func (rr *RequestReceipt) GetProgress() float64 {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return rr.progress
+}
+
+func (rr *RequestReceipt) GetResponse() any {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.status != RequestReceiptReady {
+		return nil
+	}
+	return rr.response
+}
+
+func (rr *RequestReceipt) ResponseSize() *int {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.responseSize == nil {
+		return nil
+	}
+	v := *rr.responseSize
+	return &v
+}
+
+func (rr *RequestReceipt) ResponseTransferSize() *int {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.responseTransferSize == nil {
+		return nil
+	}
+	v := *rr.responseTransferSize
+	return &v
+}
+
+func (rr *RequestReceipt) ResponseConcludedAt() *float64 {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.responseConcludedAt == nil {
+		return nil
+	}
+	v := *rr.responseConcludedAt
+	return &v
+}
+
+func (rr *RequestReceipt) SentAt() float64 {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.sentAt.IsZero() {
+		return 0
+	}
+	return float64(rr.sentAt.UnixNano()) / 1e9
+}
+
+func (rr *RequestReceipt) GetResponseTime() *float64 {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.status != RequestReceiptReady || rr.startedAt == nil || rr.responseConcludedAt == nil {
+		return nil
+	}
+	v := *rr.responseConcludedAt - *rr.startedAt
+	return &v
+}
+
+func (rr *RequestReceipt) RequestSize() *int {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if rr.requestSize == nil {
+		return nil
+	}
+	v := *rr.requestSize
+	return &v
+}
+
+func (rr *RequestReceipt) Concluded() bool {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return rr.status == RequestReceiptReady || rr.status == RequestReceiptFailed
+}
+
+func (rr *RequestReceipt) Metadata() any {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return rr.responseMetadata
+}
+
+func (rr *RequestReceipt) String() string {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	return PrettyHexRep(rr.requestID)
+}
+
+func (rr *RequestReceipt) responseReceived(resp any, metadata any) {
+	rr.mu.Lock()
+	if rr.status == RequestReceiptFailed {
+		rr.mu.Unlock()
+		return
+	}
+	rr.response = resp
+	rr.responseMetadata = metadata
+	if rr.responseConcludedAt == nil {
+		v := float64(time.Now().UnixNano()) / 1e9
+		rr.responseConcludedAt = &v
+	}
+	rr.progress = 1.0
+	rr.status = RequestReceiptReady
+	rr.mu.Unlock()
+	if pr := rr.packetReceipt; pr != nil {
+		pr.Status = PacketReceiptDELIVERED
+		pr.Proved = true
+		pr.ConcludedAt = time.Now()
+		if pr.Callbacks.Delivery != nil {
+			pr.Callbacks.Delivery(pr)
+		}
+	}
+	if rr.callbacks.Progress != nil {
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log(fmt.Sprintf("Error while executing response progress callback from %p. The contained exception was: %v", rr, rec), LOG_ERROR)
+				}
+			}()
+			rr.callbacks.Progress(rr)
+		}()
+	}
+	if rr.callbacks.Response != nil {
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log(fmt.Sprintf("Error while executing response received callback from %p. The contained exception was: %v", rr, rec), LOG_ERROR)
+				}
+			}()
+			rr.callbacks.Response(rr)
+		}()
+	}
+}
+
+func (rr *RequestReceipt) requestTimedOut() {
+	rr.mu.Lock()
+	if rr.status != RequestReceiptDelivered {
+		rr.mu.Unlock()
+		return
+	}
+	rr.mu.Unlock()
+
+	rr.link.mu.Lock()
+	idx := -1
+	for i, pending := range rr.link.pendingRequests {
+		if pending == rr {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		rr.link.mu.Unlock()
+		return
+	}
+	rr.mu.Lock()
+	rr.status = RequestReceiptFailed
+	v := float64(time.Now().UnixNano()) / 1e9
+	rr.concludedAt = &v
+	rr.mu.Unlock()
+	rr.link.pendingRequests = append(rr.link.pendingRequests[:idx], rr.link.pendingRequests[idx+1:]...)
+	rr.link.mu.Unlock()
+	if rr.callbacks.Failed != nil {
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log(fmt.Sprintf("Error while executing request timed out callback from %v. The contained exception was: %v", rr, rec), LOG_ERROR)
+				}
+			}()
+			rr.callbacks.Failed(rr)
+		}()
+	}
 }
 
 // ==== Resource handling ====
@@ -696,7 +1075,7 @@ func (l *Link) handleResponse(requestID []byte, response any, responseSize int, 
 	l.mu.Lock()
 	var pending *RequestReceipt
 	for _, candidate := range l.pendingRequests {
-		if candidate != nil && bytes.Equal(candidate.RequestID(), requestID) {
+		if candidate != nil && bytes.Equal(candidate.GetRequestID(), requestID) {
 			pending = candidate
 			break
 		}
@@ -705,7 +1084,23 @@ func (l *Link) handleResponse(requestID []byte, response any, responseSize int, 
 	if pending == nil {
 		return
 	}
-	pending.responseReceived(response, metadata, responseSize, responseTransferSize)
+	pending.mu.Lock()
+	pending.responseSize = &responseSize
+	if pending.responseTransferSize == nil {
+		v := 0
+		pending.responseTransferSize = &v
+	}
+	*pending.responseTransferSize += responseTransferSize
+	pending.mu.Unlock()
+	pending.responseReceived(response, metadata)
+	l.mu.Lock()
+	for i, candidate := range l.pendingRequests {
+		if candidate == pending {
+			l.pendingRequests = append(l.pendingRequests[:i], l.pendingRequests[i+1:]...)
+			break
+		}
+	}
+	l.mu.Unlock()
 }
 
 func (l *Link) requestResourceConcluded(res *Resource) {
@@ -737,7 +1132,7 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 	l.mu.Lock()
 	var pending *RequestReceipt
 	for _, candidate := range l.pendingRequests {
-		if candidate != nil && bytes.Equal(candidate.RequestID(), reqID) {
+		if candidate != nil && bytes.Equal(candidate.GetRequestID(), reqID) {
 			pending = candidate
 			break
 		}
@@ -754,7 +1149,22 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		return
 	}
 	if res.hasMetadata {
-		pending.responseReceived(res, res.Metadata, res.GetDataSize(), res.size)
+		responseSize := res.GetDataSize()
+		pending.responseSize = &responseSize
+		if pending.responseTransferSize == nil {
+			v := 0
+			pending.responseTransferSize = &v
+		}
+		*pending.responseTransferSize += res.GetTransferSize()
+		pending.responseReceived(res, res.Metadata)
+		l.mu.Lock()
+		for i, candidate := range l.pendingRequests {
+			if candidate == pending {
+				l.pendingRequests = append(l.pendingRequests[:i], l.pendingRequests[i+1:]...)
+				break
+			}
+		}
+		l.mu.Unlock()
 		return
 	}
 	data, err := os.ReadFile(res.DataFile)
@@ -770,7 +1180,22 @@ func (l *Link) responseResourceConcluded(res *Resource) {
 		return
 	}
 	response := unpacked[1]
-	pending.responseReceived(response, nil, res.GetDataSize(), res.size)
+	responseSize := res.GetDataSize()
+	pending.responseSize = &responseSize
+	if pending.responseTransferSize == nil {
+		v := 0
+		pending.responseTransferSize = &v
+	}
+	*pending.responseTransferSize += res.GetTransferSize()
+	pending.responseReceived(response, nil)
+	l.mu.Lock()
+	for i, candidate := range l.pendingRequests {
+		if candidate == pending {
+			l.pendingRequests = append(l.pendingRequests[:i], l.pendingRequests[i+1:]...)
+			break
+		}
+	}
+	l.mu.Unlock()
 }
 
 func (l *Link) responseResourceProgress(res *Resource) {
@@ -780,7 +1205,7 @@ func (l *Link) responseResourceProgress(res *Resource) {
 	l.mu.Lock()
 	var pending *RequestReceipt
 	for _, candidate := range l.pendingRequests {
-		if candidate != nil && bytes.Equal(candidate.RequestID(), res.requestID) {
+		if candidate != nil && bytes.Equal(candidate.GetRequestID(), res.requestID) {
 			pending = candidate
 			break
 		}
@@ -789,7 +1214,40 @@ func (l *Link) responseResourceProgress(res *Resource) {
 	if pending == nil {
 		return
 	}
-	pending.responseResourceProgress(res)
+	pending.mu.Lock()
+	if pending.status == RequestReceiptFailed {
+		pending.mu.Unlock()
+		res.Cancel()
+		return
+	}
+	pending.status = RequestReceiptReceiving
+	pending.progress = res.GetProgress()
+	pending.mu.Unlock()
+	if pr := pending.packetReceipt; pr != nil {
+		pr.Status = PacketReceiptDELIVERED
+		pr.Proved = true
+		pr.ConcludedAt = time.Now()
+		if pr.Callbacks.Delivery != nil {
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						Log("packet receipt callback panic", LOG_ERROR)
+					}
+				}()
+				pr.Callbacks.Delivery(pr)
+			}()
+		}
+	}
+	if pending.callbacks.Progress != nil {
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					Log("request receipt callback panic", LOG_ERROR)
+				}
+			}()
+			pending.callbacks.Progress(pending)
+		}()
+	}
 }
 
 // ==== Incoming request validation ====
@@ -934,7 +1392,7 @@ func (l *Link) Receive(packet *Packet) {
 		receiptsMu.Lock()
 		defer receiptsMu.Unlock()
 		for _, rc := range Receipts {
-			if rc == nil || rc.Status != ReceiptSent {
+			if rc == nil || rc.Status != PacketReceiptSENT {
 				continue
 			}
 			if rc.Link != l {
@@ -1154,7 +1612,7 @@ func (l *Link) Receive(packet *Packet) {
 			l.mu.Lock()
 			var pending *RequestReceipt
 			for _, candidate := range l.pendingRequests {
-				if candidate != nil && bytes.Equal(candidate.RequestID(), adv.Q) {
+				if candidate != nil && bytes.Equal(candidate.GetRequestID(), adv.Q) {
 					pending = candidate
 					break
 				}
@@ -1164,7 +1622,21 @@ func (l *Link) Receive(packet *Packet) {
 				(&Resource{}).reject(packet)
 				return
 			}
-			pending.noteResponseAdvertisement(adv)
+			pending.mu.Lock()
+			if pending.responseSize == nil {
+				v := adv.D
+				pending.responseSize = &v
+			}
+			if pending.responseTransferSize == nil {
+				v := 0
+				pending.responseTransferSize = &v
+			}
+			*pending.responseTransferSize += adv.T
+			if pending.startedAt == nil {
+				v := float64(time.Now().UnixNano()) / 1e9
+				pending.startedAt = &v
+			}
+			pending.mu.Unlock()
 			res := (&Resource{}).accept(
 				packet,
 				l.responseResourceConcluded,
@@ -1174,8 +1646,39 @@ func (l *Link) Receive(packet *Packet) {
 			if res == nil {
 				return
 			}
-			if res != nil {
-				pending.responseResourceProgress(res)
+			pending.mu.Lock()
+			if pending.status == RequestReceiptFailed {
+				pending.mu.Unlock()
+				res.Cancel()
+				return
+			}
+			pending.status = RequestReceiptReceiving
+			pending.progress = res.GetProgress()
+			pending.mu.Unlock()
+			if pr := pending.packetReceipt; pr != nil {
+				pr.Status = PacketReceiptDELIVERED
+				pr.Proved = true
+				pr.ConcludedAt = time.Now()
+				if pr.Callbacks.Delivery != nil {
+					func() {
+						defer func() {
+							if rec := recover(); rec != nil {
+								Log("packet receipt callback panic", LOG_ERROR)
+							}
+						}()
+						pr.Callbacks.Delivery(pr)
+					}()
+				}
+			}
+			if pending.callbacks.Progress != nil {
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							Log("request receipt callback panic", LOG_ERROR)
+						}
+					}()
+					pending.callbacks.Progress(pending)
+				}()
 			}
 		default:
 			switch l.resourceStrategy {

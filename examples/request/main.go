@@ -208,13 +208,13 @@ func clientLoop(getLink func() *rns.Link) error {
 				if rr == nil {
 					return
 				}
-				rns.Log("Got response for request "+rns.PrettyHexRep(rr.RequestID())+": "+fmt.Sprint(rr.Response()), rns.LogInfo)
+				rns.Log("Got response for request "+rns.PrettyHexRep(rr.GetRequestID())+": "+fmt.Sprint(rr.GetResponse()), rns.LogInfo)
 			},
 			func(rr *rns.RequestReceipt) {
 				if rr == nil {
 					return
 				}
-				rns.Log("The request "+rns.PrettyHexRep(rr.RequestID())+" failed.", rns.LogInfo)
+				rns.Log("The request "+rns.PrettyHexRep(rr.GetRequestID())+" failed.", rns.LogInfo)
 			},
 			nil,
 			0,

@@ -207,10 +207,10 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 	}
 	select {
 	case got := <-respCh:
-		if got == nil || got.Response() == nil {
+		if got == nil || got.GetResponse() == nil {
 			return fmt.Errorf("empty echo response")
 		}
-		fmt.Printf("EVENT echo_response %v\n", got.Response())
+		fmt.Printf("EVENT echo_response %v\n", got.GetResponse())
 	case <-failCh:
 		return fmt.Errorf("echo request failed")
 	case <-time.After(8 * time.Second):
@@ -232,10 +232,10 @@ func runReqClient(id *rns.Identity, destinationHex string, waitSeconds float64) 
 	case <-failCh:
 		return fmt.Errorf("sleep request unexpectedly failed")
 	case got := <-respCh:
-		if got == nil || got.Response() == nil {
+		if got == nil || got.GetResponse() == nil {
 			return fmt.Errorf("empty sleep response")
 		}
-		fmt.Printf("EVENT sleep_response %v\n", got.Response())
+		fmt.Printf("EVENT sleep_response %v\n", got.GetResponse())
 	case <-time.After(6 * time.Second):
 		return fmt.Errorf("sleep response timeout")
 	}
@@ -278,7 +278,7 @@ func requestExpectNoResponse(link *rns.Link, path string, data any, timeout floa
 	select {
 	case got := <-respCh:
 		if got != nil {
-			return "", fmt.Errorf("%s request unexpectedly got response: %v", path, got.Response())
+			return "", fmt.Errorf("%s request unexpectedly got response: %v", path, got.GetResponse())
 		}
 		return "", fmt.Errorf("%s request unexpectedly got empty response", path)
 	case <-failCh:

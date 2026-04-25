@@ -963,11 +963,11 @@ func (o *LinkChannelOutlet) GetPacketState(packet any) MessageState {
 		return MSGSTATE_FAILED
 	}
 	switch pkt.Receipt.Status {
-	case ReceiptSent:
+	case PacketReceiptSENT:
 		return MSGSTATE_SENT
-	case ReceiptDelivered:
+	case PacketReceiptDELIVERED:
 		return MSGSTATE_DELIVERED
-	case ReceiptFailed:
+	case PacketReceiptFAILED:
 		return MSGSTATE_FAILED
 	default:
 		return MSGSTATE_FAILED

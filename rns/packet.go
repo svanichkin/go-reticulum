@@ -614,12 +614,10 @@ type PacketReceipt struct {
 }
 
 const (
-	ReceiptFailed    = 0x00
-	ReceiptSent      = 0x01
-	ReceiptDelivered = 0x02
-	ReceiptReceiving = 0x03
-	ReceiptReady     = 0x04
-	ReceiptCulled    = 0xFF
+	PacketReceiptFAILED    = 0x00
+	PacketReceiptSENT      = 0x01
+	PacketReceiptDELIVERED = 0x02
+	PacketReceiptCULLED    = 0xFF
 )
 
 const (
@@ -639,7 +637,7 @@ func NewPacketReceipt(p *Packet) *PacketReceipt {
 		Sent:          true,
 		SentAt:        time.Now(),
 		Proved:        false,
-		Status:        ReceiptSent,
+		Status:        PacketReceiptSENT,
 		Destination:   p.Destination,
 		Link:          p.Link,
 		Callbacks:     PacketReceiptCallbacks{},
@@ -697,7 +695,7 @@ func (r *PacketReceipt) validateLinkProof(proof []byte, link *Link, proofPacket 
 		return false
 	}
 
-	r.Status = ReceiptDelivered
+	r.Status = PacketReceiptDELIVERED
 	r.Proved = true
 	r.ConcludedAt = time.Now()
 	r.ProofPacket = proofPacket
@@ -731,7 +729,7 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		if !r.Destination.identity.Validate(sig, r.Hash) {
 			return false
 		}
-		r.Status = ReceiptDelivered
+		r.Status = PacketReceiptDELIVERED
 		r.Proved = true
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
@@ -756,7 +754,7 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		if !r.Destination.identity.Validate(sig, r.Hash) {
 			return false
 		}
-		r.Status = ReceiptDelivered
+		r.Status = PacketReceiptDELIVERED
 		r.Proved = true
 		r.ConcludedAt = time.Now()
 		r.ProofPacket = proofPacket
@@ -788,11 +786,11 @@ func (r *PacketReceipt) IsTimedOut() bool {
 }
 
 func (r *PacketReceipt) CheckTimeout() {
-	if r.Status == ReceiptSent && r.IsTimedOut() {
+	if r.Status == PacketReceiptSENT && r.IsTimedOut() {
 		if r.Timeout == -1 {
-			r.Status = ReceiptCulled
+			r.Status = PacketReceiptCULLED
 		} else {
-			r.Status = ReceiptFailed
+			r.Status = PacketReceiptFAILED
 		}
 		r.ConcludedAt = time.Now()
 		if r.Callbacks.Timeout != nil {

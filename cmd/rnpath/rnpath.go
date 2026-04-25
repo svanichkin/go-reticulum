@@ -506,7 +506,7 @@ func obtainPathTable(destHash []byte, maxHops int, noOutput bool) ([]map[string]
 	for !receipt.Concluded() {
 		time.Sleep(100 * time.Millisecond)
 	}
-	resp := receipt.Response()
+	resp := receipt.GetResponse()
 	if !noOutput {
 		fmt.Print("\r                                                          \r")
 	}
@@ -539,7 +539,7 @@ func obtainRateTable(destHash []byte, noOutput bool) ([]map[string]any, error) {
 	for !receipt.Concluded() {
 		time.Sleep(100 * time.Millisecond)
 	}
-	resp := receipt.Response()
+	resp := receipt.GetResponse()
 	if !noOutput {
 		fmt.Print("\r                                                          \r")
 	}

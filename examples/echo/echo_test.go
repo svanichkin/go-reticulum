@@ -50,7 +50,7 @@ func TestEchoExample_RequestGetsProof(t *testing.T) {
 	if ok := rc.ValidateProofPacket(proof); !ok {
 		t.Fatalf("expected proof validation ok")
 	}
-	if rc.Status != rns.ReceiptDelivered {
+	if rc.Status != rns.PacketReceiptDELIVERED {
 		t.Fatalf("expected receipt delivered, got %d", rc.Status)
 	}
 	if rc.GetRTT() <= 0 {

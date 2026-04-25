@@ -697,7 +697,7 @@ func getRemoteStatus(destHash []byte, includeLstats bool, identity *rns.Identity
 		for !receipt.Concluded() {
 			time.Sleep(100 * time.Millisecond)
 		}
-		resp := receipt.Response()
+		resp := receipt.GetResponse()
 		if resp == nil {
 			if !noOutput {
 				fmt.Print("\r                                                          \r")

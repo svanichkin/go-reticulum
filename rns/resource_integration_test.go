@@ -526,7 +526,7 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 
 		select {
 		case r := <-done:
-			if r.Status() != ReceiptReady {
+			if r.GetStatus() != RequestReceiptReady {
 				stats := getIntegrationTransport()
 				if stats != nil {
 					stats.mu.Lock()
@@ -539,11 +539,11 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 						delivered[k] = v
 					}
 					stats.mu.Unlock()
-					t.Fatalf("expected receipt ready, got %d (progress=%.3f) sent=%v delivered=%v", r.Status(), r.Progress(), sent, delivered)
+					t.Fatalf("expected receipt ready, got %d (progress=%.3f) sent=%v delivered=%v", r.GetStatus(), r.GetProgress(), sent, delivered)
 				}
-				t.Fatalf("expected receipt ready, got %d (progress=%.3f)", r.Status(), r.Progress())
+				t.Fatalf("expected receipt ready, got %d (progress=%.3f)", r.GetStatus(), r.GetProgress())
 			}
-			gotAny := r.Response()
+			gotAny := r.GetResponse()
 			got, ok := gotAny.([]byte)
 			if !ok {
 				t.Fatalf("expected []byte response, got %T", gotAny)
@@ -556,7 +556,7 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 					t.Fatalf("response mismatch at %d", i)
 				}
 			}
-			if r.ResponseTransferSize() == 0 {
+			if r.ResponseTransferSize() == nil || *r.ResponseTransferSize() == 0 {
 				t.Fatalf("expected non-zero response transfer size")
 			}
 		case <-time.After(10 * time.Second):
@@ -576,9 +576,9 @@ func TestIntegration_Resource_ResponseToRequest_AsResource(t *testing.T) {
 					delivered[k] = v
 				}
 				stats.mu.Unlock()
-				t.Fatalf("timeout waiting request response, status=%d packet_receipt=%d progress=%.3f sent=%v delivered=%v", rr.Status(), prStatus, rr.Progress(), sent, delivered)
+				t.Fatalf("timeout waiting request response, status=%d packet_receipt=%d progress=%.3f sent=%v delivered=%v", rr.GetStatus(), prStatus, rr.GetProgress(), sent, delivered)
 			}
-			t.Fatalf("timeout waiting request response, status=%d packet_receipt=%d progress=%.3f", rr.Status(), prStatus, rr.Progress())
+			t.Fatalf("timeout waiting request response, status=%d packet_receipt=%d progress=%.3f", rr.GetStatus(), prStatus, rr.GetProgress())
 		}
 
 		l.Teardown()

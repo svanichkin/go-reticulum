@@ -130,13 +130,13 @@ func runClient(destinationHex string, configDir *string, timeout float64) {
 			if timeout > 0 {
 				receipt.SetTimeout(timeout)
 				receipt.SetTimeoutCallback(func(r *rns.PacketReceipt) {
-					if r.Status == rns.ReceiptFailed {
+					if r.Status == rns.PacketReceiptFAILED {
 						rns.Log("Packet "+rns.PrettyHexRep(r.Hash)+" timed out", rns.LogError)
 					}
 				})
 			}
 			receipt.SetDeliveryCallback(func(r *rns.PacketReceipt) {
-				if r.Status != rns.ReceiptDelivered {
+				if r.Status != rns.PacketReceiptDELIVERED {
 					return
 				}
 				rtt := r.GetRTT()

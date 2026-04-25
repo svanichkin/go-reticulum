@@ -150,7 +150,7 @@ func runClient(configDir *string, destinationHexHash string, timeout *time.Durat
 				})
 			}
 			rc.SetDeliveryCallback(func(receipt *rns.PacketReceipt) {
-				if receipt == nil || receipt.Status != rns.ReceiptDelivered {
+				if receipt == nil || receipt.Status != rns.PacketReceiptDELIVERED {
 					return
 				}
 				rtt := receipt.GetRTT()

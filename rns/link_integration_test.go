@@ -181,7 +181,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 				}
 			}
 			Inbound(pkt.Raw, pkt.ReceivingInterface)
-			if pkt.Receipt != nil && pkt.Receipt.Status == ReceiptDelivered {
+			if pkt.Receipt != nil && pkt.Receipt.Status == PacketReceiptDELIVERED {
 				return true
 			}
 		}
@@ -562,7 +562,7 @@ func TestIntegration_LinkPackets_WithReceipts(t *testing.T) {
 		for time.Now().Before(waitUntil) {
 			allOK := true
 			for _, r := range receipts {
-				if r == nil || r.Status != ReceiptDelivered {
+				if r == nil || r.Status != PacketReceiptDELIVERED {
 					allOK = false
 					break
 				}
@@ -574,7 +574,7 @@ func TestIntegration_LinkPackets_WithReceipts(t *testing.T) {
 		}
 
 		for _, r := range receipts {
-			if r == nil || r.Status != ReceiptDelivered {
+			if r == nil || r.Status != PacketReceiptDELIVERED {
 				t.Fatalf("receipt not delivered")
 			}
 		}

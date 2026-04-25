@@ -809,7 +809,7 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	currentTransferStarted := float64(0)
 
 	requestResponse := func(rr *rns.RequestReceipt) {
-		switch v := rr.Response().(type) {
+		switch v := rr.GetResponse().(type) {
 		case bool:
 			if !v {
 				requestStatus = "not_found"

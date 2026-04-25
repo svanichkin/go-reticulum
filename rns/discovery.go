@@ -1733,10 +1733,10 @@ func (u *BlackholeUpdater) job() {
 											for !rr.Concluded() && time.Now().Before(deadline) {
 												time.Sleep(200 * time.Millisecond)
 											}
-											if rr.Status() != ReceiptReady {
+											if rr.GetStatus() != RequestReceiptReady {
 												err = errors.New("blackhole list request timed out or failed")
 											} else {
-												response = rr.Response()
+												response = rr.GetResponse()
 											}
 										}
 									}

@@ -62,7 +62,7 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 	if p.Send() == nil || p.Receipt == nil {
 		t.Fatalf("expected receipt")
 	}
-	if p.Receipt.Status != ReceiptSent {
+	if p.Receipt.Status != PacketReceiptSENT {
 		t.Fatalf("unexpected receipt status: %d", p.Receipt.Status)
 	}
 	if len(sink.packets) != 1 {
@@ -88,7 +88,7 @@ func TestPacketIntegration_ExplicitProof_ValidatesReceipt(t *testing.T) {
 	if ok := p.Receipt.ValidateProofPacket(proof); !ok {
 		t.Fatalf("expected proof validation ok")
 	}
-	if p.Receipt.Status != ReceiptDelivered || !p.Receipt.Proved {
+	if p.Receipt.Status != PacketReceiptDELIVERED || !p.Receipt.Proved {
 		t.Fatalf("expected delivered/proved")
 	}
 }
@@ -137,7 +137,7 @@ func TestPacketIntegration_ImplicitProof_ValidatesReceipt(t *testing.T) {
 	if ok := p.Receipt.ValidateProofPacket(proof); !ok {
 		t.Fatalf("expected proof validation ok")
 	}
-	if p.Receipt.Status != ReceiptDelivered || !p.Receipt.Proved {
+	if p.Receipt.Status != PacketReceiptDELIVERED || !p.Receipt.Proved {
 		t.Fatalf("expected delivered/proved")
 	}
 }
