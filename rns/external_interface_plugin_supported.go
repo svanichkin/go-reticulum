@@ -4,6 +4,7 @@ package rns
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"plugin"
 	"strings"
@@ -38,7 +39,7 @@ func loadExternalInterfacePlugin(interfacePath, ifType, name string, kv map[stri
 	}
 
 	soPath := filepath.Join(interfacePath, ifType+".so")
-	if !fileExists(soPath) {
+	if st, err := os.Stat(soPath); err != nil || st.IsDir() {
 		return nil, false, nil
 	}
 
@@ -47,7 +48,11 @@ func loadExternalInterfacePlugin(interfacePath, ifType, name string, kv map[stri
 		return nil, true, err
 	}
 
-	ifc, err := factory(name, cloneInterfaceConfigMap(kv))
+	cfg := make(map[string]string, len(kv))
+	for k, v := range kv {
+		cfg[k] = v
+	}
+	ifc, err := factory(name, cfg)
 	if err != nil {
 		return nil, true, err
 	}

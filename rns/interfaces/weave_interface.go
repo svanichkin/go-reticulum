@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -668,9 +670,10 @@ func (d *WeaveDevice) DisplaySnapshot() ([]byte, bool) {
 }
 
 type weaveConfig struct {
-	name    string
-	port    string
-	bitrate int
+	name         string
+	port         string
+	identityPath string
+	bitrate      int
 }
 
 type weavePeerState struct {
@@ -775,32 +778,55 @@ func parseWeaveConfig(name string, kv map[string]string) (weaveConfig, error) {
 	} else {
 		cfg.bitrate = weaveBitrateGuess
 	}
+	cfg.identityPath = first(kv, "identitypath")
 	return cfg, nil
 }
 
 func (d *WeaveInterfaceDriver) initLocalIdentity() error {
-	if WeaveIdentityProvider != nil {
-		sigPub, sign, err := WeaveIdentityProvider(d.cfg.port)
+	keyPath := d.cfg.identityPath
+	if strings.TrimSpace(keyPath) == "" {
+		home, err := os.UserHomeDir()
 		if err != nil {
 			return err
 		}
-		if len(sigPub) != wdclPubKeySize || sign == nil {
-			return errors.New("invalid WeaveIdentityProvider result")
+		sum := sha256.Sum256([]byte(d.cfg.port))
+		keyPath = filepath.Join(home, ".reticulum", "storage", "identities", "weave_"+hex.EncodeToString(sum[:16])+".id")
+	}
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
+		return err
+	}
+	var priv ed25519.PrivateKey
+	if b, err := os.ReadFile(keyPath); err == nil && len(b) > 0 {
+		if len(b) != ed25519.PrivateKeySize {
+			return errors.New("invalid weave identity private key size")
 		}
-		d.localSigPub = append([]byte(nil), sigPub...)
-		d.localSign = sign
-		copy(d.localSID[:], sigPub[len(sigPub)-wdclSwitchIDLen:])
+		priv = append(ed25519.PrivateKey(nil), b...)
+	} else {
+		pub, generatedPriv, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return err
+		}
+		priv = append(ed25519.PrivateKey(nil), generatedPriv...)
+		if err := os.WriteFile(keyPath, priv, 0o600); err != nil {
+			return err
+		}
+		d.localSigPub = append([]byte(nil), pub...)
+		d.localSign = func(msg []byte) ([]byte, error) {
+			sig := ed25519.Sign(priv, msg)
+			return sig, nil
+		}
+		copy(d.localSID[:], pub[len(pub)-wdclSwitchIDLen:])
 		d.device.switchID = hex.EncodeToString(d.localSID[:])
 		return nil
 	}
-
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return err
+	pub := priv.Public().(ed25519.PublicKey)
+	if len(pub) != wdclPubKeySize {
+		return errors.New("invalid weave identity public key size")
 	}
 	d.localSigPub = append([]byte(nil), pub...)
 	d.localSign = func(msg []byte) ([]byte, error) {
-		return ed25519.Sign(priv, msg), nil
+		sig := ed25519.Sign(priv, msg)
+		return sig, nil
 	}
 	copy(d.localSID[:], pub[len(pub)-wdclSwitchIDLen:])
 	d.device.switchID = hex.EncodeToString(d.localSID[:])

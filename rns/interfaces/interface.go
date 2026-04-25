@@ -55,12 +55,6 @@ var RemoveInterfaceHandler func(ifc *Interface)
 // teardown can mirror Python's LocalInterface.teardown() without import cycles.
 var LocalInterfaceTeardownHandler func(ifc *Interface)
 
-// WeaveIdentityProvider is set by the rns package so WeaveInterface can
-// use the same persisted Identity semantics as Python (sig_pub_bytes/sign)
-// without creating import cycles.
-// It returns the Ed25519 public key bytes (32) and a signer func.
-var WeaveIdentityProvider func(port string) (sigPub []byte, sign func(msg []byte) ([]byte, error), err error)
-
 // QueuedAnnounceLife mirrors Reticulum.QUEUED_ANNOUNCE_LIFE.
 var QueuedAnnounceLife = 24 * time.Hour
 

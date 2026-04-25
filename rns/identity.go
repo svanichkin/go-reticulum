@@ -379,9 +379,13 @@ func IdentitySaveKnownDestinations() error {
 
 	saveStart := time.Now()
 
-	path := filepath.Join(osUserDir(), ".reticulum", "storage", "known_destinations")
-	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-		path = filepath.Join(inst.StoragePath, "known_destinations")
+	userDir, err := os.UserHomeDir()
+	if err != nil {
+		userDir = "~"
+	}
+	path := filepath.Join(userDir, ".reticulum", "storage", "known_destinations")
+	if instance != nil && instance.StoragePath != "" {
+		path = filepath.Join(instance.StoragePath, "known_destinations")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -514,9 +518,13 @@ func IdentitySaveKnownDestinations() error {
 
 // IdentityLoadKnownDestinations reads the map from storage/known_destinations.
 func IdentityLoadKnownDestinations() error {
-	path := filepath.Join(osUserDir(), ".reticulum", "storage", "known_destinations")
-	if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-		path = filepath.Join(inst.StoragePath, "known_destinations")
+	userDir, err := os.UserHomeDir()
+	if err != nil {
+		userDir = "~"
+	}
+	path := filepath.Join(userDir, ".reticulum", "storage", "known_destinations")
+	if instance != nil && instance.StoragePath != "" {
+		path = filepath.Join(instance.StoragePath, "known_destinations")
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -602,7 +610,7 @@ func IdentityLoadKnownDestinations() error {
 
 // IdentityPersistData persists the map if we are a standalone instance.
 func IdentityPersistData() {
-	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
+	if instance != nil && instance.IsConnectedToSharedInstance {
 		return
 	}
 	if err := IdentitySaveKnownDestinations(); err != nil {
@@ -1012,7 +1020,7 @@ func IdentityRememberRatchet(destHash, ratchet []byte) {
 	ratchetID := IdentityGetRatchetID(ratchet)
 	Logf(LogExtreme, "Remembering ratchet %s for %s", PrettyHexRep(ratchetID), PrettyHexRep(destHash))
 
-	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
+	if instance != nil && instance.IsConnectedToSharedInstance {
 		return
 	}
 
@@ -1030,12 +1038,16 @@ func IdentityRememberRatchet(destHash, ratchet []byte) {
 		defer ratchetPersistLock.Unlock()
 
 		dir := filepath.Join(func() string {
-			if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-				return inst.StoragePath
+			if instance != nil && instance.StoragePath != "" {
+				return instance.StoragePath
 			}
-			return filepath.Join(osUserDir(), ".reticulum", "storage")
+			userDir, err := os.UserHomeDir()
+			if err != nil {
+				userDir = "~"
+			}
+			return filepath.Join(userDir, ".reticulum", "storage")
 		}(), "ratchets")
-		ensureDir(dir)
+		_ = os.MkdirAll(dir, 0o755)
 
 		hexHash := hex.EncodeToString(destCopy)
 		tmpPath := filepath.Join(dir, hexHash+".tmp")
@@ -1066,10 +1078,14 @@ func IdentityGetRatchet(destHash []byte) []byte {
 	knownRatchets.RUnlock()
 
 	path := filepath.Join(func() string {
-		if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-			return inst.StoragePath
+		if instance != nil && instance.StoragePath != "" {
+			return instance.StoragePath
 		}
-		return filepath.Join(osUserDir(), ".reticulum", "storage")
+		userDir, err := os.UserHomeDir()
+		if err != nil {
+			userDir = "~"
+		}
+		return filepath.Join(userDir, ".reticulum", "storage")
 	}(), "ratchets", hex.EncodeToString(destHash))
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -1111,10 +1127,14 @@ func IdentityGetRatchet(destHash []byte) []byte {
 func IdentityCleanRatchets() {
 	Log("Cleaning ratchets...", LogDebug)
 	dir := filepath.Join(func() string {
-		if inst := GetInstance(); inst != nil && inst.StoragePath != "" {
-			return inst.StoragePath
+		if instance != nil && instance.StoragePath != "" {
+			return instance.StoragePath
 		}
-		return filepath.Join(osUserDir(), ".reticulum", "storage")
+		userDir, err := os.UserHomeDir()
+		if err != nil {
+			userDir = "~"
+		}
+		return filepath.Join(userDir, ".reticulum", "storage")
 	}(), "ratchets")
 	entries, err := os.ReadDir(dir)
 	if err != nil {

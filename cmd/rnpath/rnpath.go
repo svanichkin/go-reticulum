@@ -481,19 +481,24 @@ func handleTable(destinationHex string, maxHops int, jsonOut, noOutput bool) err
 }
 
 func obtainPathTable(destHash []byte, maxHops int, noOutput bool) ([]map[string]any, error) {
-	reqMax := maxHops
-	if reqMax < 0 {
-		reqMax = -1
-	}
-	if remoteLink == nil {
-		return reticulum.GetPathTable(reqMax), nil
+	if maxHops < 0 {
+		if remoteLink == nil {
+			return reticulum.GetPathTable(nil), nil
+		}
+	} else if remoteLink == nil {
+		reqMaxPtr := &maxHops
+		return reticulum.GetPathTable(reqMaxPtr), nil
 	}
 
 	if !noOutput {
 		fmt.Print("\r                                                          \r")
 		fmt.Print("Sending request... ")
 	}
-	requestData := []any{"table", destHash, reqMax}
+	var requestMax any = nil
+	if maxHops >= 0 {
+		requestMax = maxHops
+	}
+	requestData := []any{"table", destHash, requestMax}
 	result := remoteLink.Request("/path", requestData, nil, nil, nil, 0)
 	receipt, _ := result.(*rns.RequestReceipt)
 	if receipt == nil {

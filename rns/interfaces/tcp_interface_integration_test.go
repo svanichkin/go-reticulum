@@ -19,7 +19,7 @@ func TestTCPIntegration_HDLC_HeaderMinSize_DropsShortFrames(t *testing.T) {
 	defer clientSide.Close()
 
 	got := make(chan []byte, 1)
-	owner := TCPOwnerFunc(func(b []byte, _ *TCPClientInterface) { got <- append([]byte(nil), b...) })
+	owner := TCPOwner(func(b []byte, _ *TCPClientInterface) { got <- append([]byte(nil), b...) })
 	iface := NewTCPClientFromAccepted(owner, nil, "c0", serverSide, false, false)
 	t.Cleanup(func() { iface.Detach() })
 
@@ -57,7 +57,3 @@ func TestTCPIntegration_HDLC_HeaderMinSize_DropsShortFrames(t *testing.T) {
 		t.Fatalf("timeout waiting for long frame")
 	}
 }
-
-type TCPOwnerFunc func([]byte, *TCPClientInterface)
-
-func (f TCPOwnerFunc) Inbound(data []byte, iface *TCPClientInterface) { f(data, iface) }

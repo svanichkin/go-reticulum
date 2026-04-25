@@ -63,7 +63,7 @@ func loadExternalInterfacePython(interfacePath, ifType, name string, kv map[stri
 	}
 
 	pyPath := filepath.Join(interfacePath, ifType+".py")
-	if !fileExists(pyPath) {
+	if st, err := os.Stat(pyPath); err != nil || st.IsDir() {
 		return nil, false, nil
 	}
 
@@ -77,7 +77,10 @@ func loadExternalInterfacePython(interfacePath, ifType, name string, kv map[stri
 		return nil, true, err
 	}
 
-	cfg := cloneInterfaceConfigMap(kv)
+	cfg := make(map[string]string, len(kv))
+	for k, v := range kv {
+		cfg[k] = v
+	}
 	if strings.TrimSpace(cfg["name"]) == "" {
 		cfg["name"] = strings.TrimSpace(name)
 	}

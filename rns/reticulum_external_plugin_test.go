@@ -73,8 +73,8 @@ func TestBringUpSystemInterfaces_LoadsExternalGoPlugin(t *testing.T) {
 		InterfacePath:         ifDir,
 		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces(): %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces(): %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))

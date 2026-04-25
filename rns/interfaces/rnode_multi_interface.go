@@ -235,6 +235,23 @@ func parseRNodeMultiConfig(name string, kv map[string]string) (rnodeMultiConfig,
 		}
 		return ""
 	}
+	first := func(m map[string]string, keys ...string) string {
+		for _, k := range keys {
+			if m == nil {
+				return ""
+			}
+			lk := strings.ToLower(k)
+			if v, ok := m[lk]; ok {
+				return strings.TrimSpace(v)
+			}
+			for mk, mv := range m {
+				if strings.ToLower(mk) == lk {
+					return strings.TrimSpace(mv)
+				}
+			}
+		}
+		return ""
+	}
 
 	cfg := rnodeMultiConfig{
 		Name:  name,
@@ -301,7 +318,7 @@ func parseRNodeMultiConfig(name string, kv map[string]string) (rnodeMultiConfig,
 
 		enabledExplicit := false
 		enabled := parentEnabled
-		if raw := getFirst(sub, "interface_enabled", "enabled"); strings.TrimSpace(raw) != "" {
+		if raw := first(sub, "interface_enabled", "enabled"); strings.TrimSpace(raw) != "" {
 			enabledExplicit = true
 			enabled = parseTruthy(raw, true)
 		}
@@ -312,36 +329,36 @@ func parseRNodeMultiConfig(name string, kv map[string]string) (rnodeMultiConfig,
 			continue
 		}
 
-		vport := parseIntOr(getFirst(sub, "vport"), -1)
+		vport := parseIntOr(first(sub, "vport"), -1)
 		if vport < 0 || vport > 255 {
 			return cfg, fmt.Errorf("invalid vport for subinterface %q", subName)
 		}
 
 		outgoing := true
-		if raw := getFirst(sub, "outgoing"); strings.TrimSpace(raw) != "" {
+		if raw := first(sub, "outgoing"); strings.TrimSpace(raw) != "" {
 			outgoing = parseTruthy(raw, true)
 		}
 
-		freq := uint32(parseIntOr(getFirst(sub, "frequency"), 0))
-		bw := uint32(parseIntOr(getFirst(sub, "bandwidth"), 0))
-		txp := int8(parseIntOr(getFirst(sub, "txpower"), 0))
-		sf := byte(parseIntOr(getFirst(sub, "spreadingfactor"), 0))
-		cr := byte(parseIntOr(getFirst(sub, "codingrate"), 0))
+		freq := uint32(parseIntOr(first(sub, "frequency"), 0))
+		bw := uint32(parseIntOr(first(sub, "bandwidth"), 0))
+		txp := int8(parseIntOr(first(sub, "txpower"), 0))
+		sf := byte(parseIntOr(first(sub, "spreadingfactor"), 0))
+		cr := byte(parseIntOr(first(sub, "codingrate"), 0))
 
 		if freq == 0 || bw == 0 || sf == 0 || cr == 0 {
 			return cfg, fmt.Errorf("missing radio parameters for subinterface %q", subName)
 		}
 
-		flowControl := parseBoolOr(getFirst(sub, "flow_control"), false)
+		flowControl := parseBoolOr(first(sub, "flow_control"), false)
 
 		var sta *float64
-		if raw := strings.TrimSpace(getFirst(sub, "airtime_limit_short")); raw != "" {
+		if raw := strings.TrimSpace(first(sub, "airtime_limit_short")); raw != "" {
 			if v, ok := parseFloatSimple(raw); ok {
 				sta = &v
 			}
 		}
 		var lta *float64
-		if raw := strings.TrimSpace(getFirst(sub, "airtime_limit_long")); raw != "" {
+		if raw := strings.TrimSpace(first(sub, "airtime_limit_long")); raw != "" {
 			if v, ok := parseFloatSimple(raw); ok {
 				lta = &v
 			}
@@ -367,24 +384,6 @@ func parseRNodeMultiConfig(name string, kv map[string]string) (rnodeMultiConfig,
 	}
 
 	return cfg, nil
-}
-
-func getFirst(m map[string]string, keys ...string) string {
-	for _, k := range keys {
-		if m == nil {
-			return ""
-		}
-		lk := strings.ToLower(k)
-		if v, ok := m[lk]; ok {
-			return strings.TrimSpace(v)
-		}
-		for mk, mv := range m {
-			if strings.ToLower(mk) == lk {
-				return strings.TrimSpace(mv)
-			}
-		}
-	}
-	return ""
 }
 
 func parseTruthy(v string, defaultVal bool) bool {

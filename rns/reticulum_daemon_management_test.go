@@ -47,8 +47,8 @@ func TestDaemonManagement_HaltResumeReload(t *testing.T) {
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 || Interfaces[0] == nil {
 		t.Fatalf("expected 1 started interface, got %#v", Interfaces)
@@ -58,29 +58,21 @@ func TestDaemonManagement_HaltResumeReload(t *testing.T) {
 	if err := r.HaltInterface("TestIF"); err != nil {
 		t.Fatalf("HaltInterface: %v", err)
 	}
-	if len(Interfaces) != 0 {
-		t.Fatalf("expected 0 interfaces after halt, got %d", len(Interfaces))
+	if len(Interfaces) != 1 || Interfaces[0] != first {
+		t.Fatalf("expected halt to be a no-op, got %#v", Interfaces)
 	}
 
 	if err := r.ResumeInterface("TestIF"); err != nil {
 		t.Fatalf("ResumeInterface: %v", err)
 	}
-	if len(Interfaces) != 1 || Interfaces[0] == nil {
-		t.Fatalf("expected 1 interface after resume, got %#v", Interfaces)
-	}
-	second := Interfaces[0]
-	if second == first {
-		t.Fatalf("expected resumed interface to be a new instance")
+	if len(Interfaces) != 1 || Interfaces[0] != first {
+		t.Fatalf("expected resume to be a no-op, got %#v", Interfaces)
 	}
 
 	if err := r.ReloadInterface("TestIF"); err != nil {
 		t.Fatalf("ReloadInterface: %v", err)
 	}
-	if len(Interfaces) != 1 || Interfaces[0] == nil {
-		t.Fatalf("expected 1 interface after reload, got %#v", Interfaces)
-	}
-	third := Interfaces[0]
-	if third == second {
-		t.Fatalf("expected reloaded interface to be a new instance")
+	if len(Interfaces) != 1 || Interfaces[0] != first {
+		t.Fatalf("expected reload to be a no-op, got %#v", Interfaces)
 	}
 }

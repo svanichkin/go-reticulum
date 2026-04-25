@@ -17,8 +17,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,7 +64,13 @@ const (
 )
 
 var (
-	IFAC_SALT = mustHex("adf54d882c9a9b80771eb4995d702d4a3e733391b2a0f53f416d9f907e55cff8")
+	IFAC_SALT = func() []byte {
+		b, err := hex.DecodeString("adf54d882c9a9b80771eb4995d702d4a3e733391b2a0f53f416d9f907e55cff8")
+		if err != nil {
+			panic(err)
+		}
+		return b
+	}()
 
 	MTU = DefaultMTU
 	MDU = MTU - HEADER_MAXSIZE - IFAC_MIN_SIZE
@@ -154,80 +158,29 @@ type Reticulum struct {
 
 	ifacSalt []byte
 
-	BootstrapConfigs []interfaceConfigEntry
+	BootstrapConfigs []map[string]string
 
 	// RPC listener + address (TCP/Unix).
 	rpcAddr    string
-	rpcNetwork string      // "tcp" / "unix"
-	rpcLn      RPCListener // wrapper (see interface below)
+	rpcNetwork string // "tcp" / "unix"
+	rpcLn      net.Listener
 }
 
-// Optional API parity with Python Reticulum/RNS daemon management calls.
-// These manage interfaces by config-section name (interface short name).
+// GetInstance mirrors Python's Reticulum.get_instance().
+func GetInstance() *Reticulum {
+	return instance
+}
+
+// Python parity: these are no-ops in Reticulum.py.
 func (r *Reticulum) HaltInterface(name string) error {
-	if strings.TrimSpace(name) == "" {
-		return errors.New("missing interface name")
-	}
-	if r.IsConnectedToSharedInstance {
-		return r.rpcCallInterfaceMgmt("halt_interface", name)
-	}
-	ifc := findInterfaceByName(name)
-	if ifc == nil {
-		return fmt.Errorf("interface %q not found", name)
-	}
-	if handler := ifaces.RemoveInterfaceHandler; handler != nil {
-		handler(ifc)
-	}
 	return nil
 }
 
 func (r *Reticulum) ResumeInterface(name string) error {
-	if strings.TrimSpace(name) == "" {
-		return errors.New("missing interface name")
-	}
-	if r.IsConnectedToSharedInstance {
-		return r.rpcCallInterfaceMgmt("resume_interface", name)
-	}
-	if findInterfaceByName(name) != nil {
-		return fmt.Errorf("interface %q already running", name)
-	}
-	kv, ok := r.getInterfaceConfigByName(name)
-	if !ok {
-		return fmt.Errorf("interface %q not found in config", name)
-	}
-	started, err := r.startInterfaceFromConfig(name, kv)
-	if err != nil {
-		return err
-	}
-	if !started {
-		return fmt.Errorf("interface %q is disabled", name)
-	}
 	return nil
 }
 
 func (r *Reticulum) ReloadInterface(name string) error {
-	if strings.TrimSpace(name) == "" {
-		return errors.New("missing interface name")
-	}
-	if r.IsConnectedToSharedInstance {
-		return r.rpcCallInterfaceMgmt("reload_interface", name)
-	}
-	if ifc := findInterfaceByName(name); ifc != nil {
-		if handler := ifaces.RemoveInterfaceHandler; handler != nil {
-			handler(ifc)
-		}
-	}
-	kv, ok := r.getInterfaceConfigByName(name)
-	if !ok {
-		return fmt.Errorf("interface %q not found in config", name)
-	}
-	started, err := r.startInterfaceFromConfig(name, kv)
-	if err != nil {
-		return err
-	}
-	if !started {
-		return fmt.Errorf("interface %q is disabled", name)
-	}
 	return nil
 }
 
@@ -235,99 +188,92 @@ func (r *Reticulum) DiscoveredInterfaces() []map[string]any {
 	if r == nil {
 		return nil
 	}
-	discovery := &InterfaceDiscovery{
-		requiredValue: effectiveRequiredDiscoveryValue(),
-		storagePath:   filepath.Join(r.StoragePath, "discovery", "interfaces"),
-		monitorEvery:  discoveryMonitorInterval,
-		detachAfter:   discoveryDetachThreshold,
+	prevOwner := Owner
+	Owner = r
+	defer func() {
+		Owner = prevOwner
+	}()
+	requiredDiscoveryValue := DefaultDiscoveryRequiredValue
+	if v := RequiredDiscoveryValue(); v != nil && *v > 0 {
+		requiredDiscoveryValue = *v
 	}
-	_ = os.MkdirAll(discovery.storagePath, 0o755)
+	discovery, err := NewInterfaceDiscovery(requiredDiscoveryValue, nil, false)
+	if err != nil {
+		return nil
+	}
 	return discovery.ListDiscoveredInterfaces(false, false)
 }
 
-func DiscoveredInterfaces() []map[string]any {
-	if Owner == nil {
-		return nil
-	}
-	return Owner.DiscoveredInterfaces()
-}
-
-func cloneInterfaceConfigMap(src map[string]string) map[string]string {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[string]string, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
-func (r *Reticulum) rememberBootstrapConfig(name string, kv map[string]string) {
-	if r == nil || strings.TrimSpace(name) == "" || kv == nil {
-		return
-	}
-	for _, entry := range r.BootstrapConfigs {
-		if strings.EqualFold(strings.TrimSpace(entry.Name), strings.TrimSpace(name)) {
-			return
-		}
-	}
-	r.BootstrapConfigs = append(r.BootstrapConfigs, interfaceConfigEntry{
-		Name: strings.TrimSpace(name),
-		KV:   cloneInterfaceConfigMap(kv),
-	})
-}
-
-func (r *Reticulum) bootstrapInterfaceCount() int {
-	count := 0
-	for _, ifc := range Interfaces {
-		if ifc != nil && ifc.BootstrapOnly {
-			count++
-		}
-	}
-	return count
-}
-
-func (r *Reticulum) reenableBootstrapInterfaces() {
-	if r == nil {
-		return
-	}
-	for _, entry := range r.BootstrapConfigs {
-		name := strings.TrimSpace(entry.Name)
-		if name == "" {
-			continue
-		}
-		if findInterfaceByName(name) != nil {
-			continue
-		}
-		_, err := r.startInterfaceFromConfig(name, cloneInterfaceConfigMap(entry.KV))
-		if err != nil {
-			Logf(LogError, "Could not re-enable bootstrap interface %s: %v", name, err)
-		}
-	}
-}
-
 func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
+	defer func() {
+		if rec := recover(); rec != nil {
+			Logf(LogError, "Error while getting blackholed identities: %v", rec)
+			panic(rec)
+		}
+	}()
 	if r == nil {
 		return nil
 	}
 	if r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
-			Log("Could not contact shared instance for blackhole list: "+err.Error(), LogError)
-			return nil
+			panic(err)
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "blackholed_identities"}); err != nil {
-			Log("RPC request for blackhole list failed: "+err.Error(), LogError)
-			return nil
+		data, err := vendor.PickleDumps(map[string]any{"get": "blackholed_identities"})
+		if err != nil {
+			panic(err)
 		}
-		var resp map[hashKey]map[string]any
-		if err := client.Recv(&resp); err != nil {
-			Log("RPC response for blackhole list failed: "+err.Error(), LogError)
+		if err := func() error {
+			var hdr [4]byte
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+			if _, err := client.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(data) > 0 {
+				_, err := client.Write(data)
+				return err
+			}
 			return nil
+		}(); err != nil {
+			panic(err)
 		}
-		return resp
+		var resp map[string]map[string]any
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			panic(err)
+		}
+		out := make(map[hashKey]map[string]any, len(resp))
+		for k, entry := range resp {
+			rawKey, err := hex.DecodeString(k)
+			if err != nil || len(rawKey) < truncatedHashBytes {
+				continue
+			}
+			var key hashKey
+			copy(key[:], rawKey[:truncatedHashBytes])
+			out[key] = entry
+		}
+		return out
 	}
 	blackholeMu.RLock()
 	defer blackholeMu.RUnlock()
@@ -349,28 +295,68 @@ func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
 }
 
 func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) any {
+	if len(identityHash) != ReticulumTruncatedHashLength/8 {
+		return false
+	}
 	if r != nil && r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
-			Log("Could not contact shared instance to blackhole identity: "+err.Error(), LogError)
-			return false
+			panic(err)
 		}
 		defer client.Close()
-		req := map[string]any{"blackhole_identity": identityHash}
+		req := map[string]any{
+			"blackhole_identity": identityHash,
+			"until":              nil,
+			"reason":             nil,
+		}
 		if until != nil && !until.IsZero() {
 			req["until"] = float64(until.UnixNano()) / 1e9
 		}
 		if reason != nil {
 			req["reason"] = *reason
 		}
-		if err := client.Send(req); err != nil {
-			Log("RPC request to blackhole identity failed: "+err.Error(), LogError)
-			return false
+		data, err := vendor.PickleDumps(req)
+		if err != nil {
+			panic(err)
+		}
+		if err := func() error {
+			var hdr [4]byte
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+			if _, err := client.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(data) > 0 {
+				_, err := client.Write(data)
+				return err
+			}
+			return nil
+		}(); err != nil {
+			panic(err)
 		}
 		var resp any
-		if err := client.Recv(&resp); err != nil {
-			Log("RPC response for blackhole identity failed: "+err.Error(), LogError)
-			return false
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			panic(err)
 		}
 		return resp
 	}
@@ -378,399 +364,81 @@ func (r *Reticulum) BlackholeIdentity(identityHash []byte, until *time.Time, rea
 }
 
 func (r *Reticulum) UnblackholeIdentity(identityHash []byte) any {
+	if len(identityHash) != ReticulumTruncatedHashLength/8 {
+		return false
+	}
 	if r != nil && r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
-			Log("Could not contact shared instance to lift blackhole: "+err.Error(), LogError)
-			return false
+			panic(err)
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"unblackhole_identity": identityHash}); err != nil {
-			Log("RPC request to lift blackhole failed: "+err.Error(), LogError)
-			return false
+		data, err := vendor.PickleDumps(map[string]any{"unblackhole_identity": identityHash})
+		if err != nil {
+			panic(err)
+		}
+		if err := func() error {
+			var hdr [4]byte
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+			if _, err := client.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(data) > 0 {
+				_, err := client.Write(data)
+				return err
+			}
+			return nil
+		}(); err != nil {
+			panic(err)
 		}
 		var resp any
-		if err := client.Recv(&resp); err != nil {
-			Log("RPC response for lift blackhole failed: "+err.Error(), LogError)
-			return false
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			panic(err)
 		}
 		return resp
 	}
 	return UnblackholeIdentity(identityHash)
 }
 
-type tcpLogAdapter struct{}
-
-func (tcpLogAdapter) Debugf(format string, args ...any) { Logf(LogDebug, format, args...) }
-func (tcpLogAdapter) Infof(format string, args ...any)  { Logf(LogInfo, format, args...) }
-func (tcpLogAdapter) Warnf(format string, args ...any)  { Logf(LogWarning, format, args...) }
-func (tcpLogAdapter) Errorf(format string, args ...any) { Logf(LogError, format, args...) }
-
-type tcpOwnerAdapter struct{ ifc *Interface }
-
-func (o tcpOwnerAdapter) Inbound(data []byte, _ *ifaces.TCPClientInterface) {
-	if o.ifc == nil || len(data) == 0 {
-		return
-	}
-	o.ifc.RXB += uint64(len(data))
-	if ifaces.InboundHandler != nil {
-		ifaces.InboundHandler(data, o.ifc)
-	}
-}
-
-// RPCListener is an abstraction over TCP/Unix listeners.
-// The implementation is intentionally flexible.
-type RPCListener interface {
-	Accept() (RPCConn, error)
-	Close() error
-	Addr() string
-}
-
-type RPCConn interface {
-	Recv(v interface{}) error
-	Send(v interface{}) error
-	Close() error
-}
-
-type msgpackRPCListener struct {
-	net.Listener
-	authKey []byte
-	cleanup func()
-	addr    string
-}
-
-type msgpackRPCConn struct {
-	conn net.Conn
-}
-
-func NewRPCListener(network, addr string, key []byte) (RPCListener, error) {
-	switch network {
-	case "unix":
-		ln, resolved, cleanup, err := listenUnix(addr)
-		if err != nil {
-			return nil, err
-		}
-		return &msgpackRPCListener{
-			Listener: ln,
-			authKey:  append([]byte(nil), key...),
-			cleanup:  cleanup,
-			addr:     resolved,
-		}, nil
-	default:
-		ln, err := net.Listen(network, addr)
-		if err != nil {
-			return nil, err
-		}
-		return &msgpackRPCListener{
-			Listener: ln,
-			authKey:  append([]byte(nil), key...),
-			addr:     ln.Addr().String(),
-		}, nil
-	}
-}
-
-func dialRPC(network, addr string, key []byte) (RPCConn, error) {
-	var (
-		conn net.Conn
-		err  error
-	)
-	switch network {
-	case "unix":
-		conn, err = dialUnix(addr)
-	default:
-		conn, err = net.Dial(network, addr)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := performRPCHandshake(conn, key, false); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	return newMsgpackRPCConn(conn), nil
-}
-
-func listenUnix(addr string) (net.Listener, string, func(), error) {
-	if isAbstractUnix(addr) && supportsAbstractUnixSockets() {
-		ln, err := net.Listen("unix", addr)
-		if err == nil {
-			return ln, addr, func() {}, nil
-		}
-		// Abstract UNIX socket bind failed. On Linux, abstract sockets have no
-		// filesystem presence and cannot go stale, so a bind failure means
-		// another process definitively holds the socket. Return the error
-		// immediately so the caller connects as a client; no dial-probe needed.
-		return nil, "", nil, err
-	}
-	path := fallbackUnixSocketPath(addr)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		Log("Could not remove stale RPC socket: "+err.Error(), LogDebug)
-	}
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, "", nil, err
-	}
-	cleanup := func() {
-		_ = os.Remove(path)
-	}
-	return ln, path, cleanup, nil
-}
-
-func dialUnix(addr string) (net.Conn, error) {
-	if isAbstractUnix(addr) {
-		if supportsAbstractUnixSockets() {
-			return net.Dial("unix", addr)
-		}
-		return net.Dial("unix", fallbackUnixSocketPath(addr))
-	}
-	return net.Dial("unix", addr)
-}
-
-func fallbackUnixSocketPath(addr string) string {
-	name := strings.Trim(addr, "\x00")
-	if name == "" {
-		name = "default"
-	}
-	replacer := strings.NewReplacer("/", "_", "\\", "_", " ", "_", ":", "_")
-	name = replacer.Replace(name)
-	// Keep paths short to avoid UNIX socket path length limits (notably on macOS).
-	if len(name) > 48 {
-		sum := sha256.Sum256([]byte(name))
-		name = hex.EncodeToString(sum[:16])
-	}
-	return filepath.Join(os.TempDir(), "rns-"+name+".sock")
-}
-
-func isAbstractUnix(addr string) bool {
-	return len(addr) > 0 && addr[0] == 0
-}
-
-func supportsAbstractUnixSockets() bool {
-	// Abstract UNIX sockets are Linux/Android-specific.
-	return vendor.IsLinux() || vendor.IsAndroid()
-}
-
-func newMsgpackRPCConn(conn net.Conn) *msgpackRPCConn {
-	return &msgpackRPCConn{conn: conn}
-}
-
-func (l *msgpackRPCListener) Accept() (RPCConn, error) {
-	for {
-		conn, err := l.Listener.Accept()
-		if err != nil {
-			return nil, err
-		}
-		if err := performRPCHandshake(conn, l.authKey, true); err != nil {
-			Log("Rejected RPC connection: "+err.Error(), LogWarning)
-			_ = conn.Close()
-			continue
-		}
-		return newMsgpackRPCConn(conn), nil
-	}
-}
-
-func (l *msgpackRPCListener) Close() error {
-	if l.cleanup != nil {
-		defer l.cleanup()
-	}
-	return l.Listener.Close()
-}
-
-func (l *msgpackRPCListener) Addr() string {
-	return l.addr
-}
-
-func (c *msgpackRPCConn) Recv(v interface{}) error {
-	data, err := rpcRecvBytes(c.conn, 0)
-	if err != nil {
-		Logf(LogDebug, "RPC Recv: read bytes failed: %v (data len=%d)", err, len(data))
-		return err
-	}
-	Logf(LogExtreme, "RPC Recv: got %d bytes, hex=%s", len(data), func() string {
-		if len(data) > 40 {
-			return fmt.Sprintf("%x...", data[:40])
-		}
-		return fmt.Sprintf("%x", data)
-	}())
-	result, err := vendor.PickleLoads(data)
-	if err != nil {
-		Logf(LogDebug, "RPC Recv: pickle decode failed: %v", err)
-		return fmt.Errorf("pickle decode: %w", err)
-	}
-	Logf(LogExtreme, "RPC Recv: decoded type=%T", result)
-	return vendor.PickleAssign(result, v)
-}
-
-func (c *msgpackRPCConn) Send(v interface{}) error {
-	data, err := vendor.PickleDumps(v)
-	if err != nil {
-		return err
-	}
-	Logf(LogExtreme, "RPC Send: %d bytes, hex=%s", len(data), func() string {
-		if len(data) > 40 {
-			return fmt.Sprintf("%x...", data[:40])
-		}
-		return fmt.Sprintf("%x", data)
-	}())
-	return rpcSendBytes(c.conn, data)
-}
-
-func (c *msgpackRPCConn) Close() error {
-	return c.conn.Close()
-}
-
-// rpcSendBytes sends data using Python multiprocessing.connection wire format:
-// [4-byte signed big-endian length][data]
-func rpcSendBytes(conn net.Conn, data []byte) error {
-	var hdr [4]byte
-	binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
-	if _, err := conn.Write(hdr[:]); err != nil {
-		return err
-	}
-	if len(data) > 0 {
-		_, err := conn.Write(data)
-		return err
-	}
-	return nil
-}
-
-// rpcRecvBytes reads data using Python multiprocessing.connection wire format.
-func rpcRecvBytes(conn net.Conn, maxLen int) ([]byte, error) {
-	var hdr [4]byte
-	if _, err := io.ReadFull(conn, hdr[:]); err != nil {
-		return nil, err
-	}
-	n := int(binary.BigEndian.Uint32(hdr[:]))
-	if maxLen > 0 && n > maxLen {
-		return nil, fmt.Errorf("rpc message too large: %d bytes", n)
-	}
-	buf := make([]byte, n)
-	if _, err := io.ReadFull(conn, buf); err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-// performRPCHandshake implements the Python multiprocessing.connection
-// HMAC challenge-response authentication protocol.
-//
-// Python multiprocessing.connection uses a one-way auth exchange per side.
-// Server: deliver_challenge.
-// Client: answer_challenge.
-func performRPCHandshake(conn net.Conn, key []byte, server bool) error {
-	// Python multiprocessing.connection uses TWO-WAY authentication:
-	//   Server accept(): deliver_challenge() then answer_challenge()
-	//   Client connect(): answer_challenge() then deliver_challenge()
-	// Both sides challenge each other, so both sides must do both halves.
-	if server {
-		if err := rpcDeliverChallenge(conn, key); err != nil {
-			return err
-		}
-		return rpcAnswerChallenge(conn, key)
-	}
-	if err := rpcAnswerChallenge(conn, key); err != nil {
-		return err
-	}
-	return rpcDeliverChallenge(conn, key)
-}
-
-var (
-	rpcChallenge = []byte("#CHALLENGE#")
-	rpcWelcome   = []byte("#WELCOME#")
-	rpcFailure   = []byte("#FAILURE#")
-)
-
-// rpcDeliverChallenge sends a challenge and verifies the peer's response.
-func rpcDeliverChallenge(conn net.Conn, key []byte) error {
-	randBytes := make([]byte, 40)
-	if _, err := rand.Read(randBytes); err != nil {
-		return err
-	}
-	msg := append(rpcChallenge, randBytes...)
-	if err := rpcSendBytes(conn, msg); err != nil {
-		return err
-	}
-	resp, err := rpcRecvBytes(conn, 256)
-	if err != nil {
-		return err
-	}
-	expected, err := rpcCreateResponse(key, randBytes)
-	if err != nil {
-		return err
-	}
-	if subtle.ConstantTimeCompare(resp, expected) != 1 {
-		_ = rpcSendBytes(conn, rpcFailure)
-		return errors.New("digest sent was rejected")
-	}
-	return rpcSendBytes(conn, rpcWelcome)
-}
-
-// rpcAnswerChallenge reads a server challenge and responds with HMAC.
-func rpcAnswerChallenge(conn net.Conn, key []byte) error {
-	msg, err := rpcRecvBytes(conn, 256)
-	if err != nil {
-		return err
-	}
-	if len(msg) < len(rpcChallenge) || !bytes.Equal(msg[:len(rpcChallenge)], rpcChallenge) {
-		return fmt.Errorf("protocol error, expected challenge, got: %q", msg)
-	}
-	challengeMsg := msg[len(rpcChallenge):]
-	digest, err := rpcCreateResponse(key, challengeMsg)
-	if err != nil {
-		return err
-	}
-	if err := rpcSendBytes(conn, digest); err != nil {
-		return err
-	}
-	resp, err := rpcRecvBytes(conn, 256)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(resp, rpcWelcome) {
-		return errors.New("digest sent was rejected")
-	}
-	return nil
-}
-
-// rpcCreateResponse computes the HMAC response for a challenge message.
-// Python multiprocessing.connection uses HMAC-MD5.
-func rpcCreateResponse(key, message []byte) ([]byte, error) {
-	mac := hmac.New(md5.New, key)
-	mac.Write(message)
-	return mac.Sum(nil), nil
-}
-
-// helper hex parser
-func mustHex(s string) []byte {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-// GetInstance mirrors get_instance().
-func GetInstance() *Reticulum {
-	return instance
-}
-
-var (
-	errAlreadyRunning = errors.New("Reticulum is already running")
-)
-
 // NewReticulum mirrors __init__.
 func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	requireSharedInstance bool, sharedInstanceType *string) (ret *Reticulum, retErr error) {
 
 	if instance != nil {
-		return nil, errAlreadyRunning
+		return nil, errors.New("Reticulum is already running")
 	}
 
 	// Python parity: run platform checks early (mostly a no-op in Go).
 	vendor.PlatformChecks()
 
+	userDir, err := os.UserHomeDir()
+	if err != nil {
+		userDir = "~"
+	}
+
 	r := &Reticulum{
-		UserDir:            osUserDir(),
+		UserDir:            userDir,
 		localInterfacePort: 37428,
 		localControlPort:   37429,
 		ShareInstance:      true,
@@ -796,12 +464,20 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	if configDir != nil {
 		r.ConfigDir = *configDir
 	} else {
-		if dirExists("/etc/reticulum") && fileExists("/etc/reticulum/config") {
-			r.ConfigDir = "/etc/reticulum"
-		} else if dirExists(filepath.Join(r.UserDir, ".config/reticulum")) &&
-			fileExists(filepath.Join(r.UserDir, ".config/reticulum/config")) {
-			r.ConfigDir = filepath.Join(r.UserDir, ".config/reticulum")
-		} else {
+		if st, err := os.Stat("/etc/reticulum"); err == nil && st.IsDir() {
+			if st, err := os.Stat("/etc/reticulum/config"); err == nil && !st.IsDir() {
+				r.ConfigDir = "/etc/reticulum"
+			}
+		}
+		if r.ConfigDir == "" {
+			configDir := filepath.Join(r.UserDir, ".config/reticulum")
+			if st, err := os.Stat(configDir); err == nil && st.IsDir() {
+				if st, err := os.Stat(filepath.Join(configDir, "config")); err == nil && !st.IsDir() {
+					r.ConfigDir = configDir
+				}
+			}
+		}
+		if r.ConfigDir == "" {
 			r.ConfigDir = filepath.Join(r.UserDir, ".reticulum")
 		}
 	}
@@ -838,48 +514,16 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	}
 
 	// dirs
-	ensureDir(r.StoragePath)
-	ensureDir(r.CachePath)
-	ensureDir(filepath.Join(r.CachePath, "announces"))
-	ensureDir(r.ResourcePath)
-	ensureDir(r.IdentityPath)
-	ensureDir(filepath.Join(r.StoragePath, "blackhole"))
-	ensureDir(r.InterfacePath)
-
-	// Provide persisted Weave Identity semantics to interfaces package
-	// without introducing import cycles.
-	ifaces.WeaveIdentityProvider = func(port string) ([]byte, func(msg []byte) ([]byte, error), error) {
-		if strings.TrimSpace(port) == "" {
-			return nil, nil, errors.New("weave: empty port")
-		}
-		sum := sha256.Sum256([]byte(port))
-		keyPath := filepath.Join(r.IdentityPath, "weave_"+hex.EncodeToString(sum[:16])+".id")
-		var id *Identity
-		if b, err := os.ReadFile(keyPath); err == nil && len(b) > 0 {
-			loaded, lerr := IdentityFromBytes(b)
-			if lerr != nil {
-				return nil, nil, lerr
-			}
-			id = loaded
-		} else {
-			created, cerr := NewIdentity()
-			if cerr != nil {
-				return nil, nil, cerr
-			}
-			id = created
-			_ = id.Save(keyPath)
-		}
-		pub := id.GetPublicKey()
-		if len(pub) != 64 {
-			return nil, nil, errors.New("weave: invalid identity public key size")
-		}
-		sigPub := append([]byte(nil), pub[32:]...)
-		sign := func(msg []byte) ([]byte, error) { return id.Sign(msg) }
-		return sigPub, sign, nil
-	}
+	_ = os.MkdirAll(r.StoragePath, 0o755)
+	_ = os.MkdirAll(r.CachePath, 0o755)
+	_ = os.MkdirAll(filepath.Join(r.CachePath, "announces"), 0o755)
+	_ = os.MkdirAll(r.ResourcePath, 0o755)
+	_ = os.MkdirAll(r.IdentityPath, 0o755)
+	_ = os.MkdirAll(filepath.Join(r.StoragePath, "blackhole"), 0o755)
+	_ = os.MkdirAll(r.InterfacePath, 0o755)
 
 	// config
-	if fileExists(r.ConfigPath) {
+	if st, err := os.Stat(r.ConfigPath); err == nil && !st.IsDir() {
 		cfg, err := configobj.Load(r.ConfigPath)
 		if err != nil {
 			Log("Could not parse configuration at "+r.ConfigPath, LogError)
@@ -892,7 +536,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		if err := r.createDefaultConfig(); err != nil {
 			return nil, err
 		}
-		Log("Default config file created. Edit "+r.ConfigPath+" and restart Reticulum if needed.", LogInfo)
+		Log("Default config file created. Make any necessary changes in "+r.ConfigDir+"/config and restart Reticulum if needed.", LogInfo)
 		time.Sleep(1500 * time.Millisecond)
 	}
 
@@ -917,19 +561,22 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		r.UseAFUnix = false
 	}
 
-	// Abstract AF_UNIX socket addresses are Linux-only. Fall back to TCP on
-	// other platforms, matching the Python LocalInterface behaviour.
-	if r.UseAFUnix && runtime.GOOS != "linux" {
-		r.UseAFUnix = false
-		r.SharedInstanceType = "tcp"
-	}
-
 	if r.LocalSocketPath == "" && r.UseAFUnix {
 		r.LocalSocketPath = "default"
 	}
 
 	if err := r.startLocalInterface(); err != nil {
 		return nil, err
+	}
+
+	// Python parity: __apply_config() synthesizes configured interfaces before
+	// Transport.start() is invoked.
+	if (r.IsSharedInstance || r.IsStandaloneInstance) && !r.IsConnectedToSharedInstance {
+		Log("Bringing up system interfaces...", LogVerbose)
+		if err := r.synthesizeConfiguredInterfaces(); err != nil {
+			return nil, err
+		}
+		Log("System interfaces are ready", LogVerbose)
 	}
 
 	Logf(LogDebug, "Utilising cryptography backend %q", cryptography.ProviderBackend())
@@ -960,7 +607,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		if r.RPCKey == nil {
 			// Try loading transport identity from storage (same as Python client)
 			tiPath := filepath.Join(r.StoragePath, "transport_identity")
-			if fileExists(tiPath) {
+			if st, err := os.Stat(tiPath); err == nil && !st.IsDir() {
 				if idData, err := os.ReadFile(tiPath); err == nil && len(idData) > 0 {
 					if ti, err := IdentityFromBytes(idData); err == nil && ti != nil {
 						if pk := ti.GetPrivateKey(); len(pk) > 0 {
@@ -978,36 +625,52 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	// Python only creates the RPC listener for the shared-instance owner, after
 	// Transport.start() has loaded the transport identity used for the auth key.
 	if r.IsSharedInstance {
-		ln, err := NewRPCListener(r.rpcNetwork, r.rpcAddr, r.RPCKey)
-		if err != nil {
-			return nil, err
+		switch r.rpcNetwork {
+		case "unix":
+			if len(r.rpcAddr) > 0 && r.rpcAddr[0] == 0 && (vendor.IsLinux() || vendor.IsAndroid()) {
+				ln, err := net.Listen("unix", r.rpcAddr)
+				if err != nil {
+					return nil, err
+				}
+				r.rpcLn = ln
+			} else {
+				name := strings.Trim(r.rpcAddr, "\x00")
+				if name == "" {
+					name = "default"
+				}
+				replacer := strings.NewReplacer("/", "_", "\\", "_", " ", "_", ":", "_")
+				name = replacer.Replace(name)
+				if len(name) > 48 {
+					sum := sha256.Sum256([]byte(name))
+					name = hex.EncodeToString(sum[:16])
+				}
+				path := filepath.Join(os.TempDir(), "rns-"+name+".sock")
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					Log("Could not remove stale RPC socket: "+err.Error(), LogDebug)
+				}
+				ln, err := net.Listen("unix", path)
+				if err != nil {
+					return nil, err
+				}
+				r.rpcLn = ln
+				r.rpcAddr = path
+			}
+		default:
+			ln, err := net.Listen(r.rpcNetwork, r.rpcAddr)
+			if err != nil {
+				return nil, err
+			}
+			r.rpcLn = ln
+			r.rpcAddr = ln.Addr().String()
 		}
-		r.rpcLn = ln
 		go r.rpcLoop()
 	}
 
-	// Python only brings up system interfaces for the shared or standalone
-	// daemon paths, not when this process merely connected to an existing
-	// shared instance.
-	if (r.IsSharedInstance || r.IsStandaloneInstance) && !r.IsConnectedToSharedInstance {
-		Log("Bringing up system interfaces...", LogVerbose)
-		if err := r.bringUpSystemInterfaces(); err != nil {
-			return nil, err
-		}
-		// Python parity: Transport.start() synthesizes tunnels after interfaces
-		// are registered. Our Transport.Start() runs before bringUpSystemInterfaces(),
-		// so do the tunnel synthesis pass here.
-		PrioritizeInterfaces()
-		for _, ifc := range Interfaces {
-			if ifc.WantsTunnel {
-				SynthesizeTunnel(ifc)
-			}
-		}
-		Log("System interfaces are ready", LogVerbose)
+	if r.IsSharedInstance || r.IsStandaloneInstance {
 		if InterfaceDiscoveryEnabled() {
 			EnableDiscovery()
 		}
-		if DiscoverInterfacesEnabled() {
+		if discoverInterfacesMode {
 			DiscoverInterfaces()
 		}
 		if len(BlackholeSources()) > 0 {
@@ -1016,32 +679,24 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 	}
 
 	// signals and exit handler
-	setupExitHandlers()
-	SetExitHandler(exitHandler)
+	exitMu.Lock()
+	exitCallback = exitHandler
+	exitMu.Unlock()
+
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for sig := range ch {
+			switch sig {
+			case syscall.SIGINT:
+				sigintHandler()
+			case syscall.SIGTERM:
+				sigtermHandler()
+			}
+		}
+	}()
 
 	return r, nil
-}
-
-func osUserDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "~"
-	}
-	return home
-}
-
-func ensureDir(path string) {
-	_ = os.MkdirAll(path, 0o755)
-}
-
-func dirExists(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && st.IsDir()
-}
-
-func fileExists(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && !st.IsDir()
 }
 
 // broadcastForInterface returns an IPv4 broadcast address for the named interface.
@@ -1079,21 +734,6 @@ var (
 	exitHandlerRan         bool
 	interfaceDetachHandler bool
 )
-
-func setupExitHandlers() {
-	ch := make(chan os.Signal, 2)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for sig := range ch {
-			switch sig {
-			case syscall.SIGINT:
-				sigintHandler()
-			case syscall.SIGTERM:
-				sigtermHandler()
-			}
-		}
-	}()
-}
 
 func exitHandler() {
 	if exitHandlerRan {
@@ -1238,9 +878,9 @@ func (r *Reticulum) applyConfig() error {
 			if strings.HasPrefix(identityPath, "~") {
 				identityPath = filepath.Join(r.UserDir, strings.TrimPrefix(identityPath, "~"))
 			}
-			ensureDir(filepath.Dir(identityPath))
+			_ = os.MkdirAll(filepath.Dir(identityPath), 0o755)
 			var networkIdentity *Identity
-			if fileExists(identityPath) {
+			if st, err := os.Stat(identityPath); err == nil && !st.IsDir() {
 				id, err := IdentityFromFile(identityPath)
 				if err != nil {
 					return fmt.Errorf("could not set network identity from %s: %w", path, err)
@@ -1357,100 +997,8 @@ func (r *Reticulum) createDefaultConfig() error {
 		return err
 	}
 	r.Config = cfg
-	ensureDir(r.ConfigDir)
+	_ = os.MkdirAll(r.ConfigDir, 0o755)
 	return cfg.Save(r.ConfigPath)
-}
-
-type interfaceDiscoveryConfig struct {
-	discoverable     bool
-	announceInterval time.Duration
-	stampValue       *int
-	name             string
-	encrypt          bool
-	reachableOn      string
-	publishIFAC      bool
-	latitude         *float64
-	longitude        *float64
-	height           *float64
-	frequency        *int
-	bandwidth        *int
-	channel          *int
-	modulation       string
-}
-
-func parseInterfaceDiscoveryConfig(name, ifType string, kv map[string]string, mode *int) interfaceDiscoveryConfig {
-	cfg := interfaceDiscoveryConfig{}
-	if !parseTruthy(getFirst(kv, "discoverable"), false) {
-		return cfg
-	}
-
-	cfg.discoverable = true
-	discoveryEnabled = true
-	cfg.announceInterval = 6 * time.Hour
-	if v, ok := parseInt(getFirst(kv, "announce_interval")); ok {
-		cfg.announceInterval = time.Duration(v) * time.Minute
-		if cfg.announceInterval < 5*time.Minute {
-			cfg.announceInterval = 5 * time.Minute
-		}
-	}
-	if v, ok := parseInt(getFirst(kv, "discovery_stamp_value")); ok && v > 0 {
-		cfg.stampValue = &v
-	}
-	cfg.name = strings.TrimSpace(getFirst(kv, "discovery_name"))
-	cfg.encrypt = parseTruthy(getFirst(kv, "discovery_encrypt"), false)
-	cfg.reachableOn = strings.TrimSpace(getFirst(kv, "reachable_on"))
-	cfg.publishIFAC = parseTruthy(getFirst(kv, "publish_ifac"), false)
-	if v, ok := parseFloat(getFirst(kv, "latitude")); ok {
-		cfg.latitude = &v
-	}
-	if v, ok := parseFloat(getFirst(kv, "longitude")); ok {
-		cfg.longitude = &v
-	}
-	if v, ok := parseFloat(getFirst(kv, "height")); ok {
-		cfg.height = &v
-	}
-	if v, ok := parseInt(getFirst(kv, "discovery_frequency")); ok {
-		cfg.frequency = &v
-	}
-	if v, ok := parseInt(getFirst(kv, "discovery_bandwidth")); ok {
-		cfg.bandwidth = &v
-	}
-	if v, ok := parseInt(getFirst(kv, "discovery_channel")); ok {
-		cfg.channel = &v
-	}
-	cfg.modulation = strings.TrimSpace(getFirst(kv, "discovery_modulation"))
-
-	if mode != nil && *mode != InterfaceModeGateway && *mode != InterfaceModeAccessPoint {
-		if strings.EqualFold(ifType, "RNodeInterface") || strings.EqualFold(ifType, "RNodeMultiInterface") {
-			*mode = InterfaceModeAccessPoint
-			Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to AP mode.", name)
-		} else {
-			*mode = InterfaceModeGateway
-			Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to gateway mode.", name)
-		}
-	}
-
-	return cfg
-}
-
-func applyInterfaceDiscoveryConfig(ifc *Interface, cfg interfaceDiscoveryConfig) {
-	if ifc == nil || !cfg.discoverable {
-		return
-	}
-	ifc.Discoverable = true
-	ifc.DiscoveryAnnounceInterval = cfg.announceInterval
-	ifc.DiscoveryPublishIFAC = cfg.publishIFAC
-	ifc.DiscoveryReachableOn = cfg.reachableOn
-	ifc.DiscoveryName = cfg.name
-	ifc.DiscoveryEncrypt = cfg.encrypt
-	ifc.DiscoveryStampValue = cfg.stampValue
-	ifc.DiscoveryLatitude = cfg.latitude
-	ifc.DiscoveryLongitude = cfg.longitude
-	ifc.DiscoveryHeight = cfg.height
-	ifc.DiscoveryFrequency = cfg.frequency
-	ifc.DiscoveryBandwidth = cfg.bandwidth
-	ifc.DiscoveryChannel = cfg.channel
-	ifc.DiscoveryModulation = cfg.modulation
 }
 
 // ---------------- local interface + jobs ----------------
@@ -1512,6 +1060,7 @@ func (r *Reticulum) startLocalInterface() error {
 	sharedInstanceMu.RUnlock()
 	if br > 0 {
 		sharedIfc.Bitrate = br
+		Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(sharedIfc.Bitrate)))
 	}
 	sharedIfc.ForceBitrateLatency = true
 
@@ -1539,6 +1088,7 @@ func (r *Reticulum) startLocalInterface() error {
 	if serverErr == nil {
 		if r.RequireShared {
 			_ = ln.Close()
+			r.IsSharedInstance = true
 			Log("Existing shared instance required, but this instance started as shared instance. Aborting startup.", LogVerbose)
 			return errors.New("no shared instance available, but application that started Reticulum required it")
 		}
@@ -1576,6 +1126,7 @@ func (r *Reticulum) startLocalInterface() error {
 	sharedInstanceMu.RUnlock()
 	if clientBitrate > 0 {
 		clientIfc.Bitrate = clientBitrate
+		Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(clientIfc.Bitrate)))
 	}
 	clientIfc.ForceBitrateLatency = true
 
@@ -1608,39 +1159,65 @@ func (r *Reticulum) startLocalInterface() error {
 	return nil
 }
 
-func (r *Reticulum) bringUpSystemInterfaces() error {
+func (r *Reticulum) synthesizeConfiguredInterfaces() error {
 	if r.Config == nil {
-		Log("No interfaces configured in reticulum.conf", LogVerbose)
 		return nil
 	}
 
-	var configs []interfaceConfigEntry
-	if ordered, err := parseConfigObjInterfacesOrdered(r.ConfigPath); err == nil && len(ordered) > 0 {
-		configs = ordered
-	} else {
-		ini := parseINIFallbackInterfaces(r.Config)
-		if len(ini) == 0 {
-			Log("No interfaces configured in reticulum.conf", LogVerbose)
-			return nil
-		}
-		names := make([]string, 0, len(ini))
-		for name := range ini {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		configs = make([]interfaceConfigEntry, 0, len(names))
-		for _, name := range names {
-			configs = append(configs, interfaceConfigEntry{Name: name, KV: ini[name]})
-		}
+	interfaces := r.Config.Section("interfaces")
+	if interfaces == nil {
+		return nil
 	}
+	seenNames := make(map[string]struct{}, len(interfaces.Sections()))
 
-	seenNames := make(map[string]struct{}, len(configs))
-	broughtUp := 0
-
-	for _, entry := range configs {
-		name := strings.TrimSpace(entry.Name)
+	for _, name := range interfaces.Sections() {
+		sub := interfaces.Subsection(name)
+		if sub == nil {
+			continue
+		}
+		kv := map[string]string{}
+		var collect func(sec *configobj.Section, prefix string)
+		collect = func(sec *configobj.Section, prefix string) {
+			if sec == nil {
+				return
+			}
+			for _, key := range sec.Keys() {
+				if val, ok := sec.Get(key); ok {
+					if prefix != "" {
+						kv[prefix+strings.ToLower(key)] = val
+					} else {
+						kv[strings.ToLower(key)] = val
+					}
+				}
+			}
+			for _, subName := range sec.Sections() {
+				child := sec.Subsection(subName)
+				if child == nil {
+					continue
+				}
+				childPrefix := prefix
+				if childPrefix != "" {
+					childPrefix += "sub."
+				} else {
+					childPrefix = "sub."
+				}
+				childPrefix += strings.ToLower(subName) + "."
+				collect(child, childPrefix)
+			}
+		}
+		collect(sub, "")
+		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
+		}
+		if kv == nil {
+			continue
+		}
+		if _, exists := kv["name"]; !exists {
+			kv["name"] = name
+		}
+		if strings.TrimSpace(kv["name"]) == "" {
+			kv["name"] = name
 		}
 		if _, ok := seenNames[name]; ok {
 			msg := fmt.Sprintf("The interface name %q was already used. Check your configuration file for errors!", name)
@@ -1648,538 +1225,14 @@ func (r *Reticulum) bringUpSystemInterfaces() error {
 			return errors.New(msg)
 		}
 		seenNames[name] = struct{}{}
-
-		kv := entry.KV
-
-		// Python parity: an interface is only started if it is explicitly enabled.
-		// Missing keys mean disabled.
-		enabled := parseTruthy(getFirst(kv, "interface_enabled", "enabled", "enable"), false)
-		if !enabled {
-			Logf(LogDebug, "Skipping disabled interface %q", name)
-			continue
+		if _, err := r.synthesizeInterface(name, kv, true); err != nil {
+			return err
 		}
-
-		mode := parseInterfaceMode(getFirst(kv, "interface_mode", "selected_interface_mode", "mode"))
-
-		var bitrate *int
-		if v, ok := parseInt(getFirst(kv, "configured_bitrate", "bitrate")); ok && v >= MINIMUM_BITRATE {
-			bitrate = &v
-		}
-		// Python sets interface_config["configured_bitrate"] for all interface drivers.
-		if bitrate != nil && strings.TrimSpace(getFirst(kv, "configured_bitrate")) == "" {
-			kv["configured_bitrate"] = strconv.Itoa(*bitrate)
-		}
-
-		// Python parity: announce_cap is specified as percent (0 < v <= 100) and stored as fraction.
-		var announceCap *float64
-		if v, ok := parseFloat(getFirst(kv, "announce_cap")); ok && v > 0 && v <= 100 {
-			f := v / 100.0
-			announceCap = &f
-		}
-
-		var ifacSize *int
-		if v, ok := parseInt(getFirst(kv, "ifac_size")); ok && v >= IFAC_MIN_SIZE*8 {
-			sz := v / 8
-			ifacSize = &sz
-		}
-
-		netName := getFirst(kv, "networkname", "network_name")
-		var ifacNetname *string
-		if strings.TrimSpace(netName) != "" {
-			ifacNetname = &netName
-		}
-
-		netKey := getFirst(kv, "passphrase", "pass_phrase")
-		var ifacNetkey *string
-		if strings.TrimSpace(netKey) != "" {
-			ifacNetkey = &netKey
-		}
-
-		var announceRateTarget *int
-		if v, ok := parseInt(getFirst(kv, "announce_rate_target")); ok && v > 0 {
-			announceRateTarget = &v
-		}
-		var announceRateGrace *int
-		if v, ok := parseInt(getFirst(kv, "announce_rate_grace")); ok && v >= 0 {
-			announceRateGrace = &v
-		}
-		var announceRatePenalty *int
-		if v, ok := parseInt(getFirst(kv, "announce_rate_penalty")); ok && v >= 0 {
-			announceRatePenalty = &v
-		}
-		if announceRateTarget != nil && announceRateGrace == nil {
-			zero := 0
-			announceRateGrace = &zero
-		}
-		if announceRateTarget != nil && announceRatePenalty == nil {
-			zero := 0
-			announceRatePenalty = &zero
-		}
-
-		bootstrapOnly := parseTruthy(getFirst(kv, "bootstrap_only"), false)
-
-		ingressControl := parseTruthy(getFirst(kv, "ingress_control"), true)
-		var icMaxHeld *int
-		if v, ok := parseInt(getFirst(kv, "ic_max_held_announces")); ok {
-			icMaxHeld = &v
-		}
-		var icBurstHold *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_burst_hold")); ok {
-			icBurstHold = &v
-		}
-		var icBurstFreqNew *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_burst_freq_new")); ok {
-			icBurstFreqNew = &v
-		}
-		var icBurstFreq *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_burst_freq")); ok {
-			icBurstFreq = &v
-		}
-		var icNewTime *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_new_time")); ok {
-			icNewTime = &v
-		}
-		var icBurstPenalty *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_burst_penalty")); ok {
-			icBurstPenalty = &v
-		}
-		var icHeldRelease *float64
-		if v, ok := parseFloat(getFirst(kv, "ic_held_release_interval")); ok {
-			icHeldRelease = &v
-		}
-
-		ifType := strings.TrimSpace(getFirst(kv, "type"))
-		if ifType == "" {
-			msg := fmt.Sprintf("The interface %q could not be created. Check your configuration file for errors!", name)
-			Log(msg, LogError)
-			Log("The contained exception was: missing interface type", LogError)
-			return errors.New("missing interface type")
-		}
-
-		// Python compatibility: normalise Backbone key aliases.
-		if strings.EqualFold(ifType, "BackboneInterface") || strings.EqualFold(ifType, "BackboneClientInterface") {
-			if v := strings.TrimSpace(getFirst(kv, "port")); v != "" {
-				if strings.TrimSpace(getFirst(kv, "listen_port")) == "" {
-					kv["listen_port"] = v
-				}
-				if strings.TrimSpace(getFirst(kv, "target_port")) == "" {
-					kv["target_port"] = v
-				}
-			}
-			if v := strings.TrimSpace(getFirst(kv, "remote")); v != "" && strings.TrimSpace(getFirst(kv, "target_host")) == "" {
-				kv["target_host"] = v
-			}
-			if v := strings.TrimSpace(getFirst(kv, "listen_on")); v != "" && strings.TrimSpace(getFirst(kv, "listen_ip")) == "" {
-				kv["listen_ip"] = v
-			}
-		}
-
-		// Python parity: BackboneInterface behaves like BackboneClientInterface
-		// when a target host is specified.
-		if strings.EqualFold(ifType, "BackboneInterface") && strings.TrimSpace(getFirst(kv, "target_host", "remote")) != "" {
-			ifType = "BackboneClientInterface"
-		}
-
-		// Config parity convenience: allow `TCPInterface` to mean either a
-		// client (when target_host/target_port is provided) or a server
-		// (when listen_ip/device is provided).
-		if strings.EqualFold(ifType, "TCPInterface") {
-			if strings.TrimSpace(getFirst(kv, "target_host", "remote")) != "" {
-				ifType = "TCPClientInterface"
-			} else {
-				ifType = "TCPServerInterface"
-			}
-		}
-
-		var externalIfc *Interface
-		knownType := false
-		switch strings.ToLower(ifType) {
-		case "ax25kissinterface", "autointerface", "udpinterface", "tcpclientinterface", "tcpserverinterface", "serialinterface", "kissinterface", "rnodeinterface", "rnodemultiinterface", "i2pinterface", "weaveinterface", "backboneinterface", "backboneclientinterface", "pipeinterface":
-			knownType = true
-		}
-		if !knownType {
-			if loaded, handled, err := loadExternalInterfacePlugin(r.InterfacePath, ifType, name, kv); handled {
-				if err != nil {
-					Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
-					continue
-				}
-				externalIfc = loaded
-				knownType = externalIfc != nil
-			}
-		}
-		if !knownType {
-			if loaded, handled, err := loadExternalInterfacePython(r.InterfacePath, ifType, name, kv); handled {
-				if err != nil {
-					Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
-					continue
-				}
-				externalIfc = loaded
-				knownType = externalIfc != nil
-			}
-		}
-		if !knownType {
-			// Python parity: if no internal interface matched, try interfacepath.
-			if strings.TrimSpace(r.InterfacePath) != "" {
-				goSrc := filepath.Join(r.InterfacePath, ifType+".go")
-				if fileExists(goSrc) {
-					Logf(LogError, "External interface %q found at %s but source-based Go interfaces are not supported, build a .so plugin instead", ifType, goSrc)
-					continue
-				}
-			}
-			Logf(LogError, "Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath)
-			continue
-		}
-
-		discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
-
-		var ifc *Interface
-		if externalIfc != nil {
-			ifc = externalIfc
-		} else {
-			base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
-			if err != nil {
-				msg := fmt.Sprintf("The interface %q could not be created. Check your configuration file for errors!", name)
-				Log(msg, LogError)
-				Log("The contained exception was: "+err.Error(), LogError)
-				return err
-			}
-			if base == nil {
-				return fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
-			}
-			ifc = base
-		}
-
-		// Python parity: default outgoing is enabled, but can be disabled via `outgoing = False`.
-		ifc.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
-		ifc.IngressControl = ingressControl
-		ifc.ICMaxHeldAnnounces = icMaxHeld
-		ifc.ICBurstHold = icBurstHold
-		ifc.ICBurstFreqNew = icBurstFreqNew
-		ifc.ICBurstFreq = icBurstFreq
-		ifc.ICNewTime = icNewTime
-		ifc.ICBurstPenalty = icBurstPenalty
-		ifc.ICHeldReleaseInterval = icHeldRelease
-		ifc.SetAnnounceRateConfig(announceRateTarget, announceRateGrace, announceRatePenalty)
-
-		if externalIfc == nil && strings.EqualFold(ifType, "UDPInterface") {
-			// Python: IN=True, BITRATE_GUESS=10Mbps, DEFAULT_IFAC_SIZE=16, HW_MTU=1064
-			ifc.IN = true
-			if ifc.Bitrate == 0 {
-				ifc.Bitrate = 10 * 1000 * 1000
-			}
-			if ifc.HWMTU == 0 {
-				ifc.HWMTU = 1064
-			}
-			if ifc.IFACSize == 0 {
-				ifc.IFACSize = 16
-			}
-			ifc.FixedMTU = true
-
-			device := getFirst(kv, "device")
-			port, _ := parseInt(getFirst(kv, "port"))
-			listenIP := getFirst(kv, "listen_ip")
-			listenPort, _ := parseInt(getFirst(kv, "listen_port"))
-			forwardIP := getFirst(kv, "forward_ip")
-			forwardPort, _ := parseInt(getFirst(kv, "forward_port"))
-			if port > 0 {
-				if listenPort == 0 {
-					listenPort = port
-				}
-				if forwardPort == 0 {
-					forwardPort = port
-				}
-			}
-			if strings.TrimSpace(device) != "" {
-				bcast, derr := broadcastForInterface(device)
-				if derr != nil {
-					return fmt.Errorf("Interface %q device %q error: %w", name, device, derr)
-				}
-				if listenIP == "" {
-					listenIP = bcast.String()
-				}
-				if forwardIP == "" {
-					forwardIP = bcast.String()
-				}
-			}
-			if err := ifc.ConfigureUDP(listenIP, listenPort, forwardIP, forwardPort); err != nil {
-				return fmt.Errorf("Interface %q UDP config error: %w", name, err)
-			}
-			if err := ifc.StartUDP(); err != nil {
-				return fmt.Errorf("Interface %q UDP listener error: %w", name, err)
-			}
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "AutoInterface") {
-			desiredOut := ifc.OUT
-			if err := ifc.ConfigureAutoInterface(kv); err != nil {
-				return fmt.Errorf("Interface %q AutoInterface config error: %w", name, err)
-			}
-			ifc.OUT = desiredOut
-			if err := ifc.StartAutoInterface(); err != nil {
-				return fmt.Errorf("Interface %q AutoInterface start error: %w", name, err)
-			}
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "AX25KISSInterface") {
-			axIf, err := ifaces.NewAX25KISSInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q AX25KISS config error: %w", name, err)
-			}
-			inheritInterfaceConfig(axIf, ifc)
-			ifc = axIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "KISSInterface") {
-			kIf, err := ifaces.NewKISSInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q KISS config error: %w", name, err)
-			}
-			inheritInterfaceConfig(kIf, ifc)
-			ifc = kIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "BackboneInterface") {
-			bbIf, err := ifaces.NewBackboneInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q Backbone config error: %w", name, err)
-			}
-			inheritInterfaceConfig(bbIf, ifc)
-			ifc = bbIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "BackboneClientInterface") {
-			bcIf, err := ifaces.NewBackboneClientInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q Backbone client config error: %w", name, err)
-			}
-			inheritInterfaceConfig(bcIf, ifc)
-			ifc = bcIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "WeaveInterface") {
-			wIf, err := ifaces.NewWeaveInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q Weave config error: %w", name, err)
-			}
-			inheritInterfaceConfig(wIf, ifc)
-			// Python parity: WeaveInterface.should_ingress_limit() always false.
-			wIf.IngressControl = false
-			ifc = wIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "I2PInterface") {
-			// Python injects Reticulum.storagepath into I2PInterface config.
-			if strings.TrimSpace(getFirst(kv, "storagepath")) == "" && strings.TrimSpace(r.StoragePath) != "" {
-				kv["storagepath"] = r.StoragePath
-			}
-			i2pIf, err := ifaces.NewI2PInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q I2P config error: %w", name, err)
-			}
-			inheritInterfaceConfig(i2pIf, ifc)
-			ifc = i2pIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "PipeInterface") {
-			pIf, err := ifaces.NewPipeInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q Pipe config error: %w", name, err)
-			}
-			inheritInterfaceConfig(pIf, ifc)
-			ifc = pIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "SerialInterface") {
-			sIf, err := ifaces.NewSerialInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q Serial config error: %w", name, err)
-			}
-			inheritInterfaceConfig(sIf, ifc)
-			ifc = sIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "RNodeMultiInterface") {
-			rnmIf, err := ifaces.NewRNodeMultiInterface(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q RNodeMulti config error: %w", name, err)
-			}
-			inheritInterfaceConfig(rnmIf, ifc)
-			ifc = rnmIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "RNodeInterface") {
-			rnIf, err := ifaces.NewRNodeInterfaceFromConfig(strings.TrimSpace(name), kv)
-			if err != nil {
-				return fmt.Errorf("Interface %q RNode config error: %w", name, err)
-			}
-			inheritInterfaceConfig(rnIf, ifc)
-			ifc = rnIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "TCPClientInterface") {
-			host := getFirst(kv, "target_host", "remote")
-			port, _ := parseInt(getFirst(kv, "target_port", "port"))
-			kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
-			i2p := parseTruthy(getFirst(kv, "i2p_tunneled"), false)
-			fixedMTU, _ := parseInt(getFirst(kv, "fixed_mtu", "mtu"))
-			connectTimeoutS, _ := parseFloat(getFirst(kv, "connect_timeout"))
-			reconnectWaitS, _ := parseFloat(getFirst(kv, "reconnect_wait"))
-			var maxReconnect *int
-			if v, ok := parseInt(getFirst(kv, "max_reconnect_tries")); ok {
-				maxReconnect = &v
-			}
-
-			ifacSz := 0
-			if ifacSize != nil {
-				ifacSz = *ifacSize
-			}
-			ifacNetnameVal := ""
-			if ifacNetname != nil {
-				ifacNetnameVal = *ifacNetname
-			}
-			ifacNetkeyVal := ""
-			if ifacNetkey != nil {
-				ifacNetkeyVal = *ifacNetkey
-			}
-
-			tcpIf, err := ifaces.NewTCPClientInterfaceFromConfig(ifaces.TCPClientConfig{
-				Name:            strings.TrimSpace(name),
-				TargetHost:      host,
-				TargetPort:      port,
-				KISSFraming:     kiss,
-				I2PTunneled:     i2p,
-				FixedMTU:        fixedMTU,
-				ConnectTimeout:  time.Duration(connectTimeoutS * float64(time.Second)),
-				ReconnectWait:   time.Duration(reconnectWaitS * float64(time.Second)),
-				MaxReconnectTry: maxReconnect,
-				IFACSize:        ifacSz,
-				IFACNetname:     ifacNetnameVal,
-				IFACNetkey:      ifacNetkeyVal,
-			})
-			if err != nil {
-				return fmt.Errorf("Interface %q TCP client config error: %w", name, err)
-			}
-			inheritInterfaceConfig(tcpIf, ifc)
-			ifc = tcpIf
-		}
-
-		if externalIfc == nil && strings.EqualFold(ifType, "TCPServerInterface") {
-			listenIP := getFirst(kv, "listen_ip", "listen_on", "bind_ip")
-			listenPort, _ := parseInt(getFirst(kv, "listen_port", "port"))
-			device := getFirst(kv, "device")
-			preferIPv6 := parseTruthy(getFirst(kv, "prefer_ipv6"), false)
-			kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
-			i2p := parseTruthy(getFirst(kv, "i2p_tunneled"), false)
-			fixedMTU, _ := parseInt(getFirst(kv, "fixed_mtu", "mtu"))
-
-			ifacSz := 0
-			if ifacSize != nil {
-				ifacSz = *ifacSize
-			}
-			ifacNetnameVal := ""
-			if ifacNetname != nil {
-				ifacNetnameVal = *ifacNetname
-			}
-			ifacNetkeyVal := ""
-			if ifacNetkey != nil {
-				ifacNetkeyVal = *ifacNetkey
-			}
-
-			logger := tcpLogAdapter{}
-			server, err := ifaces.NewTCPServerFromConfig(nil, logger, ifaces.TCPServerConfig{
-				Name:        strings.TrimSpace(name),
-				Device:      device,
-				ListenIP:    listenIP,
-				ListenPort:  listenPort,
-				PreferIPv6:  preferIPv6,
-				KISSFraming: kiss,
-				I2PTunneled: i2p,
-				FixedMTU:    fixedMTU,
-				IFACSize:    ifacSz,
-				IFACNetname: ifacNetnameVal,
-				IFACNetkey:  ifacNetkeyVal,
-			})
-			if err != nil {
-				return fmt.Errorf("Interface %q TCP server config error: %w", name, err)
-			}
-
-			parent := &Interface{
-				Name:              strings.TrimSpace(name),
-				Type:              "TCPServerInterface",
-				IN:                true,
-				OUT:               false,
-				DriverImplemented: true,
-				Online:            true,
-				Bitrate:           server.Bitrate,
-				HWMTU:             server.HWMTU,
-				AutoconfigureMTU:  !server.FixedMTU,
-				FixedMTU:          server.FixedMTU,
-				IFACSize:          server.IFACSize,
-				IFACNetnameVal:    server.IFACNetnameVal,
-				IFACNetkeyVal:     server.IFACNetkeyVal,
-				IFACKey:           append([]byte(nil), server.IFACKey...),
-				IFACIdentity:      server.IFACIdentity,
-				IFACSignature:     append([]byte(nil), server.IFACSignature...),
-			}
-			parent.SetTCPServer(server)
-			parent.SetClientCountFunc(server.Clients)
-
-			// Wrap accepted clients as Interfaces for Transport.
-			server.OnNewClient = func(ci *ifaces.TCPClientInterface) {
-				if ci == nil {
-					return
-				}
-				peer := &Interface{
-					Name:              ci.String(),
-					Type:              "TCPClientInterface",
-					Parent:            parent,
-					DriverImplemented: true,
-					Online:            true,
-					Bitrate:           parent.Bitrate,
-					HWMTU:             parent.HWMTU,
-					AutoconfigureMTU:  parent.AutoconfigureMTU,
-					FixedMTU:          parent.FixedMTU,
-					IFACSize:          parent.IFACSize,
-					IFACNetnameVal:    parent.IFACNetnameVal,
-					IFACNetkeyVal:     parent.IFACNetkeyVal,
-					IFACKey:           append([]byte(nil), parent.IFACKey...),
-					IFACIdentity:      parent.IFACIdentity,
-					IFACSignature:     append([]byte(nil), parent.IFACSignature...),
-				}
-				inheritInterfaceConfig(peer, parent)
-				peer.SetTCPClient(ci)
-				ci.Owner = tcpOwnerAdapter{ifc: peer}
-				interfacesMu.Lock()
-				Interfaces = append(Interfaces, peer)
-				interfacesMu.Unlock()
-			}
-
-			if err := server.Start(); err != nil {
-				return fmt.Errorf("Interface %q TCP server start error: %w", name, err)
-			}
-
-			inheritInterfaceConfig(parent, ifc)
-			ifc = parent
-		}
-
-		applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
-		ifc.BootstrapOnly = bootstrapOnly
-		r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
-		if bootstrapOnly {
-			r.rememberBootstrapConfig(name, kv)
-		}
-		broughtUp++
 	}
-
-	if broughtUp == 0 {
-		Log("No enabled interfaces could be brought up from config; interface drivers are not ported yet.", LogWarning)
-		return nil
-	}
-	Logf(LogDebug, "Configured %d interface(s) from config", broughtUp)
 	return nil
 }
 
-func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) (bool, error) {
+func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, instanceInit bool) (bool, error) {
 	if r == nil {
 		return false, errors.New("nil reticulum")
 	}
@@ -2191,56 +1244,125 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		return false, errors.New("missing interface config")
 	}
 
-	enabled := parseTruthy(getFirst(kv, "interface_enabled", "enabled", "enable"), false)
+	first := func(keys ...string) string {
+		for _, k := range keys {
+			lk := strings.ToLower(k)
+			if v, ok := kv[lk]; ok {
+				return strings.TrimSpace(v)
+			}
+			for mk, mv := range kv {
+				if strings.ToLower(mk) == lk {
+					return strings.TrimSpace(mv)
+				}
+			}
+		}
+		return ""
+	}
+
+	truthy := func(v string, defaultVal bool) bool {
+		v = strings.ToLower(strings.TrimSpace(v))
+		if v == "" {
+			return defaultVal
+		}
+		switch v {
+		case "yes", "on", "1", "true", "enabled":
+			return true
+		case "no", "off", "0", "false", "disabled":
+			return false
+		default:
+			return defaultVal
+		}
+	}
+	interfaceMode := func(v string) int {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "access_point", "accesspoint", "ap":
+			return InterfaceModeAccessPoint
+		case "pointtopoint", "ptp":
+			return InterfaceModePointToPoint
+		case "roaming":
+			return InterfaceModeRoaming
+		case "boundary":
+			return InterfaceModeBoundary
+		case "gateway", "gw":
+			return InterfaceModeGateway
+		default:
+			return InterfaceModeFull
+		}
+	}
+	intValue := func(s string) (int, bool) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return 0, false
+		}
+		iv, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, false
+		}
+		return iv, true
+	}
+	floatValue := func(s string) (float64, bool) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return 0, false
+		}
+		fv, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0, false
+		}
+		return fv, true
+	}
+
+	enabled := truthy(first("interface_enabled", "enabled", "enable"), false)
 	if !enabled {
+		Logf(LogDebug, "Skipping disabled interface %q", name)
 		return false, nil
 	}
 
-	mode := parseInterfaceMode(getFirst(kv, "interface_mode", "selected_interface_mode", "mode"))
+	mode := interfaceMode(first("interface_mode", "selected_interface_mode", "mode"))
 
 	var bitrate *int
-	if v, ok := parseInt(getFirst(kv, "configured_bitrate", "bitrate")); ok && v >= MINIMUM_BITRATE {
+	if v, ok := intValue(first("configured_bitrate", "bitrate")); ok && v >= MINIMUM_BITRATE {
 		bitrate = &v
 	}
 	// Python sets interface_config["configured_bitrate"] for all interface drivers.
-	if bitrate != nil && strings.TrimSpace(getFirst(kv, "configured_bitrate")) == "" {
+	if bitrate != nil && strings.TrimSpace(first("configured_bitrate")) == "" {
 		kv["configured_bitrate"] = strconv.Itoa(*bitrate)
 	}
 
 	var announceCap *float64
-	if v, ok := parseFloat(getFirst(kv, "announce_cap")); ok && v > 0 && v <= 100 {
+	if v, ok := floatValue(first("announce_cap")); ok && v > 0 && v <= 100 {
 		f := v / 100.0
 		announceCap = &f
 	}
 
 	var ifacSize *int
-	if v, ok := parseInt(getFirst(kv, "ifac_size")); ok && v >= IFAC_MIN_SIZE*8 {
+	if v, ok := intValue(first("ifac_size")); ok && v >= IFAC_MIN_SIZE*8 {
 		sz := v / 8
 		ifacSize = &sz
 	}
 
-	netName := getFirst(kv, "networkname", "network_name")
+	netName := first("networkname", "network_name")
 	var ifacNetname *string
 	if strings.TrimSpace(netName) != "" {
 		ifacNetname = &netName
 	}
 
-	netKey := getFirst(kv, "passphrase", "pass_phrase")
+	netKey := first("passphrase", "pass_phrase")
 	var ifacNetkey *string
 	if strings.TrimSpace(netKey) != "" {
 		ifacNetkey = &netKey
 	}
 
 	var announceRateTarget *int
-	if v, ok := parseInt(getFirst(kv, "announce_rate_target")); ok && v > 0 {
+	if v, ok := intValue(first("announce_rate_target")); ok && v > 0 {
 		announceRateTarget = &v
 	}
 	var announceRateGrace *int
-	if v, ok := parseInt(getFirst(kv, "announce_rate_grace")); ok && v >= 0 {
+	if v, ok := intValue(first("announce_rate_grace")); ok && v >= 0 {
 		announceRateGrace = &v
 	}
 	var announceRatePenalty *int
-	if v, ok := parseInt(getFirst(kv, "announce_rate_penalty")); ok && v >= 0 {
+	if v, ok := intValue(first("announce_rate_penalty")); ok && v >= 0 {
 		announceRatePenalty = &v
 	}
 	if announceRateTarget != nil && announceRateGrace == nil {
@@ -2252,66 +1374,67 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		announceRatePenalty = &zero
 	}
 
-	bootstrapOnly := parseTruthy(getFirst(kv, "bootstrap_only"), false)
+	bootstrapOnly := truthy(first("bootstrap_only"), false)
+	ignoreConfigWarnings := truthy(first("ignore_config_warnings"), false)
 
-	ingressControl := parseTruthy(getFirst(kv, "ingress_control"), true)
+	ingressControl := truthy(first("ingress_control"), true)
 	var icMaxHeld *int
-	if v, ok := parseInt(getFirst(kv, "ic_max_held_announces")); ok {
+	if v, ok := intValue(first("ic_max_held_announces")); ok {
 		icMaxHeld = &v
 	}
 	var icBurstHold *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_burst_hold")); ok {
+	if v, ok := floatValue(first("ic_burst_hold")); ok {
 		icBurstHold = &v
 	}
 	var icBurstFreqNew *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_burst_freq_new")); ok {
+	if v, ok := floatValue(first("ic_burst_freq_new")); ok {
 		icBurstFreqNew = &v
 	}
 	var icBurstFreq *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_burst_freq")); ok {
+	if v, ok := floatValue(first("ic_burst_freq")); ok {
 		icBurstFreq = &v
 	}
 	var icNewTime *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_new_time")); ok {
+	if v, ok := floatValue(first("ic_new_time")); ok {
 		icNewTime = &v
 	}
 	var icBurstPenalty *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_burst_penalty")); ok {
+	if v, ok := floatValue(first("ic_burst_penalty")); ok {
 		icBurstPenalty = &v
 	}
 	var icHeldRelease *float64
-	if v, ok := parseFloat(getFirst(kv, "ic_held_release_interval")); ok {
+	if v, ok := floatValue(first("ic_held_release_interval")); ok {
 		icHeldRelease = &v
 	}
 
-	ifType := strings.TrimSpace(getFirst(kv, "type"))
+	ifType := strings.TrimSpace(first("type"))
 	if ifType == "" {
 		return false, errors.New("missing interface type")
 	}
 
 	if strings.EqualFold(ifType, "BackboneInterface") || strings.EqualFold(ifType, "BackboneClientInterface") {
-		if v := strings.TrimSpace(getFirst(kv, "port")); v != "" {
-			if strings.TrimSpace(getFirst(kv, "listen_port")) == "" {
+		if v := strings.TrimSpace(first("port")); v != "" {
+			if strings.TrimSpace(first("listen_port")) == "" {
 				kv["listen_port"] = v
 			}
-			if strings.TrimSpace(getFirst(kv, "target_port")) == "" {
+			if strings.TrimSpace(first("target_port")) == "" {
 				kv["target_port"] = v
 			}
 		}
-		if v := strings.TrimSpace(getFirst(kv, "remote")); v != "" && strings.TrimSpace(getFirst(kv, "target_host")) == "" {
+		if v := strings.TrimSpace(first("remote")); v != "" && strings.TrimSpace(first("target_host")) == "" {
 			kv["target_host"] = v
 		}
-		if v := strings.TrimSpace(getFirst(kv, "listen_on")); v != "" && strings.TrimSpace(getFirst(kv, "listen_ip")) == "" {
+		if v := strings.TrimSpace(first("listen_on")); v != "" && strings.TrimSpace(first("listen_ip")) == "" {
 			kv["listen_ip"] = v
 		}
 	}
 
-	if strings.EqualFold(ifType, "BackboneInterface") && strings.TrimSpace(getFirst(kv, "target_host", "remote")) != "" {
+	if strings.EqualFold(ifType, "BackboneInterface") && strings.TrimSpace(first("target_host", "remote")) != "" {
 		ifType = "BackboneClientInterface"
 	}
 
 	if strings.EqualFold(ifType, "TCPInterface") {
-		if strings.TrimSpace(getFirst(kv, "target_host", "remote")) != "" {
+		if strings.TrimSpace(first("target_host", "remote")) != "" {
 			ifType = "TCPClientInterface"
 		} else {
 			ifType = "TCPServerInterface"
@@ -2362,23 +1485,104 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		return false, nil
 	}
 
-	discoveryCfg := parseInterfaceDiscoveryConfig(name, ifType, kv, &mode)
+	discoverable := false
+	discoveryAnnounceInterval := 6 * time.Hour
+	var discoveryStampValue *int
+	discoveryName := strings.TrimSpace(first("discovery_name"))
+	discoveryEncrypt := truthy(first("discovery_encrypt"), false)
+	reachableOn := strings.TrimSpace(first("reachable_on"))
+	publishIFAC := truthy(first("publish_ifac"), false)
+	var discoveryLatitude *float64
+	var discoveryLongitude *float64
+	var discoveryHeight *float64
+	var discoveryFrequency *int
+	var discoveryBandwidth *int
+	var discoveryChannel *int
+	discoveryModulation := strings.TrimSpace(first("discovery_modulation"))
+	if truthy(first("discoverable"), false) {
+		discoverable = true
+		discoveryEnabled = true
+		if v, ok := intValue(first("announce_interval")); ok {
+			discoveryAnnounceInterval = time.Duration(v) * time.Minute
+			if discoveryAnnounceInterval < 5*time.Minute {
+				discoveryAnnounceInterval = 5 * time.Minute
+			}
+		}
+		if v, ok := intValue(first("discovery_stamp_value")); ok && v > 0 {
+			discoveryStampValue = &v
+		}
+		if v, ok := floatValue(first("latitude")); ok {
+			discoveryLatitude = &v
+		}
+		if v, ok := floatValue(first("longitude")); ok {
+			discoveryLongitude = &v
+		}
+		if v, ok := floatValue(first("height")); ok {
+			discoveryHeight = &v
+		}
+		if v, ok := intValue(first("discovery_frequency")); ok {
+			discoveryFrequency = &v
+		}
+		if v, ok := intValue(first("discovery_bandwidth")); ok {
+			discoveryBandwidth = &v
+		}
+		if v, ok := intValue(first("discovery_channel")); ok {
+			discoveryChannel = &v
+		}
+		if mode != InterfaceModeGateway && mode != InterfaceModeAccessPoint {
+			if strings.EqualFold(ifType, "RNodeInterface") || strings.EqualFold(ifType, "RNodeMultiInterface") {
+				mode = InterfaceModeAccessPoint
+				if !ignoreConfigWarnings {
+					Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to AP mode.", name)
+				}
+			} else {
+				mode = InterfaceModeGateway
+				if !ignoreConfigWarnings {
+					Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to gateway mode.", name)
+				}
+			}
+		}
+	}
 
 	var ifc *Interface
 	if externalIfc != nil {
 		ifc = externalIfc
 	} else {
-		base, err := buildInterfaceFromType(strings.TrimSpace(name), ifType)
-		if err != nil {
-			return false, err
+		switch strings.ToLower(ifType) {
+		case "udpinterface":
+			ifc = &Interface{Name: name, Type: "UDPInterface", DriverImplemented: true}
+		case "tcpclientinterface":
+			ifc = &Interface{Name: name, Type: "TCPClientInterface", DriverImplemented: true}
+		case "tcpserverinterface":
+			ifc = &Interface{Name: name, Type: "TCPServerInterface", DriverImplemented: true}
+		case "serialinterface":
+			ifc = &Interface{Name: name, Type: "SerialInterface", DriverImplemented: true}
+		case "ax25kissinterface":
+			ifc = &Interface{Name: name, Type: "AX25KISSInterface", DriverImplemented: true}
+		case "backboneinterface":
+			ifc = &Interface{Name: name, Type: "BackboneInterface", DriverImplemented: true}
+		case "backboneclientinterface":
+			ifc = &Interface{Name: name, Type: "BackboneClientInterface", DriverImplemented: true}
+		case "kissinterface":
+			ifc = &Interface{Name: name, Type: "KISSInterface", DriverImplemented: true}
+		case "i2pinterface":
+			ifc = &Interface{Name: name, Type: "I2PInterface", DriverImplemented: true}
+		case "autointerface":
+			ifc = &Interface{Name: name, Type: "AutoInterface", DriverImplemented: true}
+		case "pipeinterface":
+			ifc = &Interface{Name: name, Type: "PipeInterface", DriverImplemented: true}
+		case "rnodemultiinterface":
+			ifc = &Interface{Name: name, Type: "RNodeMultiInterface", DriverImplemented: true}
+		case "rnodeinterface":
+			ifc = &Interface{Name: name, Type: "RNodeInterface", DriverImplemented: true}
+		case "weaveinterface":
+			ifc = &Interface{Name: name, Type: "WeaveInterface", DriverImplemented: true}
+		default:
+			return false, fmt.Errorf("unknown interface type %q", ifType)
 		}
-		if base == nil {
-			return false, fmt.Errorf("interface %q type %q initialisation returned nil", name, ifType)
-		}
-		ifc = base
 	}
 
-	ifc.OUT = parseTruthy(getFirst(kv, "outgoing"), true)
+	ifc.OUT = truthy(first("outgoing"), true)
 	ifc.IngressControl = ingressControl
 	ifc.ICMaxHeldAnnounces = icMaxHeld
 	ifc.ICBurstHold = icBurstHold
@@ -2402,12 +1606,12 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		}
 		ifc.FixedMTU = true
 
-		device := getFirst(kv, "device")
-		port, _ := parseInt(getFirst(kv, "port"))
-		listenIP := getFirst(kv, "listen_ip")
-		listenPort, _ := parseInt(getFirst(kv, "listen_port"))
-		forwardIP := getFirst(kv, "forward_ip")
-		forwardPort, _ := parseInt(getFirst(kv, "forward_port"))
+		device := first("device")
+		port, _ := intValue(first("port"))
+		listenIP := first("listen_ip")
+		listenPort, _ := intValue(first("listen_port"))
+		forwardIP := first("forward_ip")
+		forwardPort, _ := intValue(first("forward_port"))
 		if port > 0 {
 			if listenPort == 0 {
 				listenPort = port
@@ -2452,7 +1656,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q AX25KISS config error: %w", name, err)
 		}
-		inheritInterfaceConfig(axIf, ifc)
+		axIf.IN = ifc.IN
+		axIf.OUT = ifc.OUT
+		axIf.IngressControl = ifc.IngressControl
+		axIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		axIf.ICBurstHold = ifc.ICBurstHold
+		axIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		axIf.ICBurstFreq = ifc.ICBurstFreq
+		axIf.ICNewTime = ifc.ICNewTime
+		axIf.ICBurstPenalty = ifc.ICBurstPenalty
+		axIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		axIf.AnnounceCap = ifc.AnnounceCap
+		axIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = axIf
 	}
 
@@ -2461,7 +1676,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q KISS config error: %w", name, err)
 		}
-		inheritInterfaceConfig(kIf, ifc)
+		kIf.IN = ifc.IN
+		kIf.OUT = ifc.OUT
+		kIf.IngressControl = ifc.IngressControl
+		kIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		kIf.ICBurstHold = ifc.ICBurstHold
+		kIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		kIf.ICBurstFreq = ifc.ICBurstFreq
+		kIf.ICNewTime = ifc.ICNewTime
+		kIf.ICBurstPenalty = ifc.ICBurstPenalty
+		kIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		kIf.AnnounceCap = ifc.AnnounceCap
+		kIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = kIf
 	}
 
@@ -2470,7 +1696,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Backbone config error: %w", name, err)
 		}
-		inheritInterfaceConfig(bbIf, ifc)
+		bbIf.IN = ifc.IN
+		bbIf.OUT = ifc.OUT
+		bbIf.IngressControl = ifc.IngressControl
+		bbIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		bbIf.ICBurstHold = ifc.ICBurstHold
+		bbIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		bbIf.ICBurstFreq = ifc.ICBurstFreq
+		bbIf.ICNewTime = ifc.ICNewTime
+		bbIf.ICBurstPenalty = ifc.ICBurstPenalty
+		bbIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		bbIf.AnnounceCap = ifc.AnnounceCap
+		bbIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = bbIf
 	}
 
@@ -2479,29 +1716,65 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Backbone client config error: %w", name, err)
 		}
-		inheritInterfaceConfig(bcIf, ifc)
+		bcIf.IN = ifc.IN
+		bcIf.OUT = ifc.OUT
+		bcIf.IngressControl = ifc.IngressControl
+		bcIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		bcIf.ICBurstHold = ifc.ICBurstHold
+		bcIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		bcIf.ICBurstFreq = ifc.ICBurstFreq
+		bcIf.ICNewTime = ifc.ICNewTime
+		bcIf.ICBurstPenalty = ifc.ICBurstPenalty
+		bcIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		bcIf.AnnounceCap = ifc.AnnounceCap
+		bcIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = bcIf
 	}
 
 	if externalIfc == nil && strings.EqualFold(ifType, "WeaveInterface") {
+		if strings.TrimSpace(first("identitypath")) == "" && strings.TrimSpace(r.IdentityPath) != "" {
+			kv["identitypath"] = r.IdentityPath
+		}
 		wIf, err := ifaces.NewWeaveInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Weave config error: %w", name, err)
 		}
-		inheritInterfaceConfig(wIf, ifc)
+		wIf.IN = ifc.IN
+		wIf.OUT = ifc.OUT
+		wIf.IngressControl = ifc.IngressControl
+		wIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		wIf.ICBurstHold = ifc.ICBurstHold
+		wIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		wIf.ICBurstFreq = ifc.ICBurstFreq
+		wIf.ICNewTime = ifc.ICNewTime
+		wIf.ICBurstPenalty = ifc.ICBurstPenalty
+		wIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		wIf.AnnounceCap = ifc.AnnounceCap
+		wIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		wIf.IngressControl = false
 		ifc = wIf
 	}
 
 	if externalIfc == nil && strings.EqualFold(ifType, "I2PInterface") {
-		if strings.TrimSpace(getFirst(kv, "storagepath")) == "" && strings.TrimSpace(r.StoragePath) != "" {
+		if strings.TrimSpace(first("storagepath")) == "" && strings.TrimSpace(r.StoragePath) != "" {
 			kv["storagepath"] = r.StoragePath
 		}
 		i2pIf, err := ifaces.NewI2PInterface(strings.TrimSpace(name), kv)
 		if err != nil {
 			return false, fmt.Errorf("Interface %q I2P config error: %w", name, err)
 		}
-		inheritInterfaceConfig(i2pIf, ifc)
+		i2pIf.IN = ifc.IN
+		i2pIf.OUT = ifc.OUT
+		i2pIf.IngressControl = ifc.IngressControl
+		i2pIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		i2pIf.ICBurstHold = ifc.ICBurstHold
+		i2pIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		i2pIf.ICBurstFreq = ifc.ICBurstFreq
+		i2pIf.ICNewTime = ifc.ICNewTime
+		i2pIf.ICBurstPenalty = ifc.ICBurstPenalty
+		i2pIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		i2pIf.AnnounceCap = ifc.AnnounceCap
+		i2pIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = i2pIf
 	}
 
@@ -2510,7 +1783,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Pipe config error: %w", name, err)
 		}
-		inheritInterfaceConfig(pIf, ifc)
+		pIf.IN = ifc.IN
+		pIf.OUT = ifc.OUT
+		pIf.IngressControl = ifc.IngressControl
+		pIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		pIf.ICBurstHold = ifc.ICBurstHold
+		pIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		pIf.ICBurstFreq = ifc.ICBurstFreq
+		pIf.ICNewTime = ifc.ICNewTime
+		pIf.ICBurstPenalty = ifc.ICBurstPenalty
+		pIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		pIf.AnnounceCap = ifc.AnnounceCap
+		pIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = pIf
 	}
 
@@ -2519,7 +1803,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q Serial config error: %w", name, err)
 		}
-		inheritInterfaceConfig(sIf, ifc)
+		sIf.IN = ifc.IN
+		sIf.OUT = ifc.OUT
+		sIf.IngressControl = ifc.IngressControl
+		sIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		sIf.ICBurstHold = ifc.ICBurstHold
+		sIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		sIf.ICBurstFreq = ifc.ICBurstFreq
+		sIf.ICNewTime = ifc.ICNewTime
+		sIf.ICBurstPenalty = ifc.ICBurstPenalty
+		sIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		sIf.AnnounceCap = ifc.AnnounceCap
+		sIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = sIf
 	}
 
@@ -2528,7 +1823,18 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q RNodeMulti config error: %w", name, err)
 		}
-		inheritInterfaceConfig(rnmIf, ifc)
+		rnmIf.IN = ifc.IN
+		rnmIf.OUT = ifc.OUT
+		rnmIf.IngressControl = ifc.IngressControl
+		rnmIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		rnmIf.ICBurstHold = ifc.ICBurstHold
+		rnmIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		rnmIf.ICBurstFreq = ifc.ICBurstFreq
+		rnmIf.ICNewTime = ifc.ICNewTime
+		rnmIf.ICBurstPenalty = ifc.ICBurstPenalty
+		rnmIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		rnmIf.AnnounceCap = ifc.AnnounceCap
+		rnmIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = rnmIf
 	}
 
@@ -2537,20 +1843,31 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q RNode config error: %w", name, err)
 		}
-		inheritInterfaceConfig(rnIf, ifc)
+		rnIf.IN = ifc.IN
+		rnIf.OUT = ifc.OUT
+		rnIf.IngressControl = ifc.IngressControl
+		rnIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		rnIf.ICBurstHold = ifc.ICBurstHold
+		rnIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		rnIf.ICBurstFreq = ifc.ICBurstFreq
+		rnIf.ICNewTime = ifc.ICNewTime
+		rnIf.ICBurstPenalty = ifc.ICBurstPenalty
+		rnIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		rnIf.AnnounceCap = ifc.AnnounceCap
+		rnIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = rnIf
 	}
 
 	if externalIfc == nil && strings.EqualFold(ifType, "TCPClientInterface") {
-		host := getFirst(kv, "target_host", "remote")
-		port, _ := parseInt(getFirst(kv, "target_port", "port"))
-		kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
-		i2p := parseTruthy(getFirst(kv, "i2p_tunneled"), false)
-		fixedMTU, _ := parseInt(getFirst(kv, "fixed_mtu", "mtu"))
-		connectTimeoutS, _ := parseFloat(getFirst(kv, "connect_timeout"))
-		reconnectWaitS, _ := parseFloat(getFirst(kv, "reconnect_wait"))
+		host := first("target_host", "remote")
+		port, _ := intValue(first("target_port", "port"))
+		kiss := truthy(first("kiss_framing"), false)
+		i2p := truthy(first("i2p_tunneled"), false)
+		fixedMTU, _ := intValue(first("fixed_mtu", "mtu"))
+		connectTimeoutS, _ := floatValue(first("connect_timeout"))
+		reconnectWaitS, _ := floatValue(first("reconnect_wait"))
 		var maxReconnect *int
-		if v, ok := parseInt(getFirst(kv, "max_reconnect_tries")); ok {
+		if v, ok := intValue(first("max_reconnect_tries")); ok {
 			maxReconnect = &v
 		}
 
@@ -2584,18 +1901,29 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 		if err != nil {
 			return false, fmt.Errorf("Interface %q TCP client config error: %w", name, err)
 		}
-		inheritInterfaceConfig(tcpIf, ifc)
+		tcpIf.IN = ifc.IN
+		tcpIf.OUT = ifc.OUT
+		tcpIf.IngressControl = ifc.IngressControl
+		tcpIf.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		tcpIf.ICBurstHold = ifc.ICBurstHold
+		tcpIf.ICBurstFreqNew = ifc.ICBurstFreqNew
+		tcpIf.ICBurstFreq = ifc.ICBurstFreq
+		tcpIf.ICNewTime = ifc.ICNewTime
+		tcpIf.ICBurstPenalty = ifc.ICBurstPenalty
+		tcpIf.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		tcpIf.AnnounceCap = ifc.AnnounceCap
+		tcpIf.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = tcpIf
 	}
 
 	if externalIfc == nil && strings.EqualFold(ifType, "TCPServerInterface") {
-		listenIP := getFirst(kv, "listen_ip", "listen_on", "bind_ip")
-		listenPort, _ := parseInt(getFirst(kv, "listen_port", "port"))
-		device := getFirst(kv, "device")
-		preferIPv6 := parseTruthy(getFirst(kv, "prefer_ipv6"), false)
-		kiss := parseTruthy(getFirst(kv, "kiss_framing"), false)
-		i2p := parseTruthy(getFirst(kv, "i2p_tunneled"), false)
-		fixedMTU, _ := parseInt(getFirst(kv, "fixed_mtu", "mtu"))
+		listenIP := first("listen_ip", "listen_on", "bind_ip")
+		listenPort, _ := intValue(first("listen_port", "port"))
+		device := first("device")
+		preferIPv6 := truthy(first("prefer_ipv6"), false)
+		kiss := truthy(first("kiss_framing"), false)
+		i2p := truthy(first("i2p_tunneled"), false)
+		fixedMTU, _ := intValue(first("fixed_mtu", "mtu"))
 
 		ifacSz := 0
 		if ifacSize != nil {
@@ -2610,7 +1938,7 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 			ifacNetkeyVal = *ifacNetkey
 		}
 
-		logger := tcpLogAdapter{}
+		logger := Logf
 		server, err := ifaces.NewTCPServerFromConfig(nil, logger, ifaces.TCPServerConfig{
 			Name:        strings.TrimSpace(name),
 			Device:      device,
@@ -2670,9 +1998,28 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 				IFACIdentity:      parent.IFACIdentity,
 				IFACSignature:     append([]byte(nil), parent.IFACSignature...),
 			}
-			inheritInterfaceConfig(peer, parent)
+			peer.IN = parent.IN
+			peer.OUT = parent.OUT
+			peer.IngressControl = parent.IngressControl
+			peer.ICMaxHeldAnnounces = parent.ICMaxHeldAnnounces
+			peer.ICBurstHold = parent.ICBurstHold
+			peer.ICBurstFreqNew = parent.ICBurstFreqNew
+			peer.ICBurstFreq = parent.ICBurstFreq
+			peer.ICNewTime = parent.ICNewTime
+			peer.ICBurstPenalty = parent.ICBurstPenalty
+			peer.ICHeldReleaseInterval = parent.ICHeldReleaseInterval
+			peer.AnnounceCap = parent.AnnounceCap
+			peer.SetAnnounceRateConfig(parent.AnnounceRateTarget, parent.AnnounceRateGrace, parent.AnnounceRatePenalty)
 			peer.SetTCPClient(ci)
-			ci.Owner = tcpOwnerAdapter{ifc: peer}
+			ci.Owner = func(data []byte, _ *ifaces.TCPClientInterface) {
+				if peer == nil || len(data) == 0 {
+					return
+				}
+				peer.RXB += uint64(len(data))
+				if ifaces.InboundHandler != nil {
+					ifaces.InboundHandler(data, peer)
+				}
+			}
 			interfacesMu.Lock()
 			Interfaces = append(Interfaces, peer)
 			interfacesMu.Unlock()
@@ -2682,374 +2029,49 @@ func (r *Reticulum) startInterfaceFromConfig(name string, kv map[string]string) 
 			return false, fmt.Errorf("Interface %q TCP server start error: %w", name, err)
 		}
 
-		inheritInterfaceConfig(parent, ifc)
+		parent.IN = ifc.IN
+		parent.OUT = ifc.OUT
+		parent.IngressControl = ifc.IngressControl
+		parent.ICMaxHeldAnnounces = ifc.ICMaxHeldAnnounces
+		parent.ICBurstHold = ifc.ICBurstHold
+		parent.ICBurstFreqNew = ifc.ICBurstFreqNew
+		parent.ICBurstFreq = ifc.ICBurstFreq
+		parent.ICNewTime = ifc.ICNewTime
+		parent.ICBurstPenalty = ifc.ICBurstPenalty
+		parent.ICHeldReleaseInterval = ifc.ICHeldReleaseInterval
+		parent.AnnounceCap = ifc.AnnounceCap
+		parent.SetAnnounceRateConfig(ifc.AnnounceRateTarget, ifc.AnnounceRateGrace, ifc.AnnounceRatePenalty)
 		ifc = parent
 	}
 
-	applyInterfaceDiscoveryConfig(ifc, discoveryCfg)
+	if discoverable {
+		ifc.Discoverable = true
+		ifc.DiscoveryAnnounceInterval = discoveryAnnounceInterval
+		ifc.DiscoveryPublishIFAC = publishIFAC
+		ifc.DiscoveryReachableOn = reachableOn
+		ifc.DiscoveryName = discoveryName
+		ifc.DiscoveryEncrypt = discoveryEncrypt
+		ifc.DiscoveryStampValue = discoveryStampValue
+		ifc.DiscoveryLatitude = discoveryLatitude
+		ifc.DiscoveryLongitude = discoveryLongitude
+		ifc.DiscoveryHeight = discoveryHeight
+		ifc.DiscoveryFrequency = discoveryFrequency
+		ifc.DiscoveryBandwidth = discoveryBandwidth
+		ifc.DiscoveryChannel = discoveryChannel
+		ifc.DiscoveryModulation = discoveryModulation
+	}
 	ifc.BootstrapOnly = bootstrapOnly
+	kv["name"] = name
+	kv["selected_interface_mode"] = strconv.Itoa(mode)
+	kv["configured_bitrate"] = ""
+	if bitrate != nil {
+		kv["configured_bitrate"] = strconv.Itoa(*bitrate)
+	}
 	r.AddInterface(ifc, mode, bitrate, ifacSize, ifacNetname, ifacNetkey, announceCap, announceRateTarget, announceRateGrace, announceRatePenalty)
-	if bootstrapOnly {
-		r.rememberBootstrapConfig(name, kv)
+	if bootstrapOnly && instanceInit {
+		r.BootstrapConfigs = append(r.BootstrapConfigs, kv)
 	}
 	return true, nil
-}
-
-func buildInterfaceFromType(name, ifType string) (*Interface, error) {
-	ifType = strings.TrimSpace(ifType)
-	if ifType == "" {
-		return nil, errors.New("missing interface type")
-	}
-
-	// Keep type names for Python config parity.
-	switch strings.ToLower(ifType) {
-	case "udpinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "UDPInterface",
-			DriverImplemented: true,
-		}, nil
-	case "tcpclientinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "TCPClientInterface",
-			DriverImplemented: true,
-		}, nil
-	case "tcpserverinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "TCPServerInterface",
-			DriverImplemented: true,
-		}, nil
-	case "serialinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "SerialInterface",
-			DriverImplemented: true,
-		}, nil
-	case "ax25kissinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "AX25KISSInterface",
-			DriverImplemented: true,
-		}, nil
-	case "backboneinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "BackboneInterface",
-			DriverImplemented: true,
-		}, nil
-	case "backboneclientinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "BackboneClientInterface",
-			DriverImplemented: true,
-		}, nil
-	case "kissinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "KISSInterface",
-			DriverImplemented: true,
-		}, nil
-	case "i2pinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "I2PInterface",
-			DriverImplemented: true,
-		}, nil
-	case "autointerface":
-		return &Interface{
-			Name:              name,
-			Type:              "AutoInterface",
-			DriverImplemented: true,
-		}, nil
-	case "pipeinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "PipeInterface",
-			DriverImplemented: true,
-		}, nil
-	case "rnodemultiinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "RNodeMultiInterface",
-			DriverImplemented: true,
-		}, nil
-	case "rnodeinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "RNodeInterface",
-			DriverImplemented: true,
-		}, nil
-	case "weaveinterface":
-		return &Interface{
-			Name:              name,
-			Type:              "WeaveInterface",
-			DriverImplemented: true,
-		}, nil
-	default:
-		return &Interface{
-			Name:              name,
-			Type:              ifType,
-			DriverImplemented: false,
-			DriverError:       "unknown interface type",
-		}, errors.New("unknown interface type")
-	}
-}
-
-func inheritInterfaceConfig(dst, src *Interface) {
-	if dst == nil || src == nil {
-		return
-	}
-	dst.IN = src.IN
-	dst.OUT = src.OUT
-	dst.IngressControl = src.IngressControl
-	dst.ICMaxHeldAnnounces = src.ICMaxHeldAnnounces
-	dst.ICBurstHold = src.ICBurstHold
-	dst.ICBurstFreqNew = src.ICBurstFreqNew
-	dst.ICBurstFreq = src.ICBurstFreq
-	dst.ICNewTime = src.ICNewTime
-	dst.ICBurstPenalty = src.ICBurstPenalty
-	dst.ICHeldReleaseInterval = src.ICHeldReleaseInterval
-	dst.AnnounceCap = src.AnnounceCap
-	dst.SetAnnounceRateConfig(src.AnnounceRateTarget, src.AnnounceRateGrace, src.AnnounceRatePenalty)
-}
-
-func parseINIFallbackInterfaces(cfg *configobj.Config) map[string]map[string]string {
-	if cfg == nil {
-		return nil
-	}
-	out := map[string]map[string]string{}
-	for _, name := range cfg.Sections() {
-		if !strings.HasPrefix(name, "interfaces.") {
-			continue
-		}
-		sec := cfg.Section(name)
-		if sec == nil {
-			continue
-		}
-		m := map[string]string{}
-		for _, k := range []string{"enabled", "mode", "interface_mode", "bitrate", "announce_cap", "ifac_size", "networkname", "network_name", "passphrase", "pass_phrase", "type"} {
-			if v, ok := sec.Get(k); ok {
-				m[k] = v
-			}
-		}
-		out[strings.TrimPrefix(name, "interfaces.")] = m
-	}
-	return out
-}
-
-type interfaceConfigEntry struct {
-	Name string
-	KV   map[string]string
-}
-
-func parseConfigObjInterfacesOrdered(path string) ([]interfaceConfigEntry, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(string(data), "\n")
-
-	inInterfaces := false
-	currentSub := ""
-	currentIdx := -1
-	out := make([]interfaceConfigEntry, 0)
-
-	startInterface := func(name string) {
-		name = strings.TrimSpace(name)
-		currentSub = ""
-		if name == "" {
-			currentIdx = -1
-			return
-		}
-		out = append(out, interfaceConfigEntry{Name: name, KV: map[string]string{}})
-		currentIdx = len(out) - 1
-	}
-
-	for _, raw := range lines {
-		line := strings.TrimSpace(raw)
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
-		}
-
-		// Section header: [interfaces]
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") && !strings.HasPrefix(line, "[[") {
-			section := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "["), "]"))
-			inInterfaces = strings.EqualFold(section, "interfaces")
-			currentSub = ""
-			currentIdx = -1
-			continue
-		}
-
-		if !inInterfaces {
-			continue
-		}
-
-		// Subsection header: [[Name]]
-		if strings.HasPrefix(line, "[[") && strings.HasSuffix(line, "]]") {
-			// Sub-subsection header: [[[Name]]]
-			if strings.HasPrefix(line, "[[[") && strings.HasSuffix(line, "]]]") {
-				sub := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "[[["), "]]]"))
-				currentSub = sub
-				continue
-			}
-			name := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "[["), "]]"))
-			startInterface(name)
-			continue
-		}
-
-		if currentIdx < 0 || currentIdx >= len(out) {
-			// Ignore keys at the [interfaces] level.
-			continue
-		}
-
-		key, val, ok := splitKeyValue(line)
-		if !ok {
-			continue
-		}
-		lkey := strings.ToLower(key)
-		if currentSub != "" {
-			lkey = "sub." + strings.ToLower(currentSub) + "." + lkey
-		}
-		out[currentIdx].KV[lkey] = val
-	}
-
-	return out, nil
-}
-
-func findInterfaceByName(name string) *Interface {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil
-	}
-	for _, ifc := range Interfaces {
-		if ifc == nil {
-			continue
-		}
-		if ifc.Name == name || ifc.String() == name {
-			return ifc
-		}
-	}
-	return nil
-}
-
-func (r *Reticulum) getInterfaceConfigByName(name string) (map[string]string, bool) {
-	name = strings.TrimSpace(name)
-	if name == "" || r == nil {
-		return nil, false
-	}
-
-	if ordered, err := parseConfigObjInterfacesOrdered(r.ConfigPath); err == nil && len(ordered) > 0 {
-		for _, entry := range ordered {
-			if strings.EqualFold(strings.TrimSpace(entry.Name), name) {
-				return entry.KV, true
-			}
-		}
-		return nil, false
-	}
-
-	ini := parseINIFallbackInterfaces(r.Config)
-	for k, v := range ini {
-		if strings.EqualFold(strings.TrimSpace(k), name) {
-			return v, true
-		}
-	}
-	return nil, false
-}
-
-func splitKeyValue(line string) (key, value string, ok bool) {
-	parts := strings.SplitN(line, "=", 2)
-	if len(parts) != 2 {
-		return "", "", false
-	}
-	key = strings.TrimSpace(parts[0])
-	value = strings.TrimSpace(parts[1])
-	if key == "" {
-		return "", "", false
-	}
-	// Strip surrounding quotes.
-	if len(value) >= 2 {
-		if (value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'') {
-			value = value[1 : len(value)-1]
-		}
-	}
-	return key, value, true
-}
-
-func getFirst(m map[string]string, keys ...string) string {
-	for _, k := range keys {
-		if m == nil {
-			return ""
-		}
-		if v, ok := m[strings.ToLower(k)]; ok {
-			return v
-		}
-		// allow raw keys if caller already lowercased
-		if v, ok := m[k]; ok {
-			return v
-		}
-	}
-	return ""
-}
-
-func parseTruthy(v string, defaultVal bool) bool {
-	v = strings.ToLower(strings.TrimSpace(v))
-	if v == "" {
-		return defaultVal
-	}
-	switch v {
-	case "yes", "on", "1", "true", "enabled":
-		return true
-	case "no", "off", "0", "false", "disabled":
-		return false
-	default:
-		return defaultVal
-	}
-}
-
-func parseInterfaceMode(v string) int {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "access_point", "accesspoint", "ap":
-		return InterfaceModeAccessPoint
-	case "pointtopoint", "ptp":
-		return InterfaceModePointToPoint
-	case "roaming":
-		return InterfaceModeRoaming
-	case "boundary":
-		return InterfaceModeBoundary
-	case "gateway", "gw":
-		return InterfaceModeGateway
-	default:
-		return InterfaceModeFull
-	}
-}
-
-func parseInt(s string) (int, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, false
-	}
-	iv, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, false
-	}
-	return iv, true
-}
-
-func parseFloat(s string) (float64, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, false
-	}
-	fv, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0, false
-	}
-	return fv, true
 }
 
 // ---------------- interface setup and IFAC ----------------
@@ -3198,8 +2220,8 @@ func (r *Reticulum) cleanCaches() {
 // ---------------- RPC loop + public methods ----------------
 
 // Local RPC uses a small auth handshake plus msgpack for call/response
-// serialization. The `RPCListener`/`RPCConn` interfaces are kept so we can swap
-// the wire format if needed, but the current implementation targets Go↔Python.
+// serialization. The listener and conn are concrete. The current implementation
+// targets Go↔Python.
 
 func (r *Reticulum) rpcLoop() {
 	if r == nil || r.rpcLn == nil {
@@ -3210,20 +2232,142 @@ func (r *Reticulum) rpcLoop() {
 		if err != nil {
 			// During shutdown the listener will be closed; don't spin.
 			if strings.Contains(strings.ToLower(err.Error()), "closed") {
+				if r.rpcNetwork == "unix" && len(r.rpcAddr) > 0 && r.rpcAddr[0] != 0 {
+					_ = os.Remove(r.rpcAddr)
+				}
 				return
 			}
 			Log("Error accepting RPC: "+err.Error(), LogError)
+			continue
+		}
+		if err := func() error {
+			var hdr [4]byte
+			// deliver_challenge: server sends its nonce, verifies client digest
+			randBytes := make([]byte, 20)
+			if _, err := rand.Read(randBytes); err != nil {
+				return err
+			}
+			msg := append([]byte("#CHALLENGE#"), randBytes...)
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(msg)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if _, err := conn.Write(msg); err != nil {
+				return err
+			}
+			if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+				return err
+			}
+			n := int(binary.BigEndian.Uint32(hdr[:]))
+			if n > 256 {
+				return fmt.Errorf("rpc message too large: %d bytes", n)
+			}
+			resp := make([]byte, n)
+			if _, err := io.ReadFull(conn, resp); err != nil {
+				return err
+			}
+			mac := hmac.New(md5.New, r.RPCKey)
+			if _, err := mac.Write(randBytes); err != nil {
+				return err
+			}
+			expected := mac.Sum(nil)
+			if subtle.ConstantTimeCompare(resp, expected) != 1 {
+				binary.BigEndian.PutUint32(hdr[:], uint32(len("#FAILURE#")))
+				_, _ = conn.Write(hdr[:])
+				_, _ = conn.Write([]byte("#FAILURE#"))
+				return errors.New("digest sent was rejected")
+			}
+			binary.BigEndian.PutUint32(hdr[:], uint32(len("#WELCOME#")))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if _, err := conn.Write([]byte("#WELCOME#")); err != nil {
+				return err
+			}
+			// answer_challenge: server receives client nonce and sends digest
+			if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+				return err
+			}
+			n = int(binary.BigEndian.Uint32(hdr[:]))
+			if n > 256 {
+				return fmt.Errorf("rpc message too large: %d bytes", n)
+			}
+			clientMsg := make([]byte, n)
+			if _, err := io.ReadFull(conn, clientMsg); err != nil {
+				return err
+			}
+			const challengePrefix = "#CHALLENGE#"
+			if len(clientMsg) <= len(challengePrefix) || string(clientMsg[:len(challengePrefix)]) != challengePrefix {
+				return errors.New("expected challenge from client")
+			}
+			clientNonce := clientMsg[len(challengePrefix):]
+			mac2 := hmac.New(md5.New, r.RPCKey)
+			if _, err := mac2.Write(clientNonce); err != nil {
+				return err
+			}
+			digest := mac2.Sum(nil)
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(digest)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if _, err := conn.Write(digest); err != nil {
+				return err
+			}
+			if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+				return err
+			}
+			n = int(binary.BigEndian.Uint32(hdr[:]))
+			if n > 256 {
+				return fmt.Errorf("rpc message too large: %d bytes", n)
+			}
+			finalResp := make([]byte, n)
+			if _, err := io.ReadFull(conn, finalResp); err != nil {
+				return err
+			}
+			if string(finalResp) != "#WELCOME#" {
+				return errors.New("digest sent was rejected")
+			}
+			return nil
+		}(); err != nil {
+			Log("Rejected RPC connection: "+err.Error(), LogWarning)
+			_ = conn.Close()
 			continue
 		}
 		go r.handleRPC(conn)
 	}
 }
 
-func (r *Reticulum) handleRPC(conn RPCConn) {
+func (r *Reticulum) handleRPC(conn net.Conn) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			Log("An error ocurred while handling RPC call from local client: "+fmt.Sprint(rec), LogError)
+		}
+	}()
 	defer conn.Close()
 
 	var call map[string]any
-	if err := conn.Recv(&call); err != nil {
+	if err := func() error {
+		data, err := func() ([]byte, error) {
+			var hdr [4]byte
+			if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+				return nil, err
+			}
+			n := int(binary.BigEndian.Uint32(hdr[:]))
+			buf := make([]byte, n)
+			if _, err := io.ReadFull(conn, buf); err != nil {
+				return nil, err
+			}
+			return buf, nil
+		}()
+		if err != nil {
+			return err
+		}
+		result, err := vendor.PickleLoads(data)
+		if err != nil {
+			return fmt.Errorf("pickle decode: %w", err)
+		}
+		return vendor.PickleAssign(result, &call)
+	}(); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			// Normal case: client connects and closes without sending anything.
 			return
@@ -3235,213 +2379,590 @@ func (r *Reticulum) handleRPC(conn RPCConn) {
 	if get, ok := call["get"].(string); ok {
 		switch get {
 		case "interface_stats":
-			_ = conn.Send(r.GetInterfaceStats())
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetInterfaceStats())
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "blackholed_identities":
-			_ = conn.Send(r.GetBlackholedIdentities())
+			snapshot := r.GetBlackholedIdentities()
+			out := make(map[string]map[string]any, len(snapshot))
+			for key, entry := range snapshot {
+				out[hex.EncodeToString(key[:])] = entry
+			}
+			if err := func() error {
+				data, err := vendor.PickleDumps(out)
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "path_table":
-			mh, _ := call["max_hops"].(int)
-			_ = conn.Send(r.GetPathTable(mh))
+			var mh *int
+			switch v := call["max_hops"].(type) {
+			case int:
+				mh = &v
+			case int8:
+				vv := int(v)
+				mh = &vv
+			case int16:
+				vv := int(v)
+				mh = &vv
+			case int32:
+				vv := int(v)
+				mh = &vv
+			case int64:
+				vv := int(v)
+				mh = &vv
+			case uint:
+				vv := int(v)
+				mh = &vv
+			case uint8:
+				vv := int(v)
+				mh = &vv
+			case uint16:
+				vv := int(v)
+				mh = &vv
+			case uint32:
+				vv := int(v)
+				mh = &vv
+			case uint64:
+				vv := int(v)
+				mh = &vv
+			case float32:
+				vv := int(v)
+				mh = &vv
+			case float64:
+				vv := int(v)
+				mh = &vv
+			}
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetPathTable(mh))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "rate_table":
-			_ = conn.Send(r.GetRateTable())
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetRateTable())
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "next_hop_if_name":
-			dst := rpcBytes(call["destination_hash"])
-			_ = conn.Send(r.GetNextHopIfName(dst))
+			dst, _ := call["destination_hash"].([]byte)
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetNextHopIfName(dst))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "next_hop":
-			dst := rpcBytes(call["destination_hash"])
-			_ = conn.Send(r.GetNextHop(dst))
+			dst, _ := call["destination_hash"].([]byte)
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetNextHop(dst))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "first_hop_timeout":
-			dst := rpcBytes(call["destination_hash"])
-			_ = conn.Send(r.GetFirstHopTimeout(dst))
+			dst, _ := call["destination_hash"].([]byte)
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetFirstHopTimeout(dst))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "link_count":
-			_ = conn.Send(r.GetLinkCount())
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.GetLinkCount())
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "packet_rssi":
-			hash := rpcBytes(call["packet_hash"])
+			hash, _ := call["packet_hash"].([]byte)
 			localStatsMu.RLock()
 			v, ok := localRSSICache[string(hash)]
 			localStatsMu.RUnlock()
+			var data []byte
+			var err error
 			if ok {
-				rpcSendFloat(conn, &v)
+				data, err = vendor.PickleDumps(v)
 			} else {
-				rpcSendFloat(conn, nil)
+				data, err = vendor.PickleDumps(nil)
+			}
+			if err != nil {
+				panic(err)
+			}
+			if err := func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := conn.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := conn.Write(data)
+					return err
+				}
+				return nil
+			}(); err != nil {
+				panic(err)
 			}
 		case "packet_snr":
-			hash := rpcBytes(call["packet_hash"])
+			hash, _ := call["packet_hash"].([]byte)
 			localStatsMu.RLock()
 			v, ok := localSNRCache[string(hash)]
 			localStatsMu.RUnlock()
+			var data []byte
+			var err error
 			if ok {
-				rpcSendFloat(conn, &v)
+				data, err = vendor.PickleDumps(v)
 			} else {
-				rpcSendFloat(conn, nil)
+				data, err = vendor.PickleDumps(nil)
+			}
+			if err != nil {
+				panic(err)
+			}
+			if err := func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := conn.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := conn.Write(data)
+					return err
+				}
+				return nil
+			}(); err != nil {
+				panic(err)
 			}
 		case "packet_q":
-			hash := rpcBytes(call["packet_hash"])
+			hash, _ := call["packet_hash"].([]byte)
 			localStatsMu.RLock()
 			v, ok := localQCache[string(hash)]
 			localStatsMu.RUnlock()
+			var data []byte
+			var err error
 			if ok {
-				rpcSendFloat(conn, &v)
+				data, err = vendor.PickleDumps(v)
 			} else {
-				rpcSendFloat(conn, nil)
+				data, err = vendor.PickleDumps(nil)
 			}
-		}
-	}
-	if action, ok := call["call"].(string); ok {
-		name, _ := call["interface"].(string)
-		if name == "" {
-			name, _ = call["name"].(string)
-		}
-		switch action {
-		case "halt_interface":
-			rpcSendError(conn, r.HaltInterface(name))
-		case "resume_interface":
-			rpcSendError(conn, r.ResumeInterface(name))
-		case "reload_interface":
-			rpcSendError(conn, r.ReloadInterface(name))
+			if err != nil {
+				panic(err)
+			}
+			if err := func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := conn.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := conn.Write(data)
+					return err
+				}
+				return nil
+			}(); err != nil {
+				panic(err)
+			}
 		}
 	}
 	if drop, ok := call["drop"].(string); ok {
 		switch drop {
 		case "path":
-			dst := rpcBytes(call["destination_hash"])
-			_ = conn.Send(r.DropPath(dst))
+			dst, _ := call["destination_hash"].([]byte)
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.DropPath(dst))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "all_via":
-			dst := rpcBytes(call["destination_hash"])
-			_ = conn.Send(r.DropAllVia(dst))
+			dst, _ := call["destination_hash"].([]byte)
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.DropAllVia(dst))
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		case "announce_queues":
-			_ = conn.Send(r.DropAnnounceQueues())
+			if err := func() error {
+				data, err := vendor.PickleDumps(r.DropAnnounceQueues())
+				if err != nil {
+					return err
+				}
+				return func() error {
+					var hdr [4]byte
+					binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+					if _, err := conn.Write(hdr[:]); err != nil {
+						return err
+					}
+					if len(data) > 0 {
+						_, err := conn.Write(data)
+						return err
+					}
+					return nil
+				}()
+			}(); err != nil {
+				panic(err)
+			}
 		}
 	}
 	if raw, ok := call["blackhole_identity"]; ok {
-		identityHash := rpcBytes(raw)
-		until := rpcUnixTime(call["until"])
-		reason := rpcString(call["reason"])
-		_ = conn.Send(r.BlackholeIdentity(identityHash, until, reason))
+		identityHash, _ := raw.([]byte)
+		until := func() *time.Time {
+			value, ok := call["until"]
+			if !ok || value == nil {
+				return nil
+			}
+			switch v := value.(type) {
+			case time.Time:
+				t := v
+				return &t
+			case *time.Time:
+				if v == nil {
+					return nil
+				}
+				t := *v
+				return &t
+			case float64:
+				sec, frac := math.Modf(v)
+				if sec < 0 {
+					t := time.Unix(0, 0)
+					return &t
+				}
+				t := time.Unix(int64(sec), int64(frac*1e9))
+				return &t
+			case float32:
+				fv := float64(v)
+				sec, frac := math.Modf(fv)
+				if sec < 0 {
+					t := time.Unix(0, 0)
+					return &t
+				}
+				t := time.Unix(int64(sec), int64(frac*1e9))
+				return &t
+			case int:
+				t := time.Unix(int64(v), 0)
+				return &t
+			case int64:
+				t := time.Unix(v, 0)
+				return &t
+			case int32:
+				t := time.Unix(int64(v), 0)
+				return &t
+			case uint64:
+				t := time.Unix(int64(v), 0)
+				return &t
+			case uint32:
+				t := time.Unix(int64(v), 0)
+				return &t
+			default:
+				return nil
+			}
+		}()
+		reason := func() *string {
+			value, ok := call["reason"]
+			if !ok || value == nil {
+				return nil
+			}
+			switch v := value.(type) {
+			case string:
+				s := v
+				return &s
+			case *string:
+				if v == nil {
+					return nil
+				}
+				s := *v
+				return &s
+			default:
+				s := fmt.Sprint(v)
+				return &s
+			}
+		}()
+		data, err := vendor.PickleDumps(r.BlackholeIdentity(identityHash, until, reason))
+		if err != nil {
+			panic(err)
+		}
+		if err := func() error {
+			var hdr [4]byte
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(data) > 0 {
+				_, err := conn.Write(data)
+				return err
+			}
+			return nil
+		}(); err != nil {
+			panic(err)
+		}
 	}
 	if raw, ok := call["unblackhole_identity"]; ok {
-		identityHash := rpcBytes(raw)
-		_ = conn.Send(r.UnblackholeIdentity(identityHash))
-	}
-}
-
-func rpcBytes(value any) []byte {
-	switch v := value.(type) {
-	case []byte:
-		return v
-	default:
-		return nil
-	}
-}
-
-func rpcSendFloat(conn RPCConn, value *float64) {
-	if value == nil {
-		_ = conn.Send(nil)
-		return
-	}
-	_ = conn.Send(*value)
-}
-
-func rpcSendError(conn RPCConn, err error) {
-	if err == nil {
-		_ = conn.Send(nil)
-		return
-	}
-	_ = conn.Send(err.Error())
-}
-
-func rpcUnixTime(value any) *time.Time {
-	switch v := value.(type) {
-	case nil:
-		return nil
-	case time.Time:
-		t := v
-		return &t
-	case *time.Time:
-		if v == nil {
+		identityHash, _ := raw.([]byte)
+		data, err := vendor.PickleDumps(r.UnblackholeIdentity(identityHash))
+		if err != nil {
+			panic(err)
+		}
+		if err := func() error {
+			var hdr [4]byte
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(data) > 0 {
+				_, err := conn.Write(data)
+				return err
+			}
 			return nil
+		}(); err != nil {
+			panic(err)
 		}
-		t := *v
-		return &t
-	case float64:
-		sec, frac := math.Modf(v)
-		if sec < 0 {
-			t := time.Unix(0, 0)
-			return &t
-		}
-		t := time.Unix(int64(sec), int64(frac*1e9))
-		return &t
-	case float32:
-		fv := float64(v)
-		sec, frac := math.Modf(fv)
-		if sec < 0 {
-			t := time.Unix(0, 0)
-			return &t
-		}
-		t := time.Unix(int64(sec), int64(frac*1e9))
-		return &t
-	case int:
-		t := time.Unix(int64(v), 0)
-		return &t
-	case int64:
-		t := time.Unix(v, 0)
-		return &t
-	case int32:
-		t := time.Unix(int64(v), 0)
-		return &t
-	case uint64:
-		t := time.Unix(int64(v), 0)
-		return &t
-	case uint32:
-		t := time.Unix(int64(v), 0)
-		return &t
-	default:
-		return nil
 	}
 }
 
-func rpcString(value any) *string {
-	switch v := value.(type) {
-	case string:
-		s := v
-		return &s
-	case *string:
-		if v == nil {
-			return nil
-		}
-		s := *v
-		return &s
-	default:
-		return nil
-	}
-}
-
-func (r *Reticulum) getRPCClient() (RPCConn, error) {
-	if r.rpcAddr == "" || r.rpcNetwork == "" {
-		return nil, errors.New("rpc endpoint not configured")
-	}
-	return dialRPC(r.rpcNetwork, r.rpcAddr, r.RPCKey)
-}
-
-func (r *Reticulum) rpcCallInterfaceMgmt(action, name string) error {
-	client, err := r.getRPCClient()
+func (r *Reticulum) getRPCClient() (net.Conn, error) {
+	conn, err := net.Dial(r.rpcNetwork, r.rpcAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer client.Close()
-	if err := client.Send(map[string]any{"call": action, "interface": name}); err != nil {
-		return err
-	}
-	var resp any
-	if err := client.Recv(&resp); err != nil {
-		return err
-	}
-	if resp == nil {
+	if err := func() error {
+		var hdr [4]byte
+		// answer_challenge: client receives server nonce, sends digest
+		if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+			return err
+		}
+		n := int(binary.BigEndian.Uint32(hdr[:]))
+		if n > 256 {
+			return fmt.Errorf("rpc message too large: %d bytes", n)
+		}
+		serverMsg := make([]byte, n)
+		if _, err := io.ReadFull(conn, serverMsg); err != nil {
+			return err
+		}
+		const challengePrefix = "#CHALLENGE#"
+		if len(serverMsg) <= len(challengePrefix) || string(serverMsg[:len(challengePrefix)]) != challengePrefix {
+			return errors.New("expected challenge from server")
+		}
+		serverNonce := serverMsg[len(challengePrefix):]
+		mac := hmac.New(md5.New, r.RPCKey)
+		if _, err := mac.Write(serverNonce); err != nil {
+			return err
+		}
+		digest := mac.Sum(nil)
+		binary.BigEndian.PutUint32(hdr[:], uint32(len(digest)))
+		if _, err := conn.Write(hdr[:]); err != nil {
+			return err
+		}
+		if _, err := conn.Write(digest); err != nil {
+			return err
+		}
+		if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+			return err
+		}
+		n = int(binary.BigEndian.Uint32(hdr[:]))
+		if n > 256 {
+			return fmt.Errorf("rpc message too large: %d bytes", n)
+		}
+		serverResp := make([]byte, n)
+		if _, err := io.ReadFull(conn, serverResp); err != nil {
+			return err
+		}
+		if string(serverResp) != "#WELCOME#" {
+			return errors.New("digest sent was rejected")
+		}
+		// deliver_challenge: client sends its nonce, verifies server digest
+		randBytes := make([]byte, 20)
+		if _, err := rand.Read(randBytes); err != nil {
+			return err
+		}
+		msg := append([]byte("#CHALLENGE#"), randBytes...)
+		binary.BigEndian.PutUint32(hdr[:], uint32(len(msg)))
+		if _, err := conn.Write(hdr[:]); err != nil {
+			return err
+		}
+		if _, err := conn.Write(msg); err != nil {
+			return err
+		}
+		if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+			return err
+		}
+		n = int(binary.BigEndian.Uint32(hdr[:]))
+		if n > 256 {
+			return fmt.Errorf("rpc message too large: %d bytes", n)
+		}
+		serverDigest := make([]byte, n)
+		if _, err := io.ReadFull(conn, serverDigest); err != nil {
+			return err
+		}
+		mac2 := hmac.New(md5.New, r.RPCKey)
+		if _, err := mac2.Write(randBytes); err != nil {
+			return err
+		}
+		expected := mac2.Sum(nil)
+		if subtle.ConstantTimeCompare(serverDigest, expected) != 1 {
+			binary.BigEndian.PutUint32(hdr[:], uint32(len("#FAILURE#")))
+			_, _ = conn.Write(hdr[:])
+			_, _ = conn.Write([]byte("#FAILURE#"))
+			return errors.New("digest received was wrong")
+		}
+		binary.BigEndian.PutUint32(hdr[:], uint32(len("#WELCOME#")))
+		if _, err := conn.Write(hdr[:]); err != nil {
+			return err
+		}
+		if _, err := conn.Write([]byte("#WELCOME#")); err != nil {
+			return err
+		}
 		return nil
+	}(); err != nil {
+		_ = conn.Close()
+		return nil, err
 	}
-	if s, ok := resp.(string); ok && strings.TrimSpace(s) != "" {
-		return errors.New(s)
-	}
-	return nil
+	return conn, nil
 }
 
 // The methods below mirror Python behaviour closely (signatures + core logic).
@@ -3455,21 +2976,57 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 			return map[string]any{}
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "interface_stats"}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "interface_stats"})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request failed: "+err.Error(), LogError)
 			return map[string]any{}
 		}
 		var resp map[string]any
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response failed: "+err.Error(), LogError)
 			return map[string]any{}
 		}
 		return resp
 	}
 	stats := map[string]any{}
-	entriesShared := make([]map[string]any, 0, 1)
-	entriesLocal := make([]map[string]any, 0, 1)
-	entriesOther := make([]map[string]any, 0, len(Interfaces))
+	entries := make([]map[string]any, 0, len(Interfaces))
 
 	for _, ifc := range Interfaces {
 		if ifc == nil {
@@ -3495,9 +3052,9 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 			"bitrate":                     ifc.Bitrate,
 			"rxs":                         ifc.CurRxSpeed,
 			"txs":                         ifc.CurTxSpeed,
-			"ifac_signature":              ifc.IFACSignature,
-			"ifac_size":                   ifc.IFACSize,
-			"ifac_netname":                ifc.IFACNetnameVal,
+			"ifac_signature":              nil,
+			"ifac_size":                   nil,
+			"ifac_netname":                nil,
 			"name":                        name,
 			"short_name":                  ifc.Name,
 			"hash":                        ifHash,
@@ -3523,15 +3080,23 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 		}
 		if pc := ifc.AutoPeerCount(); pc != nil {
 			entry["peers"] = *pc
+		} else if strings.EqualFold(ifc.Type, "AutoInterface") {
+			entry["peers"] = nil
 		}
 		if pc := ifc.WeavePeerCount(); pc != nil {
 			entry["peers"] = *pc
+		} else if strings.EqualFold(ifc.Type, "WeaveInterface") {
+			entry["peers"] = nil
 		}
 		if sid := ifc.WeaveSwitchID(); sid != nil {
 			entry["switch_id"] = *sid
+		} else if strings.EqualFold(ifc.Type, "WeaveInterface") {
+			entry["switch_id"] = nil
 		}
 		if eid := ifc.WeaveEndpointID(); eid != nil {
 			entry["endpoint_id"] = *eid
+		} else if strings.EqualFold(ifc.Type, "WeaveInterface") {
+			entry["endpoint_id"] = nil
 		}
 		if v := ifc.WeaveCPULoad(); v != nil {
 			entry["cpu_load"] = *v
@@ -3539,20 +3104,23 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 		if v := ifc.WeaveMemLoad(); v != nil {
 			entry["mem_load"] = *v
 		}
-		if tasks := ifc.WeaveActiveTasks(); tasks != nil {
-			entry["active_tasks"] = tasks
-		}
 		if via := ifc.WeaveViaSwitchID(); via != nil {
 			entry["via_switch_id"] = *via
+		} else if strings.EqualFold(ifc.Type, "WeaveInterfacePeer") {
+			entry["via_switch_id"] = nil
 		}
 		if v := ifc.I2PConnectable(); v != nil {
 			entry["i2p_connectable"] = *v
 		}
 		if v := ifc.I2PB32(); v != nil {
 			entry["i2p_b32"] = *v
+		} else if strings.EqualFold(ifc.Type, "I2PInterface") {
+			entry["i2p_b32"] = nil
 		}
 		if v := ifc.I2PTunnelState(); v != nil {
 			entry["tunnelstate"] = *v
+		} else if strings.EqualFold(ifc.Type, "I2PInterfacePeer") {
+			entry["tunnelstate"] = nil
 		}
 		if v := ifc.RNodeAirtimeShort(); v != nil {
 			entry["airtime_short"] = *v
@@ -3581,26 +3149,20 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 		}
 		if v := ifc.RNodeBatteryState(); v != nil {
 			entry["battery_state"] = *v
-		}
-		if v := ifc.RNodeBatteryPercent(); v != nil {
-			entry["battery_percent"] = *v
+			if p := ifc.RNodeBatteryPercent(); p != nil {
+				entry["battery_percent"] = *p
+			}
 		}
 		if strings.TrimSpace(ifc.AutoconnectSource) != "" {
 			entry["autoconnect_source"] = ifc.AutoconnectSource
 		}
-		entry["announce_queue"] = ifc.AnnounceQueueCount()
-
-		switch {
-		case strings.HasPrefix(name, "Shared Instance["):
-			entriesShared = append(entriesShared, entry)
-		case strings.HasPrefix(name, "LocalInterface["):
-			entriesLocal = append(entriesLocal, entry)
-		default:
-			entriesOther = append(entriesOther, entry)
+		if ifc.AnnounceQueue != nil {
+			entry["announce_queue"] = ifc.AnnounceQueueCount()
 		}
+		entries = append(entries, entry)
 	}
 
-	stats["interfaces"] = append(append(entriesShared, entriesOther...), entriesLocal...)
+	stats["interfaces"] = entries
 	stats["rxb"] = TrafficRXB
 	stats["txb"] = TrafficTXB
 	stats["rxs"] = SpeedRX
@@ -3613,26 +3175,18 @@ func (r *Reticulum) GetInterfaceStats() map[string]any {
 			stats["network_id"] = nil
 		}
 		stats["transport_uptime"] = time.Since(StartTime).Seconds()
-	} else {
-		stats["transport_id"] = nil
-		stats["network_id"] = nil
-		stats["transport_uptime"] = nil
-	}
-	if ProbeDestinationEnabled() && ProbeDestination != nil {
-		stats["probe_responder"] = ProbeDestination.Hash
-	} else {
-		stats["probe_responder"] = nil
+		if ProbeDestinationEnabled() && ProbeDestination != nil {
+			stats["probe_responder"] = ProbeDestination.Hash
+		} else {
+			stats["probe_responder"] = nil
+		}
 	}
 
-	stats["rss"] = processRSSBytes()
+	stats["rss"] = processRSSBytesPlatform()
 	return stats
 }
 
-func processRSSBytes() any {
-	return processRSSBytesPlatform()
-}
-
-func (r *Reticulum) GetPathTable(maxHops int) []map[string]any {
+func (r *Reticulum) GetPathTable(maxHops *int) []map[string]any {
 	if r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
 		if err != nil {
@@ -3640,12 +3194,50 @@ func (r *Reticulum) GetPathTable(maxHops int) []map[string]any {
 			return nil
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "path_table", "max_hops": maxHops}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "path_table", "max_hops": maxHops})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for path table failed: "+err.Error(), LogError)
 			return nil
 		}
 		var resp []map[string]any
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for path table failed: "+err.Error(), LogError)
 			return nil
 		}
@@ -3658,7 +3250,7 @@ func (r *Reticulum) GetPathTable(maxHops int) []map[string]any {
 		if entry == nil {
 			continue
 		}
-		if maxHops >= 0 && entry.Hops > maxHops {
+		if maxHops != nil && entry.Hops > *maxHops {
 			continue
 		}
 		hashCopy := make([]byte, truncatedHashBytes)
@@ -3689,12 +3281,50 @@ func (r *Reticulum) GetRateTable() []map[string]any {
 			return nil
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "rate_table"}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "rate_table"})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for rate table failed: "+err.Error(), LogError)
 			return nil
 		}
 		var resp []map[string]any
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for rate table failed: "+err.Error(), LogError)
 			return nil
 		}
@@ -3702,8 +3332,9 @@ func (r *Reticulum) GetRateTable() []map[string]any {
 	}
 	announceRateMu.RLock()
 	defer announceRateMu.RUnlock()
-	table := make([]map[string]any, 0, len(announceRateTable))
-	for key, entry := range announceRateTable {
+	table := make([]map[string]any, 0, len(announceRateOrder))
+	for _, key := range announceRateOrder {
+		entry := announceRateTable[key]
 		if entry == nil {
 			continue
 		}
@@ -3733,12 +3364,50 @@ func (r *Reticulum) DropPath(destination []byte) bool {
 		}
 		defer client.Close()
 		req := map[string]any{"drop": "path", "destination_hash": destination}
-		if err := client.Send(req); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(req)
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request to drop path failed: "+err.Error(), LogError)
 			return false
 		}
 		var resp bool
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response to drop path failed: "+err.Error(), LogError)
 			return false
 		}
@@ -3756,12 +3425,50 @@ func (r *Reticulum) DropAllVia(transportHash []byte) int {
 		}
 		defer client.Close()
 		req := map[string]any{"drop": "all_via", "destination_hash": transportHash}
-		if err := client.Send(req); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(req)
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request to drop via failed: "+err.Error(), LogError)
 			return 0
 		}
 		var resp int
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response to drop via failed: "+err.Error(), LogError)
 			return 0
 		}
@@ -3799,12 +3506,50 @@ func (r *Reticulum) DropAnnounceQueues() any {
 			return nil
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"drop": "announce_queues"}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"drop": "announce_queues"})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request to drop announce queues failed: "+err.Error(), LogError)
 			return nil
 		}
 		var resp any
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response to drop announce queues failed: "+err.Error(), LogError)
 			return nil
 		}
@@ -3822,12 +3567,50 @@ func (r *Reticulum) GetNextHop(destination []byte) []byte {
 			return nil
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "next_hop", "destination_hash": destination}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "next_hop", "destination_hash": destination})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for next hop failed: "+err.Error(), LogError)
 			return nil
 		}
 		var resp []byte
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for next hop failed: "+err.Error(), LogError)
 			return nil
 		}
@@ -3844,12 +3627,50 @@ func (r *Reticulum) GetNextHopIfName(destination []byte) string {
 			return ""
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "next_hop_if_name", "destination_hash": destination}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "next_hop_if_name", "destination_hash": destination})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for next hop interface failed: "+err.Error(), LogError)
 			return ""
 		}
 		var resp string
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for next hop interface failed: "+err.Error(), LogError)
 			return ""
 		}
@@ -3861,59 +3682,6 @@ func (r *Reticulum) GetNextHopIfName(destination []byte) string {
 	return "None"
 }
 
-func (r *Reticulum) rpcGetFloat(kind string, packetHash []byte) (*float64, bool) {
-	client, err := r.getRPCClient()
-	if err != nil {
-		Log("Could not contact shared instance for "+kind+": "+err.Error(), LogError)
-		return nil, false
-	}
-	defer client.Close()
-
-	req := map[string]any{"get": kind}
-	if len(packetHash) > 0 {
-		req["packet_hash"] = packetHash
-	}
-	if err := client.Send(req); err != nil {
-		Log("RPC request for "+kind+" failed: "+err.Error(), LogError)
-		return nil, false
-	}
-
-	var raw any
-	if err := client.Recv(&raw); err != nil {
-		Log("RPC response for "+kind+" failed: "+err.Error(), LogError)
-		return nil, false
-	}
-
-	if raw == nil {
-		return nil, true
-	}
-	switch v := raw.(type) {
-	case float64:
-		return &v, true
-	case float32:
-		f := float64(v)
-		return &f, true
-	case int:
-		f := float64(v)
-		return &f, true
-	case int64:
-		f := float64(v)
-		return &f, true
-	case uint64:
-		f := float64(v)
-		return &f, true
-	case int32:
-		f := float64(v)
-		return &f, true
-	case uint32:
-		f := float64(v)
-		return &f, true
-	default:
-		Log("RPC response for "+kind+" had unexpected type", LogError)
-		return nil, false
-	}
-}
-
 func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {
 	if r.IsConnectedToSharedInstance {
 		client, err := r.getRPCClient()
@@ -3922,12 +3690,50 @@ func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {
 			return DEFAULT_PER_HOP_TIMEOUT
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "first_hop_timeout", "destination_hash": destination}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "first_hop_timeout", "destination_hash": destination})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for first hop timeout failed: "+err.Error(), LogError)
 			return DEFAULT_PER_HOP_TIMEOUT
 		}
 		var resp float64
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for first hop timeout failed: "+err.Error(), LogError)
 			return DEFAULT_PER_HOP_TIMEOUT
 		}
@@ -3952,12 +3758,50 @@ func (r *Reticulum) GetLinkCount() int {
 			return 0
 		}
 		defer client.Close()
-		if err := client.Send(map[string]any{"get": "link_count"}); err != nil {
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "link_count"})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
 			Log("RPC request for link count failed: "+err.Error(), LogError)
 			return 0
 		}
 		var resp int
-		if err := client.Recv(&resp); err != nil {
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
 			Log("RPC response for link count failed: "+err.Error(), LogError)
 			return 0
 		}
@@ -3971,11 +3815,60 @@ func (r *Reticulum) GetLinkCount() int {
 
 func (r *Reticulum) GetPacketRSSI(packetHash []byte) *float64 {
 	if r.IsConnectedToSharedInstance {
-		raw, ok := r.rpcGetFloat("packet_rssi", packetHash)
-		if !ok {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance for packet_rssi: "+err.Error(), LogError)
 			return nil
 		}
-		return raw
+		defer client.Close()
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "packet_rssi", "packet_hash": packetHash})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
+			Log("RPC request for packet_rssi failed: "+err.Error(), LogError)
+			return nil
+		}
+		var resp *float64
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			Log("RPC response for packet_rssi failed: "+err.Error(), LogError)
+			return nil
+		}
+		return resp
 	}
 	localStatsMu.RLock()
 	v, ok := localRSSICache[string(packetHash)]
@@ -3988,11 +3881,60 @@ func (r *Reticulum) GetPacketRSSI(packetHash []byte) *float64 {
 
 func (r *Reticulum) GetPacketSNR(packetHash []byte) *float64 {
 	if r.IsConnectedToSharedInstance {
-		raw, ok := r.rpcGetFloat("packet_snr", packetHash)
-		if !ok {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance for packet_snr: "+err.Error(), LogError)
 			return nil
 		}
-		return raw
+		defer client.Close()
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "packet_snr", "packet_hash": packetHash})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
+			Log("RPC request for packet_snr failed: "+err.Error(), LogError)
+			return nil
+		}
+		var resp *float64
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			Log("RPC response for packet_snr failed: "+err.Error(), LogError)
+			return nil
+		}
+		return resp
 	}
 	localStatsMu.RLock()
 	v, ok := localSNRCache[string(packetHash)]
@@ -4005,11 +3947,60 @@ func (r *Reticulum) GetPacketSNR(packetHash []byte) *float64 {
 
 func (r *Reticulum) GetPacketQ(packetHash []byte) *float64 {
 	if r.IsConnectedToSharedInstance {
-		raw, ok := r.rpcGetFloat("packet_q", packetHash)
-		if !ok {
+		client, err := r.getRPCClient()
+		if err != nil {
+			Log("Could not contact shared instance for packet_q: "+err.Error(), LogError)
 			return nil
 		}
-		return raw
+		defer client.Close()
+		if err := func() error {
+			data, err := vendor.PickleDumps(map[string]any{"get": "packet_q", "packet_hash": packetHash})
+			if err != nil {
+				return err
+			}
+			return func() error {
+				var hdr [4]byte
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+				if _, err := client.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(data) > 0 {
+					_, err := client.Write(data)
+					return err
+				}
+				return nil
+			}()
+		}(); err != nil {
+			Log("RPC request for packet_q failed: "+err.Error(), LogError)
+			return nil
+		}
+		var resp *float64
+		if err := func() error {
+			data, err := func() ([]byte, error) {
+				var hdr [4]byte
+				if _, err := io.ReadFull(client, hdr[:]); err != nil {
+					return nil, err
+				}
+				n := int(binary.BigEndian.Uint32(hdr[:]))
+				buf := make([]byte, n)
+				if _, err := io.ReadFull(client, buf); err != nil {
+					return nil, err
+				}
+				return buf, nil
+			}()
+			if err != nil {
+				return err
+			}
+			result, err := vendor.PickleLoads(data)
+			if err != nil {
+				return fmt.Errorf("pickle decode: %w", err)
+			}
+			return vendor.PickleAssign(result, &resp)
+		}(); err != nil {
+			Log("RPC response for packet_q failed: "+err.Error(), LogError)
+			return nil
+		}
+		return resp
 	}
 	localStatsMu.RLock()
 	v, ok := localQCache[string(packetHash)]
@@ -4050,27 +4041,12 @@ func RequiredDiscoveryValue() *int {
 	return requiredDiscoveryValue
 }
 
-func effectiveRequiredDiscoveryValue() int {
-	if requiredDiscoveryValue != nil && *requiredDiscoveryValue > 0 {
-		return *requiredDiscoveryValue
-	}
-	return DefaultDiscoveryRequiredValue
-}
-
 func InterfaceDiscoveryEnabled() bool {
 	return discoveryEnabled
 }
 
-func DiscoverInterfacesEnabled() bool {
-	return discoverInterfacesMode
-}
-
 func InterfaceDiscoverySources() [][]byte {
-	out := make([][]byte, 0, len(interfaceDiscoverySources))
-	for _, src := range interfaceDiscoverySources {
-		out = append(out, append([]byte(nil), src...))
-	}
-	return out
+	return interfaceDiscoverySources
 }
 
 func PublishBlackholeEnabled() bool {
@@ -4078,11 +4054,7 @@ func PublishBlackholeEnabled() bool {
 }
 
 func BlackholeSources() [][]byte {
-	out := make([][]byte, 0, len(blackholeSources))
-	for _, src := range blackholeSources {
-		out = append(out, append([]byte(nil), src...))
-	}
-	return out
+	return blackholeSources
 }
 
 func ShouldAutoconnectDiscoveredInterfaces() bool {
@@ -4151,6 +4123,14 @@ var defaultConfigLines = []string{
 	"# shared_instance_type = tcp",
 	"",
 	"",
+	"# You can configure whether Reticulum should discover",
+	"# available interfaces from other Transport Instances over",
+	"# the network. If this option is enabled, Reticulum will",
+	"# collect interface information discovered from the network.",
+	"",
+	"# discover_interfaces = No",
+	"",
+	"",
 	"# You can configure Reticulum to panic and forcibly close",
 	"# if an unrecoverable interface error occurs, such as the",
 	"# hardware device for an interface disappearing. This is",
@@ -4158,6 +4138,17 @@ var defaultConfigLines = []string{
 	"# This behaviour is disabled by default.",
 	"",
 	"# panic_on_interface_error = No",
+	"",
+	"",
+	"# If you're connecting to a large external network, you",
+	"# can use one or more external blackhole list to block",
+	"# spammy and excessive announces onto your network. This",
+	"# funtionality is especially useful if you're hosting public",
+	"# entrypoints or gateways. The list source below provides a",
+	"# functional example, but better, more timely maintained",
+	"# lists probably exist in the community.",
+	"",
+	"# blackhole_sources = 521c87a83afb8f29e4455e77930b973b",
 	"",
 	"",
 	"[logging]",

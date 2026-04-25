@@ -44,8 +44,8 @@ func TestBringUpSystemInterfaces_ModeAndBitrateAliases(t *testing.T) {
 		ConfigPath:            cfgPath,
 		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -105,8 +105,8 @@ func TestBringUpSystemInterfaces_ExternalInterfacePyInitFailureIsSkipped(t *test
 		InterfacePath:         ifDir,
 		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces(): %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces(): %v", err)
 	}
 	if len(Interfaces) != 0 {
 		t.Fatalf("expected failed external Python interface to be skipped, got %d interfaces", len(Interfaces))

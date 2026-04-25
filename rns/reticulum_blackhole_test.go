@@ -1,6 +1,10 @@
 package rns
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,10 +14,17 @@ import (
 )
 
 type fakeRPCConn struct {
-	recv   map[string]any
-	sent   []any
-	closed bool
+	recv     map[string]any
+	sent     []any
+	closed   bool
+	read     *bytes.Reader
+	writeBuf []byte
 }
+
+type fakeAddr string
+
+func (a fakeAddr) Network() string { return "fake" }
+func (a fakeAddr) String() string  { return string(a) }
 
 func (c *fakeRPCConn) Recv(v interface{}) error {
 	call, ok := v.(*map[string]any)
@@ -22,6 +33,38 @@ func (c *fakeRPCConn) Recv(v interface{}) error {
 	}
 	*call = c.recv
 	return nil
+}
+
+func (c *fakeRPCConn) Read(p []byte) (int, error) {
+	if c.read == nil {
+		data, err := umsgpack.PickleDumps(c.recv)
+		if err != nil {
+			return 0, err
+		}
+		var hdr [4]byte
+		binary.BigEndian.PutUint32(hdr[:], uint32(len(data)))
+		c.read = bytes.NewReader(append(hdr[:], data...))
+	}
+	return c.read.Read(p)
+}
+
+func (c *fakeRPCConn) Write(p []byte) (int, error) {
+	c.writeBuf = append(c.writeBuf, p...)
+	for len(c.writeBuf) >= 4 {
+		n := int(binary.BigEndian.Uint32(c.writeBuf[:4]))
+		if len(c.writeBuf) < 4+n {
+			break
+		}
+		payload := make([]byte, n)
+		copy(payload, c.writeBuf[4:4+n])
+		c.writeBuf = c.writeBuf[4+n:]
+		v, err := umsgpack.PickleLoads(payload)
+		if err != nil {
+			return len(p), err
+		}
+		c.sent = append(c.sent, v)
+	}
+	return len(p), nil
 }
 
 func (c *fakeRPCConn) Send(v interface{}) error {
@@ -33,6 +76,12 @@ func (c *fakeRPCConn) Close() error {
 	c.closed = true
 	return nil
 }
+
+func (c *fakeRPCConn) LocalAddr() net.Addr              { return fakeAddr("local") }
+func (c *fakeRPCConn) RemoteAddr() net.Addr             { return fakeAddr("remote") }
+func (c *fakeRPCConn) SetDeadline(time.Time) error      { return nil }
+func (c *fakeRPCConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *fakeRPCConn) SetWriteDeadline(time.Time) error { return nil }
 
 func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 	prevOwner := Owner
@@ -67,13 +116,13 @@ func TestReticulumBlackholeIdentity_LocalAPI(t *testing.T) {
 
 	snapshot := r.GetBlackholedIdentities()
 	key, _ := func(hash []byte) (hashKey, bool) {
-	if len(hash) < truncatedHashBytes {
-		return hashKey{}, false
-	}
-	var key hashKey
-	copy(key[:], hash[:truncatedHashBytes])
-	return key, true
-}(victim.Hash)
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(victim.Hash)
 	entry, exists := snapshot[key]
 	if !exists {
 		t.Fatal("expected blackholed identity in snapshot")
@@ -147,18 +196,11 @@ func TestReticulumHandleRPC_BlackholeSurface(t *testing.T) {
 	if len(getConn.sent) != 1 {
 		t.Fatalf("get RPC sent %d responses, want 1", len(getConn.sent))
 	}
-	snapshot, ok := getConn.sent[0].(map[hashKey]map[string]any)
+	snapshot, ok := getConn.sent[0].(map[string]any)
 	if !ok {
-		t.Fatalf("get RPC response type=%T, want map[hashKey]map[string]any", getConn.sent[0])
+		t.Fatalf("get RPC response type=%T, want map[string]any", getConn.sent[0])
 	}
-	key, _ := func(hash []byte) (hashKey, bool) {
-	if len(hash) < truncatedHashBytes {
-		return hashKey{}, false
-	}
-	var key hashKey
-	copy(key[:], hash[:truncatedHashBytes])
-	return key, true
-}(victim.Hash)
+	key := hex.EncodeToString(victim.Hash[:truncatedHashBytes])
 	if _, exists := snapshot[key]; !exists {
 		t.Fatal("expected blackholed identity in RPC snapshot")
 	}

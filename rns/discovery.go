@@ -1088,10 +1088,11 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 	}
 	entries, err := os.ReadDir(d.storagePath)
 	if err != nil {
-		return nil
+		panic(err)
 	}
 
 	now := float64(time.Now().UnixNano()) / 1e9
+	discoverySources := InterfaceDiscoverySources()
 	floatOf := func(v any) float64 {
 		switch x := v.(type) {
 		case float64:
@@ -1104,6 +1105,16 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			return float64(x)
 		default:
 			return 0
+		}
+	}
+	strOf := func(v any) (string, bool) {
+		switch x := v.(type) {
+		case string:
+			return x, true
+		case []byte:
+			return string(x), true
+		default:
+			return "", false
 		}
 	}
 	intOf := func(v any) int {
@@ -1140,24 +1151,36 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			TraceException(err)
 			continue
 		}
-		lastHeard := floatOf(info["last_heard"])
-		if lastHeard <= 0 {
+		lastHeardRaw, ok := info["last_heard"]
+		if !ok || lastHeardRaw == nil {
+			err := errors.New("last_heard")
+			Logf(LogError, "Error while loading discovered interface data: %v", err)
+			Logf(LogError, "The interface data file %s may be corrupt", path)
+			TraceException(err)
 			continue
 		}
-		networkID, _ := info["network_id"].(string)
-		networkID = strings.TrimSpace(networkID)
-		if len(InterfaceDiscoverySources()) > 0 {
-			if networkID == "" {
+		lastHeard := floatOf(lastHeardRaw)
+		if len(discoverySources) > 0 {
+			networkRaw, ok := info["network_id"]
+			if !ok {
 				_ = os.Remove(path)
 				continue
 			}
+			networkID, ok := strOf(networkRaw)
+			if !ok {
+				Logf(LogError, "Error while loading discovered interface data: invalid network_id")
+				Logf(LogError, "The interface data file %s may be corrupt", path)
+				continue
+			}
+			networkID = strings.TrimSpace(networkID)
 			decoded, err := hex.DecodeString(networkID)
 			if err != nil {
-				_ = os.Remove(path)
+				Logf(LogError, "Error while loading discovered interface data: %v", err)
+				Logf(LogError, "The interface data file %s may be corrupt", path)
 				continue
 			}
 			allowed := false
-			for _, src := range InterfaceDiscoverySources() {
+			for _, src := range discoverySources {
 				if bytes.Equal(src, decoded) {
 					allowed = true
 					break
@@ -1168,28 +1191,22 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 				continue
 			}
 		}
-		if _, ok := discoveryInterfaceTypes[strings.TrimSpace(func() string {
-			switch x := info["type"].(type) {
-			case string:
-				return x
-			case []byte:
-				return string(x)
-			default:
-				return ""
-			}
-		}())]; !ok {
+		typeRaw, ok := info["type"]
+		if !ok {
+			_ = os.Remove(path)
+			continue
+		}
+		if typeStr, ok := strOf(typeRaw); !ok {
+			_ = os.Remove(path)
+			continue
+		} else if _, ok := discoveryInterfaceTypes[strings.TrimSpace(typeStr)]; !ok {
 			_ = os.Remove(path)
 			continue
 		}
 		if reachableOnValue, ok := info["reachable_on"]; ok {
-			var reachableOn string
-			switch x := reachableOnValue.(type) {
-			case string:
-				reachableOn = x
-			case []byte:
-				reachableOn = string(x)
-			default:
-				reachableOn = fmt.Sprint(x)
+			reachableOn, ok := strOf(reachableOnValue)
+			if !ok {
+				reachableOn = fmt.Sprint(reachableOnValue)
 			}
 			if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
 				_ = os.Remove(path)
@@ -1218,7 +1235,23 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			continue
 		}
 		if onlyTransport {
-			if transport, ok := info["transport"].(bool); !ok || !transport {
+			transportRaw, ok := info["transport"]
+			if !ok || transportRaw == nil {
+				err := errors.New("transport")
+				Logf(LogError, "Error while loading discovered interface data: %v", err)
+				Logf(LogError, "The interface data file %s may be corrupt", path)
+				TraceException(err)
+				continue
+			}
+			transport, ok := transportRaw.(bool)
+			if !ok {
+				err := errors.New("transport")
+				Logf(LogError, "Error while loading discovered interface data: %v", err)
+				Logf(LogError, "The interface data file %s may be corrupt", path)
+				TraceException(err)
+				continue
+			}
+			if !transport {
 				continue
 			}
 		}
@@ -1547,7 +1580,29 @@ func (d *InterfaceDiscovery) monitorJob() {
 
 		if online == 0 && Owner != nil && d.bootstrapInterfaceCount() == 0 {
 			Log("No auto-discovered interfaces connected, re-enabling bootstrap interfaces", LogNotice)
-			Owner.reenableBootstrapInterfaces()
+			for _, entry := range Owner.BootstrapConfigs {
+				name := strings.TrimSpace(entry["name"])
+				if name == "" {
+					continue
+				}
+				found := false
+				for _, ifc := range Interfaces {
+					if ifc == nil {
+						continue
+					}
+					if ifc.Name == name || ifc.String() == name {
+						found = true
+						break
+					}
+				}
+				if found {
+					continue
+				}
+				_, err := Owner.synthesizeInterface(name, entry, false)
+				if err != nil {
+					Logf(LogError, "Could not re-enable bootstrap interface %s: %v", name, err)
+				}
+			}
 		}
 
 		if initialAuto && freeSlots > reservedSlots {
@@ -2046,7 +2101,7 @@ func (u *BlackholeUpdater) job() {
 							if err := os.WriteFile(tmppath, packed, 0o600); err != nil {
 								Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
 							} else {
-								if fileExists(sourcelistpath) {
+								if st, err := os.Stat(sourcelistpath); err == nil && !st.IsDir() {
 									_ = os.Remove(sourcelistpath)
 								}
 								if err := os.Rename(tmppath, sourcelistpath); err != nil {

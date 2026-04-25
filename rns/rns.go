@@ -1156,16 +1156,8 @@ func resolvedPhyLayerParams() PhyLayerParams {
 
 // ---------- panic / exit ----------
 
-// exitCallback is the process-level exit callback set via SetExitHandler.
+// exitCallback is the process-level exit callback.
 var exitCallback func()
-
-// SetExitHandler registers a callback invoked before the process terminates via Exit().
-// It mirrors the behaviour of RNS.exit_handler in the Python implementation.
-func SetExitHandler(handler func()) {
-	exitMu.Lock()
-	defer exitMu.Unlock()
-	exitCallback = handler
-}
 
 func Panic() {
 	os.Exit(255)

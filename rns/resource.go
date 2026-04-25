@@ -313,8 +313,8 @@ func (r *Resource) accept(advPkt *Packet, cb func(*Resource), progCb func(*Resou
 	res.lastActivity = time.Now()
 	res.startedTransferring = res.lastActivity
 	basePath := ""
-	if inst := GetInstance(); inst != nil && inst.ResourcePath != "" {
-		basePath = inst.ResourcePath
+	if instance != nil && instance.ResourcePath != "" {
+		basePath = instance.ResourcePath
 	} else if Owner != nil && Owner.ResourcePath != "" {
 		basePath = Owner.ResourcePath
 	}

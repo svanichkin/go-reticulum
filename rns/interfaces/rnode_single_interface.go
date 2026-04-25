@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-type rnodeLogAdapter struct{}
-
-func (rnodeLogAdapter) Debugf(format string, args ...any) { if DiagLogf != nil { DiagLogf(LogDebug, format, args...) } }
-func (rnodeLogAdapter) Infof(format string, args ...any)  { if DiagLogf != nil { DiagLogf(LogInfo, format, args...) } }
-func (rnodeLogAdapter) Warnf(format string, args ...any)  { if DiagLogf != nil { DiagLogf(LogWarning, format, args...) } }
-func (rnodeLogAdapter) Errorf(format string, args ...any) { if DiagLogf != nil { DiagLogf(LogError, format, args...) } }
-
 type rnodeOwnerAdapter struct{ ifc *Interface }
 
 func (o rnodeOwnerAdapter) Inbound(data []byte, _ *RNodeInterface) {
@@ -94,7 +87,7 @@ func NewRNodeInterfaceFromConfig(name string, kv map[string]string) (*Interface,
 		return nil, errors.New("no port specified for RNode interface")
 	}
 
-	rn, err := rnodeTransportFromPort(rnodeOwnerAdapter{ifc: iface}, rnodeLogAdapter{}, iface.Name, port)
+	rn, err := rnodeTransportFromPort(rnodeOwnerAdapter{ifc: iface}, DiagLogf, iface.Name, port)
 	if err != nil {
 		return nil, err
 	}

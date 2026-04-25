@@ -69,7 +69,7 @@ func TestReticulumApplyConfig_DiscoverySettings(t *testing.T) {
 	if _, err := os.Stat(identityPath); err != nil {
 		t.Fatalf("expected network identity file to be created: %v", err)
 	}
-	if !DiscoverInterfacesEnabled() {
+	if !discoverInterfacesMode {
 		t.Fatalf("expected discover_interfaces to be enabled")
 	}
 	if RequiredDiscoveryValue() == nil || *RequiredDiscoveryValue() != 19 {
@@ -102,9 +102,6 @@ func TestRequiredDiscoveryValue_DefaultsNilUntilConfigured(t *testing.T) {
 
 	if got := RequiredDiscoveryValue(); got != nil {
 		t.Fatalf("RequiredDiscoveryValue()=%v, want nil", got)
-	}
-	if got := effectiveRequiredDiscoveryValue(); got != DefaultDiscoveryRequiredValue {
-		t.Fatalf("effectiveRequiredDiscoveryValue()=%d, want %d", got, DefaultDiscoveryRequiredValue)
 	}
 }
 
@@ -160,8 +157,8 @@ func TestBringUpSystemInterfaces_AppliesDiscoveryConfig(t *testing.T) {
 		ConfigPath:            cfgPath,
 		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -256,8 +253,8 @@ func TestBringUpSystemInterfaces_TracksBootstrapOnlyConfig(t *testing.T) {
 		ConfigPath:            cfgPath,
 		PanicOnInterfaceError: false,
 	}
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -268,10 +265,10 @@ func TestBringUpSystemInterfaces_TracksBootstrapOnlyConfig(t *testing.T) {
 	if len(r.BootstrapConfigs) != 1 {
 		t.Fatalf("bootstrap configs=%d, want 1", len(r.BootstrapConfigs))
 	}
-	if got := r.BootstrapConfigs[0].Name; got != "BootstrapWeave" {
+	if got := r.BootstrapConfigs[0]["name"]; got != "BootstrapWeave" {
 		t.Fatalf("bootstrap config name=%q, want BootstrapWeave", got)
 	}
-	if got := strings.ToLower(strings.TrimSpace(r.BootstrapConfigs[0].KV["bootstrap_only"])); got != "true" {
+	if got := strings.ToLower(strings.TrimSpace(r.BootstrapConfigs[0]["bootstrap_only"])); got != "true" {
 		t.Fatalf("bootstrap config bootstrap_only=%q, want true", got)
 	}
 }

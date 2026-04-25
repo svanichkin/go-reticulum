@@ -69,38 +69,20 @@ func (KISS) Escape(data []byte) []byte {
 }
 
 // ---- Common ----
-type TCPLog interface {
-	Debugf(string, ...any)
-	Infof(string, ...any)
-	Warnf(string, ...any)
-	Errorf(string, ...any)
-}
+type TCPLog func(level int, format string, args ...any)
 
-type diagTCPLog struct{}
-
-func (diagTCPLog) Debugf(format string, args ...any) { //nolint:revive
-	if DiagLogf != nil {
-		DiagLogf(LogDebug, format, args...)
-	}
-}
-func (diagTCPLog) Infof(format string, args ...any) { //nolint:revive
-	if DiagLogf != nil {
-		DiagLogf(LogInfo, format, args...)
-	}
-}
-func (diagTCPLog) Warnf(format string, args ...any) { //nolint:revive
-	if DiagLogf != nil {
-		DiagLogf(LogWarning, format, args...)
-	}
-}
-func (diagTCPLog) Errorf(format string, args ...any) { //nolint:revive
-	if DiagLogf != nil {
-		DiagLogf(LogError, format, args...)
+func (f TCPLog) Logf(level int, format string, args ...any) {
+	if f != nil {
+		f(level, format, args...)
 	}
 }
 
-type TCPOwner interface {
-	Inbound(data []byte, iface *TCPClientInterface)
+type TCPOwner func(data []byte, iface *TCPClientInterface)
+
+func (f TCPOwner) Inbound(data []byte, iface *TCPClientInterface) {
+	if f != nil {
+		f(data, iface)
+	}
 }
 
 const TCP_HW_MTU = 262144
@@ -293,15 +275,15 @@ func (t *TCPClientInterface) connect(ctx context.Context, initial bool) bool {
 	}
 	addr := net.JoinHostPort(t.TargetHost, t.TargetPort)
 	if initial && t.Log != nil {
-		t.Log.Debugf("Establishing TCP connection for %s...", t.String())
+		t.Log.Logf(LogDebug, "Establishing TCP connection for %s...", t.String())
 	}
 
 	d := net.Dialer{Timeout: t.ConnectTimeout}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		if initial && t.Log != nil {
-			t.Log.Errorf("Initial connection for %s could not be established: %v", t.String(), err)
-			t.Log.Errorf("Leaving unconnected and retrying connection in %s.", t.ReconnectWait)
+			t.Log.Logf(LogError, "Initial connection for %s could not be established: %v", t.String(), err)
+			t.Log.Logf(LogError, "Leaving unconnected and retrying connection in %s.", t.ReconnectWait)
 		}
 		t.online.Store(false)
 		return false
@@ -313,7 +295,7 @@ func (t *TCPClientInterface) connect(ctx context.Context, initial bool) bool {
 	t.neverConn.Store(false)
 
 	if initial && t.Log != nil {
-		t.Log.Debugf("TCP connection for %s established", t.String())
+		t.Log.Logf(LogDebug, "TCP connection for %s established", t.String())
 	}
 	if !t.KISSFraming {
 		t.wantsTunnel.Store(true)
@@ -324,7 +306,7 @@ func (t *TCPClientInterface) connect(ctx context.Context, initial bool) bool {
 func (t *TCPClientInterface) reconnectLoop() {
 	if !t.Initiator {
 		if t.Log != nil {
-			t.Log.Errorf("Attempt to reconnect on a non-initiator TCP interface: %s", t.String())
+			t.Log.Logf(LogError, "Attempt to reconnect on a non-initiator TCP interface: %s", t.String())
 		}
 		return
 	}
@@ -340,7 +322,7 @@ func (t *TCPClientInterface) reconnectLoop() {
 
 		if tcpExceededMaxReconnect(attempts, t.MaxReconnectTry) {
 			if t.Log != nil {
-				t.Log.Errorf("Max reconnection attempts reached for %s", t.String())
+				t.Log.Logf(LogError, "Max reconnection attempts reached for %s", t.String())
 			}
 			t.teardown()
 			return
@@ -351,14 +333,14 @@ func (t *TCPClientInterface) reconnectLoop() {
 		cancel()
 		if !ok {
 			if t.Log != nil {
-				t.Log.Debugf("Connection attempt for %s failed", t.String())
+				t.Log.Logf(LogDebug, "Connection attempt for %s failed", t.String())
 			}
 			continue
 		}
 	}
 
 	if !t.neverConn.Load() && t.Log != nil {
-		t.Log.Infof("Reconnected socket for %s.", t.String())
+		t.Log.Logf(LogInfo, "Reconnected socket for %s.", t.String())
 	}
 
 	// Python parity: if non-KISS framing is used, a tunnel may need to be
@@ -450,8 +432,8 @@ func (t *TCPClientInterface) ProcessOutgoing(data []byte) error {
 
 	if err != nil {
 		if t.Log != nil {
-			t.Log.Errorf("Exception occurred while transmitting via %s, tearing down interface", t.String())
-			t.Log.Errorf("The contained exception was: %v", err)
+			t.Log.Logf(LogError, "Exception occurred while transmitting via %s, tearing down interface", t.String())
+			t.Log.Logf(LogError, "The contained exception was: %v", err)
 		}
 		t.teardown()
 		t.startReconnectAsync()
@@ -509,18 +491,18 @@ func (t *TCPClientInterface) readLoop() {
 			if errors.Is(err, io.EOF) || t.detached.Load() {
 				// like Python: socket closed
 			} else if t.Log != nil {
-				t.Log.Warnf("An interface error occurred for %s: %v", t.String(), err)
+				t.Log.Logf(LogWarning, "An interface error occurred for %s: %v", t.String(), err)
 			}
 
 			t.online.Store(false)
 			if t.Initiator && !t.detached.Load() {
 				if t.Log != nil {
-					t.Log.Warnf("The socket for %s was closed, attempting to reconnect...", t.String())
+					t.Log.Logf(LogWarning, "The socket for %s was closed, attempting to reconnect...", t.String())
 				}
 				t.reconnectLoop()
 			} else {
 				if t.Log != nil {
-					t.Log.Debugf("The socket for remote client %s was closed.", t.String())
+					t.Log.Logf(LogDebug, "The socket for remote client %s was closed.", t.String())
 				}
 				t.teardown()
 			}
@@ -531,7 +513,7 @@ func (t *TCPClientInterface) readLoop() {
 			t.online.Store(false)
 			if t.Initiator && !t.detached.Load() {
 				if t.Log != nil {
-					t.Log.Warnf("The socket for %s was closed, attempting to reconnect...", t.String())
+					t.Log.Logf(LogWarning, "The socket for %s was closed, attempting to reconnect...", t.String())
 				}
 				t.reconnectLoop()
 			} else {
@@ -820,11 +802,8 @@ func NewTCPClientInterfaceFromConfig(cfg TCPClientConfig) (*Interface, error) {
 			InboundHandler(raw, ifc)
 		}
 	})
-	var log TCPLog
-	if DiagLogf != nil {
-		log = diagTCPLog{}
-	}
-	client := NewTCPClientInitiator(owner, log, cfg.Name, cfg.TargetHost, targetPort, cfg.KISSFraming, cfg.I2PTunneled)
+	log := TCPLog(DiagLogf)
+	client := NewTCPClientInitiator(TCPOwner(owner), log, cfg.Name, cfg.TargetHost, targetPort, cfg.KISSFraming, cfg.I2PTunneled)
 	if cfg.ReconnectWait > 0 {
 		client.ReconnectWait = cfg.ReconnectWait
 	}
@@ -943,7 +922,7 @@ func (s *TCPServerInterface) Start() error {
 	s.online.Store(true)
 
 	if s.Log != nil {
-		s.Log.Infof("Listening on %s", s.String())
+		s.Log.Logf(LogInfo, "Listening on %s", s.String())
 	}
 
 	go s.acceptLoop()
@@ -975,13 +954,13 @@ func (s *TCPServerInterface) acceptLoop() {
 				return
 			}
 			if s.Log != nil {
-				s.Log.Warnf("Accept error on %s: %v", s.String(), err)
+				s.Log.Logf(LogWarning, "Accept error on %s: %v", s.String(), err)
 			}
 			continue
 		}
 
 		if s.Log != nil {
-			s.Log.Debugf("Accepting incoming TCP connection")
+			s.Log.Logf(LogDebug, "Accepting incoming TCP connection")
 		}
 
 		ra := c.RemoteAddr().(*net.TCPAddr)

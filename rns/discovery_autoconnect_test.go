@@ -316,14 +316,12 @@ func TestInterfaceDiscovery_MonitorJob_ReenablesBootstrapOnlyWhenNoAutoConnected
 
 	Owner = &Reticulum{
 		ConfigPath: cfgPath,
-		BootstrapConfigs: []interfaceConfigEntry{{
-			Name: "BootstrapWeave",
-			KV: map[string]string{
-				"enabled":        "True",
-				"type":           "WeaveInterface",
-				"port":           "fake",
-				"bootstrap_only": "True",
-			},
+		BootstrapConfigs: []map[string]string{{
+			"name":           "BootstrapWeave",
+			"enabled":        "True",
+			"type":           "WeaveInterface",
+			"port":           "fake",
+			"bootstrap_only": "True",
 		}},
 	}
 	Interfaces = nil
@@ -337,7 +335,29 @@ func TestInterfaceDiscovery_MonitorJob_ReenablesBootstrapOnlyWhenNoAutoConnected
 		Interfaces = prevInterfaces
 	})
 
-	Owner.reenableBootstrapInterfaces()
+	for _, entry := range Owner.BootstrapConfigs {
+		name := strings.TrimSpace(entry["name"])
+		if name == "" {
+			continue
+		}
+		found := false
+		for _, ifc := range Interfaces {
+			if ifc == nil {
+				continue
+			}
+			if ifc.Name == name || ifc.String() == name {
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		_, err := Owner.synthesizeInterface(name, entry, false)
+		if err != nil {
+			t.Fatalf("synthesizeInterface(%q): %v", name, err)
+		}
+	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("interfaces=%d, want 1 bootstrap interface re-enabled", len(Interfaces))
 	}

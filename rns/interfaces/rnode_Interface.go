@@ -17,11 +17,12 @@ import (
 	serial "go.bug.st/serial"
 )
 
-type Logger interface {
-	Debugf(fmt string, args ...any)
-	Infof(fmt string, args ...any)
-	Warnf(fmt string, args ...any)
-	Errorf(fmt string, args ...any)
+type Logger func(level int, fmt string, args ...any)
+
+func (f Logger) Logf(level int, fmt string, args ...any) {
+	if f != nil {
+		f(level, fmt, args...)
+	}
 }
 
 type Owner interface {
@@ -630,7 +631,7 @@ func (r *RNodeInterface) ConfigureDevice() error {
 
 	if !r.waitForDetection(detectTimeout) {
 		if r.Log != nil {
-			r.Log.Errorf("%s could not detect device", r.String())
+			r.Log.Logf(LogError, "%s could not detect device", r.String())
 		}
 		_ = r.tr.Close()
 		return errors.New("device not detected")
@@ -642,7 +643,7 @@ func (r *RNodeInterface) ConfigureDevice() error {
 	}
 
 	if r.Log != nil {
-		r.Log.Infof("%s configuring RNode interface...", r.String())
+		r.Log.Logf(LogInfo, "%s configuring RNode interface...", r.String())
 	}
 	if err := r.ConfigureRadio(); err != nil {
 		_ = r.tr.Close()
@@ -664,43 +665,43 @@ func (r *RNodeInterface) ValidateConfig() bool {
 	if r.Frequency < FREQ_MIN || r.Frequency > FREQ_MAX {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured frequency %d outside valid range [%d,%d]", r.String(), r.Frequency, FREQ_MIN, FREQ_MAX)
+			r.Log.Logf(LogError, "%s configured frequency %d outside valid range [%d,%d]", r.String(), r.Frequency, FREQ_MIN, FREQ_MAX)
 		}
 	}
 	if r.TXPower > 37 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured txpower %d out of range", r.String(), r.TXPower)
+			r.Log.Logf(LogError, "%s configured txpower %d out of range", r.String(), r.TXPower)
 		}
 	}
 	if r.Bandwidth < 7800 || r.Bandwidth > 1625000 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured bandwidth %d out of range", r.String(), r.Bandwidth)
+			r.Log.Logf(LogError, "%s configured bandwidth %d out of range", r.String(), r.Bandwidth)
 		}
 	}
 	if r.SF < 5 || r.SF > 12 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured spreading factor %d out of range", r.String(), r.SF)
+			r.Log.Logf(LogError, "%s configured spreading factor %d out of range", r.String(), r.SF)
 		}
 	}
 	if r.CR < 5 || r.CR > 8 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured coding rate %d out of range", r.String(), r.CR)
+			r.Log.Logf(LogError, "%s configured coding rate %d out of range", r.String(), r.CR)
 		}
 	}
 	if r.ShortAirtimeLimit < 0.0 || r.ShortAirtimeLimit > 100.0 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured short-term airtime limit %.2f out of range", r.String(), r.ShortAirtimeLimit)
+			r.Log.Logf(LogError, "%s configured short-term airtime limit %.2f out of range", r.String(), r.ShortAirtimeLimit)
 		}
 	}
 	if r.LongAirtimeLimit < 0.0 || r.LongAirtimeLimit > 100.0 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s configured long-term airtime limit %.2f out of range", r.String(), r.LongAirtimeLimit)
+			r.Log.Logf(LogError, "%s configured long-term airtime limit %.2f out of range", r.String(), r.LongAirtimeLimit)
 		}
 	}
 	r.validCfg.Store(valid)
@@ -922,7 +923,7 @@ func (r *RNodeInterface) readLoop() {
 	defer func() {
 		r.online.Store(false)
 		if r.Log != nil {
-			r.Log.Errorf("%s readLoop ended", r.String())
+		r.Log.Logf(LogError, "%s readLoop ended", r.String())
 		}
 		go r.reconnectLoop()
 	}()
@@ -980,7 +981,7 @@ func (r *RNodeInterface) readLoop() {
 			// Read timeout handling like Python: reset partial frames if we stalled.
 			if time.Since(lastByteAt) > r.ReadTimeout && (dataBuf.Len() > 0 || cmdBuf.Len() > 0) {
 				if r.Log != nil {
-					r.Log.Warnf("%s device read timeout in cmd 0x%02X after %s", r.String(), cmd, r.ReadTimeout)
+					r.Log.Logf(LogWarning, "%s device read timeout in cmd 0x%02X after %s", r.String(), cmd, r.ReadTimeout)
 				}
 				inFrame = false
 				cmd = CMD_UNKNOWN
@@ -1288,7 +1289,7 @@ func (r *RNodeInterface) tryConsumeCmd(cmd byte, buf *bytes.Buffer) {
 			code := buf.Bytes()[0]
 			buf.Reset()
 			if r.Log != nil {
-				r.Log.Errorf("%s hardware error code 0x%02X", r.String(), code)
+				r.Log.Logf(LogError, "%s hardware error code 0x%02X", r.String(), code)
 			}
 			// For critical errors, mark offline to trigger reconnect like Python raising IOErrors.
 			switch code {
@@ -1353,7 +1354,7 @@ func (r *RNodeInterface) updateBitrate() {
 	}
 	r.bitrate = newRate
 	if r.Log != nil {
-		r.Log.Infof("%s on-air bitrate is %.2f kbps", r.String(), newRate/1000.0)
+		r.Log.Logf(LogInfo, "%s on-air bitrate is %.2f kbps", r.String(), newRate/1000.0)
 	}
 }
 
@@ -1406,7 +1407,7 @@ func (r *RNodeInterface) validateRadioState() bool {
 
 	if bt, ok := r.tr.(interface{ DeviceDisappeared() bool }); ok && bt.DeviceDisappeared() {
 		if r.Log != nil {
-			r.Log.Errorf("%s device disappeared during radio state validation", r.String())
+			r.Log.Logf(LogError, "%s device disappeared during radio state validation", r.String())
 		}
 		return false
 	}
@@ -1415,58 +1416,58 @@ func (r *RNodeInterface) validateRadioState() bool {
 	if r.Frequency != 0 && !r.repFreq.Load() {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s frequency report missing", r.String())
+			r.Log.Logf(LogError, "%s frequency report missing", r.String())
 		}
 	} else if r.repFreq.Load() && r.Frequency != 0 && math.Abs(float64(r.Frequency)-float64(r.rFreq)) > 100 {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s frequency mismatch %d vs %d", r.String(), r.Frequency, r.rFreq)
+			r.Log.Logf(LogError, "%s frequency mismatch %d vs %d", r.String(), r.Frequency, r.rFreq)
 		}
 	}
 	if r.Bandwidth != 0 && !r.repBW.Load() {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s bandwidth report missing", r.String())
+			r.Log.Logf(LogError, "%s bandwidth report missing", r.String())
 		}
 	} else if r.Bandwidth != 0 && r.repBW.Load() && r.Bandwidth != r.rBW {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s bandwidth mismatch %d vs %d", r.String(), r.Bandwidth, r.rBW)
+			r.Log.Logf(LogError, "%s bandwidth mismatch %d vs %d", r.String(), r.Bandwidth, r.rBW)
 		}
 	}
 	if !r.repTXP.Load() {
 		// Python treats missing r_txpower as mismatch (None).
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s txpower report missing", r.String())
+			r.Log.Logf(LogError, "%s txpower report missing", r.String())
 		}
 	} else if r.TXPower != r.rTXP {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s txpower mismatch %d vs %d", r.String(), r.TXPower, r.rTXP)
+			r.Log.Logf(LogError, "%s txpower mismatch %d vs %d", r.String(), r.TXPower, r.rTXP)
 		}
 	}
 	if r.SF != 0 && !r.repSF.Load() {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s sf report missing", r.String())
+			r.Log.Logf(LogError, "%s sf report missing", r.String())
 		}
 	} else if r.SF != 0 && r.repSF.Load() && r.SF != r.rSF {
 		valid = false
 		if r.Log != nil {
-			r.Log.Errorf("%s sf mismatch %d vs %d", r.String(), r.SF, r.rSF)
+			r.Log.Logf(LogError, "%s sf mismatch %d vs %d", r.String(), r.SF, r.rSF)
 		}
 	}
 	if want := r.desiredRadioState.Load(); want != 0 {
 		if !r.repState.Load() {
 			valid = false
 			if r.Log != nil {
-				r.Log.Errorf("%s radio state report missing", r.String())
+				r.Log.Logf(LogError, "%s radio state report missing", r.String())
 			}
 		} else if got := r.radioState.Load(); got != want {
 			valid = false
 			if r.Log != nil {
-				r.Log.Errorf("%s radio state mismatch %d vs %d", r.String(), want, got)
+				r.Log.Logf(LogError, "%s radio state mismatch %d vs %d", r.String(), want, got)
 			}
 		}
 	}
@@ -1495,7 +1496,7 @@ func (r *RNodeInterface) ValidateFirmware() error {
 	}
 	err := fmt.Errorf("firmware version %d.%d below required %d.%d", maj, min, REQUIRED_FW_VER_MAJ, REQUIRED_FW_VER_MIN)
 	if r.Log != nil {
-		r.Log.Errorf(err.Error())
+		r.Log.Logf(LogError, "%s", err.Error())
 	}
 	if PanicFunc != nil {
 		PanicFunc()
@@ -1538,7 +1539,7 @@ func (r *RNodeInterface) reconnectLoop() {
 		cancel()
 		if err != nil {
 			if r.Log != nil {
-				r.Log.Warnf("%s reconnect failed: %v", r.String(), err)
+				r.Log.Logf(LogWarning, "%s reconnect failed: %v", r.String(), err)
 			}
 			continue
 		}
@@ -1548,7 +1549,7 @@ func (r *RNodeInterface) reconnectLoop() {
 		_ = r.ConfigureDevice()
 
 		if r.Log != nil {
-			r.Log.Infof("%s reconnected via %s", r.String(), r.tr.String())
+			r.Log.Logf(LogInfo, "%s reconnected via %s", r.String(), r.tr.String())
 		}
 		return
 	}

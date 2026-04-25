@@ -58,8 +58,8 @@ func TestReticulumBringUpSystemInterfaces_EnabledGating(t *testing.T) {
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected only explicitly enabled interface to be brought up, got %d", len(Interfaces))
@@ -116,8 +116,8 @@ func TestReticulumBringUpSystemInterfaces_TCPInterfaceAlias_Client(t *testing.T)
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -174,8 +174,8 @@ func TestReticulumBringUpSystemInterfaces_OutgoingAndAnnounceCapAndIFACDefaults(
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -242,8 +242,8 @@ func TestReticulumBringUpSystemInterfaces_BackboneInterfaceAlias(t *testing.T) {
 		InterfacePath: filepath.Join(dir, "interfaces"),
 	}
 
-	if err := r.bringUpSystemInterfaces(); err != nil {
-		t.Fatalf("bringUpSystemInterfaces: %v", err)
+	if err := r.synthesizeConfiguredInterfaces(); err != nil {
+		t.Fatalf("synthesizeConfiguredInterfaces: %v", err)
 	}
 	if len(Interfaces) != 1 {
 		t.Fatalf("expected 1 interface, got %d", len(Interfaces))
@@ -292,9 +292,28 @@ func TestReticulum_TCPServerAcceptedPeer_InheritsIngressControl(t *testing.T) {
 			AutoconfigureMTU:  parent.AutoconfigureMTU,
 			FixedMTU:          parent.FixedMTU,
 		}
-		inheritInterfaceConfig(peer, parent)
+		peer.IN = parent.IN
+		peer.OUT = parent.OUT
+		peer.IngressControl = parent.IngressControl
+		peer.ICMaxHeldAnnounces = parent.ICMaxHeldAnnounces
+		peer.ICBurstHold = parent.ICBurstHold
+		peer.ICBurstFreqNew = parent.ICBurstFreqNew
+		peer.ICBurstFreq = parent.ICBurstFreq
+		peer.ICNewTime = parent.ICNewTime
+		peer.ICBurstPenalty = parent.ICBurstPenalty
+		peer.ICHeldReleaseInterval = parent.ICHeldReleaseInterval
+		peer.AnnounceCap = parent.AnnounceCap
+		peer.SetAnnounceRateConfig(parent.AnnounceRateTarget, parent.AnnounceRateGrace, parent.AnnounceRatePenalty)
 		peer.SetTCPClient(ci)
-		ci.Owner = tcpOwnerAdapter{ifc: peer}
+		ci.Owner = func(data []byte, _ *ifaces.TCPClientInterface) {
+			if peer == nil || len(data) == 0 {
+				return
+			}
+			peer.RXB += uint64(len(data))
+			if ifaces.InboundHandler != nil {
+				ifaces.InboundHandler(data, peer)
+			}
+		}
 		interfacesMu.Lock()
 		Interfaces = append(Interfaces, peer)
 		interfacesMu.Unlock()

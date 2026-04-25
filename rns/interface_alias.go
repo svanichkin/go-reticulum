@@ -17,11 +17,10 @@ func init() {
 	ifaces.ExitFunc = Exit
 	ifaces.PanicFunc = Panic
 	ifaces.PanicOnInterfaceErrorProvider = func() bool {
-		r := GetInstance()
-		if r == nil {
+		if instance == nil {
 			return false
 		}
-		return r.PanicOnInterfaceError
+		return instance.PanicOnInterfaceError
 	}
 	ifaces.SpawnHandler = func(ifc *ifaces.Interface) {
 		// Register spawned sub-interfaces like AutoInterface peers.

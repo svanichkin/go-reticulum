@@ -165,6 +165,7 @@ var (
 	linkTable         = make(map[hashKey]*linkEntry)
 
 	announceRateTable = make(map[hashKey]*announceRateEntry)
+	announceRateOrder = make([]hashKey, 0)
 	announceRateMu    sync.RWMutex
 
 	TrafficRXB uint64
@@ -645,7 +646,7 @@ func Start(owner *Reticulum) {
 	Owner = owner
 	if TransportIdentity == nil && Owner != nil {
 		identityPath := filepath.Join(Owner.StoragePath, "transport_identity")
-		if fileExists(identityPath) {
+		if st, err := os.Stat(identityPath); err == nil && !st.IsDir() {
 			if id, err := IdentityFromFile(identityPath); err == nil {
 				TransportIdentity = id
 				Log("Loaded Transport Identity from storage", LogVerbose)
@@ -663,7 +664,7 @@ func Start(owner *Reticulum) {
 
 	if Owner != nil && !Owner.IsConnectedToSharedInstance {
 		packetHashlistPath := filepath.Join(Owner.StoragePath, "packet_hashlist")
-		if fileExists(packetHashlistPath) {
+		if st, err := os.Stat(packetHashlistPath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(packetHashlistPath)
 			if err != nil {
 				Logf(LogError, "Could not load packet hashlist from storage: %v", err)
@@ -813,7 +814,7 @@ func Start(owner *Reticulum) {
 
 	if TransportEnabled() && Owner != nil && !Owner.IsConnectedToSharedInstance {
 		pathTablePath := filepath.Join(Owner.StoragePath, "destination_table")
-		if fileExists(pathTablePath) {
+		if st, err := os.Stat(pathTablePath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(pathTablePath)
 			if err != nil {
 				Logf(LogError, "Could not load destination table from storage: %v", err)
@@ -986,7 +987,7 @@ func Start(owner *Reticulum) {
 		}
 
 		tunnelTablePath := filepath.Join(Owner.StoragePath, "tunnels")
-		if fileExists(tunnelTablePath) {
+		if st, err := os.Stat(tunnelTablePath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(tunnelTablePath)
 			if err != nil {
 				Logf(LogError, "Could not load tunnel table from storage: %v", err)
@@ -1462,15 +1463,15 @@ func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) (r
 		}
 	}()
 	key, ok := func(hash []byte) (hashKey, bool) {
-		if len(hash) < truncatedHashBytes {
+		if len(hash) != truncatedHashBytes {
 			return hashKey{}, false
 		}
 		var key hashKey
-		copy(key[:], hash[:truncatedHashBytes])
+		copy(key[:], hash)
 		return key, true
 	}(identityHash)
 	if !ok {
-		return false
+		return nil
 	}
 
 	entry := &blackholeEntry{Source: append([]byte(nil), TransportIdentity.Hash...)}
@@ -1505,15 +1506,15 @@ func UnblackholeIdentity(identityHash []byte) (result any) {
 		}
 	}()
 	key, ok := func(hash []byte) (hashKey, bool) {
-		if len(hash) < truncatedHashBytes {
+		if len(hash) != truncatedHashBytes {
 			return hashKey{}, false
 		}
 		var key hashKey
-		copy(key[:], hash[:truncatedHashBytes])
+		copy(key[:], hash)
 		return key, true
 	}(identityHash)
 	if !ok {
-		return false
+		return nil
 	}
 
 	blackholeMu.Lock()
@@ -1595,7 +1596,7 @@ func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, remoteIdentity *I
 
 // ExitHandler best-effort persistence hook mirroring Transport.exit_handler() in Python.
 func ExitHandler() {
-	if inst := GetInstance(); inst != nil && !inst.IsConnectedToSharedInstance {
+	if instance != nil && !instance.IsConnectedToSharedInstance {
 		PersistData()
 	}
 }
@@ -1603,7 +1604,7 @@ func ExitHandler() {
 // PersistData persists transport tables, mirroring Python's
 // Transport.persist_data() / Reticulum.__persist_data() behaviour.
 func PersistData() {
-	if inst := GetInstance(); inst != nil && inst.IsConnectedToSharedInstance {
+	if instance != nil && instance.IsConnectedToSharedInstance {
 		return
 	}
 	savePacketHashlist()
@@ -2813,41 +2814,52 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 	if args, ok := data.([]any); ok && len(args) > 0 {
 		command, _ := args[0].(string)
 		var destHash []byte
-		maxHops := -1
+		var maxHops *int
 		if len(args) > 1 {
 			if hash, ok := args[1].([]byte); ok {
 				destHash = hash
 			}
 		}
 		if len(args) > 2 {
-			maxHops = func(v any) int {
+			maxHops = func(v any) *int {
 				switch val := v.(type) {
 				case int:
-					return val
+					return &val
 				case int8:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case int16:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case int32:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case int64:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case uint:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case uint8:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case uint16:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case uint32:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case uint64:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case float32:
-					return int(val)
+					vv := int(val)
+					return &vv
 				case float64:
-					return int(val)
+					vv := int(val)
+					return &vv
 				default:
-					return 0
+					return nil
 				}
 			}(args[2])
 		}
@@ -4763,6 +4775,7 @@ func Inbound(raw []byte, ifc *Interface) {
 							Last:       now,
 							Timestamps: []time.Time{now},
 						}
+						announceRateOrder = append(announceRateOrder, announceKey)
 					} else {
 						entry.Timestamps = append(entry.Timestamps, now)
 						if len(entry.Timestamps) > maxRateTimestamps {
@@ -5850,7 +5863,7 @@ func cleanAnnounceCache() {
 		return
 	}
 	targetPath := filepath.Join(Owner.CachePath, "announces")
-	if !fileExists(targetPath) {
+	if st, err := os.Stat(targetPath); err != nil || st.IsDir() {
 		return
 	}
 	st := time.Now()

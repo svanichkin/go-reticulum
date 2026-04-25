@@ -32,8 +32,8 @@ func TestReticulumBringUpSystemInterfaces_FatalOnErrorByDefault(t *testing.T) {
 		PanicOnInterfaceError: true,
 	}
 
-	if err := r.bringUpSystemInterfaces(); err == nil {
-		t.Fatalf("expected bringUpSystemInterfaces to fail for enabled misconfigured interface")
+	if err := r.synthesizeConfiguredInterfaces(); err == nil {
+		t.Fatalf("expected synthesizeConfiguredInterfaces to fail for enabled misconfigured interface")
 	}
 }
 
@@ -61,7 +61,7 @@ func TestReticulumBringUpSystemInterfaces_FatalEvenWhenPanicOnInterfaceErrorFals
 		PanicOnInterfaceError: false,
 	}
 
-	if err := r.bringUpSystemInterfaces(); err == nil {
-		t.Fatalf("expected bringUpSystemInterfaces to fail even when PanicOnInterfaceError is false")
+	if err := r.synthesizeConfiguredInterfaces(); err == nil {
+		t.Fatalf("expected synthesizeConfiguredInterfaces to fail even when PanicOnInterfaceError is false")
 	}
 }
