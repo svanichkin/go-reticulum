@@ -82,6 +82,10 @@ run_direction() {
     stop_proc "$receiver_pid"
     return 1
   fi
+  if ! announce_wait_receiver_ready "$receiver_log" "$label" "$mode" "$receiver_impl"; then
+    stop_proc "$receiver_pid"
+    return 1
+  fi
   if [[ "$mode" == "local" ]]; then
     echo "$(announce_prefix) $label: start sender-side local rnsd"
     if [[ "$sender_impl" == "go" ]]; then
@@ -112,6 +116,8 @@ run_direction() {
     return 1
   fi
 
+  local receiver_from_line
+  receiver_from_line=$(( $(wc -l <"$receiver_log") + 1 ))
   echo "$(announce_prefix) $label: start rncp listener"
   listener_pid="$(start_rncp_listener "$sender_impl" "$sender_cfg" "$identity_path" "$recv_dir" 1 "$listener_log")"
   if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$listener_log" "rncp listening on"; then
@@ -129,8 +135,6 @@ run_direction() {
   fi
 
   local announce_pattern="Valid announce for <$listen_hash>|Destination <$listen_hash> is now"
-  local receiver_from_line
-  receiver_from_line=$(( $(wc -l <"$receiver_log") + 1 ))
   if ! wait_for_new_log_match "$START_TIMEOUT_SECS" "$receiver_log" "$receiver_from_line" "$announce_pattern"; then
     echo "$(announce_prefix) $label: receiver did not log initial announce; see $receiver_log"
     stop_proc "$listener_pid"; stop_proc "$sender_side_pid"; stop_proc "$receiver_pid"

@@ -93,6 +93,10 @@ run_direction() {
     stop_proc "$receiver_pid"
     return 1
   fi
+  if ! announce_wait_receiver_ready "$receiver_log" "$label" "$mode" "$receiver_impl"; then
+    stop_proc "$receiver_pid"
+    return 1
+  fi
   if [[ "$mode" == "local" ]]; then
     echo "$(announce_prefix) $label: start sender-side local rnsd"
     if [[ "$sender_impl" == "go" ]]; then
@@ -152,6 +156,14 @@ run_direction() {
     echo "$(announce_prefix) $label: receiver did not log first announce; see $receiver_log"
     stop_proc "$sender_side_pid"; stop_proc "$receiver_pid"
     return 1
+  fi
+
+  if declare -F announce_wait_before_reannounce >/dev/null; then
+    if ! announce_wait_before_reannounce "$label" "$mode" "$sender_impl"; then
+      echo "$(announce_prefix) $label: pre-reannounce wait failed"
+      stop_proc "$sender_side_pid"; stop_proc "$receiver_pid"
+      return 1
+    fi
   fi
 
   receiver_from_line=$(( $(wc -l <"$receiver_log") + 1 ))

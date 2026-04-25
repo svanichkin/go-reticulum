@@ -248,6 +248,12 @@ if ! declare -F announce_wait_sender_ready >/dev/null; then
   }
 fi
 
+if ! declare -F announce_wait_receiver_ready >/dev/null; then
+  announce_wait_receiver_ready() {
+    return 0
+  }
+fi
+
 announce_run_four_directions() {
   local modes="standalone local"
   if declare -F announce_modes_for_tool >/dev/null; then

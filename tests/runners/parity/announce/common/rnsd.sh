@@ -154,15 +154,15 @@ start_py_rnsd() {
 }
 
 echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] out=$OUT_DIR"
+echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] killing stale rnsd processes"
+pkill -TERM -f '(/rnsd( |$)|RNS/Utilities/rnsd.py)' >/dev/null 2>&1 || true
+sleep 0.2
+pkill -KILL -f '(/rnsd( |$)|RNS/Utilities/rnsd.py)' >/dev/null 2>&1 || true
 if declare -F announce_setup_interface >/dev/null; then
   announce_setup_interface
 elif declare -F announce_interface_setup >/dev/null; then
   announce_interface_setup
 fi
-echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] killing stale rnsd processes"
-pkill -TERM -f '(/rnsd( |$)|RNS/Utilities/rnsd.py)' >/dev/null 2>&1 || true
-sleep 0.2
-pkill -KILL -f '(/rnsd( |$)|RNS/Utilities/rnsd.py)' >/dev/null 2>&1 || true
 
 announce_write_rnsd_configs "$PY_DIR" "$GO_DIR"
 
@@ -173,6 +173,11 @@ py_pid="$(start_py_rnsd)"
 if ! wait_for_file_contains "$START_TIMEOUT_SECS" "$PY_LOG" "Started rnsd version"; then
   echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] python rnsd did not start; see $PY_LOG"
   exit 1
+fi
+if declare -F announce_wait_receiver_ready >/dev/null; then
+  if ! announce_wait_receiver_ready "$PY_LOG" "python_receiver" "standalone" "py"; then
+    exit 1
+  fi
 fi
 
 echo "[parity-announce-$ANNOUNCE_INTERFACE_NAME] start go rnsd ($ANNOUNCE_RNSD_LABEL only)"

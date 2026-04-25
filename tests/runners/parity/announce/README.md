@@ -7,29 +7,33 @@ Current intent:
 - add new parity runners grouped by packet family
 - start with `announce`
 
-Route notation:
-- use arrow notation for the canonical scenario description
-- encode the same route in filenames with `_to_` and `_`
+Branch READMEs:
+- [auto](auto/README.md)
+- [pipe](pipe/README.md)
+- [tcp/local](tcp/local/README.md)
+- [tcp/bootstrap](tcp/bootstrap/README.md)
+- [udp](udp/README.md)
+
+Mode naming:
+- `standalone`: the tool owns the transport and opens the interface itself
+- `shared_client`: the tool is a local client of a shared `rnsd`
+- current runner labels and artifacts still use `local` for `shared_client`
 
 Examples:
-- route: `go→tcp→local→tcp→py`
-  file: `go_to_tcp_local_tcp_py.sh`
-- route: `py→tcp→local→tcp→go`
-  file: `py_to_tcp_local_tcp_go.sh`
-- route: `go→tcp→bootstrap→tcp→py`
-  file: `go_to_tcp_bootstrap_tcp_py.sh`
-- route: `py→tcp→bootstrap→tcp→go`
-  file: `py_to_tcp_bootstrap_tcp_go.sh`
-- route: `go→udp→py`
-  file: `go_to_udp_py.sh`
-- route: `py→udp→go`
-  file: `py_to_udp_go.sh`
+- route: `go→shared_client→tcp→py`
+  current runner label: `go_to_py_local`
+- route: `py→shared_client→tcp→go`
+  current runner label: `py_to_go_local`
+- route: `go→standalone→bootstrap→py`
+  current runner label: `go_to_py_standalone`
+- route: `py→standalone→udp→go`
+  current runner label: `py_to_go_standalone`
 
-- `go→tcp→local→tcp→py`
-  means Go-side initiator sends an announce through a local/shared transport path
-  and the Python side is reached over a TCP server-side interface.
-- `go→tcp→bootstrap→tcp→py`
-  means Go-side initiator reaches Python through an external/bootstrap TCP hop.
+- `go→shared_client→tcp→py`
+  means the Go tool sends through `nodeA tool(local client) → nodeA shared rnsd`,
+  and Python receives the announce over the tested transport path.
+- `go→standalone→bootstrap→py`
+  means the Go tool reaches Python through an external bootstrap TCP hop without a shared sender-side `rnsd`.
 
 Role convention:
 - For TCP, the receiving side is normally the `TCPServerInterface` side.

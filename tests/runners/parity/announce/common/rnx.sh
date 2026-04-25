@@ -80,6 +80,10 @@ run_direction() {
     stop_proc "$receiver_pid"
     return 1
   fi
+  if ! announce_wait_receiver_ready "$receiver_log" "$label" "$mode" "$receiver_impl"; then
+    stop_proc "$receiver_pid"
+    return 1
+  fi
   if [[ "$mode" == "local" ]]; then
     echo "$(announce_prefix) $label: start sender-side local rnsd"
     if [[ "$sender_impl" == "go" ]]; then

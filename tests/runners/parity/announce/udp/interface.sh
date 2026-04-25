@@ -91,3 +91,36 @@ announce_write_rnsd_configs() {
   announce_write_rnsd_config "$py_dir" "parity_py_udp" 37432 37433 "UDP Py" receiver
   announce_write_rnsd_config "$go_dir" "parity_go_udp" 37430 37431 "UDP Go" sender
 }
+
+announce_wait_sender_ready() {
+  local sender_log="$1"
+  local label="$2"
+  local receiver_log="$OUT_DIR/${label}.receiver.rnsd.log"
+  local pattern="Valid announce for .* on UDPInterface|Destination .* is now .* on .*UDP"
+  local start
+  start="$(date +%s)"
+  while true; do
+    if [[ -f "$sender_log" ]] && rg -q "$pattern" "$sender_log"; then
+      return 0
+    fi
+    if [[ -f "$receiver_log" ]] && rg -q "$pattern" "$receiver_log"; then
+      return 0
+    fi
+    local now
+    now="$(date +%s)"
+    if [[ $((now - start)) -ge "$START_TIMEOUT_SECS" ]]; then
+      echo "$(announce_prefix) $label: sender-side rnsd did not learn remote UDP path; see $sender_log and $receiver_log"
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+announce_wait_before_reannounce() {
+  local _label="$1"
+  local mode="$2"
+  local _sender_impl="$3"
+  if [[ "$mode" == "local" ]]; then
+    sleep 6
+  fi
+}

@@ -90,9 +90,19 @@ announce_write_rnsd_configs() {
 announce_wait_sender_ready() {
   local log_path="$1"
   local label="$2"
-  if wait_for_file_contains "$START_TIMEOUT_SECS" "$log_path" "Establishing TCP connection|Connected to server|TCP connection for .* established|Spawned TCP client|attempting to reconnect"; then
+  if wait_for_file_contains "$START_TIMEOUT_SECS" "$log_path" "Valid announce for|Destination .* is now .* on .*TCP"; then
     return 0
   fi
-  echo "$(announce_prefix) $label: bootstrap TCP clients did not start as expected; see $log_path"
+  echo "$(announce_prefix) $label: sender-side bootstrap transport did not observe any announce before sender start; see $log_path"
+  return 1
+}
+
+announce_wait_receiver_ready() {
+  local log_path="$1"
+  local label="$2"
+  if wait_for_file_contains "$START_TIMEOUT_SECS" "$log_path" "Valid announce for|Destination .* is now .* on .*TCP"; then
+    return 0
+  fi
+  echo "$(announce_prefix) $label: receiver did not observe any bootstrap announce before sender start; see $log_path"
   return 1
 }
