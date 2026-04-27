@@ -245,7 +245,7 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 	if l.Initiator {
 		mtu := MTU
 		if desc, ok := linkModeDescriptions[l.Mode]; ok {
-			Logf(LOG_DEBUG, "Establishing link with mode %s", desc)
+			Log(fmt.Sprintf("Establishing link with mode %s", desc), LOG_DEBUG)
 		}
 		if destination != nil {
 			l.expectedHops = HopsTo(destination.Hash)
@@ -263,7 +263,7 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		if LinkMTUDiscovery() && destination != nil {
 			if nh := NextHopInterfaceHWMTU(destination.Hash); nh != nil {
 				mtu = *nh
-				Logf(LOG_DEBUG, "Signalling link MTU of %s for link", PrettySize(float64(mtu)))
+				Log(fmt.Sprintf("Signalling link MTU of %s for link", PrettySize(float64(mtu))), LOG_DEBUG)
 			}
 		}
 		signalling, err := linkSignallingBytes(mtu, l.Mode)
@@ -310,8 +310,8 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		l.lastOutbound = now
 		l.lastData = now
 		l.mu.Unlock()
-		Logf(LOG_DEBUG, "Link request %s sent to %v", PrettyHexRep(l.LinkID), destination)
-		Logf(LOG_EXTREME, "Establishment timeout is %s for link request %s", PrettyTime(l.estTimeout.Seconds(), true, true), PrettyHexRep(l.LinkID))
+		Log(fmt.Sprintf("Link request %s sent to %v", PrettyHexRep(l.LinkID), destination), LOG_DEBUG)
+		Log(fmt.Sprintf("Establishment timeout is %s for link request %s", PrettyTime(l.estTimeout.Seconds(), true, true), PrettyHexRep(l.LinkID)), LOG_EXTREME)
 		if receipt == nil && !packet.Sent {
 			return nil, errors.New("link request send failed")
 		}
@@ -1304,10 +1304,9 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 		hops = int(packet.Hops)
 	}
 	link.estTimeout = linkDefaultPerHop*time.Duration(hops) + linkKeepaliveMax
-
-	Logf(LogDebug, "Validating link request %s", PrettyHexRep(link.LinkID))
-	Logf(LogExtreme, "Link MTU configured to %s", PrettySize(float64(link.MTU)))
-	Logf(LogExtreme, "Establishment timeout is %s for incoming link request %s", PrettyTime(link.estTimeout.Seconds(), true, true), PrettyHexRep(link.LinkID))
+	Log(fmt.Sprintf("Validating link request %s", PrettyHexRep(link.LinkID)), LogDebug)
+	Log(fmt.Sprintf("Link MTU configured to %s", PrettySize(float64(link.MTU))), LogExtreme)
+	Log(fmt.Sprintf("Establishment timeout is %s for incoming link request %s", PrettyTime(link.estTimeout.Seconds(), true, true), PrettyHexRep(link.LinkID)), LogExtreme)
 
 	if err := link.Handshake(); err != nil {
 		Log(fmt.Sprintf("Handshake failed: %v", err), LOG_ERROR)

@@ -1,5 +1,7 @@
 package rns
 
+import "fmt"
+
 import ifaces "github.com/svanichkin/go-reticulum/rns/interfaces"
 import "time"
 
@@ -12,8 +14,12 @@ func init() {
 	ifaces.InboundHandler = func(raw []byte, ifc *ifaces.Interface) {
 		Inbound(raw, ifc)
 	}
-	ifaces.DiagLog = Log
-	ifaces.DiagLogf = Logf
+	ifaces.DiagLog = func(msg any, level int) {
+		Log(msg, level)
+	}
+	ifaces.DiagLogf = func(level int, format string, args ...any) {
+		Log(fmt.Sprintf(format, args...), level)
+	}
 	ifaces.ExitFunc = Exit
 	ifaces.PanicFunc = Panic
 	ifaces.PanicOnInterfaceErrorProvider = func() bool {

@@ -362,7 +362,7 @@ func (d *BackboneInterfaceDriver) handleConn(conn net.Conn) error {
 		Type:                  "BackboneInterfacePeer",
 		Parent:                d.iface,
 		IN:                    d.iface.IN,
-		OUT:                   d.iface.OUT, // Python spawns peers with OUT=self.OUT (False)
+		OUT:                   d.iface.OUT, // Python spawns peers with OUT=self.OUT; parent has OUT=True (set in Reticulum)
 		DriverImplemented:     true,
 		Bitrate:               d.iface.Bitrate,
 		HWMTU:                 d.iface.HWMTU,

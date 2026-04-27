@@ -109,7 +109,7 @@ func main() {
 	}
 
 	if *versionFlag {
-		fmt.Printf("rncp %s\n", rns.GetVersion())
+		fmt.Printf("rncp %s\n", rns.Version())
 		return
 	}
 
@@ -250,7 +250,7 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 	if jail != "" {
 		abs := absPath(jail)
 		fetchJail = abs
-		rns.Logf(rns.LogVerbose, "Restricting fetch requests to paths under %q", fetchJail)
+		rns.Log(fmt.Sprintf("Restricting fetch requests to paths under %q", fetchJail), rns.LogVerbose)
 	}
 
 	if save != "" {
@@ -264,7 +264,7 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 			os.Exit(4)
 		}
 		savePath = sp
-		rns.Logf(rns.LogVerbose, "Saving received files in %q", savePath)
+		rns.Log(fmt.Sprintf("Saving received files in %q", savePath), rns.LogVerbose)
 	}
 
 	identity, err := loadOrCreateIdentity(ret.IdentityPath, identityPath)
@@ -278,8 +278,8 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 	}
 
 	if displayIdentity {
-		fmt.Println("Identity     :", rns.PrettyHex(identity.Hash))
-		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash))
+		fmt.Println("Identity     :", rns.PrettyHexRep(identity.Hash))
+		fmt.Println("Listening on :", rns.PrettyHexRep(dest.Hash))
 		os.Exit(0)
 	}
 
@@ -307,7 +307,7 @@ func listen(configdir, identityPath string, verbosity, quietness int, allowed mu
 		}
 	}
 
-	fmt.Println("rncp listening on", rns.PrettyHex(dest.Hash))
+	fmt.Println("rncp listening on", rns.PrettyHexRep(dest.Hash))
 
 	if announce >= 0 {
 		go func() {
@@ -348,7 +348,7 @@ func fetchRequest(path string, data any, requestID []byte, linkID []byte, remote
 		}
 		fp := absPath(filepath.Join(fetchJail, reqPath))
 		if !strings.HasPrefix(fp, fetchJail+"/") && fp != fetchJail {
-			rns.Logf(rns.LogWarning, "Disallowing fetch request for %s outside of fetch jail %s", fp, fetchJail)
+			rns.Log(fmt.Sprintf("Disallowing fetch request for %s outside of fetch jail %s", fp, fetchJail), rns.LogWarning)
 			return reqFetchNotAllowed
 		}
 		filePath = fp
@@ -373,14 +373,14 @@ func fetchRequest(path string, data any, requestID []byte, linkID []byte, remote
 	}
 	f, err := os.Open(filePath)
 	if err != nil {
-		rns.Logf(rns.LogError, "Could not open file to send: %v", err)
+		rns.Log(fmt.Sprintf("Could not open file to send: %v", err), rns.LogError)
 		return false
 	}
 	defer f.Close()
 
 	_, err = startResourceTransfer(f, targetLink, meta, fetchAutoCompress, nil, nil)
 	if err != nil {
-		rns.Logf(rns.LogError, "Could not send file to client: %v", err)
+		rns.Log(fmt.Sprintf("Could not send file to client: %v", err), rns.LogError)
 		return false
 	}
 	return true
@@ -425,9 +425,9 @@ func receiveResourceAdvertisementCallback(ad *rns.ResourceAdvertisement) bool {
 func receiveResourceStarted(res *rns.Resource) {
 	var idStr string
 	if ri := res.Link.GetRemoteIdentity(); ri != nil {
-		idStr = " from " + rns.PrettyHex(ri.Hash)
+		idStr = " from " + rns.PrettyHexRep(ri.Hash)
 	}
-	fmt.Println("Starting resource transfer " + rns.PrettyHex(res.GetHash()) + idStr)
+	fmt.Println("Starting resource transfer " + rns.PrettyHexRep(res.GetHash()) + idStr)
 }
 
 func receiveResourceConcluded(res *rns.Resource) {
@@ -447,7 +447,7 @@ func receiveResourceConcluded(res *rns.Resource) {
 	if savePath != "" {
 		savedFilename = absPath(filepath.Join(savePath, filename))
 		if !strings.HasPrefix(savedFilename, savePath+"/") && savedFilename != savePath {
-			rns.Logf(rns.LogError, "Invalid save path %s, ignoring", savedFilename)
+			rns.Log(fmt.Sprintf("Invalid save path %s, ignoring", savedFilename), rns.LogError)
 			return
 		}
 	} else {
@@ -458,7 +458,7 @@ func receiveResourceConcluded(res *rns.Resource) {
 	if allowOverwriteOnReceive {
 		if fileExists(full) {
 			if err := os.Remove(full); err != nil {
-				rns.Logf(rns.LogError, "Could not overwrite existing file %s, renaming instead", full)
+				rns.Log(fmt.Sprintf("Could not overwrite existing file %s, renaming instead", full), rns.LogError)
 			}
 		}
 	}
@@ -470,7 +470,7 @@ func receiveResourceConcluded(res *rns.Resource) {
 	}
 
 	if err := os.Rename(res.DataFile, full); err != nil {
-		rns.Logf(rns.LogError, "Could not move received file: %v", err)
+		rns.Log(fmt.Sprintf("Could not move received file: %v", err), rns.LogError)
 	}
 	noteAcceptedResource()
 }
@@ -512,9 +512,9 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	if !rns.HasPath(destHash) {
 		rns.RequestPath(destHash, nil, nil, false)
 		if silent {
-			fmt.Println("Path to " + rns.PrettyHex(destHash) + " requested")
+			fmt.Println("Path to " + rns.PrettyHexRep(destHash) + " requested")
 		} else {
-			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested  " + es)
+			fmt.Print("Path to " + rns.PrettyHexRep(destHash) + " requested  " + es)
 		}
 	}
 
@@ -540,9 +540,9 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	}
 
 	if silent {
-		fmt.Println("Establishing link with " + rns.PrettyHex(destHash))
+		fmt.Println("Establishing link with " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Print(eraseStr + "Establishing link with " + rns.PrettyHex(destHash) + "  " + es)
+		fmt.Print(eraseStr + "Establishing link with " + rns.PrettyHexRep(destHash) + "  " + es)
 	}
 
 	receiverID := rns.IdentityRecall(destHash)
@@ -556,9 +556,9 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	}
 	if receiverID == nil {
 		if silent {
-			fmt.Println("Could not recall identity for " + rns.PrettyHex(destHash))
+			fmt.Println("Could not recall identity for " + rns.PrettyHexRep(destHash))
 		} else {
-			fmt.Print(eraseStr + "Could not recall identity for " + rns.PrettyHex(destHash) + "\n")
+			fmt.Print(eraseStr + "Could not recall identity for " + rns.PrettyHexRep(destHash) + "\n")
 		}
 		return errors.New("receiver identity not known")
 	}
@@ -581,17 +581,17 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 
 	if time.Now().After(estabTimeout) {
 		if silent {
-			fmt.Println("Link establishment with " + rns.PrettyHex(destHash) + " timed out")
+			fmt.Println("Link establishment with " + rns.PrettyHexRep(destHash) + " timed out")
 		} else {
-			fmt.Print(eraseStr + "Link establishment with " + rns.PrettyHex(destHash) + " timed out\n")
+			fmt.Print(eraseStr + "Link establishment with " + rns.PrettyHexRep(destHash) + " timed out\n")
 		}
 		return errors.New("link establishment timeout")
 	}
 	if !rns.HasPath(destHash) {
 		if silent {
-			fmt.Println("No path found to " + rns.PrettyHex(destHash))
+			fmt.Println("No path found to " + rns.PrettyHexRep(destHash))
 		} else {
-			fmt.Print(eraseStr + "No path found to " + rns.PrettyHex(destHash) + "\n")
+			fmt.Print(eraseStr + "No path found to " + rns.PrettyHexRep(destHash) + "\n")
 		}
 		return errors.New("no path")
 	}
@@ -631,9 +631,9 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 
 	if res.Status > rns.ResourceComplete {
 		if silent {
-			fmt.Println("File was not accepted by " + rns.PrettyHex(destHash))
+			fmt.Println("File was not accepted by " + rns.PrettyHexRep(destHash))
 		} else {
-			fmt.Print(eraseStr + "File was not accepted by " + rns.PrettyHex(destHash) + "\n")
+			fmt.Print(eraseStr + "File was not accepted by " + rns.PrettyHexRep(destHash) + "\n")
 		}
 		return errors.New("not accepted")
 	}
@@ -671,9 +671,9 @@ func send(configdir, identityPath string, verbosity, quietness int, destination,
 	}
 
 	if silent {
-		fmt.Println(filePath + " copied to " + rns.PrettyHex(destHash))
+		fmt.Println(filePath + " copied to " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Println("\n" + filePath + " copied to " + rns.PrettyHex(destHash))
+		fmt.Println("\n" + filePath + " copied to " + rns.PrettyHexRep(destHash))
 	}
 	link.Teardown()
 	time.Sleep(250 * time.Millisecond)
@@ -720,9 +720,9 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	if !rns.HasPath(destHash) {
 		rns.RequestPath(destHash, nil, nil, false)
 		if silent {
-			fmt.Println("Path to " + rns.PrettyHex(destHash) + " requested")
+			fmt.Println("Path to " + rns.PrettyHexRep(destHash) + " requested")
 		} else {
-			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested  " + es)
+			fmt.Print("Path to " + rns.PrettyHexRep(destHash) + " requested  " + es)
 		}
 	}
 
@@ -748,9 +748,9 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	}
 
 	if silent {
-		fmt.Println("Establishing link with " + rns.PrettyHex(destHash))
+		fmt.Println("Establishing link with " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Print(eraseStr + "Establishing link with " + rns.PrettyHex(destHash) + "  " + es)
+		fmt.Print(eraseStr + "Establishing link with " + rns.PrettyHexRep(destHash) + "  " + es)
 	}
 
 	listenerID := rns.IdentityRecall(destHash)
@@ -763,9 +763,9 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	}
 	if listenerID == nil {
 		if silent {
-			fmt.Println("Could not recall identity for " + rns.PrettyHex(destHash))
+			fmt.Println("Could not recall identity for " + rns.PrettyHexRep(destHash))
 		} else {
-			fmt.Print(eraseStr + "Could not recall identity for " + rns.PrettyHex(destHash) + "\n")
+			fmt.Print(eraseStr + "Could not recall identity for " + rns.PrettyHexRep(destHash) + "\n")
 		}
 		return errors.New("receiver identity not known")
 	}
@@ -788,9 +788,9 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 
 	if !rns.HasPath(destHash) {
 		if silent {
-			fmt.Println("Could not establish link with " + rns.PrettyHex(destHash))
+			fmt.Println("Could not establish link with " + rns.PrettyHexRep(destHash))
 		} else {
-			fmt.Print(eraseStr + "Could not establish link with " + rns.PrettyHex(destHash) + "\n")
+			fmt.Print(eraseStr + "Could not establish link with " + rns.PrettyHexRep(destHash) + "\n")
 		}
 		return errors.New("link fail")
 	}
@@ -974,9 +974,9 @@ func fetch(configdir, identityPath string, verbosity, quietness int,
 	}
 
 	if silent {
-		fmt.Println(file + " fetched from " + rns.PrettyHex(destHash))
+		fmt.Println(file + " fetched from " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Println("\n" + file + " fetched from " + rns.PrettyHex(destHash))
+		fmt.Println("\n" + file + " fetched from " + rns.PrettyHexRep(destHash))
 	}
 	link.Teardown()
 	time.Sleep(100 * time.Millisecond)
@@ -1111,8 +1111,8 @@ func loadAllowedIdentities(allowed multiString) error {
 	if allowedFile != "" {
 		data, err := os.ReadFile(allowedFile)
 		if err != nil {
-			// Python logs parsing errors but continues.
-			rns.Logf(rns.LogError, "Error while parsing allowed_identities file %s: %v", allowedFile, err)
+			rns.Log( // Python logs parsing errors but continues.
+				fmt.Sprintf("Error while parsing allowed_identities file %s: %v", allowedFile, err), rns.LogError)
 		} else {
 			lines := strings.Split(strings.ReplaceAll(string(data), "\r", ""), "\n")
 			var ali []string
@@ -1132,7 +1132,7 @@ func loadAllowedIdentities(allowed multiString) error {
 				if len(ali) == 1 {
 					ms = "y"
 				}
-				rns.Logf(rns.LogVerbose, "Loaded %d allowed identit%v from %s", len(ali), ms, allowedFile)
+				rns.Log(fmt.Sprintf("Loaded %d allowed identit%v from %s", len(ali), ms, allowedFile), rns.LogVerbose)
 			}
 		}
 	}
@@ -1169,7 +1169,7 @@ func loadOrCreateIdentity(identityPathRoot, identityPath string) (*rns.Identity,
 		if err == nil {
 			return id, nil
 		}
-		rns.Logf(rns.LogError, "Could not load identity for rncp. The identity file at %q may be corrupt or unreadable.", idPath)
+		rns.Log(fmt.Sprintf("Could not load identity for rncp. The identity file at %q may be corrupt or unreadable.", idPath), rns.LogError)
 		return nil, exitError{code: 2, err: errors.New("identity error")}
 	}
 	rns.Log("No valid saved identity found, creating new...", rns.LogInfo)

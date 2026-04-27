@@ -94,7 +94,7 @@ func main() {
 	}
 
 	if showVer {
-		fmt.Printf("%s %s\n", programName, rns.GetVersion())
+		fmt.Printf("%s %s\n", programName, rns.Version())
 		return
 	}
 
@@ -194,7 +194,7 @@ func programSetup(
 
 	if !rns.HasPath(destinationHash) {
 		rns.RequestPath(destinationHash, nil, nil, false)
-		fmt.Print("Path to " + rns.PrettyHex(destinationHash) + " requested  ")
+		fmt.Print("Path to " + rns.PrettyHexRep(destinationHash) + " requested  ")
 		os.Stdout.Sync()
 	}
 
@@ -255,7 +255,7 @@ func programSetup(
 		if moreOutput {
 			nh := ret.GetNextHop(destinationHash)
 			if nh != nil {
-				more = " via " + rns.PrettyHex(nh)
+				more = " via " + rns.PrettyHexRep(nh)
 			}
 			ifName := ret.GetNextHopIfName(destinationHash)
 			if ifName != "" && ifName != "None" {
@@ -263,7 +263,7 @@ func programSetup(
 			}
 		}
 
-		fmt.Printf("\rSent probe %d (%d bytes) to %s%s  ", sent, size, rns.PrettyHex(destinationHash), more)
+		fmt.Printf("\rSent probe %d (%d bytes) to %s%s  ", sent, size, rns.PrettyHexRep(destinationHash), more)
 		os.Stdout.Sync()
 
 		firstHopTimeout = ret.GetFirstHopTimeout(destinationHash)
@@ -328,7 +328,7 @@ func programSetup(
 
 				fmt.Printf(
 					"Valid reply from %s\nRound-trip time is %s over %d hop%s%s\n\n",
-					rns.PrettyHex(receipt.Destination.Hash),
+					rns.PrettyHexRep(receipt.Destination.Hash),
 					rttStr,
 					hops,
 					suffix,

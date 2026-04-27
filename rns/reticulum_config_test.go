@@ -2,17 +2,94 @@ package rns
 
 import (
 	"encoding/hex"
+	"math"
 	"strings"
 	"testing"
 
 	configobj "github.com/svanichkin/configobj"
+	cryptography "github.com/svanichkin/go-reticulum/rns/cryptography"
 )
 
 func TestReticulumApplyConfig_MTU(t *testing.T) {
 	maybeParallel(t)
 
 	prevMTU := MTU
-	t.Cleanup(func() { _ = SetMTU(prevMTU) })
+	t.Cleanup(func() {
+		mtuMu.Lock()
+		prevPlain := PacketPlainMDU
+		prevEncrypted := PacketEncryptedMDU
+		prevLink := LinkMDU
+		MTU = prevMTU
+		plain := MTU - HEADER_MAXSIZE - IFAC_MIN_SIZE
+		if plain < 0 {
+			plain = 0
+		}
+		link := func() int {
+			payload := MTU - IFAC_MIN_SIZE - HEADER_MINSIZE - cryptography.Overhead
+			if payload <= 0 {
+				return 0
+			}
+			blocks := payload / identityAESBlockSize
+			if blocks <= 0 {
+				return 0
+			}
+			return blocks*identityAESBlockSize - 1
+		}()
+		hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
+		encrypted := func() int {
+			usable := plain - cryptography.Overhead - (identityPubKeyLen / 2)
+			if usable <= 0 {
+				return 0
+			}
+			blocks := usable / identityAESBlockSize
+			if blocks <= 0 {
+				return 0
+			}
+			return blocks*identityAESBlockSize - 1
+		}()
+		MDU = plain
+		PacketMDU = plain
+		PacketPLAIN_MDU = plain
+		PacketENCRYPTED_MDU = encrypted
+		PacketPlainMDU = plain
+		PacketEncryptedMDU = encrypted
+		LinkMDU = link
+		HashmapMaxLen = hashLen
+		CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
+		if plain != prevPlain || encrypted != prevEncrypted || link != prevLink {
+			go func(prevPlain, newPlain, prevLink, newLink int) {
+				for _, dst := range Destinations {
+					if dst == nil {
+						continue
+					}
+					if dst.mtu == 0 || dst.mtu == prevPlain {
+						dst.mtu = newPlain
+					}
+				}
+				linkMu.Lock()
+				for _, l := range PendingLinks {
+					if l == nil {
+						continue
+					}
+					if prevLink == 0 || l.MTU == prevLink {
+						l.MTU = newLink
+						l.updateMDU()
+					}
+				}
+				for _, l := range ActiveLinks {
+					if l == nil {
+						continue
+					}
+					if prevLink == 0 || l.MTU == prevLink {
+						l.MTU = newLink
+						l.updateMDU()
+					}
+				}
+				linkMu.Unlock()
+			}(prevPlain, plain, prevLink, link)
+		}
+		mtuMu.Unlock()
+	})
 
 	cfg, err := configobj.LoadReader(strings.NewReader(strings.Join([]string{
 		"[reticulum]",

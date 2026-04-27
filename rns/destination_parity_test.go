@@ -75,11 +75,18 @@ func TestDestinationReloadRatchets_CorruptFileLogsRecoveryGuidance(t *testing.T)
 	}
 
 	var got []string
-	SetLogDestCallback(func(_ int, msg string) {
+	logMu.Lock()
+	logCallback = func(msg string) {
 		got = append(got, msg)
-	})
+	}
+	logDest = LogCallback
+	logMu.Unlock()
 	t.Cleanup(func() {
-		SetLogDestCallback(nil)
+		logMu.Lock()
+		logCallback = nil
+		logDest = LogStdout
+		alwaysOverrideDest = false
+		logMu.Unlock()
 	})
 
 	if err := d.reloadRatchets(path); err == nil {

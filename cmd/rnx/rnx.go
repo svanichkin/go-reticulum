@@ -170,7 +170,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Printf("rnx %s\n", rns.GetVersion())
+		fmt.Printf("rnx %s\n", rns.Version())
 		return
 	}
 
@@ -470,8 +470,8 @@ func listen(
 	}
 
 	if printIdentity {
-		fmt.Println("Identity     :", rns.PrettyHex(identity.Hash))
-		fmt.Println("Listening on :", rns.PrettyHex(dest.Hash))
+		fmt.Println("Identity     :", rns.PrettyHexRep(identity.Hash))
+		fmt.Println("Listening on :", rns.PrettyHexRep(dest.Hash))
 		return nil
 	}
 
@@ -502,7 +502,7 @@ func listen(
 	}
 
 	// Python uses RNS.log(..., level=3) by default (Notice).
-	rns.Log("rnx listening for commands on "+rns.PrettyHex(dest.Hash), rns.LogNotice)
+	rns.Log("rnx listening for commands on "+rns.PrettyHexRep(dest.Hash), rns.LogNotice)
 
 	if !disableAnnounce {
 		dest.Announce(nil, false, nil, nil, true)
@@ -527,9 +527,9 @@ func initiatorIdentified(l *rns.Link, id *rns.Identity) {
 	if id == nil {
 		return
 	}
-	rns.Log("Initiator "+l.String()+" identified as "+rns.PrettyHex(id.Hash), rns.LogInfo)
+	rns.Log("Initiator "+l.String()+" identified as "+rns.PrettyHexRep(id.Hash), rns.LogInfo)
 	if !allowAll && !inHashList(id.Hash, allowedIdentityHash) {
-		rns.Log("Identity "+rns.PrettyHex(id.Hash)+" not allowed, tearing down link", rns.LogInfo)
+		rns.Log("Identity "+rns.PrettyHexRep(id.Hash)+" not allowed, tearing down link", rns.LogInfo)
 		l.Teardown()
 	}
 }
@@ -571,7 +571,7 @@ func executeReceivedCommand(path string, data any, requestID []byte, _ []byte, r
 	command := string(cmdBytes)
 	var remoteIDStr string
 	if remoteIdentity != nil {
-		remoteIDStr = rns.PrettyHex(remoteIdentity.Hash)
+		remoteIDStr = rns.PrettyHexRep(remoteIdentity.Hash)
 	}
 	if remoteIDStr != "" {
 		rns.Log("Executing command ["+command+"] for "+remoteIDStr, rns.LogInfo)
@@ -581,7 +581,7 @@ func executeReceivedCommand(path string, data any, requestID []byte, _ []byte, r
 
 	cmdArgs, err := splitCommand(command)
 	if err != nil || len(cmdArgs) == 0 {
-		rns.Logf(rns.LogError, "Could not parse command %q: %v", command, err)
+		rns.Log(fmt.Sprintf("Could not parse command %q: %v", command, err), rns.LogError)
 		return result
 	}
 
@@ -601,7 +601,7 @@ func executeReceivedCommand(path string, data any, requestID []byte, _ []byte, r
 	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
-		rns.Logf(rns.LogError, "Could not start command %q: %v", command, err)
+		rns.Log(fmt.Sprintf("Could not start command %q: %v", command, err), rns.LogError)
 		return result
 	}
 	result[0] = true
@@ -696,7 +696,7 @@ func execute(
 	if !rns.HasPath(destHash) {
 		rns.RequestPath(destHash, nil, nil, false)
 		ok := spin(func() bool { return rns.HasPath(destHash) },
-			"Path to "+rns.PrettyHex(destHash)+" requested",
+			"Path to "+rns.PrettyHexRep(destHash)+" requested",
 			timeout)
 		if !ok {
 			fmt.Println("Path not found")
@@ -729,10 +729,10 @@ func execute(
 	}
 
 	ok := spin(func() bool { return link.Status == rns.LinkActive },
-		"Establishing link with "+rns.PrettyHex(destHash),
+		"Establishing link with "+rns.PrettyHexRep(destHash),
 		timeout)
 	if !ok {
-		fmt.Println("Could not establish link with " + rns.PrettyHex(destHash))
+		fmt.Println("Could not establish link with " + rns.PrettyHexRep(destHash))
 		os.Exit(243)
 	}
 

@@ -53,11 +53,11 @@ func main() {
 		fatalf("reticulum init failed: %v", err)
 	}
 	if traceMode {
-		rns.SetCompactLogFormat(true)
-		rns.SetLogLevel(rns.LOG_EXTREME)
+		rns.CompactLogFmt = true
+		rns.Loglevel = rns.LOG_EXTREME
 	} else {
-		rns.SetCompactLogFormat(true)
-		rns.SetLogLevel(-1)
+		rns.CompactLogFmt = true
+		rns.Loglevel = -1
 	}
 
 	id, err := loadOrCreateResourceIdentity(identityPath)

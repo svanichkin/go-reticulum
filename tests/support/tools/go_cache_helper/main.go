@@ -44,8 +44,8 @@ func main() {
 	if _, err := rns.NewReticulum(configPtr, &logLevel, nil, nil, false, nil); err != nil {
 		fatalf("reticulum init failed: %v", err)
 	}
-	rns.SetCompactLogFormat(true)
-	rns.SetLogLevel(rns.LOG_DEBUG)
+	rns.CompactLogFmt = true
+	rns.Loglevel = rns.LOG_DEBUG
 
 	id, err := loadOrCreateIdentity(identityPath)
 	if err != nil {

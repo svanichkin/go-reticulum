@@ -146,7 +146,7 @@ func main() {
 	flag.CommandLine.Parse(expandCountFlags(os.Args[1:]))
 
 	if showVersion {
-		fmt.Printf("rnid %s\n", rns.GetVersion())
+		fmt.Printf("rnid %s\n", rns.Version())
 		return
 	}
 
@@ -207,9 +207,9 @@ func main() {
 		rns.Log("Could not start Reticulum: "+err.Error(), rns.LogError)
 		rns.Exit(101)
 	}
-	rns.SetCompactLogFormat(true)
+	rns.CompactLogFmt = true
 	if useStdout {
-		rns.SetLogLevel(-1)
+		rns.Loglevel = -1
 	}
 
 	// generate a new identity
@@ -429,8 +429,8 @@ func doHash(id *rns.Identity, aspectsStr string) {
 		rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 		rns.Exit(32)
 	}
-	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash), rns.LogNotice)
-	rns.Log("The full destination specifier is "+rns.PrettyHex(dst.Hash), rns.LogNotice)
+	rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
+	rns.Log("The full destination specifier is "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
 	time.Sleep(250 * time.Millisecond)
 	rns.Exit(0)
 }
@@ -457,8 +457,8 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 			rns.Exit(32)
 		}
-		rns.Log("Created destination "+rns.PrettyHex(dst.Hash), rns.LogNotice)
-		rns.Log("Announcing destination "+rns.PrettyHash(dst.Hash), rns.LogNotice)
+		rns.Log("Created destination "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
+		rns.Log("Announcing destination "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
 		time.Sleep(1100 * time.Millisecond)
 		dst.Announce(nil, false, nil, nil, true)
 		time.Sleep(postAnnounceDelay)
@@ -469,8 +469,8 @@ func doAnnounce(id *rns.Identity, aspectsStr string) {
 			rns.Log("Could not create destination: "+err.Error(), rns.LogError)
 			rns.Exit(32)
 		}
-		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHash(dst.Hash), rns.LogNotice)
-		rns.Log("The full destination specifier is "+rns.PrettyHex(dst.Hash), rns.LogNotice)
+		rns.Log("The "+aspectsStr+" destination for this Identity is "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
+		rns.Log("The full destination specifier is "+rns.PrettyHexRep(dst.Hash), rns.LogNotice)
 		rns.Log("Cannot announce this destination, since the private key is not held", rns.LogWarning)
 		time.Sleep(250 * time.Millisecond)
 		rns.Exit(33)
@@ -497,14 +497,14 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 		}
 		if id == nil {
 			if !requestUnknown {
-				rns.Log("Could not recall Identity for "+rns.PrettyHash(b)+".", rns.LogError)
+				rns.Log("Could not recall Identity for "+rns.PrettyHexRep(b)+".", rns.LogError)
 				rns.Log("You can query the network for unknown Identities with the -R option.", rns.LogError)
 				rns.Exit(5)
 			}
 			rns.RequestPath(b, nil, nil, false)
 			ok := spin(func() bool {
 				return rns.IdentityRecall(b, false) != nil || rns.IdentityRecall(b, true) != nil
-			}, "Requesting unknown Identity for "+rns.PrettyHash(b), timeout)
+			}, "Requesting unknown Identity for "+rns.PrettyHexRep(b), timeout)
 			if !ok {
 				// The transport side may persist the announce just as the request
 				// timeout expires. Refresh the on-disk identity cache once before
@@ -515,7 +515,7 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 						id = rns.IdentityRecall(b, true)
 					}
 					if id != nil {
-						rns.Log("Received Identity "+id.String()+" for destination "+rns.PrettyHash(b), rns.LogInfo)
+						rns.Log("Received Identity "+id.String()+" for destination "+rns.PrettyHexRep(b), rns.LogInfo)
 						return id
 					}
 				}
@@ -526,10 +526,10 @@ func loadIdentity(arg string, requestUnknown bool, timeout time.Duration) *rns.I
 			if id == nil {
 				id = rns.IdentityRecall(b, true)
 			}
-			rns.Log("Received Identity "+id.String()+" for destination "+rns.PrettyHash(b), rns.LogInfo)
+			rns.Log("Received Identity "+id.String()+" for destination "+rns.PrettyHexRep(b), rns.LogInfo)
 		} else {
 			identStr := id.String()
-			hashStr := rns.PrettyHash(b)
+			hashStr := rns.PrettyHexRep(b)
 			if identStr == hashStr {
 				rns.Log("Recalled Identity "+identStr, rns.LogInfo)
 			} else {

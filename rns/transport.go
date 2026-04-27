@@ -391,7 +391,7 @@ func registerLink(l *Link) {
 	if l == nil {
 		return
 	}
-	Logf(LogExtreme, "Registering link %v", l)
+	Log(fmt.Sprintf("Registering link %v", l), LogExtreme)
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	if l.Initiator {
@@ -405,7 +405,7 @@ func activateLink(l *Link) {
 	if l == nil {
 		return
 	}
-	Logf(LogExtreme, "Activating link %v", l)
+	Log(fmt.Sprintf("Activating link %v", l), LogExtreme)
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	found := false
@@ -420,8 +420,8 @@ func activateLink(l *Link) {
 		return
 	}
 	if l.Status != LinkActive {
-		// Python parity: raise IOError rather than panic for invalid link state.
-		Logf(LogError, "Invalid link state for link activation: %d", l.Status)
+		Log( // Python parity: raise IOError rather than panic for invalid link state.
+			fmt.Sprintf("Invalid link state for link activation: %d", l.Status), LogError)
 		return
 	}
 	for i, existing := range PendingLinks {
@@ -460,7 +460,7 @@ func DetachInterfaces() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "An error occurred while detaching %s. The contained exception was: %v", ifc, r)
+					Log(fmt.Sprintf("An error occurred while detaching %s. The contained exception was: %v", ifc, r), LogError)
 				}
 			}()
 			switch {
@@ -473,7 +473,7 @@ func DetachInterfaces() {
 				detachThreads = append(detachThreads, wgDone)
 				go func(interfaceToDetach *Interface, done chan struct{}) {
 					defer close(done)
-					Logf(LogExtreme, "Detaching %s", interfaceToDetach)
+					Log(fmt.Sprintf("Detaching %s", interfaceToDetach), LogExtreme)
 					interfaceToDetach.Detach()
 				}(ifc, wgDone)
 			}
@@ -667,7 +667,7 @@ func Start(owner *Reticulum) {
 		if st, err := os.Stat(packetHashlistPath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(packetHashlistPath)
 			if err != nil {
-				Logf(LogError, "Could not load packet hashlist from storage: %v", err)
+				Log(fmt.Sprintf("Could not load packet hashlist from storage: %v", err), LogError)
 			} else {
 				var hashes [][]byte
 				if err := umsgpack.Unpackb(data, &hashes); err != nil {
@@ -676,10 +676,10 @@ func Start(owner *Reticulum) {
 						if renameErr := os.Rename(packetHashlistPath, backupPath); renameErr != nil {
 							_ = os.Remove(packetHashlistPath)
 						} else {
-							Logf(LogWarning, "Packet hashlist storage was truncated; moved to %s", backupPath)
+							Log(fmt.Sprintf("Packet hashlist storage was truncated; moved to %s", backupPath), LogWarning)
 						}
 					} else {
-						Logf(LogError, "Could not decode packet hashlist from storage: %v", err)
+						Log(fmt.Sprintf("Could not decode packet hashlist from storage: %v", err), LogError)
 					}
 				} else {
 					packetHashMu.Lock()
@@ -707,7 +707,7 @@ func Start(owner *Reticulum) {
 		controlHashes[string(pathRequestDest.Hash)] = struct{}{}
 		controlHashesMu.Unlock()
 	} else {
-		Logf(LogError, "Could not create path request destination: %v", err)
+		Log(fmt.Sprintf("Could not create path request destination: %v", err), LogError)
 	}
 
 	dest, err = NewDestination(nil, DestinationIN, DestinationPLAIN, "rnstransport", "tunnel", "synthesize")
@@ -719,7 +719,7 @@ func Start(owner *Reticulum) {
 		controlHashes[string(tunnelSynthesizeDest.Hash)] = struct{}{}
 		controlHashesMu.Unlock()
 	} else {
-		Logf(LogError, "Could not create tunnel synthesize destination: %v", err)
+		Log(fmt.Sprintf("Could not create tunnel synthesize destination: %v", err), LogError)
 	}
 
 	remoteManagementActive = false
@@ -727,7 +727,7 @@ func Start(owner *Reticulum) {
 		if remoteManagementDest == nil {
 			dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, "rnstransport", "remote", "management")
 			if err != nil {
-				Logf(LogError, "Could not create remote management destination: %v", err)
+				Log(fmt.Sprintf("Could not create remote management destination: %v", err), LogError)
 			} else {
 				remoteManagementDest = dest
 			}
@@ -741,13 +741,13 @@ func Start(owner *Reticulum) {
 			remoteManagementAllowedMu.RUnlock()
 
 			if err := remoteManagementDest.RegisterRequestHandler("/status", remoteStatusHandler, DestinationALLOW_LIST, allowed); err != nil {
-				Logf(LogError, "Could not register remote status handler: %v", err)
+				Log(fmt.Sprintf("Could not register remote status handler: %v", err), LogError)
 			} else if err := remoteManagementDest.RegisterRequestHandler("/path", remotePathHandler, DestinationALLOW_LIST, allowed); err != nil {
-				Logf(LogError, "Could not register remote path handler: %v", err)
+				Log(fmt.Sprintf("Could not register remote path handler: %v", err), LogError)
 				remoteManagementDest.DeregisterRequestHandler("/status")
 			} else {
 				mgmtHashes = append(mgmtHashes, append([]byte(nil), remoteManagementDest.Hash...))
-				Logf(LogNotice, "Enabled remote management on %s", str(remoteManagementDest))
+				Log(fmt.Sprintf("Enabled remote management on %s", str(remoteManagementDest)), LogNotice)
 				remoteManagementActive = true
 			}
 		}
@@ -762,18 +762,18 @@ func Start(owner *Reticulum) {
 		if blackholeDestination == nil {
 			dest, err := NewDestination(TransportIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "info", "blackhole")
 			if err != nil {
-				Logf(LogError, "Could not create blackhole destination: %v", err)
+				Log(fmt.Sprintf("Could not create blackhole destination: %v", err), LogError)
 			} else {
 				blackholeDestination = dest
 			}
 		}
 		if blackholeDestination != nil {
 			if err := blackholeDestination.RegisterRequestHandler("/list", blackholeListHandler, DestinationALLOW_ALL, nil); err != nil {
-				Logf(LogError, "Could not register blackhole list handler: %v", err)
+				Log(fmt.Sprintf("Could not register blackhole list handler: %v", err), LogError)
 			} else {
 				mgmtHashes = append(mgmtHashes, append([]byte(nil), blackholeDestination.Hash...))
 				if TransportIdentity != nil {
-					Logf(LogNotice, "Enabled blackhole list publishing for transport identity %s", PrettyHexRep(TransportIdentity.Hash))
+					Log(fmt.Sprintf("Enabled blackhole list publishing for transport identity %s", PrettyHexRep(TransportIdentity.Hash)), LogNotice)
 				}
 			}
 		}
@@ -783,7 +783,7 @@ func Start(owner *Reticulum) {
 		if instanceDestination == nil {
 			dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network", "instance", strings.ToLower(hex.EncodeToString(NetworkIdentity.Hash)))
 			if err != nil {
-				Logf(LogError, "Could not create network instance destination: %v", err)
+				Log(fmt.Sprintf("Could not create network instance destination: %v", err), LogError)
 			} else {
 				instanceDestination = dest
 			}
@@ -791,7 +791,7 @@ func Start(owner *Reticulum) {
 		if networkDestination == nil {
 			dest, err := NewDestination(NetworkIdentity, DestinationIN, DestinationSINGLE, TransportAppName, "network")
 			if err != nil {
-				Logf(LogError, "Could not create network destination: %v", err)
+				Log(fmt.Sprintf("Could not create network destination: %v", err), LogError)
 			} else {
 				networkDestination = dest
 			}
@@ -817,7 +817,7 @@ func Start(owner *Reticulum) {
 		if st, err := os.Stat(pathTablePath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(pathTablePath)
 			if err != nil {
-				Logf(LogError, "Could not load destination table from storage: %v", err)
+				Log(fmt.Sprintf("Could not load destination table from storage: %v", err), LogError)
 			} else {
 				var rawEntries [][]any
 				if err := umsgpack.Unpackb(data, &rawEntries); err != nil {
@@ -826,10 +826,10 @@ func Start(owner *Reticulum) {
 						if renameErr := os.Rename(pathTablePath, backupPath); renameErr != nil {
 							_ = os.Remove(pathTablePath)
 						} else {
-							Logf(LogWarning, "Destination table storage was truncated; moved to %s", backupPath)
+							Log(fmt.Sprintf("Destination table storage was truncated; moved to %s", backupPath), LogWarning)
 						}
 					} else {
-						Logf(LogError, "Could not decode destination table from storage: %v", err)
+						Log(fmt.Sprintf("Could not decode destination table from storage: %v", err), LogError)
 					}
 				} else {
 					loaded := 0
@@ -959,10 +959,10 @@ func Start(owner *Reticulum) {
 							pathTableMu.Lock()
 							pathTable[key] = entry
 							pathTableMu.Unlock()
-							Logf(LogDebug, "Loaded path table entry for %s from storage", PrettyHexRep(dst))
+							Log(fmt.Sprintf("Loaded path table entry for %s from storage", PrettyHexRep(dst)), LogDebug)
 							loaded++
 						} else {
-							Logf(LogDebug, "Could not reconstruct path table entry from storage for %s", PrettyHexRep(dst))
+							Log(fmt.Sprintf("Could not reconstruct path table entry from storage for %s", PrettyHexRep(dst)), LogDebug)
 							if announce == nil {
 								Log("The announce packet could not be loaded from cache", LogDebug)
 							}
@@ -981,7 +981,7 @@ func Start(owner *Reticulum) {
 					if pathCount == 1 {
 						specifier = "entry"
 					}
-					Logf(LogVerbose, "Loaded %d path table %s from storage", pathCount, specifier)
+					Log(fmt.Sprintf("Loaded %d path table %s from storage", pathCount, specifier), LogVerbose)
 				}
 			}
 		}
@@ -990,7 +990,7 @@ func Start(owner *Reticulum) {
 		if st, err := os.Stat(tunnelTablePath); err == nil && !st.IsDir() {
 			data, err := os.ReadFile(tunnelTablePath)
 			if err != nil {
-				Logf(LogError, "Could not load tunnel table from storage: %v", err)
+				Log(fmt.Sprintf("Could not load tunnel table from storage: %v", err), LogError)
 			} else {
 				var rawTunnels []any
 				if err := umsgpack.Unpackb(data, &rawTunnels); err != nil {
@@ -999,10 +999,10 @@ func Start(owner *Reticulum) {
 						if renameErr := os.Rename(tunnelTablePath, backupPath); renameErr != nil {
 							_ = os.Remove(tunnelTablePath)
 						} else {
-							Logf(LogWarning, "Tunnel table storage was truncated; moved to %s", backupPath)
+							Log(fmt.Sprintf("Tunnel table storage was truncated; moved to %s", backupPath), LogWarning)
 						}
 					} else {
-						Logf(LogError, "Could not decode tunnel table from storage: %v", err)
+						Log(fmt.Sprintf("Could not decode tunnel table from storage: %v", err), LogError)
 					}
 				} else {
 					loaded := 0
@@ -1163,7 +1163,7 @@ func Start(owner *Reticulum) {
 					if tunnelCount == 1 {
 						specifier = "entry"
 					}
-					Logf(LogVerbose, "Loaded %d tunnel table %s from storage", tunnelCount, specifier)
+					Log(fmt.Sprintf("Loaded %d tunnel table %s from storage", tunnelCount, specifier), LogVerbose)
 				}
 			}
 		}
@@ -1175,13 +1175,13 @@ func Start(owner *Reticulum) {
 			if err == nil {
 				ProbeDestination = dest
 			} else {
-				Logf(LogError, "Could not create probe destination: %v", err)
+				Log(fmt.Sprintf("Could not create probe destination: %v", err), LogError)
 			}
 		}
 		if ProbeDestination != nil {
 			ProbeDestination.AcceptsLinks(false)
 			ProbeDestination.SetProofStrategy(DestinationPROVE_ALL)
-			Logf(LogNotice, "Transport Instance will respond to probe requests on %s", str(ProbeDestination))
+			Log(fmt.Sprintf("Transport Instance will respond to probe requests on %s", str(ProbeDestination)), LogNotice)
 		}
 	} else if ProbeDestination != nil {
 		DeregisterDestination(ProbeDestination)
@@ -1206,7 +1206,7 @@ func Start(owner *Reticulum) {
 	}
 	if TransportEnabled() {
 		if TransportIdentity != nil {
-			Logf(LogVerbose, "Transport instance %s started", TransportIdentity)
+			Log(fmt.Sprintf("Transport instance %s started", TransportIdentity), LogVerbose)
 		}
 		StartTime = time.Now()
 	}
@@ -1256,7 +1256,7 @@ func reloadBlackhole() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, r)
+					Log(fmt.Sprintf("Could not load blackholed identities from source file %s: %v", name, r), LogError)
 				}
 			}()
 			var sourceIdentityHash []byte
@@ -1268,7 +1268,7 @@ func reloadBlackhole() {
 			} else {
 				if len(name) != truncatedHashBytes*2 {
 					err := fmt.Errorf("Identity hash length for blackhole source %s is invalid", name)
-					Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+					Log(fmt.Sprintf("Could not load blackholed identities from source file %s: %v", name, err), LogError)
 					TraceException(err)
 					return
 				}
@@ -1277,7 +1277,7 @@ func reloadBlackhole() {
 					if err == nil {
 						err = fmt.Errorf("Identity hash length for blackhole source %s is invalid", name)
 					}
-					Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+					Log(fmt.Sprintf("Could not load blackholed identities from source file %s: %v", name, err), LogError)
 					TraceException(err)
 					return
 				}
@@ -1289,7 +1289,7 @@ func reloadBlackhole() {
 					}
 				}
 				if !enabled {
-					Logf(LogVerbose, "Skipping disabled blackhole source %s", PrettyHexRep(decoded))
+					Log(fmt.Sprintf("Skipping disabled blackhole source %s", PrettyHexRep(decoded)), LogVerbose)
 					return
 				}
 				sourceIdentityHash = decoded
@@ -1298,13 +1298,13 @@ func reloadBlackhole() {
 			path := filepath.Join(basePath, name)
 			packed, err := os.ReadFile(path)
 			if err != nil {
-				Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+				Log(fmt.Sprintf("Could not load blackholed identities from source file %s: %v", name, err), LogError)
 				TraceException(err)
 				return
 			}
 			raw := map[any]any{}
 			if err := umsgpack.Unpackb(packed, &raw); err != nil {
-				Logf(LogError, "Could not load blackholed identities from source file %s: %v", name, err)
+				Log(fmt.Sprintf("Could not load blackholed identities from source file %s: %v", name, err), LogError)
 				TraceException(err)
 				return
 			}
@@ -1409,7 +1409,7 @@ func removeBlackholedPaths() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Error while enumerating blackhole-associated destinations: %v", r)
+					Log(fmt.Sprintf("Error while enumerating blackhole-associated destinations: %v", r), LogError)
 				}
 			}()
 			identity := IdentityRecall(key[:])
@@ -1441,7 +1441,7 @@ func removeBlackholedPaths() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Error while dropping blackhole-associated destination from path table: %v", r)
+					Log(fmt.Sprintf("Error while dropping blackhole-associated destination from path table: %v", r), LogError)
 				}
 			}()
 			delete(pathTable, key)
@@ -1452,13 +1452,13 @@ func removeBlackholedPaths() {
 	if len(drop) != 1 {
 		ms = "s"
 	}
-	Logf(LogInfo, "Removed %d destination%s associated with blackholed identities from path table", len(drop), ms)
+	Log(fmt.Sprintf("Removed %d destination%s associated with blackholed identities from path table", len(drop), ms), LogInfo)
 }
 
 func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) (result any) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while blackholing identity: %v", r)
+			Log(fmt.Sprintf("Error while blackholing identity: %v", r), LogError)
 			result = false
 		}
 	}()
@@ -1494,14 +1494,14 @@ func BlackholeIdentity(identityHash []byte, until *time.Time, reason *string) (r
 
 	persistBlackhole()
 	removeBlackholedPaths()
-	Logf(LogInfo, "Blackholed identity %s", PrettyHexRep(identityHash))
+	Log(fmt.Sprintf("Blackholed identity %s", PrettyHexRep(identityHash)), LogInfo)
 	return true
 }
 
 func UnblackholeIdentity(identityHash []byte) (result any) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while unblackholing identity: %v", r)
+			Log(fmt.Sprintf("Error while unblackholing identity: %v", r), LogError)
 			result = false
 		}
 	}()
@@ -1526,7 +1526,7 @@ func UnblackholeIdentity(identityHash []byte) (result any) {
 	blackholeMu.Unlock()
 
 	persistBlackhole()
-	Logf(LogInfo, "Lifted blackhole for identity %s", PrettyHexRep(identityHash))
+	Log(fmt.Sprintf("Lifted blackhole for identity %s", PrettyHexRep(identityHash)), LogInfo)
 	return true
 }
 
@@ -1534,7 +1534,7 @@ func persistBlackhole() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%v", r)
-			Logf(LogError, "Error while persisting blackhole list: %v", err)
+			Log(fmt.Sprintf("Error while persisting blackhole list: %v", err), LogError)
 			TraceException(err)
 		}
 	}()
@@ -1557,7 +1557,7 @@ func persistBlackhole() {
 	blackholeMu.RUnlock()
 	packed, err := umsgpack.Packb(localBlackhole)
 	if err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		Log(fmt.Sprintf("Error while persisting blackhole list: %v", err), LogError)
 		TraceException(err)
 		return
 	}
@@ -1567,7 +1567,7 @@ func persistBlackhole() {
 	localPath := filepath.Join(Owner.StoragePath, "blackhole", "local")
 	tmpPath := localPath + ".tmp"
 	if err := os.WriteFile(tmpPath, packed, 0o600); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		Log(fmt.Sprintf("Error while persisting blackhole list: %v", err), LogError)
 		TraceException(err)
 		return
 	}
@@ -1575,7 +1575,7 @@ func persistBlackhole() {
 		_ = os.Remove(localPath)
 	}
 	if err := os.Rename(tmpPath, localPath); err != nil {
-		Logf(LogError, "Error while persisting blackhole list: %v", err)
+		Log(fmt.Sprintf("Error while persisting blackhole list: %v", err), LogError)
 		TraceException(err)
 		return
 	}
@@ -1584,8 +1584,8 @@ func persistBlackhole() {
 func blackholeListHandler(_ string, _ any, _ []byte, _ []byte, remoteIdentity *Identity, _ time.Time) (result any) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "An error occurred while processing blackhole list request from %v", remoteIdentity)
-			Logf(LogError, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("An error occurred while processing blackhole list request from %v", remoteIdentity), LogError)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogError)
 			result = nil
 		}
 	}()
@@ -1631,7 +1631,7 @@ func savePacketHashlist() {
 		packetHashlistSaveMu.Unlock()
 		time.Sleep(waitInterval)
 		if time.Since(waitStart) > waitTimeout {
-			Logf(LogError, "Could not save packet hashlist to storage, waiting for previous save operation timed out.")
+			Log(fmt.Sprintf("Could not save packet hashlist to storage, waiting for previous save operation timed out."), LogError)
 			return
 		}
 	}
@@ -1644,7 +1644,7 @@ func savePacketHashlist() {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				Logf(LogError, "Could not save packet hashlist to storage, the contained exception was: %v", r)
+				Log(fmt.Sprintf("Could not save packet hashlist to storage, the contained exception was: %v", r), LogError)
 			}
 		}()
 
@@ -1656,7 +1656,7 @@ func savePacketHashlist() {
 			PacketHashSet2 = make(map[hashKey]struct{})
 			packetHashMu.Unlock()
 		} else {
-			Logf(LogDebug, "Saving packet hashlist to storage...")
+			Log(fmt.Sprintf("Saving packet hashlist to storage..."), LogDebug)
 		}
 
 		packetHashMu.RLock()
@@ -1670,12 +1670,12 @@ func savePacketHashlist() {
 
 		buf, err := umsgpack.Packb(hashes)
 		if err != nil {
-			Logf(LogError, "Could not save packet hashlist to storage, the contained exception was: %v", err)
+			Log(fmt.Sprintf("Could not save packet hashlist to storage, the contained exception was: %v", err), LogError)
 			return
 		}
 		path := filepath.Join(Owner.StoragePath, "packet_hashlist")
 		if err := os.WriteFile(path, buf, 0o600); err != nil {
-			Logf(LogError, "Could not save packet hashlist to storage, the contained exception was: %v", err)
+			Log(fmt.Sprintf("Could not save packet hashlist to storage, the contained exception was: %v", err), LogError)
 			return
 		}
 
@@ -1686,7 +1686,7 @@ func savePacketHashlist() {
 		} else {
 			timeStr = fmt.Sprintf("%.2fs", saveTime.Seconds())
 		}
-		Logf(LogDebug, "Saved packet hashlist in %s", timeStr)
+		Log(fmt.Sprintf("Saved packet hashlist in %s", timeStr), LogDebug)
 	}()
 }
 
@@ -1711,7 +1711,7 @@ func SavePathTable() {
 				break
 			}
 			if time.Since(start) > waitTimeout {
-				Logf(LogError, "Could not save path table to storage, waiting for previous save operation timed out.")
+				Log(fmt.Sprintf("Could not save path table to storage, waiting for previous save operation timed out."), LogError)
 				return
 			}
 		}
@@ -1730,13 +1730,13 @@ func SavePathTable() {
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("%v", r)
-				Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
+				Log(fmt.Sprintf("Could not save path table to storage, the contained exception was: %v", err), LogError)
 				TraceException(err)
 			}
 		}()
 
 		saveStart := time.Now()
-		Logf(LogDebug, "Saving path table to storage...")
+		Log(fmt.Sprintf("Saving path table to storage..."), LogDebug)
 
 		// Take a snapshot of the path table.
 		pathTableMu.RLock()
@@ -1753,7 +1753,7 @@ func SavePathTable() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						Logf(LogError, "Skipping persist for path table entry due to error: %v", r)
+						Log(fmt.Sprintf("Skipping persist for path table entry due to error: %v", r), LogError)
 					}
 				}()
 				if entry == nil {
@@ -1799,12 +1799,12 @@ func SavePathTable() {
 
 		buf, err := umsgpack.Packb(entries)
 		if err != nil {
-			Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
+			Log(fmt.Sprintf("Could not save path table to storage, the contained exception was: %v", err), LogError)
 			return
 		}
 		path := filepath.Join(Owner.StoragePath, "destination_table")
 		if err := os.WriteFile(path, buf, 0o600); err != nil {
-			Logf(LogError, "Could not save path table to storage, the contained exception was: %v", err)
+			Log(fmt.Sprintf("Could not save path table to storage, the contained exception was: %v", err), LogError)
 			return
 		}
 
@@ -1815,7 +1815,7 @@ func SavePathTable() {
 		} else {
 			timeStr = fmt.Sprintf("%.2fs", saveTime.Seconds())
 		}
-		Logf(LogDebug, "Saved %d path table entries in %s", len(entries), timeStr)
+		Log(fmt.Sprintf("Saved %d path table entries in %s", len(entries), timeStr), LogDebug)
 	}()
 }
 
@@ -1825,7 +1825,7 @@ func saveTunnelTable() {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", r)
+			Log(fmt.Sprintf("Could not save tunnel table to storage, the contained exception was: %v", r), LogError)
 		}
 	}()
 	// Python parity: serialize concurrent saves via a flag with a bounded wait.
@@ -1844,7 +1844,7 @@ func saveTunnelTable() {
 				break
 			}
 			if time.Since(start) > waitTimeout {
-				Logf(LogError, "Could not save tunnel table to storage, waiting for previous save operation timed out.")
+				Log(fmt.Sprintf("Could not save tunnel table to storage, waiting for previous save operation timed out."), LogError)
 				return
 			}
 		}
@@ -1860,7 +1860,7 @@ func saveTunnelTable() {
 	}()
 
 	saveStart := time.Now()
-	Logf(LogDebug, "Saving tunnel table to storage...")
+	Log(fmt.Sprintf("Saving tunnel table to storage..."), LogDebug)
 
 	now := time.Now()
 	serialised := make([][]any, 0)
@@ -1922,12 +1922,12 @@ func saveTunnelTable() {
 
 	buf, err := umsgpack.Packb(serialised)
 	if err != nil {
-		Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", err)
+		Log(fmt.Sprintf("Could not save tunnel table to storage, the contained exception was: %v", err), LogError)
 		return
 	}
 	path := filepath.Join(Owner.StoragePath, "tunnels")
 	if err := os.WriteFile(path, buf, 0o600); err != nil {
-		Logf(LogError, "Could not save tunnel table to storage, the contained exception was: %v", err)
+		Log(fmt.Sprintf("Could not save tunnel table to storage, the contained exception was: %v", err), LogError)
 		return
 	}
 
@@ -1938,7 +1938,7 @@ func saveTunnelTable() {
 	} else {
 		timeStr = fmt.Sprintf("%.2fs", saveTime.Seconds())
 	}
-	Logf(LogDebug, "Saved %d tunnel table entries in %s", len(serialised), timeStr)
+	Log(fmt.Sprintf("Saved %d tunnel table entries in %s", len(serialised), timeStr), LogDebug)
 }
 
 // -------- prioritisation and traffic counters --------
@@ -1946,7 +1946,7 @@ func saveTunnelTable() {
 func PrioritizeInterfaces() {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Could not prioritize interfaces according to bitrate. The contained exception was: %v", r)
+			Log(fmt.Sprintf("Could not prioritize interfaces according to bitrate. The contained exception was: %v", r), LogError)
 		}
 	}()
 
@@ -1964,7 +1964,7 @@ func CountTrafficLoop() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "An error occurred while counting interface traffic: %v", r)
+					Log(fmt.Sprintf("An error occurred while counting interface traffic: %v", r), LogError)
 				}
 			}()
 
@@ -2086,8 +2086,8 @@ func Jobs() {
 	}()
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "An exception occurred while running Transport jobs.")
-			Logf(LogError, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("An exception occurred while running Transport jobs."), LogError)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogError)
 		}
 	}()
 	shouldGC := false
@@ -2125,7 +2125,7 @@ func Jobs() {
 								lastRequest, hasLast := lastPathRequest[key]
 								pathRequestMu.Unlock()
 								if !hasLast || lastRequest.IsZero() || nowLinks.Sub(lastRequest) > pathRequestMinInterval {
-									Logf(LogDebug, "Trying to rediscover path for %s since an attempted link was never established", PrettyHexRep(destHash))
+									Log(fmt.Sprintf("Trying to rediscover path for %s since an attempted link was never established", PrettyHexRep(destHash)), LogDebug)
 									if pathRequests != nil {
 										if _, exists := pathRequests[key]; !exists {
 											pathRequests[key] = nil
@@ -2194,12 +2194,12 @@ func Jobs() {
 			}
 			// Python parity: check local rebroadcast limit first, then global retry limit.
 			if entry.Retries > 0 && entry.Retries >= localRebroadcastsMax {
-				Logf(LogExtreme, "Completed announce processing for %s, local rebroadcast limit reached", PrettyHash(entry.Packet.DestinationHash))
+				Log(fmt.Sprintf("Completed announce processing for %s, local rebroadcast limit reached", PrettyHexRep(entry.Packet.DestinationHash)), LogExtreme)
 				delete(announceTable, key)
 				continue
 			}
 			if entry.Retries > pathfinderRetryLimit {
-				Logf(LogExtreme, "Completed announce processing for %s, retry limit reached", PrettyHash(entry.Packet.DestinationHash))
+				Log(fmt.Sprintf("Completed announce processing for %s, retry limit reached", PrettyHexRep(entry.Packet.DestinationHash)), LogExtreme)
 				delete(announceTable, key)
 				continue
 			}
@@ -2241,16 +2241,16 @@ func Jobs() {
 			send.DestinationHash = append([]byte(nil), entry.Packet.DestinationHash...)
 			send.DestinationType = byte(DestinationSINGLE)
 			if entry.BlockRebroadcasts {
-				Logf(LogDebug, "Rebroadcasting announce as path response for %s with hop count %d", PrettyHexRep(entry.Packet.DestinationHash), send.Hops)
+				Log(fmt.Sprintf("Rebroadcasting announce as path response for %s with hop count %d", PrettyHexRep(entry.Packet.DestinationHash), send.Hops), LogDebug)
 			} else {
-				Logf(LogDebug, "Rebroadcasting announce for %s with hop count %d", PrettyHexRep(entry.Packet.DestinationHash), send.Hops)
+				Log(fmt.Sprintf("Rebroadcasting announce for %s with hop count %d", PrettyHexRep(entry.Packet.DestinationHash), send.Hops), LogDebug)
 			}
 			outgoing = append(outgoing, send)
 			if held := heldAnnounces[key]; held != nil {
 				delete(heldAnnounces, key)
 				if held.Entry != nil {
 					announceTable[key] = held.Entry
-					Logf(LogDebug, "Reinserting held announce into table")
+					Log(fmt.Sprintf("Reinserting held announce into table"), LogDebug)
 					continue
 				}
 			}
@@ -2295,7 +2295,7 @@ func Jobs() {
 		staleDiscovery := make([]hashKey, 0)
 		for key, entry := range discoveryPathRequests {
 			if entry == nil || (!entry.Timeout.IsZero() && !now.Before(entry.Timeout)) {
-				Logf(LogDebug, "Waiting path request for %s timed out and was removed", PrettyHexRep(key[:]))
+				Log(fmt.Sprintf("Waiting path request for %s timed out and was removed", PrettyHexRep(key[:])), LogDebug)
 				staleDiscovery = append(staleDiscovery, key)
 			}
 		}
@@ -2306,9 +2306,9 @@ func Jobs() {
 		discoveryPathRequestsMu.Unlock()
 		if removed > 0 {
 			if removed == 1 {
-				Logf(LogExtreme, "Removed %d waiting path request", removed)
+				Log(fmt.Sprintf("Removed %d waiting path request", removed), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Removed %d waiting path requests", removed)
+				Log(fmt.Sprintf("Removed %d waiting path requests", removed), LogExtreme)
 			}
 		}
 		pendingPRsLastChecked = now
@@ -2338,7 +2338,7 @@ func Jobs() {
 			}
 			// Python parity: remove expired tunnels.
 			if !te.ExpiresAt.IsZero() && now.After(te.ExpiresAt) {
-				Logf(LogExtreme, "Tunnel %s timed out and was removed", PrettyHexRep([]byte(key)))
+				Log(fmt.Sprintf("Tunnel %s timed out and was removed", PrettyHexRep([]byte(key))), LogExtreme)
 				delete(tunnels, key)
 				removedTunnels++
 				continue
@@ -2354,7 +2354,7 @@ func Jobs() {
 					}
 				}
 				if !present {
-					Logf(LogExtreme, "Removing non-existent tunnel interface %v", te.Interface)
+					Log(fmt.Sprintf("Removing non-existent tunnel interface %v", te.Interface), LogExtreme)
 					te.Interface = nil
 					tunnels[key] = te
 				}
@@ -2364,7 +2364,7 @@ func Jobs() {
 			if te.Paths != nil {
 				for dstKey, pe := range te.Paths {
 					if pe != nil && !pe.Timestamp.IsZero() && now.Sub(pe.Timestamp) > pathExpiration {
-						Logf(LogExtreme, "Tunnel path to %s timed out and was removed", PrettyHexRep([]byte(dstKey)))
+						Log(fmt.Sprintf("Tunnel path to %s timed out and was removed", PrettyHexRep([]byte(dstKey))), LogExtreme)
 						delete(te.Paths, dstKey)
 						staleTunnelPaths++
 					}
@@ -2373,13 +2373,13 @@ func Jobs() {
 		}
 		tunnelsMu.Unlock()
 		if removedTunnels > 0 {
-			Logf(LogExtreme, "Removed %d tunnels", removedTunnels)
+			Log(fmt.Sprintf("Removed %d tunnels", removedTunnels), LogExtreme)
 		}
 		if staleTunnelPaths > 0 {
 			if staleTunnelPaths == 1 {
-				Logf(LogExtreme, "Removed %d tunnel path", staleTunnelPaths)
+				Log(fmt.Sprintf("Removed %d tunnel path", staleTunnelPaths), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Removed %d tunnel paths", staleTunnelPaths)
+				Log(fmt.Sprintf("Removed %d tunnel paths", staleTunnelPaths), LogExtreme)
 			}
 		}
 		removed := false
@@ -2433,9 +2433,9 @@ func Jobs() {
 		reverseTableMu.Unlock()
 		if reverseRemovedN > 0 {
 			if reverseRemovedN == 1 {
-				Logf(LogExtreme, "Released 1 reverse table entry")
+				Log(fmt.Sprintf("Released 1 reverse table entry"), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Released %d reverse table entries", reverseRemovedN)
+				Log(fmt.Sprintf("Released %d reverse table entries", reverseRemovedN), LogExtreme)
 			}
 		}
 
@@ -2512,20 +2512,20 @@ func Jobs() {
 
 					switch {
 					case !HasPath(entry.DestinationHash):
-						Logf(LogDebug, "Trying to rediscover path for %s since an attempted link was never established, and path is now missing", PrettyHexRep(entry.DestinationHash))
+						Log(fmt.Sprintf("Trying to rediscover path for %s since an attempted link was never established, and path is now missing", PrettyHexRep(entry.DestinationHash)), LogDebug)
 						pathRequestConditions = true
 					case !pathRequestThrottle && entry.Hops == 0:
-						Logf(LogDebug, "Trying to rediscover path for %s since an attempted local client link was never established", PrettyHexRep(entry.DestinationHash))
+						Log(fmt.Sprintf("Trying to rediscover path for %s since an attempted local client link was never established", PrettyHexRep(entry.DestinationHash)), LogDebug)
 						pathRequestConditions = true
 					case !pathRequestThrottle && HopsTo(entry.DestinationHash) == 1:
-						Logf(LogDebug, "Trying to rediscover path for %s since an attempted link was never established, and destination was previously local to an interface on this instance", PrettyHexRep(entry.DestinationHash))
+						Log(fmt.Sprintf("Trying to rediscover path for %s since an attempted link was never established, and destination was previously local to an interface on this instance", PrettyHexRep(entry.DestinationHash)), LogDebug)
 						pathRequestConditions = true
 						blockedIf = entry.ReceivedInterface
 						if TransportEnabled() && entry.ReceivedInterface != nil && entry.ReceivedInterface.Mode != InterfaceModeBoundary {
 							MarkPathUnresponsive(entry.DestinationHash)
 						}
 					case !pathRequestThrottle && entry.Hops == 1:
-						Logf(LogDebug, "Trying to rediscover path for %s since an attempted link was never established, and link initiator is local to an interface on this instance", PrettyHexRep(entry.DestinationHash))
+						Log(fmt.Sprintf("Trying to rediscover path for %s since an attempted link was never established, and link initiator is local to an interface on this instance", PrettyHexRep(entry.DestinationHash)), LogDebug)
 						pathRequestConditions = true
 						blockedIf = entry.ReceivedInterface
 						if TransportEnabled() && entry.ReceivedInterface != nil && entry.ReceivedInterface.Mode != InterfaceModeBoundary {
@@ -2566,9 +2566,9 @@ func Jobs() {
 		}
 		if linkRemovedN > 0 {
 			if linkRemovedN == 1 {
-				Logf(LogExtreme, "Released 1 link")
+				Log(fmt.Sprintf("Released 1 link"), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Released %d links", linkRemovedN)
+				Log(fmt.Sprintf("Released %d links", linkRemovedN), LogExtreme)
 			}
 		}
 		pathTableMu.Lock()
@@ -2603,7 +2603,7 @@ func Jobs() {
 				expires = entry.ExpiresAt
 			}
 			if !expires.IsZero() && expires.Before(now) {
-				Logf(LogDebug, "Path to %s timed out and was removed", PrettyHexRep(key[:]))
+				Log(fmt.Sprintf("Path to %s timed out and was removed", PrettyHexRep(key[:])), LogDebug)
 				delete(pathTable, key)
 				removedPathTable = true
 				pathRemovedN++
@@ -2618,7 +2618,7 @@ func Jobs() {
 					}
 				}
 				if !present {
-					Logf(LogDebug, "Path to %s was removed since the attached interface no longer exists", PrettyHexRep(key[:]))
+					Log(fmt.Sprintf("Path to %s was removed since the attached interface no longer exists", PrettyHexRep(key[:])), LogDebug)
 					delete(pathTable, key)
 					removedPathTable = true
 					pathRemovedN++
@@ -2631,9 +2631,9 @@ func Jobs() {
 		}
 		if pathRemovedN > 0 {
 			if pathRemovedN == 1 {
-				Logf(LogExtreme, "Removed 1 path")
+				Log(fmt.Sprintf("Removed 1 path"), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Removed %d paths", pathRemovedN)
+				Log(fmt.Sprintf("Removed %d paths", pathRemovedN), LogExtreme)
 			}
 		}
 		pathTableMu.RLock()
@@ -2655,9 +2655,9 @@ func Jobs() {
 		}
 		if pathStatesRemovedN > 0 {
 			if pathStatesRemovedN == 1 {
-				Logf(LogExtreme, "Removed 1 path state entry")
+				Log(fmt.Sprintf("Removed 1 path state entry"), LogExtreme)
 			} else {
-				Logf(LogExtreme, "Removed %d path state entries", pathStatesRemovedN)
+				Log(fmt.Sprintf("Removed %d path state entries", pathStatesRemovedN), LogExtreme)
 			}
 		}
 		TablesLastCulled = now
@@ -2686,7 +2686,7 @@ func Jobs() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogWarning, "Error while processing held per-interface announces: %v", r)
+					Log(fmt.Sprintf("Error while processing held per-interface announces: %v", r), LogWarning)
 					Log("Postponing until next job run", LogWarning)
 				}
 			}()
@@ -2717,7 +2717,7 @@ func Jobs() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						Logf(LogError, "Error while checking blackhole expiry for %s: %v", PrettyHexRep(key[:]), r)
+						Log(fmt.Sprintf("Error while checking blackhole expiry for %s: %v", PrettyHexRep(key[:]), r), LogError)
 					}
 				}()
 				blackholeMu.RLock()
@@ -2740,9 +2740,9 @@ func Jobs() {
 		blackholeMu.Unlock()
 		if removed > 0 {
 			if removed == 1 {
-				Logf(LogVerbose, "Removed 1 blackholed identity")
+				Log(fmt.Sprintf("Removed 1 blackholed identity"), LogVerbose)
 			} else {
-				Logf(LogVerbose, "Removed %d blackholed identities", removed)
+				Log(fmt.Sprintf("Removed %d blackholed identities", removed), LogVerbose)
 			}
 			culled = true
 		}
@@ -2759,7 +2759,7 @@ func VoidTunnelInterface(tunnelID []byte) {
 	key := string(tunnelID)
 	tunnelsMu.Lock()
 	if te := tunnels[key]; te != nil {
-		Logf(LogExtreme, "Voiding tunnel interface %v", te.Interface)
+		Log(fmt.Sprintf("Voiding tunnel interface %v", te.Interface), LogExtreme)
 		te.Interface = nil
 		tunnels[key] = te
 	}
@@ -2783,8 +2783,8 @@ func remoteStatusHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity 
 	var response []any
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "An error occurred while processing remote status request from %v", remoteIdentity)
-			Logf(LogError, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("An error occurred while processing remote status request from %v", remoteIdentity), LogError)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogError)
 			response = nil
 		}
 	}()
@@ -2806,8 +2806,8 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 	var response any
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "An error occurred while processing remote status request from %v", remoteIdentity)
-			Logf(LogError, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("An error occurred while processing remote status request from %v", remoteIdentity), LogError)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogError)
 			response = nil
 		}
 	}()
@@ -2895,7 +2895,7 @@ func remotePathHandler(_ string, data any, _ []byte, _ []byte, remoteIdentity *I
 func pathRequestHandler(data []byte, packet *Packet) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while handling path request. The contained exception was: %v", r)
+			Log(fmt.Sprintf("Error while handling path request. The contained exception was: %v", r), LogError)
 		}
 	}()
 	if len(data) < truncatedHashBytes {
@@ -2914,7 +2914,7 @@ func pathRequestHandler(data []byte, packet *Packet) {
 	}
 
 	if len(tagBytes) == 0 {
-		Logf(LogDebug, "Ignoring tagless path request for %s", PrettyHash(destinationHash))
+		Log(fmt.Sprintf("Ignoring tagless path request for %s", PrettyHexRep(destinationHash)), LogDebug)
 		return
 	}
 	if len(tagBytes) > truncatedHashBytes {
@@ -2926,7 +2926,7 @@ func pathRequestHandler(data []byte, packet *Packet) {
 	discoveryTagsMu.Lock()
 	if _, ok := discoveryPRTags[uniqueKey]; ok {
 		discoveryTagsMu.Unlock()
-		Logf(LogDebug, "Ignoring duplicate path request for %s with tag %s", PrettyHash(destinationHash), PrettyHash(unique))
+		Log(fmt.Sprintf("Ignoring duplicate path request for %s with tag %s", PrettyHexRep(destinationHash), PrettyHexRep(unique)), LogDebug)
 		return
 	}
 	discoveryPRTags[uniqueKey] = struct{}{}
@@ -2950,8 +2950,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 			}
 		}
 	}
-
-	Logf(LogDebug, "Path request for %s%s", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+	Log(fmt.Sprintf("Path request for %s%s", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 
 	// Python parity: If the destination exists on a local client, but it has not
 	// been announced yet, remember which external interface wants it so the later
@@ -2993,7 +2992,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 	}
 	if dst != nil {
 		dst.Announce(nil, true, attachedInterface, tag, true)
-		Logf(LogDebug, "Answering path request for %s on %s, destination is local to this system", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		Log(fmt.Sprintf("Answering path request for %s on %s, destination is local to this system", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 		return
 	}
 
@@ -3003,12 +3002,12 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		// Python parity: get the cached packet first, then check nil, then roaming, then unpack.
 		announcePacket := getCachedPacket(entry.PacketHash, "announce")
 		if announcePacket == nil {
-			Logf(LogError, "Could not retrieve announce packet from cache while answering path request for %s", PrettyHash(destinationHash))
+			Log(fmt.Sprintf("Could not retrieve announce packet from cache while answering path request for %s", PrettyHexRep(destinationHash)), LogError)
 			return
 		}
 
 		if attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming && entry.RecvInterface == attachedInterface {
-			Logf(LogDebug, "Not answering path request on roaming-mode interface, since next hop is on same roaming-mode interface")
+			Log(fmt.Sprintf("Not answering path request on roaming-mode interface, since next hop is on same roaming-mode interface"), LogDebug)
 			return
 		}
 
@@ -3017,11 +3016,10 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		}
 
 		if len(requestorTransportID) == truncatedHashBytes && len(entry.NextHop) == truncatedHashBytes && bytes.Equal(entry.NextHop, requestorTransportID) {
-			Logf(LogDebug, "Not answering path request for %s%s, since next hop is the requestor", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+			Log(fmt.Sprintf("Not answering path request for %s%s, since next hop is the requestor", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 			return
 		}
-
-		Logf(LogDebug, "Answering path request for %s%s, path is known", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		Log(fmt.Sprintf("Answering path request for %s%s, path is known", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 
 		now := time.Now()
 		delay := pathRequestGrace
@@ -3029,7 +3027,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		case isFromLocalClient:
 			delay = 0
 		case entry.RecvInterface != nil && IsLocalClientInterface(entry.RecvInterface):
-			Logf(LogExtreme, "Path request destination %s is on a local client interface, rebroadcasting immediately", PrettyHash(destinationHash))
+			Log(fmt.Sprintf("Path request destination %s is on a local client interface, rebroadcasting immediately", PrettyHexRep(destinationHash)), LogExtreme)
 			delay = 0
 		case attachedInterface != nil && attachedInterface.Mode == InterfaceModeRoaming:
 			delay += pathRequestRoamingGrace
@@ -3054,7 +3052,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 			announcePacket.ContextFlag,
 		)
 		if resp == nil {
-			Logf(LogDebug, "Could not construct path response packet for %s", PrettyHash(destinationHash))
+			Log(fmt.Sprintf("Could not construct path response packet for %s", PrettyHexRep(destinationHash)), LogDebug)
 			return
 		}
 		h := entry.Hops
@@ -3097,7 +3095,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 	}
 
 	if isFromLocalClient {
-		Logf(LogDebug, "Forwarding path request from local client for %s%s to all other interfaces", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		Log(fmt.Sprintf("Forwarding path request from local client for %s%s to all other interfaces", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 		requestTag := IdentityGetRandomHash()
 		for _, ifc := range Interfaces {
 			if ifc == nil || ifc == attachedInterface {
@@ -3121,8 +3119,9 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 			discoveryPathRequestsMu.Lock()
 			if entry := discoveryPathRequests[key]; entry != nil {
 				discoveryPathRequestsMu.Unlock()
-				Logf(LogDebug, "There is already a waiting path request for %s on behalf of path request on %s",
-					PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+				Log(fmt.Sprintf("There is already a waiting path request for %s on behalf of path request on %s",
+					PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug,
+				)
 				return
 			}
 			discoveryPathRequests[key] = &discoveryPathRequest{
@@ -3130,9 +3129,9 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 				RequestingInterface: attachedInterface,
 			}
 			discoveryPathRequestsMu.Unlock()
-
-			Logf(LogDebug, "Attempting to discover unknown path to %s on behalf of path request on %s",
-				PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+			Log(fmt.Sprintf("Attempting to discover unknown path to %s on behalf of path request on %s",
+				PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug,
+			)
 			for _, ifc := range Interfaces {
 				if ifc == nil || ifc == attachedInterface {
 					continue
@@ -3144,7 +3143,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 	}
 
 	if !isFromLocalClient && len(LocalClientInterfaces) > 0 {
-		Logf(LogDebug, "Forwarding path request for %s%s to local clients", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+		Log(fmt.Sprintf("Forwarding path request for %s%s to local clients", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 		for _, ifc := range LocalClientInterfaces {
 			if ifc == nil {
 				continue
@@ -3153,15 +3152,14 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 		}
 		return
 	}
-
-	Logf(LogDebug, "Ignoring path request for %s%s, no path known", PrettyHash(destinationHash), fmt.Sprint(attachedInterface))
+	Log(fmt.Sprintf("Ignoring path request for %s%s, no path known", PrettyHexRep(destinationHash), fmt.Sprint(attachedInterface)), LogDebug)
 }
 
 func tunnelSynthesizeHandler(data []byte, packet *Packet) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogDebug, "An error occurred while validating tunnel establishment packet.")
-			Logf(LogDebug, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("An error occurred while validating tunnel establishment packet."), LogDebug)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogDebug)
 		}
 	}()
 	// Python expected_length:
@@ -3246,7 +3244,7 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 	tunnelsMu.Lock()
 	existing := tunnels[key]
 	if existing != nil {
-		Logf(LogDebug, "Tunnel endpoint %s reappeared. Restoring paths...", PrettyHexRep(tunnelID))
+		Log(fmt.Sprintf("Tunnel endpoint %s reappeared. Restoring paths...", PrettyHexRep(tunnelID)), LogDebug)
 		existing.Interface = ifc
 		existing.ExpiresAt = expiresAt
 		ifc.TunnelID = append([]byte(nil), tunnelID...)
@@ -3342,13 +3340,13 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 				if newEntry.Hops <= old.Hops || now.After(old.ExpiresAt) {
 					shouldAdd = true
 				} else {
-					Logf(LogDebug, "Did not restore path to %s because a newer path with fewer hops exist", PrettyHexRep(dstHash))
+					Log(fmt.Sprintf("Did not restore path to %s because a newer path with fewer hops exist", PrettyHexRep(dstHash)), LogDebug)
 				}
 			} else {
 				if now.Before(entry.ExpiresAt) {
 					shouldAdd = true
 				} else {
-					Logf(LogDebug, "Did not restore path to %s because it has expired", PrettyHexRep(dstHash))
+					Log(fmt.Sprintf("Did not restore path to %s because it has expired", PrettyHexRep(dstHash)), LogDebug)
 				}
 			}
 
@@ -3356,8 +3354,9 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 				pathTableMu.Lock()
 				pathTable[pathKey] = newEntry
 				pathTableMu.Unlock()
-				Logf(LogDebug, "Restored path to %s is now %d hops away via %s on %v",
-					PrettyHexRep(dstHash), newEntry.Hops, PrettyHexRep(newEntry.NextHop), ifc)
+				Log(fmt.Sprintf("Restored path to %s is now %d hops away via %s on %v",
+					PrettyHexRep(dstHash), newEntry.Hops, PrettyHexRep(newEntry.NextHop), ifc), LogDebug,
+				)
 			} else {
 				deprecated = append(deprecated, dstKey)
 			}
@@ -3366,14 +3365,14 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 		if len(deprecated) > 0 {
 			tunnelsMu.Lock()
 			for _, k := range deprecated {
-				Logf(LogDebug, "Removing path to %s from tunnel %s", PrettyHexRep([]byte(k)), PrettyHexRep(existing.ID))
+				Log(fmt.Sprintf("Removing path to %s from tunnel %s", PrettyHexRep([]byte(k)), PrettyHexRep(existing.ID)), LogDebug)
 				delete(existing.Paths, k)
 			}
 			tunnelsMu.Unlock()
 		}
 		return
 	}
-	Logf(LogDebug, "Tunnel endpoint %s established.", PrettyHexRep(tunnelID))
+	Log(fmt.Sprintf("Tunnel endpoint %s established.", PrettyHexRep(tunnelID)), LogDebug)
 	ifc.TunnelID = append([]byte(nil), tunnelID...)
 	te := &tunnelEntry{
 		ID:        append([]byte(nil), tunnelID...),
@@ -3390,7 +3389,7 @@ func handleTunnel(tunnelID []byte, ifc *Interface) {
 func transmit(ifc *Interface, raw []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while transmitting on %v. The contained exception was: %v", ifc, r)
+			Log(fmt.Sprintf("Error while transmitting on %v. The contained exception was: %v", ifc, r), LogError)
 		}
 	}()
 
@@ -3497,7 +3496,7 @@ func Outbound(p *Packet) bool {
 			pathTableMu.RUnlock()
 		}
 		if entry == nil {
-			Logf(LogWarning, "Dropped packet since path table entry disappeared during outbound processing")
+			Log(fmt.Sprintf("Dropped packet since path table entry disappeared during outbound processing"), LogWarning)
 			return false
 		}
 		sendBroadcast = false
@@ -3546,13 +3545,22 @@ func Outbound(p *Packet) bool {
 	}
 
 	// Python parity: LINK-type packets (with attached link interface) are transmitted
-	// directly via the link's attached interface, bypassing the OUT flag check.
-	// This covers LRPROOF and other link-level packets sent back to the peer
-	// (e.g. via LocalClientInterface which has OUT=false).
+	// directly via the link's attached interface, bypassing the broadcast loop.
+	// This covers LRPROOF and other link-level packets sent back to the peer.
 	if sendBroadcast {
 		if attached := linkAttachedInterface(); attached != nil {
 			AddPacketHash(p.PacketHash)
 			transmit(attached, p.Raw)
+			packetSent(p)
+			sent = true
+			return sent
+		}
+		// Fast path: Python's broadcast loop only sends on interfaces where
+		// interface.OUT is True AND interface == packet.attached_interface.
+		// This early return avoids iterating all interfaces for that common case.
+		if p.AttachedInterface != nil {
+			AddPacketHash(p.PacketHash)
+			transmit(p.AttachedInterface, p.Raw)
 			packetSent(p)
 			sent = true
 			return sent
@@ -3588,7 +3596,7 @@ func Outbound(p *Packet) bool {
 				if p.AttachedInterface == nil {
 					switch ifc.Mode {
 					case InterfaceModeAccessPoint:
-						Logf(LogExtreme, "Blocking announce broadcast on %v due to AP mode", ifc)
+						Log(fmt.Sprintf("Blocking announce broadcast on %v due to AP mode", ifc), LogExtreme)
 						shouldSend = false
 					case InterfaceModeRoaming:
 						var dst *Destination
@@ -3603,15 +3611,15 @@ func Outbound(p *Packet) bool {
 						if dst == nil {
 							fromIfc := NextHopInterface(p.DestinationHash)
 							if fromIfc == nil {
-								Logf(LogExtreme, "Blocking announce broadcast on %v since next hop interface doesn't exist", ifc)
+								Log(fmt.Sprintf("Blocking announce broadcast on %v since next hop interface doesn't exist", ifc), LogExtreme)
 								shouldSend = false
 							} else {
 								switch fromIfc.Mode {
 								case InterfaceModeRoaming:
-									Logf(LogExtreme, "Blocking announce broadcast on %v due to roaming-mode next-hop interface", ifc)
+									Log(fmt.Sprintf("Blocking announce broadcast on %v due to roaming-mode next-hop interface", ifc), LogExtreme)
 									shouldSend = false
 								case InterfaceModeBoundary:
-									Logf(LogExtreme, "Blocking announce broadcast on %v due to boundary-mode next-hop interface", ifc)
+									Log(fmt.Sprintf("Blocking announce broadcast on %v due to boundary-mode next-hop interface", ifc), LogExtreme)
 									shouldSend = false
 								}
 							}
@@ -3629,11 +3637,11 @@ func Outbound(p *Packet) bool {
 						if dst == nil {
 							fromIfc := NextHopInterface(p.DestinationHash)
 							if fromIfc == nil {
-								Logf(LogExtreme, "Blocking announce broadcast on %v since next hop interface doesn't exist", ifc)
+								Log(fmt.Sprintf("Blocking announce broadcast on %v since next hop interface doesn't exist", ifc), LogExtreme)
 								shouldSend = false
 							} else {
 								if fromIfc.Mode == InterfaceModeRoaming {
-									Logf(LogExtreme, "Blocking announce broadcast on %v due to roaming-mode next-hop interface", ifc)
+									Log(fmt.Sprintf("Blocking announce broadcast on %v due to roaming-mode next-hop interface", ifc), LogExtreme)
 									shouldSend = false
 								}
 							}
@@ -3701,7 +3709,7 @@ func Outbound(p *Packet) bool {
 											} else {
 												waitTimeStr = fmt.Sprintf("%.2fs", waitUntil.Seconds())
 											}
-											Logf(LogExtreme, "Added announce to queue (height %d) on %v for processing in %s", len(ifc.AnnounceQueue), ifc, waitTimeStr)
+											Log(fmt.Sprintf("Added announce to queue (height %d) on %v for processing in %s", len(ifc.AnnounceQueue), ifc, waitTimeStr), LogExtreme)
 										}
 									}
 								}
@@ -3743,8 +3751,9 @@ func PacketFilter(p *Packet) bool {
 	// foreign transport_id (except announces)
 	if p.TransportID != nil && p.Type != PacketAnnounce {
 		if TransportIdentity != nil && !bytes.Equal(p.TransportID, TransportIdentity.Hash) {
-			Logf(LogExtreme, "Ignored packet %s in transport for other transport instance",
-				PrettyHash(p.PacketHash))
+			Log(fmt.Sprintf("Ignored packet %s in transport for other transport instance",
+				PrettyHexRep(p.PacketHash)), LogExtreme,
+			)
 			return false
 		}
 	}
@@ -3762,8 +3771,9 @@ func PacketFilter(p *Packet) bool {
 	if p.DestinationType == DestPlain {
 		if p.Type != PacketAnnounce {
 			if p.Hops > 1 {
-				Logf(LogDebug, "Dropped PLAIN packet %s with %d hops",
-					PrettyHash(p.PacketHash), p.Hops)
+				Log(fmt.Sprintf("Dropped PLAIN packet %s with %d hops",
+					PrettyHexRep(p.PacketHash), p.Hops), LogDebug,
+				)
 				return false
 			}
 			return true
@@ -3775,8 +3785,9 @@ func PacketFilter(p *Packet) bool {
 	if p.DestinationType == DestGroup {
 		if p.Type != PacketAnnounce {
 			if p.Hops > 1 {
-				Logf(LogDebug, "Dropped GROUP packet %s with %d hops",
-					PrettyHash(p.PacketHash), p.Hops)
+				Log(fmt.Sprintf("Dropped GROUP packet %s with %d hops",
+					PrettyHexRep(p.PacketHash), p.Hops), LogDebug,
+				)
 				return false
 			}
 			return true
@@ -3807,8 +3818,7 @@ func PacketFilter(p *Packet) bool {
 		Log("Dropped invalid announce packet", LogDebug)
 		return false
 	}
-
-	Logf(LogExtreme, "Filtered packet with hash %s", PrettyHash(p.PacketHash))
+	Log(fmt.Sprintf("Filtered packet with hash %s", PrettyHexRep(p.PacketHash)), LogExtreme)
 	return false
 }
 
@@ -4059,8 +4069,15 @@ func Inbound(raw []byte, ifc *Interface) {
 	}(p)
 	transportHandling := TransportEnabled() || fromLocal || forLocalClient || forLocalClientLink
 
+	// Python parity (Transport.py:1404): inject our identity as transport ID so the
+	// routing block below can forward the packet to the local client.  Track whether
+	// we injected it so we can fall through to local delivery afterwards (Python does
+	// not return after the routing transmit – execution continues to packet-type
+	// delivery).
+	injectedTransportID := false
 	if p.TransportID == nil && forLocalClient {
 		p.TransportID = append([]byte(nil), TransportIdentity.Hash...)
+		injectedTransportID = true
 	}
 
 	if transportHandling && p.Context == PacketCacheRequest {
@@ -4096,7 +4113,7 @@ func Inbound(raw []byte, ifc *Interface) {
 			pathTableMu.RUnlock()
 		}
 		if entry == nil || entry.RecvInterface == nil {
-			Logf(LogExtreme, "Got packet in transport, but no known path to final destination %s. Dropping packet.", PrettyHexRep(p.DestinationHash))
+			Log(fmt.Sprintf("Got packet in transport, but no known path to final destination %s. Dropping packet.", PrettyHexRep(p.DestinationHash)), LogExtreme)
 			return
 		}
 
@@ -4162,10 +4179,10 @@ func Inbound(raw []byte, ifc *Interface) {
 					}
 					clamped, err := linkSignallingBytes(clampMTU, mode)
 					if err != nil {
-						Logf(LogWarning, "Dropping link request packet. The contained exception was: %v", err)
+						Log(fmt.Sprintf("Dropping link request packet. The contained exception was: %v", err), LogWarning)
 						return
 					}
-					Logf(LogDebug, "Clamping link MTU to %s", PrettySize(float64(clampMTU)))
+					Log(fmt.Sprintf("Clamping link MTU to %s", PrettySize(float64(clampMTU))), LogDebug)
 					if len(outRaw) >= linkSignalSize {
 						outRaw = append(outRaw[:len(outRaw)-linkSignalSize], clamped...)
 					}
@@ -4214,7 +4231,15 @@ func Inbound(raw []byte, ifc *Interface) {
 			pathTable[key] = entry
 		}
 		pathTableMu.Unlock()
-		return
+		// Python parity: Python does NOT return after the routing transmit — execution
+		// continues to local delivery (announce/data/proof handlers below).  In Go we
+		// only need this fall-through when we injected the transport ID ourselves (the
+		// for_local_client case); packets that already carried a transport ID from the
+		// network are fully handled by routing and should return here.
+		if !injectedTransportID {
+			return
+		}
+		p.TransportID = nil // clear injected ID so local delivery code treats it as a direct packet
 	}
 
 	// Local client routing: if a destination is behind a local client (path hops==0),
@@ -4296,10 +4321,6 @@ func Inbound(raw []byte, ifc *Interface) {
 		}
 	}
 
-	if !transportHandling && p.Type != PacketAnnounce {
-		return
-	}
-
 	if p.Type == PacketAnnounce {
 		if p == nil {
 			return
@@ -4357,10 +4378,10 @@ func Inbound(raw []byte, ifc *Interface) {
 					expected := entry.Packet.Hops
 					if p.Hops-1 == expected {
 						entry.LocalRebroadcasts++
-						Logf(LogExtreme, "Heard a rebroadcast of announce for %s on %v", PrettyHexRep(p.DestinationHash), p.ReceivingInterface)
+						Log(fmt.Sprintf("Heard a rebroadcast of announce for %s on %v", PrettyHexRep(p.DestinationHash), p.ReceivingInterface), LogExtreme)
 						if entry.Retries > 0 {
 							if entry.LocalRebroadcasts >= localRebroadcastsMax {
-								Logf(LogExtreme, "Completed announce processing for %s, local rebroadcast limit reached", PrettyHexRep(p.DestinationHash))
+								Log(fmt.Sprintf("Completed announce processing for %s, local rebroadcast limit reached", PrettyHexRep(p.DestinationHash)), LogExtreme)
 								delete(announceTable, key)
 								announceMu.Unlock()
 								return
@@ -4368,7 +4389,7 @@ func Inbound(raw []byte, ifc *Interface) {
 						}
 						announceTable[key] = entry
 					} else if p.Hops-1 == expected+1 && entry.Retries > 0 && now.Before(entry.Next) {
-						Logf(LogExtreme, "Rebroadcasted announce for %s has been passed on to another node, no further tries needed", PrettyHexRep(p.DestinationHash))
+						Log(fmt.Sprintf("Rebroadcasted announce for %s has been passed on to another node, no further tries needed", PrettyHexRep(p.DestinationHash)), LogExtreme)
 						delete(announceTable, key)
 					}
 				}
@@ -4452,14 +4473,14 @@ func Inbound(raw []byte, ifc *Interface) {
 				newer := emitted > pathEmitted
 				if expired && !blobSeen {
 					MarkPathUnknownState(p.DestinationHash)
-					Logf(LogDebug, "Replacing destination table entry for %s with new announce due to expired path", PrettyHexRep(p.DestinationHash))
+					Log(fmt.Sprintf("Replacing destination table entry for %s with new announce due to expired path", PrettyHexRep(p.DestinationHash)), LogDebug)
 					shouldAdd = true
 				} else if newer && !blobSeen {
 					MarkPathUnknownState(p.DestinationHash)
-					Logf(LogDebug, "Replacing destination table entry for %s with new announce, since it was more recently emitted", PrettyHexRep(p.DestinationHash))
+					Log(fmt.Sprintf("Replacing destination table entry for %s with new announce, since it was more recently emitted", PrettyHexRep(p.DestinationHash)), LogDebug)
 					shouldAdd = true
 				} else if emitted == pathEmitted && PathIsUnresponsive(p.DestinationHash) {
-					Logf(LogDebug, "Replacing destination table entry for %s with new announce, since previously tried path was unresponsive", PrettyHexRep(p.DestinationHash))
+					Log(fmt.Sprintf("Replacing destination table entry for %s with new announce, since previously tried path was unresponsive", PrettyHexRep(p.DestinationHash)), LogDebug)
 					shouldAdd = true
 				}
 			}
@@ -4532,7 +4553,7 @@ func Inbound(raw []byte, ifc *Interface) {
 						tunnels[string(ifc.TunnelID)] = te
 					}
 					tunnelsMu.Unlock()
-					Logf(LogDebug, "Path to %s associated with tunnel %s", PrettyHexRep(p.DestinationHash), PrettyHexRep(ifc.TunnelID))
+					Log(fmt.Sprintf("Path to %s associated with tunnel %s", PrettyHexRep(p.DestinationHash), PrettyHexRep(ifc.TunnelID)), LogDebug)
 				}
 
 				// Python parity: cache announce with force_cache=True when adding/updating path table.
@@ -4545,8 +4566,9 @@ func Inbound(raw []byte, ifc *Interface) {
 			if len(receivedFrom) == 0 {
 				receivedFrom = p.DestinationHash
 			}
-			Logf(LogDebug, "Destination %s is now %d hops away via %s on %s",
-				PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), fmt.Sprint(ifc))
+			Log(fmt.Sprintf("Destination %s is now %d hops away via %s on %s",
+				PrettyHexRep(p.DestinationHash), p.Hops, PrettyHexRep(receivedFrom), fmt.Sprint(ifc)), LogDebug,
+			)
 		}
 		if !updated {
 			return
@@ -4616,8 +4638,9 @@ func Inbound(raw []byte, ifc *Interface) {
 				discoveryPathRequestsMu.Unlock()
 
 				if entry != nil && entry.RequestingInterface != nil {
-					Logf(LogDebug, "Got matching announce, answering waiting discovery path request for %s on %s",
-						PrettyHash(p.DestinationHash), fmt.Sprint(entry.RequestingInterface))
+					Log(fmt.Sprintf("Got matching announce, answering waiting discovery path request for %s on %s",
+						PrettyHexRep(p.DestinationHash), fmt.Sprint(entry.RequestingInterface)), LogDebug,
+					)
 
 					dest := &Destination{
 						Type:      DestinationSINGLE,
@@ -4689,7 +4712,7 @@ func Inbound(raw []byte, ifc *Interface) {
 					defer func() {
 						if rec := recover(); rec != nil {
 							Log("Error while processing external announce callback.", LogError)
-							Logf(LogError, "The contained exception was: %v", rec)
+							Log(fmt.Sprintf("The contained exception was: %v", rec), LogError)
 							TraceException(rec)
 						}
 					}()
@@ -4805,8 +4828,9 @@ func Inbound(raw []byte, ifc *Interface) {
 			}
 		}
 		if rateBlocked {
-			Logf(LogDebug, "Blocking rebroadcast of announce from %s due to excessive announce rate",
-				PrettyHexRep(p.DestinationHash))
+			Log(fmt.Sprintf("Blocking rebroadcast of announce from %s due to excessive announce rate",
+				PrettyHexRep(p.DestinationHash)), LogDebug,
+			)
 			return
 		}
 
@@ -5040,7 +5064,7 @@ func Inbound(raw []byte, ifc *Interface) {
 									func() {
 										defer func() {
 											if rec := recover(); rec != nil {
-												Logf(LogError, "Error while transporting link request proof. The contained exception was: %v", rec)
+												Log(fmt.Sprintf("Error while transporting link request proof. The contained exception was: %v", rec), LogError)
 											}
 										}()
 										signalling := []byte{}
@@ -5051,7 +5075,7 @@ func Inbound(raw []byte, ifc *Interface) {
 												if sb, err := linkSignallingBytes(mtu, mode); err == nil {
 													signalling = sb
 												} else {
-													Logf(LogError, "Error while transporting link request proof. The contained exception was: %v", err)
+													Log(fmt.Sprintf("Error while transporting link request proof. The contained exception was: %v", err), LogError)
 												}
 											}
 										}
@@ -5070,7 +5094,7 @@ func Inbound(raw []byte, ifc *Interface) {
 												signature := p.Data[:ed25519.SignatureSize]
 
 												if peerIdentity.Validate(signature, signedData) {
-													Logf(LogExtreme, "Link request proof validated for transport via %v", entry.ReceivedInterface)
+													Log(fmt.Sprintf("Link request proof validated for transport via %v", entry.ReceivedInterface), LogExtreme)
 													newRaw := []byte{p.Raw[0]}
 													newRaw = append(newRaw, byte(p.Hops))
 													newRaw = append(newRaw, p.Raw[2:]...)
@@ -5083,17 +5107,17 @@ func Inbound(raw []byte, ifc *Interface) {
 													linkTableMu.Unlock()
 													transmit(entry.ReceivedInterface, newRaw)
 												} else {
-													Logf(LogDebug, "Invalid link request proof in transport for link %s, dropping proof.", PrettyHexRep(p.DestinationHash))
+													Log(fmt.Sprintf("Invalid link request proof in transport for link %s, dropping proof.", PrettyHexRep(p.DestinationHash)), LogDebug)
 												}
 											}
 										}
 									}()
 								}
 							} else {
-								Logf(LogDebug, "Link request proof received on wrong interface, not transporting it.")
+								Log(fmt.Sprintf("Link request proof received on wrong interface, not transporting it."), LogDebug)
 							}
 						} else {
-							Logf(LogDebug, "Received link request proof with hop mismatch, not transporting it")
+							Log(fmt.Sprintf("Received link request proof with hop mismatch, not transporting it"), LogDebug)
 						}
 					}
 				}
@@ -5131,11 +5155,11 @@ func Inbound(raw []byte, ifc *Interface) {
 				reverseTableMu.Unlock()
 				if entry != nil && entry.ReceivedIf != nil {
 					if ifc == entry.OutboundIf {
-						Logf(LogExtreme, "Proof received on correct interface, transporting it via %v", entry.ReceivedIf)
+						Log(fmt.Sprintf("Proof received on correct interface, transporting it via %v", entry.ReceivedIf), LogExtreme)
 						newRaw := append([]byte{p.Raw[0], byte(p.Hops)}, p.Raw[2:]...)
 						transmit(entry.ReceivedIf, newRaw)
 					} else {
-						Logf(LogDebug, "Proof received on wrong interface, not transporting it.")
+						Log(fmt.Sprintf("Proof received on wrong interface, not transporting it."), LogDebug)
 					}
 				}
 			}
@@ -5251,17 +5275,43 @@ func Inbound(raw []byte, ifc *Interface) {
 				} else if nhMTU < pathMTU {
 					clamped, err := linkSignallingBytes(nhMTU, mode)
 					if err != nil {
-						Logf(LogWarning, "Dropping link request packet to local destination. The contained exception was: %v", err)
+						Log(fmt.Sprintf("Dropping link request packet to local destination. The contained exception was: %v", err), LogWarning)
 						return
 					}
-					Logf(LogDebug, "Clamping link MTU to %s", PrettySize(float64(nhMTU)))
+					Log(fmt.Sprintf("Clamping link MTU to %s", PrettySize(float64(nhMTU))), LogDebug)
 					if len(p.Data) >= linkSignalSize {
 						p.Data = append(p.Data[:len(p.Data)-linkSignalSize], clamped...)
 					}
 				}
 			}
 		}
-		_ = dst.Receive(p)
+		// Python parity (Transport.py:1991-1999): after destination.receive(), prove
+		// the packet if the destination's proof strategy requires it.
+		// Python always calls packet.prove() which routes through
+		// packet.generate_proof_destination() — a ProofDestination with no identity
+		// and therefore no encryption.  We must pass nil here so that Identity.Prove
+		// uses GenerateProofDestination() instead of the server destination (which
+		// would encrypt the proof data with the server's public key, breaking receipt
+		// validation on the remote side).
+		if dst.Receive(p) {
+			switch dst.GetProofStrategy() {
+			case DestinationPROVE_ALL:
+				p.Prove(nil)
+			case DestinationPROVE_APP:
+				if dst.callbacks.ProofRequested != nil {
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								Log(fmt.Sprintf("Error while executing proof request callback. The contained exception was: %v", r), LogError)
+							}
+						}()
+						if dst.callbacks.ProofRequested(p) {
+							p.Prove(nil)
+						}
+					}()
+				}
+			}
+		}
 		return
 	}
 
@@ -5705,12 +5755,12 @@ func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool
 		// - Block if announce cap is currently active (now < announce_allowed_at).
 		// - Otherwise, update announce_allowed_at based on tx_time/announce_cap.
 		if onInterface.HasQueuedAnnounces() {
-			Logf(LogExtreme, "Blocking recursive path request on %v due to queued announces", onInterface)
+			Log(fmt.Sprintf("Blocking recursive path request on %v due to queued announces", onInterface), LogExtreme)
 			return
 		}
 		now := time.Now()
 		if allowedAt := onInterface.AnnounceAllowedAtTime(); !allowedAt.IsZero() && now.Before(allowedAt) {
-			Logf(LogExtreme, "Blocking recursive path request on %v due to active announce cap", onInterface)
+			Log(fmt.Sprintf("Blocking recursive path request on %v due to active announce cap", onInterface), LogExtreme)
 			return
 		}
 
@@ -5722,7 +5772,7 @@ func RequestPath(hash []byte, onInterface *Interface, tag []byte, recursive bool
 
 	dst, err := NewDestination(nil, DestinationOUT, DestinationPLAIN, "rnstransport", "path", "request")
 	if err != nil {
-		Logf(LogError, "Could not create path request destination: %v", err)
+		Log(fmt.Sprintf("Could not create path request destination: %v", err), LogError)
 		return
 	}
 
@@ -5846,7 +5896,7 @@ func Cache(p *Packet, force bool) {
 	}
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	if err := os.WriteFile(path, buf, 0o600); err != nil {
-		Logf(LogError, "Error writing packet to cache. The contained exception was: %v", err)
+		Log(fmt.Sprintf("Error writing packet to cache. The contained exception was: %v", err), LogError)
 	}
 }
 
@@ -5909,7 +5959,7 @@ func cleanAnnounceCache() {
 		return nil
 	})
 	if removed > 0 {
-		Logf(LogDebug, "Removed %d cached announces in %s", removed, PrettyTime(time.Since(st).Seconds(), true, false))
+		Log(fmt.Sprintf("Removed %d cached announces in %s", removed, PrettyTime(time.Since(st).Seconds(), true, false)), LogDebug)
 	}
 }
 
@@ -5975,7 +6025,7 @@ func getCachedPacket(hash []byte, packetType string) (pkt *Packet) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			Log("Exception occurred while getting cached packet.", LogError)
-			Logf(LogError, "The contained exception was: %v", rec)
+			Log(fmt.Sprintf("The contained exception was: %v", rec), LogError)
 			pkt = nil
 		}
 	}()

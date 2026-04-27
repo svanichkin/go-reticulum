@@ -19,7 +19,7 @@ import (
 	"github.com/traefik/yaegi/stdlib"
 )
 
-var rnsdVersion = rns.GetVersion()
+var rnsdVersion = rns.Version()
 
 type countFlag int
 
@@ -177,11 +177,11 @@ func programSetup(configdir *string, verbosity, quietness int, service, interact
 	}
 
 	if ret.IsConnectedToSharedInstance {
-		rns.Logf(rns.LogWarning,
-			"Started rnsd version %s connected to another shared local instance, this is probably NOT what you want!",
-			rnsdVersion)
+		rns.Log(fmt.Sprintf("Started rnsd version %s connected to another shared local instance, this is probably NOT what you want!",
+			rnsdVersion), rns.LogWarning,
+		)
 	} else {
-		rns.Logf(rns.LogNotice, "Started rnsd version %s", rnsdVersion)
+		rns.Log(fmt.Sprintf("Started rnsd version %s", rnsdVersion), rns.LogNotice)
 	}
 
 	if interactive {

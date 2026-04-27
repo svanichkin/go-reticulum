@@ -38,15 +38,15 @@ func (h *observeHandler) ReceivedAnnounceWithPacketHash(destinationHash []byte, 
 		if h.packets == nil {
 			h.packets = map[string]struct{}{}
 		}
-		packetHex := rns.PrettyHash(announcePacketHash)
+		packetHex := rns.PrettyHexRep(announcePacketHash)
 		if _, ok := h.packets[packetHex]; ok {
 			h.dupes++
 		} else {
 			h.packets[packetHex] = struct{}{}
 		}
-		fmt.Printf("OBSERVED count=%d destination=%s packet=%s\n", h.count, rns.PrettyHash(destinationHash), packetHex)
+		fmt.Printf("OBSERVED count=%d destination=%s packet=%s\n", h.count, rns.PrettyHexRep(destinationHash), packetHex)
 	} else {
-		fmt.Printf("OBSERVED count=%d destination=%s\n", h.count, rns.PrettyHash(destinationHash))
+		fmt.Printf("OBSERVED count=%d destination=%s\n", h.count, rns.PrettyHexRep(destinationHash))
 	}
 }
 

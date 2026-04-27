@@ -769,8 +769,8 @@ func promptSelectSerialPort() (string, error) {
 
 func main() {
 	// Match upstream rnodeconf logging defaults.
-	rns.SetLogTimeFormat("%H:%M:%S")
-	rns.SetCompactLogFormat(true)
+	rns.LogTimeFmt = "15:04:05"
+	rns.CompactLogFmt = true
 
 	fs := flag.NewFlagSet("rnodeconf", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -2791,7 +2791,7 @@ func (n *RNode) Disconnect() {
 func (n *RNode) ReadLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			rns.Logf(rns.LogError, "RNode read loop panic: %v", r)
+			rns.Log(fmt.Sprintf("RNode read loop panic: %v", r), rns.LogError)
 		}
 	}()
 
@@ -2845,7 +2845,7 @@ func (n *RNode) ReadLoop() {
 			}
 		} else {
 			if len(dataBuf) > 0 && time.Since(lastReadMs) > n.Timeout {
-				rns.Logf(rns.LogDebug, "%s serial read timeout", n)
+				rns.Log(fmt.Sprintf("%s serial read timeout", n), rns.LogDebug)
 				dataBuf = dataBuf[:0]
 				inFrame = false
 				cmd = KISS_CMD_UNKNOWN
@@ -2892,7 +2892,7 @@ func (n *RNode) handleKISSByte(
 					int((*cmdBuf)[1])<<16 |
 					int((*cmdBuf)[2])<<8 |
 					int((*cmdBuf)[3])
-				rns.Logf(rns.LogInfo, "Radio reporting frequency is %.3f MHz", float64(n.RFrequency)/1_000_000)
+				rns.Log(fmt.Sprintf("Radio reporting frequency is %.3f MHz", float64(n.RFrequency)/1_000_000), rns.LogInfo)
 				n.updateBitrate()
 			}
 		case KISS_CMD_BANDWIDTH:
@@ -2901,7 +2901,7 @@ func (n *RNode) handleKISSByte(
 					int((*cmdBuf)[1])<<16 |
 					int((*cmdBuf)[2])<<8 |
 					int((*cmdBuf)[3])
-				rns.Logf(rns.LogInfo, "Radio reporting bandwidth is %.3f kHz", float64(n.RBandwidth)/1000)
+				rns.Log(fmt.Sprintf("Radio reporting bandwidth is %.3f kHz", float64(n.RBandwidth)/1000), rns.LogInfo)
 				n.updateBitrate()
 			}
 		case KISS_CMD_BT_PIN:
@@ -2910,7 +2910,7 @@ func (n *RNode) handleKISSByte(
 					int((*cmdBuf)[1])<<16 |
 					int((*cmdBuf)[2])<<8 |
 					int((*cmdBuf)[3])
-				rns.Logf(rns.LogInfo, "Bluetooth pairing PIN is: %06d", pin)
+				rns.Log(fmt.Sprintf("Bluetooth pairing PIN is: %06d", pin), rns.LogInfo)
 			}
 		case KISS_CMD_DEV_HASH:
 			if len(*cmdBuf) == 32 {
@@ -2951,14 +2951,14 @@ func (n *RNode) handleKISSByte(
 		n.MCU = b
 	case KISS_CMD_TXPOWER:
 		n.RTxPower = b
-		rns.Logf(rns.LogInfo, "Radio reporting TX power is %d dBm", n.RTxPower)
+		rns.Log(fmt.Sprintf("Radio reporting TX power is %d dBm", n.RTxPower), rns.LogInfo)
 	case KISS_CMD_SF:
 		n.RSF = b
-		rns.Logf(rns.LogInfo, "Radio reporting spreading factor is %d", n.RSF)
+		rns.Log(fmt.Sprintf("Radio reporting spreading factor is %d", n.RSF), rns.LogInfo)
 		n.updateBitrate()
 	case KISS_CMD_CR:
 		n.RCR = b
-		rns.Logf(rns.LogInfo, "Radio reporting coding rate is %d", n.RCR)
+		rns.Log(fmt.Sprintf("Radio reporting coding rate is %d", n.RCR), rns.LogInfo)
 		n.updateBitrate()
 	case KISS_CMD_RADIO_STATE:
 		n.RState = b
@@ -2975,11 +2975,11 @@ func (n *RNode) handleKISSByte(
 	case KISS_CMD_ERROR:
 		switch b {
 		case KISS_ERROR_INITRADIO:
-			rns.Logf(rns.LogError, "%s hardware initialisation error (code 0x%02x)", n, b)
+			rns.Log(fmt.Sprintf("%s hardware initialisation error (code 0x%02x)", n, b), rns.LogError)
 		case KISS_ERROR_TXFAILED:
-			rns.Logf(rns.LogError, "%s hardware TX error (code 0x%02x)", n, b)
+			rns.Log(fmt.Sprintf("%s hardware TX error (code 0x%02x)", n, b), rns.LogError)
 		default:
-			rns.Logf(rns.LogError, "%s hardware error (code 0x%02x)", n, b)
+			rns.Log(fmt.Sprintf("%s hardware error (code 0x%02x)", n, b), rns.LogError)
 		}
 	case KISS_CMD_DETECT:
 		n.Detected = (b == KISS_DETECT_RESP)

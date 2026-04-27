@@ -130,7 +130,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("%s %s\n", programName, rns.GetVersion())
+		fmt.Printf("%s %s\n", programName, rns.Version())
 		return
 	}
 
@@ -327,7 +327,7 @@ func programSetup(
 func connectRemote(destHash []byte, auth *rns.Identity, timeout float64, noOutput bool) error {
 	if !rns.HasPath(destHash) {
 		if !noOutput {
-			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested ")
+			fmt.Print("Path to " + rns.PrettyHexRep(destHash) + " requested ")
 		}
 		rns.RequestPath(destHash, nil, nil, false)
 		start := time.Now()
@@ -465,10 +465,10 @@ func handleTable(destinationHex string, maxHops int, jsonOut, noOutput bool) err
 		}
 
 		fmt.Printf("%s is %d hop%s away via %s on %s expires %s\n",
-			rns.PrettyHex(hash),
+			rns.PrettyHexRep(hash),
 			hops,
 			ms,
-			rns.PrettyHex(via),
+			rns.PrettyHexRep(via),
 			ifName,
 			rns.TimestampStr(float64(expires)),
 		)
@@ -759,7 +759,7 @@ func handleRates(destinationHex string, jsonOut, noOutput bool) error {
 		}
 
 		fmt.Printf("%s last heard %s ago, %s announces/hour in the last %s%s%s\n",
-			rns.PrettyHex(hash),
+			rns.PrettyHexRep(hash),
 			lastStr,
 			rateStr,
 			prettyDate(startTs),
@@ -801,9 +801,9 @@ func handleDropPath(destinationHex string, noOutput bool) error {
 		return err
 	}
 	if reticulum.DropPath(destHash) {
-		fmt.Println("Dropped path to " + rns.PrettyHex(destHash))
+		fmt.Println("Dropped path to " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Println("Unable to drop path to " + rns.PrettyHex(destHash) + ". Does it exist?")
+		fmt.Println("Unable to drop path to " + rns.PrettyHexRep(destHash) + ". Does it exist?")
 		return exitError{code: 1, msg: ""}
 	}
 	return nil
@@ -822,9 +822,9 @@ func handleDropVia(destinationHex string, noOutput bool) error {
 		return err
 	}
 	if count := reticulum.DropAllVia(destHash); count > 0 {
-		fmt.Println("Dropped all paths via " + rns.PrettyHex(destHash))
+		fmt.Println("Dropped all paths via " + rns.PrettyHexRep(destHash))
 	} else {
-		fmt.Println("Unable to drop paths via " + rns.PrettyHex(destHash) + ". Does the transport instance exist?")
+		fmt.Println("Unable to drop paths via " + rns.PrettyHexRep(destHash) + ". Does the transport instance exist?")
 		return exitError{code: 1, msg: ""}
 	}
 	return nil
@@ -847,7 +847,7 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 		rns.RequestPath(destHash, nil, nil, false)
 		// Python prints: "requested  " with end=" ", so there is one space
 		// before the 2-char spinner field.
-		fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested   ")
+		fmt.Print("Path to " + rns.PrettyHexRep(destHash) + " requested   ")
 	}
 	syms := []rune("⢄⢂⢁⡁⡈⡐⡠")
 	i := 0
@@ -866,7 +866,7 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 			fmt.Println("Error: Invalid path data returned")
 			return exitError{code: 1, msg: ""}
 		}
-		nextHop := rns.PrettyHex(nextHopBytes)
+		nextHop := rns.PrettyHexRep(nextHopBytes)
 		hops := rns.HopsTo(destHash)
 		ifName := reticulum.GetNextHopIfName(destHash)
 
@@ -885,7 +885,7 @@ func handleDiscover(destinationHex string, timeout float64, noOutput bool) error
 			ms = "s"
 		}
 		fmt.Printf("\rPath found, destination %s is %d hop%s away via %s on %s\n",
-			rns.PrettyHex(destHash), hops, ms, nextHop, ifName)
+			rns.PrettyHexRep(destHash), hops, ms, nextHop, ifName)
 		return nil
 	}
 	fmt.Print("\r                                                       \rPath not found\n")

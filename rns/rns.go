@@ -3,7 +3,6 @@ package rns
 import (
 	crand "crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -20,13 +19,13 @@ import (
 	platformutils "github.com/svanichkin/go-reticulum/rns/vendor"
 )
 
-// Library version mirrors python/RNS/_version.py.
-var Version = "1.1.5"
-var compiledFlag = false
+// moduleVersion mirrors python/RNS/_version.py::__version__.
+var moduleVersion = "1.1.5"
+var Compiled = false
 
 const (
 	defaultLogTimeFormat     = "2006-01-02 15:04:05"
-	defaultLogTimeFormatPrec = "15:04:05.000"
+	defaultLogTimeFormatPrec = "15:04:05.000000"
 	identityAESBlockSize     = 16
 )
 
@@ -75,15 +74,14 @@ const logMaxSize = 5 * 1024 * 1024
 const LOG_MAXSIZE = logMaxSize
 
 var (
-	logLevel                             = LogNotice
-	logDest               LogDestination = LogStdout
-	logFilePath           string
-	logCallback           func(level int, line string)
-	logSuppressOutput     bool
-	logTimeFmt            = defaultLogTimeFormat
-	logTimeFmtPrec        = defaultLogTimeFormatPrec
-	logTimePrecTrimMillis bool
-	compactLogFmt         bool
+	Loglevel                         = LogNotice
+	logDest           LogDestination = LogStdout
+	logFilePath       string
+	logCallback       func(line string)
+	logSuppressOutput bool
+	LogTimeFmt        = defaultLogTimeFormat
+	LogTimeFmtPrec    = defaultLogTimeFormatPrec
+	CompactLogFmt     bool
 
 	logMu              sync.Mutex
 	randMu             sync.Mutex
@@ -94,35 +92,36 @@ var (
 	exitCalled         bool
 	exitMu             sync.Mutex
 
-	instanceRand = rand.New(rand.NewSource(seedRandom()))
+	instanceRand = func() *rand.Rand {
+		var buf [10]byte
+		if _, err := crand.Read(buf[:]); err != nil {
+			panic(err)
+		}
+		seed := int64(binary.LittleEndian.Uint64(buf[:8]) ^ uint64(binary.LittleEndian.Uint16(buf[8:])))
+		return rand.New(rand.NewSource(seed))
+	}()
 
 	profilerRegistry = make(map[string]*Profiler)
 	profilerTags     = make(map[string]*profilerTagEntry)
 	profilerOrder    []string
 	profilerHasRun   bool
+	profilerStart    = time.Now()
 
 	phyParamsSnapshot = PhyLayerParams{}
 
 	// LinkMDU matches the classic Link.MDU from the Python implementation.
-	LinkMDU = computeLinkMDU(DefaultMTU)
+	LinkMDU = func() int {
+		payload := DefaultMTU - IFAC_MIN_SIZE - HEADER_MINSIZE - cryptography.Overhead
+		if payload <= 0 {
+			return 0
+		}
+		blocks := payload / identityAESBlockSize
+		if blocks <= 0 {
+			return 0
+		}
+		return blocks*identityAESBlockSize - 1
+	}()
 )
-
-func init() {
-	if strings.HasSuffix(os.Args[0], ".test") && os.Getenv("RNS_TEST_LOGS") != "1" {
-		logSuppressOutput = true
-	}
-	mtuMu.Lock()
-	recalcMTUDerivedLocked()
-	mtuMu.Unlock()
-}
-
-func seedRandom() int64 {
-	var buf [8]byte
-	if _, err := crand.Read(buf[:]); err == nil {
-		return int64(binary.LittleEndian.Uint64(buf[:]))
-	}
-	return time.Now().UnixNano()
-}
 
 // PhyLayerParams stores values printed by PhyParams().
 type PhyLayerParams struct {
@@ -160,167 +159,19 @@ func LogLevelName(level int) string {
 	}
 }
 
-func SetLogLevel(level int) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logLevel = level
-}
-
-func LogLevel() int {
-	logMu.Lock()
-	defer logMu.Unlock()
-	return logLevel
-}
-
-func UseStdoutLogging() {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logDest = LogStdout
-	alwaysOverrideDest = false
-}
-
-func LogDest() LogDestination {
-	logMu.Lock()
-	defer logMu.Unlock()
-	return logDest
-}
-
-// SetLogDest sets the active log destination, mirroring RNS.logdest in Python.
-func SetLogDest(dest LogDestination) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logDest = dest
-	alwaysOverrideDest = false
-}
-
-func SetLogFile(path string) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logFilePath = path
-	logDest = LogFile
-	alwaysOverrideDest = false
-}
-
-// SetLogDestFile is an alias for compatibility with Reticulum code.
-func SetLogDestFile(path string) {
-	SetLogFile(path)
-}
-
-func SetLogDestCallback(cb func(level int, msg string)) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logCallback = cb
-	if cb != nil {
-		logDest = LogCallback
-	} else {
-		logDest = LogStdout
-	}
-	alwaysOverrideDest = false
-}
-
-func SetLogCallback(cb func(string)) {
-	if cb == nil {
-		SetLogDestCallback(nil)
-		return
-	}
-	SetLogDestCallback(func(_ int, msg string) {
-		cb(msg)
-	})
-}
-
-func SetCompactLogFormat(on bool) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	compactLogFmt = on
-}
-
-// SetLogOutputSuppressed controls whether non-callback log destinations should
-// emit output. It is primarily used to keep go test output quiet while still
-// allowing explicit callback-based log assertions in tests.
-func SetLogOutputSuppressed(on bool) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	logSuppressOutput = on
-}
-
-// SetLogTimeFormat allows customising the timestamp prefix used in logs,
-// mirroring RNS.logtimefmt in the Python implementation. Passing an empty
-// string resets the format to the default value.
-func SetLogTimeFormat(format string) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	if strings.TrimSpace(format) == "" {
-		logTimeFmt = defaultLogTimeFormat
-		return
-	}
-	logTimeFmt, _ = normalizeTimeFormat(format, false)
-}
-
-// SetPreciseLogTimeFormat sets the format used when LogPrecise is called.
-// An empty string resets it back to the default.
-func SetPreciseLogTimeFormat(format string) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	if strings.TrimSpace(format) == "" {
-		logTimeFmtPrec = defaultLogTimeFormatPrec
-		logTimePrecTrimMillis = false
-		return
-	}
-	logTimeFmtPrec, logTimePrecTrimMillis = normalizeTimeFormat(format, true)
-}
-
-// LogTimeFormats returns the current standard and precise timestamp formats.
-func LogTimeFormats() (standard string, precise string) {
-	logMu.Lock()
-	defer logMu.Unlock()
-	return logTimeFmt, logTimeFmtPrec
-}
-
 // ---------- version / platform ----------
-
-func GetVersion() string { return Version }
-
-// VersionString mirrors Python's RNS.version() helper.
-func VersionString() string { return Version }
-
-// SetVersion allows overriding the exposed library version string at runtime.
-// Useful when embedding the Go port inside other binaries that manage versioning.
-func SetVersion(ver string) {
-	if strings.TrimSpace(ver) == "" {
-		return
-	}
-	Version = ver
-}
-
-// Compiled reports whether the current build is considered "compiled" (mirrors
-// the Python flag RNS.compiled). It defaults to true for the Go port, but can
-// be overridden if embedding environments need to signal otherwise.
-func Compiled() bool { return compiledFlag }
-
-// SetCompiled lets callers override the compiled flag returned by Compiled().
-func SetCompiled(flag bool) { compiledFlag = flag }
 
 func HostOS() string {
 	return platformutils.GetPlatform()
 }
 
-// ---------- time / formatting ----------
-
-func timestampStr(t time.Time) string {
-	return t.Format(logTimeFmt)
-}
-
-func preciseTimestampStr(t time.Time) string {
-	s := t.Format(logTimeFmtPrec)
-	if logTimePrecTrimMillis && len(s) >= 3 {
-		return s[:len(s)-3]
-	}
-	return s
+func Version() string {
+	return moduleVersion
 }
 
 func TimestampStr(seconds float64) string {
 	nsec := int64(seconds * float64(time.Second))
-	return time.Unix(0, nsec).In(time.Local).Format(logTimeFmt)
+	return time.Unix(0, nsec).In(time.Local).Format(LogTimeFmt)
 }
 
 func PreciseTimestampStr(seconds float64) string {
@@ -329,86 +180,34 @@ func PreciseTimestampStr(seconds float64) string {
 	_ = seconds
 	now := time.Now()
 	logMu.Lock()
-	prec := logTimeFmtPrec
-	trim := logTimePrecTrimMillis
+	prec := LogTimeFmtPrec
 	logMu.Unlock()
 	s := now.Format(prec)
-	if trim && len(s) >= 3 {
+	if len(s) >= 3 {
 		return s[:len(s)-3]
 	}
 	return s
 }
 
-// normalizeTimeFormat accepts either a Go time layout (default for this port)
-// or a Python strftime-style format (used by the upstream implementation).
-// If the input contains '%' directives, a best-effort conversion is applied.
-func normalizeTimeFormat(format string, precise bool) (layout string, trimMillis bool) {
-	f := strings.TrimSpace(format)
-	if f == "" {
-		if precise {
-			return defaultLogTimeFormatPrec, false
-		}
-		return defaultLogTimeFormat, false
-	}
-
-	// If it looks like Python strftime, convert the directives we use upstream.
-	// Python defaults: "%Y-%m-%d %H:%M:%S" and "%H:%M:%S.%f" (then trimmed to ms).
-	if strings.Contains(f, "%") {
-		trim := false
-		out := f
-		// Order matters: replace "%f" before generic "%".
-		if strings.Contains(out, "%f") {
-			// Go has microseconds at 6 digits with ".000000". Python later slices to ms.
-			out = strings.ReplaceAll(out, "%f", "000000")
-			if precise {
-				trim = true
-			}
-		}
-		out = strings.ReplaceAll(out, "%Y", "2006")
-		out = strings.ReplaceAll(out, "%m", "01")
-		out = strings.ReplaceAll(out, "%d", "02")
-		out = strings.ReplaceAll(out, "%H", "15")
-		out = strings.ReplaceAll(out, "%M", "04")
-		out = strings.ReplaceAll(out, "%S", "05")
-		return out, trim
-	}
-
-	return f, false
-}
-
 // ---------- main logger ----------
 
-func Log(msg any, level int) {
-	logInternal(msg, level, false, false)
-}
+func Log(msg any, level int, options ...bool) {
+	overrideDest := false
+	precise := false
+	if len(options) > 0 {
+		overrideDest = options[0]
+	}
+	if len(options) > 1 {
+		precise = options[1]
+	}
 
-func LogPrecise(msg any, level int) {
-	logInternal(msg, level, true, false)
-}
-
-// LogOverride forces the message to be printed to stdout regardless of the configured destination.
-// It mirrors the internal _override_destination flag of Python's RNS.log(...).
-func LogOverride(msg any, level int) {
-	logInternal(msg, level, false, true)
-}
-
-// LogPreciseOverride forces precise logging to stdout regardless of the configured destination.
-func LogPreciseOverride(msg any, level int) {
-	logInternal(msg, level, true, true)
-}
-
-func Logf(level int, format string, args ...any) {
-	logInternal(fmt.Sprintf(format, args...), level, false, false)
-}
-
-func logInternal(msg any, level int, precise, overrideDest bool) {
 	logMu.Lock()
-	currentLevel := logLevel
+	currentLevel := Loglevel
 	if currentLevel == LogNone || currentLevel < level {
 		logMu.Unlock()
 		return
 	}
-	compact := compactLogFmt
+	compact := CompactLogFmt
 	dest := logDest
 	overrideAlways := alwaysOverrideDest
 	path := logFilePath
@@ -418,31 +217,49 @@ func logInternal(msg any, level int, precise, overrideDest bool) {
 
 	text := fmt.Sprint(msg)
 	now := time.Now()
-
 	var prefix string
 	if precise {
-		prefix = "[" + preciseTimestampStr(now) + "] " + LogLevelName(level) + " "
-	} else if compact {
-		prefix = "[" + timestampStr(now) + "] "
+		s := now.Format(LogTimeFmtPrec)
+		if len(s) >= 3 {
+			s = s[:len(s)-3]
+		}
+		prefix = "[" + s + "] " + LogLevelName(level) + " "
 	} else {
-		prefix = "[" + timestampStr(now) + "] " + LogLevelName(level) + " "
+		if compact {
+			prefix = "[" + now.Format(LogTimeFmt) + "] "
+		} else {
+			prefix = "[" + now.Format(LogTimeFmt) + "] " + LogLevelName(level) + " "
+		}
 	}
-
 	logLine := prefix + text
-	toStdout := dest == LogStdout || overrideAlways || overrideDest
 
 	switch {
-	case toStdout:
-		if suppressOutput && cb == nil && !overrideDest && !overrideAlways {
+	case dest == LogStdout || overrideAlways || overrideDest:
+		if suppressOutput && cb == nil && !overrideAlways && !overrideDest {
 			return
 		}
 		fmt.Println(logLine)
-
 	case dest == LogFile && path != "":
 		if suppressOutput && cb == nil {
 			return
 		}
-		if err := appendLogFile(path, logLine); err != nil {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err == nil {
+			if _, err = fmt.Fprintln(f, logLine); err == nil {
+				if closeErr := f.Close(); closeErr == nil {
+					if info, statErr := os.Stat(path); statErr == nil && info.Size() > logMaxSize {
+						prev := path + ".1"
+						_ = os.Remove(prev)
+						_ = os.Rename(path, prev)
+					}
+					break
+				} else {
+					err = closeErr
+				}
+			}
+			_ = f.Close()
+		}
+		if err != nil {
 			logMu.Lock()
 			alwaysOverrideDest = true
 			logMu.Unlock()
@@ -450,7 +267,6 @@ func logInternal(msg any, level int, precise, overrideDest bool) {
 			Log("Dumping future log events to console!", LogCritical)
 			Log(msg, level)
 		}
-
 	case dest == LogCallback && cb != nil:
 		func() {
 			defer func() {
@@ -463,38 +279,10 @@ func logInternal(msg any, level int, precise, overrideDest bool) {
 					Log(msg, level)
 				}
 			}()
-			cb(level, logLine)
+			cb(logLine)
 		}()
 	}
 }
-
-func appendLogFile(path, line string) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(f, line); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil
-	}
-	if info.Size() <= logMaxSize {
-		return nil
-	}
-
-	prev := path + ".1"
-	_ = os.Remove(prev)
-	return os.Rename(path, prev)
-}
-
-// ---------- random ----------
 
 func Rand() float64 {
 	randMu.Lock()
@@ -506,26 +294,14 @@ func TraceException(e any) {
 	if e == nil {
 		return
 	}
-	LogOverride(fmt.Sprintf("An unhandled %T exception occurred: %v", e, e), LogError)
-	trace := formattedExceptionTrace(e)
-	if strings.TrimSpace(trace) != "" {
-		LogOverride(trace, LogError)
-	}
-}
-
-func formattedExceptionTrace(e any) string {
-	if e == nil {
-		return ""
-	}
-
-	// pkg/errors and similar wrappers often expose stack-aware formatting
-	// through %+v. Prefer that output before falling back to the current stack.
+	Log(fmt.Sprintf("An unhandled %T exception occurred: %v", e, e), LogError)
 	normal := fmt.Sprint(e)
 	verbose := fmt.Sprintf("%+v", e)
 	if strings.TrimSpace(verbose) != "" && verbose != normal {
-		return verbose
+		Log(verbose, LogError)
+	} else {
+		Log(normal, LogError)
 	}
-	return ""
 }
 
 // ---------- hex representation ----------
@@ -536,13 +312,33 @@ func HexRep(data any, delimit ...bool) string {
 		sep = ""
 	}
 
-	values := hexValues(data)
-	if len(values) == 0 {
+	value := reflect.ValueOf(data)
+	if !value.IsValid() {
 		return ""
 	}
 
+	var items []reflect.Value
+	switch value.Kind() {
+	case reflect.Slice, reflect.Array:
+		items = make([]reflect.Value, 0, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			items = append(items, value.Index(i))
+		}
+	default:
+		items = []reflect.Value{value}
+	}
+
 	var sb strings.Builder
-	for i, v := range values {
+	for i, item := range items {
+		var v byte
+		switch item.Kind() {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			v = byte(item.Uint())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			v = byte(item.Int())
+		default:
+			return ""
+		}
 		if i > 0 {
 			sb.WriteString(sep)
 		}
@@ -552,134 +348,7 @@ func HexRep(data any, delimit ...bool) string {
 }
 
 func PrettyHexRep(data any) string {
-	values := hexValues(data)
-	var sb strings.Builder
-	sb.WriteByte('<')
-	for _, v := range values {
-		sb.WriteString(fmt.Sprintf("%02x", v))
-	}
-	sb.WriteByte('>')
-	return sb.String()
-}
-
-func PrettyHex(data any) string {
-	return PrettyHexRep(data)
-}
-
-func PrettyHash(data any) string {
-	return PrettyHex(data)
-}
-
-func hexValues(data any) []uint64 {
-	if data == nil {
-		return nil
-	}
-
-	switch v := data.(type) {
-	case []byte:
-		out := make([]uint64, len(v))
-		for i, b := range v {
-			out[i] = uint64(b)
-		}
-		return out
-	case string:
-		return hexValues([]byte(v))
-	case byte:
-		return []uint64{uint64(v)}
-	case int:
-		return []uint64{uint64(absInt64(int64(v)))}
-	case int64:
-		return []uint64{uint64(absInt64(v))}
-	case int32:
-		return []uint64{uint64(absInt64(int64(v)))}
-	case int16:
-		return []uint64{uint64(absInt64(int64(v)))}
-	case int8:
-		return []uint64{uint64(absInt64(int64(v)))}
-	case uint16:
-		return []uint64{uint64(v)}
-	case uint32:
-		return []uint64{uint64(v)}
-	case uint64:
-		return []uint64{v}
-	case uint:
-		return []uint64{uint64(v)}
-	case []int:
-		out := make([]uint64, len(v))
-		for i, val := range v {
-			out[i] = uint64(absInt64(int64(val)))
-		}
-		return out
-	case []uint16:
-		out := make([]uint64, len(v))
-		for i, val := range v {
-			out[i] = uint64(val)
-		}
-		return out
-	case []uint32:
-		out := make([]uint64, len(v))
-		for i, val := range v {
-			out[i] = uint64(val)
-		}
-		return out
-	case []uint64:
-		out := make([]uint64, len(v))
-		copy(out, v)
-		return out
-	}
-
-	val := reflect.ValueOf(data)
-	if !val.IsValid() {
-		return nil
-	}
-
-	if val.Kind() == reflect.Pointer {
-		if val.IsNil() {
-			return nil
-		}
-		return hexValues(val.Elem().Interface())
-	}
-
-	switch val.Kind() {
-	case reflect.Slice, reflect.Array:
-		length := val.Len()
-		out := make([]uint64, 0, length)
-		for i := 0; i < length; i++ {
-			out = append(out, valueToUint64(val.Index(i)))
-		}
-		return out
-	default:
-		return []uint64{valueToUint64(val)}
-	}
-}
-
-func valueToUint64(val reflect.Value) uint64 {
-	switch val.Kind() {
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return val.Uint()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return uint64(absInt64(val.Int()))
-	case reflect.Bool:
-		if val.Bool() {
-			return 1
-		}
-		return 0
-	case reflect.Float32, reflect.Float64:
-		f := val.Float()
-		if f < 0 {
-			f = -f
-		}
-		return uint64(f)
-	default:
-		return 0
-	}
-}
-
-func absInt64(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
+	return "<" + HexRep(data, false) + ">"
 }
 
 // ---------- human-readable sizes/speeds ----------
@@ -724,7 +393,7 @@ func PrettyFrequency(hz float64, suffix ...string) string {
 		suf = suffix[0]
 	}
 	if hz == 0 {
-		return "0 " + suf
+		return "0 Hz"
 	}
 	num := hz * 1e6
 	units := []string{"µ", "m", "", "K", "M", "G", "T", "P", "E", "Z"}
@@ -814,14 +483,25 @@ func PrettyTime(sec float64, verbose, compact bool) string {
 	add(minutes, "minute", "minutes")
 
 	if seconds > 0 && (!compact || shown < 2) {
+		var secondsText string
+		if compact {
+			secondsText = strconv.FormatFloat(seconds, 'f', 0, 64)
+		} else {
+			// Python: str(round(sec, 2)) always keeps at least one decimal digit
+			// e.g. 5.0 → "5.0", 5.1 → "5.1", 5.12 → "5.12"
+			secondsText = strings.TrimRight(strconv.FormatFloat(seconds, 'f', 2, 64), "0")
+			if strings.HasSuffix(secondsText, ".") {
+				secondsText += "0"
+			}
+		}
 		if verbose {
 			suf := "seconds"
 			if seconds == 1 {
 				suf = "second"
 			}
-			components = append(components, fmt.Sprintf("%s %s", formatNumber(seconds, compact), suf))
+			components = append(components, fmt.Sprintf("%s %s", secondsText, suf))
 		} else {
-			components = append(components, fmt.Sprintf("%s%s", formatNumber(seconds, compact), "s"))
+			components = append(components, fmt.Sprintf("%s%s", secondsText, "s"))
 		}
 	}
 
@@ -894,14 +574,24 @@ func PrettyShortTime(sec float64, verbose, compact bool) string {
 	add(seconds, "second", "seconds", "s")
 	add(milliseconds, "millisecond", "milliseconds", "ms")
 	if micro > 0 && (!compact || shown < 2) {
+		var microText string
+		if compact {
+			microText = strconv.FormatFloat(micro, 'f', 0, 64)
+		} else {
+			// Python: str(round(time, 2)) always keeps at least one decimal digit
+			microText = strings.TrimRight(strconv.FormatFloat(micro, 'f', 2, 64), "0")
+			if strings.HasSuffix(microText, ".") {
+				microText += "0"
+			}
+		}
 		if verbose {
 			suf := "microseconds"
 			if micro == 1 {
 				suf = "microsecond"
 			}
-			components = append(components, fmt.Sprintf("%s %s", formatNumber(micro, compact), suf))
+			components = append(components, fmt.Sprintf("%s %s", microText, suf))
 		} else {
-			components = append(components, fmt.Sprintf("%sµs", formatNumber(micro, compact)))
+			components = append(components, fmt.Sprintf("%sµs", microText))
 		}
 	}
 
@@ -927,231 +617,16 @@ func PrettyShortTime(sec float64, verbose, compact bool) string {
 	return out
 }
 
-func formatNumber(value float64, compact bool) string {
-	decimals := 2
-	if compact {
-		decimals = 0
-	}
-	format := fmt.Sprintf("%%.%df", decimals)
-	text := fmt.Sprintf(format, value)
-	if decimals > 0 {
-		text = strings.TrimRight(text, "0")
-		text = strings.TrimRight(text, ".")
-	}
-	if text == "" {
-		return "0"
-	}
-	return text
-}
-
 // ---------- PHY parameters ----------
 
-func SetPhyLayerParams(params PhyLayerParams) {
-	phyParamsMu.Lock()
-	defer phyParamsMu.Unlock()
-	phyParamsSnapshot = params
-}
-
 func PhyParams() {
-	params := resolvedPhyLayerParams()
-
-	fmt.Printf("Required Physical Layer MTU : %s\n", bytesOrUnknown(params.PhysicalLayerMTU))
-	fmt.Printf("Plaintext Packet MDU        : %s\n", bytesOrUnknown(params.PacketPlainMDU))
-	fmt.Printf("Encrypted Packet MDU        : %s\n", bytesOrUnknown(params.PacketEncryptedMDU))
-	fmt.Printf("Link Curve                  : %s\n", stringOrUnknown(params.LinkCurve))
-	fmt.Printf("Link Packet MDU             : %s\n", bytesOrUnknown(params.LinkMDU))
-	fmt.Printf("Link Public Key Size        : %s\n", bitsOrUnknown(params.LinkPublicKeyBits))
-	fmt.Printf("Link Private Key Size       : %s\n", bitsOrUnknown(params.LinkPrivateKeyBits))
-}
-
-func bytesOrUnknown(value int) string {
-	if value > 0 {
-		return fmt.Sprintf("%d bytes", value)
-	}
-	return "unknown"
-}
-
-func bitsOrUnknown(value int) string {
-	if value > 0 {
-		return fmt.Sprintf("%d bits", value)
-	}
-	return "unknown"
-}
-
-func stringOrUnknown(value string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
-	}
-	return "unknown"
-}
-
-// SetMTU overrides the global Reticulum MTU at runtime and recalculates all
-// derived payload sizes (packet/link MDUs, resource hash capacities, etc).
-// The supplied MTU must leave room for protocol headers and resource metadata.
-func SetMTU(mtu int) error {
-	if mtu <= 0 {
-		return errors.New("MTU must be positive")
-	}
-
-	plain := computePlainMDU(mtu)
-	if plain <= 0 {
-		return fmt.Errorf("MTU %d leaves no room for packet payloads", mtu)
-	}
-
-	link := computeLinkMDU(mtu)
-	if link <= 0 {
-		return fmt.Errorf("MTU %d leaves no room for link payloads", mtu)
-	}
-
-	hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
-	if hashLen <= 0 {
-		return fmt.Errorf("MTU %d leaves no room for resource hashmaps", mtu)
-	}
-
-	encrypted := computeEncryptedPacketMDU(plain)
-
-	mtuMu.Lock()
-	defer mtuMu.Unlock()
-
-	MTU = mtu
-	applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen)
-	return nil
-}
-
-func recalcMTUDerivedLocked() {
-	plain := computePlainMDU(MTU)
-	link := computeLinkMDU(MTU)
-	hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
-	encrypted := computeEncryptedPacketMDU(plain)
-	applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen)
-}
-
-func applyMTUDerivedValuesLocked(plain, encrypted, link, hashLen int) {
-	prevPlain := PacketPlainMDU
-	prevEncrypted := PacketEncryptedMDU
-	prevLink := LinkMDU
-
-	if plain < 0 {
-		plain = 0
-	}
-	if encrypted < 0 {
-		encrypted = 0
-	}
-	if link < 0 {
-		link = 0
-	}
-	MDU = plain
-	PacketMDU = plain
-	PacketPLAIN_MDU = plain
-	PacketENCRYPTED_MDU = encrypted
-	PacketPlainMDU = plain
-	PacketEncryptedMDU = encrypted
-	LinkMDU = link
-	HashmapMaxLen = hashLen
-	CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
-
-	if plain != prevPlain || encrypted != prevEncrypted || link != prevLink {
-		go propagateMTUChange(prevPlain, plain, prevLink, link)
-	}
-}
-
-func computePlainMDU(mtu int) int {
-	value := mtu - HEADER_MAXSIZE - IFAC_MIN_SIZE
-	if value < 0 {
-		return 0
-	}
-	return value
-}
-
-func computeEncryptedPacketMDU(plain int) int {
-	usable := plain - cryptography.Overhead - (identityPubKeyLen / 2)
-	if usable <= 0 {
-		return 0
-	}
-	blocks := usable / identityAESBlockSize
-	if blocks <= 0 {
-		return 0
-	}
-	return blocks*identityAESBlockSize - 1
-}
-
-func computeLinkMDU(mtu int) int {
-	payload := mtu - IFAC_MIN_SIZE - HEADER_MINSIZE - cryptography.Overhead
-	if payload <= 0 {
-		return 0
-	}
-	blocks := payload / identityAESBlockSize
-	if blocks <= 0 {
-		return 0
-	}
-	return blocks*identityAESBlockSize - 1
-}
-
-func propagateMTUChange(prevPlain, newPlain, prevLink, newLink int) {
-	for _, dst := range Destinations {
-		if dst == nil {
-			continue
-		}
-		if dst.mtu == 0 || dst.mtu == prevPlain {
-			dst.mtu = newPlain
-		}
-	}
-
-	linkMu.Lock()
-	updateLinkMTU(PendingLinks, prevLink, newLink)
-	updateLinkMTU(ActiveLinks, prevLink, newLink)
-	linkMu.Unlock()
-}
-
-func updateLinkMTU(links []*Link, prevLink, newLink int) {
-	for _, l := range links {
-		if l == nil {
-			continue
-		}
-		if prevLink == 0 || l.MTU == prevLink {
-			l.MTU = newLink
-			l.updateMDU()
-		}
-	}
-}
-
-func resolvedPhyLayerParams() PhyLayerParams {
-	defaults := PhyLayerParams{
-		PhysicalLayerMTU:   MTU,
-		PacketPlainMDU:     PacketPlainMDU,
-		PacketEncryptedMDU: PacketEncryptedMDU,
-		LinkCurve:          linkCurveName,
-		LinkMDU:            LinkMDU,
-		LinkPublicKeyBits:  linkEcPubSize * 8,
-		LinkPrivateKeyBits: linkKeySize * 8,
-	}
-
-	phyParamsMu.RLock()
-	override := phyParamsSnapshot
-	phyParamsMu.RUnlock()
-
-	if override.PhysicalLayerMTU > 0 {
-		defaults.PhysicalLayerMTU = override.PhysicalLayerMTU
-	}
-	if override.PacketPlainMDU > 0 {
-		defaults.PacketPlainMDU = override.PacketPlainMDU
-	}
-	if override.PacketEncryptedMDU > 0 {
-		defaults.PacketEncryptedMDU = override.PacketEncryptedMDU
-	}
-	if strings.TrimSpace(override.LinkCurve) != "" {
-		defaults.LinkCurve = override.LinkCurve
-	}
-	if override.LinkMDU > 0 {
-		defaults.LinkMDU = override.LinkMDU
-	}
-	if override.LinkPublicKeyBits > 0 {
-		defaults.LinkPublicKeyBits = override.LinkPublicKeyBits
-	}
-	if override.LinkPrivateKeyBits > 0 {
-		defaults.LinkPrivateKeyBits = override.LinkPrivateKeyBits
-	}
-	return defaults
+	fmt.Printf("Required Physical Layer MTU : %d bytes\n", MTU)
+	fmt.Printf("Plaintext Packet MDU        : %d bytes\n", PacketPlainMDU)
+	fmt.Printf("Encrypted Packet MDU        : %d bytes\n", PacketEncryptedMDU)
+	fmt.Printf("Link Curve                  : %s\n", linkCurveName)
+	fmt.Printf("Link Packet MDU             : %d bytes\n", LinkMDU)
+	fmt.Printf("Link Public Key Size        : %d bits\n", linkEcPubSize*8)
+	fmt.Printf("Link Private Key Size       : %d bits\n", linkKeySize*8)
 }
 
 // ---------- panic / exit ----------
@@ -1190,8 +665,8 @@ type profilerTagEntry struct {
 }
 
 type profilerThreadEntry struct {
-	currentStart time.Time
-	captures     []time.Duration
+	currentStart float64
+	captures     []float64
 }
 
 // ---------- Profiler ----------
@@ -1200,9 +675,11 @@ type Profiler struct {
 	tag           string
 	superTag      string
 	paused        bool
-	pauseStarted  time.Time
-	pauseTime     time.Duration
+	pauseStarted  float64
+	pauseTime     float64
 	superProfiler *Profiler
+	pauseSuper    func(...float64)
+	resumeSuper   func()
 }
 
 func GetProfiler(tag string, superTag ...string) *Profiler {
@@ -1221,16 +698,21 @@ func GetProfiler(tag string, superTag ...string) *Profiler {
 	prof := &Profiler{
 		tag:      tag,
 		superTag: parentTag,
+		pauseSuper: func(...float64) {
+		},
+		resumeSuper: func() {
+		},
 	}
 
 	if parentTag != "" {
 		if parent, ok := profilerRegistry[parentTag]; ok {
 			prof.superProfiler = parent
+			prof.pauseSuper = parent.pause
+			prof.resumeSuper = parent.resume
 		}
 	}
 
 	profilerRegistry[tag] = prof
-	profilerOrder = append(profilerOrder, tag)
 	return prof
 }
 
@@ -1240,11 +722,19 @@ func (p *Profiler) Enter() {
 	if p == nil {
 		return
 	}
-	if p.superProfiler != nil {
-		p.superProfiler.pause()
-	}
+	p.pauseSuper()
 
-	gid := goroutineID()
+	var gid int64
+	{
+		var buf [64]byte
+		n := runtime.Stack(buf[:], false)
+		fields := strings.Fields(string(buf[:n]))
+		if len(fields) >= 2 && fields[0] == "goroutine" {
+			if id, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+				gid = id
+			}
+		}
+	}
 	profilerMu.Lock()
 	entry := profilerTags[p.tag]
 	if entry == nil {
@@ -1253,115 +743,133 @@ func (p *Profiler) Enter() {
 			threads: make(map[int64]*profilerThreadEntry),
 		}
 		profilerTags[p.tag] = entry
+		profilerOrder = append(profilerOrder, p.tag)
 	}
 	thread := entry.threads[gid]
 	if thread == nil {
 		thread = &profilerThreadEntry{}
 		entry.threads[gid] = thread
 	}
-	thread.currentStart = time.Now()
+	thread.currentStart = time.Since(profilerStart).Seconds()
 	profilerMu.Unlock()
 
-	if p.superProfiler != nil {
-		p.superProfiler.resume()
-	}
+	p.resumeSuper()
 }
 
 func (p *Profiler) Exit() {
 	if p == nil {
 		return
 	}
-	if p.superProfiler != nil {
-		p.superProfiler.pause()
-	}
+	p.pauseSuper()
 
-	gid := goroutineID()
-	now := time.Now()
+	var gid int64
+	{
+		var buf [64]byte
+		n := runtime.Stack(buf[:], false)
+		fields := strings.Fields(string(buf[:n]))
+		if len(fields) >= 2 && fields[0] == "goroutine" {
+			if id, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+				gid = id
+			}
+		}
+	}
+	now := time.Since(profilerStart).Seconds()
 
 	profilerMu.Lock()
 	if entry, ok := profilerTags[p.tag]; ok {
 		if thread, ok := entry.threads[gid]; ok {
-			if !thread.currentStart.IsZero() {
-				duration := now.Sub(thread.currentStart) - p.pauseTime
+			if thread.currentStart != 0 {
+				duration := now - thread.currentStart - p.pauseTime
 				if duration < 0 {
 					duration = 0
 				}
 				thread.captures = append(thread.captures, duration)
-				thread.currentStart = time.Time{}
+				thread.currentStart = 0
 				profilerHasRun = true
 			}
 		}
 	}
 	p.pauseTime = 0
-	p.pauseStarted = time.Time{}
+	p.pauseStarted = 0
 	profilerMu.Unlock()
 
-	if p.superProfiler != nil {
-		p.superProfiler.resume()
-	}
+	p.resumeSuper()
 }
 
-func (p *Profiler) Pause() {
-	p.pause()
-}
-
-func (p *Profiler) Resume() {
-	p.resume()
-}
-
-func (p *Profiler) pause(start ...time.Time) {
+func (p *Profiler) pause(start ...float64) {
 	if p == nil || p.paused {
 		return
 	}
 	p.paused = true
-	if len(start) > 0 && !start[0].IsZero() {
+	if len(start) > 0 && start[0] != 0 {
 		p.pauseStarted = start[0]
 	} else {
-		p.pauseStarted = time.Now()
+		p.pauseStarted = time.Since(profilerStart).Seconds()
 	}
-	if p.superProfiler != nil {
-		p.superProfiler.pause(p.pauseStarted)
-	}
+	p.pauseSuper(p.pauseStarted)
 }
 
 func (p *Profiler) resume() {
 	if p == nil || !p.paused {
 		return
 	}
-	p.pauseTime += time.Since(p.pauseStarted)
+	p.pauseTime += time.Since(profilerStart).Seconds() - p.pauseStarted
 	p.paused = false
-	if p.superProfiler != nil {
-		p.superProfiler.resume()
-	}
+	p.resumeSuper()
 }
 
-func ProfilerRan() bool {
+func (Profiler) Ran() bool {
 	profilerMu.Lock()
 	defer profilerMu.Unlock()
 	return profilerHasRun
 }
 
-func ProfilerResults() {
+func (Profiler) Results() {
 	profilerMu.Lock()
 	results := make(map[string]profilerResult, len(profilerTags))
 	for tag, entry := range profilerTags {
-		var captures []time.Duration
+		var captures []float64
 		for _, thread := range entry.threads {
 			captures = append(captures, thread.captures...)
 		}
 		if len(captures) == 0 {
 			continue
 		}
-		stats := computeProfilerStats(captures)
+		sum := 0.0
+		for _, v := range captures {
+			sum += v
+		}
+		mean := sum / float64(len(captures))
+
+		sortedVals := append([]float64(nil), captures...)
+		sort.Slice(sortedVals, func(i, j int) bool { return sortedVals[i] < sortedVals[j] })
+		mid := len(sortedVals) / 2
+		var median float64
+		if len(sortedVals)%2 == 0 {
+			median = (sortedVals[mid-1] + sortedVals[mid]) / 2
+		} else {
+			median = sortedVals[mid]
+		}
+
+		var stddev *float64
+		if len(captures) > 1 {
+			variance := 0.0
+			for _, v := range captures {
+				diff := v - mean
+				variance += diff * diff
+			}
+			variance /= float64(len(captures) - 1)
+			v := math.Sqrt(variance)
+			stddev = &v
+		}
+
 		results[tag] = profilerResult{
 			Name:   tag,
 			Super:  entry.super,
 			Count:  len(captures),
-			Mean:   stats.mean,
-			Median: stats.median,
-			StdDev: stats.stddev,
-			HasStd: stats.hasStd,
-			Total:  stats.total,
+			Mean:   mean,
+			Median: median,
+			StdDev: stddev,
 		}
 	}
 	profilerMu.Unlock()
@@ -1372,9 +880,42 @@ func ProfilerResults() {
 	}
 
 	fmt.Print("\nProfiler results:\n\n")
-	rootNames := orderedProfilerNames(results, "")
+	orderForParent := func(parent string) []string {
+		var names []string
+		for _, name := range profilerOrder {
+			res, ok := results[name]
+			if !ok {
+				continue
+			}
+			if parent == "" && res.Super == "" {
+				names = append(names, name)
+			} else if res.Super == parent {
+				names = append(names, name)
+			}
+		}
+		return names
+	}
+	var printResultsRecursive func(profilerResult, int)
+	printResultsRecursive = func(res profilerResult, level int) {
+		indent := strings.Repeat("  ", level)
+		fmt.Printf("%s%s\n", indent, res.Name)
+		fmt.Printf("%s  Samples  : %d\n", indent, res.Count)
+		if res.StdDev != nil {
+			fmt.Printf("%s  Mean     : %s\n", indent, PrettyShortTime(res.Mean, false, false))
+			fmt.Printf("%s  Median   : %s\n", indent, PrettyShortTime(res.Median, false, false))
+			fmt.Printf("%s  St.dev.  : %s\n", indent, PrettyShortTime(*res.StdDev, false, false))
+		}
+		fmt.Printf("%s  Total    : %s\n\n", indent, PrettyShortTime(res.Mean*float64(res.Count), false, false))
+
+		children := orderForParent(res.Name)
+		for _, name := range children {
+			printResultsRecursive(results[name], level+1)
+		}
+	}
+
+	rootNames := orderForParent("")
 	for _, name := range rootNames {
-		printProfilerResultsRecursive(results[name], results, 0)
+		printResultsRecursive(results[name], 1)
 	}
 }
 
@@ -1382,106 +923,7 @@ type profilerResult struct {
 	Name   string
 	Super  string
 	Count  int
-	Mean   time.Duration
-	Median time.Duration
-	StdDev time.Duration
-	HasStd bool
-	Total  time.Duration
-}
-
-type profilerStats struct {
-	mean   time.Duration
-	median time.Duration
-	stddev time.Duration
-	hasStd bool
-	total  time.Duration
-}
-
-func computeProfilerStats(values []time.Duration) profilerStats {
-	if len(values) == 0 {
-		return profilerStats{}
-	}
-	sum := 0.0
-	total := time.Duration(0)
-	for _, v := range values {
-		sum += float64(v)
-		total += v
-	}
-	mean := time.Duration(sum / float64(len(values)))
-
-	sortedVals := append([]time.Duration(nil), values...)
-	sort.Slice(sortedVals, func(i, j int) bool { return sortedVals[i] < sortedVals[j] })
-	var median time.Duration
-	mid := len(sortedVals) / 2
-	if len(sortedVals)%2 == 0 {
-		median = (sortedVals[mid-1] + sortedVals[mid]) / 2
-	} else {
-		median = sortedVals[mid]
-	}
-
-	variance := 0.0
-	for _, v := range values {
-		diff := float64(v - mean)
-		variance += diff * diff
-	}
-
-	stats := profilerStats{
-		mean:   mean,
-		median: median,
-	}
-	stats.total = total
-	if len(values) > 1 {
-		variance /= float64(len(values) - 1)
-		stats.stddev = time.Duration(math.Sqrt(variance))
-		stats.hasStd = true
-	}
-	return stats
-}
-
-func printProfilerResultsRecursive(res profilerResult, results map[string]profilerResult, level int) {
-	indent := strings.Repeat("  ", level)
-	fmt.Printf("%s%s\n", indent, res.Name)
-	fmt.Printf("%s  Samples  : %d\n", indent, res.Count)
-	if res.HasStd {
-		fmt.Printf("%s  Mean     : %s\n", indent, PrettyShortTime(res.Mean.Seconds(), false, false))
-		fmt.Printf("%s  Median   : %s\n", indent, PrettyShortTime(res.Median.Seconds(), false, false))
-		fmt.Printf("%s  St.dev.  : %s\n", indent, PrettyShortTime(res.StdDev.Seconds(), false, false))
-	} else {
-		fmt.Printf("%s  Mean     : %s\n", indent, PrettyShortTime(res.Mean.Seconds(), false, false))
-		fmt.Printf("%s  Median   : %s\n", indent, PrettyShortTime(res.Median.Seconds(), false, false))
-	}
-	fmt.Printf("%s  Total    : %s\n\n", indent, PrettyShortTime(res.Total.Seconds(), false, false))
-
-	children := orderedProfilerNames(results, res.Name)
-	for _, name := range children {
-		printProfilerResultsRecursive(results[name], results, level+1)
-	}
-}
-
-func orderedProfilerNames(results map[string]profilerResult, parent string) []string {
-	var names []string
-	for _, name := range profilerOrder {
-		res, ok := results[name]
-		if !ok {
-			continue
-		}
-		if parent == "" && res.Super == "" {
-			names = append(names, name)
-		} else if res.Super == parent {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-func goroutineID() int64 {
-	var buf [64]byte
-	n := runtime.Stack(buf[:], false)
-	fields := strings.Fields(string(buf[:n]))
-	if len(fields) >= 2 && fields[0] == "goroutine" {
-		if id, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
-			return id
-		}
-	}
-	return 0
+	Mean   float64
+	Median float64
+	StdDev *float64
 }

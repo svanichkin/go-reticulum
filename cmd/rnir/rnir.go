@@ -107,7 +107,7 @@ func main() {
 	flag.CommandLine.Parse(expandCountFlags(os.Args[1:]))
 
 	if showVersion {
-		fmt.Printf("rnir %s\n", rns.GetVersion())
+		fmt.Printf("rnir %s\n", rns.Version())
 		return
 	}
 

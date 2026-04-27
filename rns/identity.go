@@ -170,7 +170,7 @@ func (id *Identity) CreateKeys() {
 	id.sigPubBytes = pubSig
 
 	id.updateHashes()
-	Logf(LogVerbose, "Identity keys created for %s", PrettyHexRep(id.Hash))
+	Log(fmt.Sprintf("Identity keys created for %s", PrettyHexRep(id.Hash)), LogVerbose)
 }
 
 // GetPrivateKey mirrors get_private_key().
@@ -366,7 +366,7 @@ func IdentitySaveKnownDestinations() error {
 			time.Sleep(waitInterval)
 			if time.Since(waitStart) > waitTimeout {
 				err := errors.New("Could not save known destinations to storage, waiting for previous save operation timed out.")
-				Logf(LogError, "%v", err)
+				Log(fmt.Sprintf("%v", err), LogError)
 				return err
 			}
 		}
@@ -496,8 +496,7 @@ func IdentitySaveKnownDestinations() error {
 	if err != nil {
 		return err
 	}
-
-	Logf(LogDebug, "Saving %d known destinations to storage...", len(snapshot))
+	Log(fmt.Sprintf("Saving %d known destinations to storage...", len(snapshot)), LogDebug)
 
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
@@ -509,9 +508,9 @@ func IdentitySaveKnownDestinations() error {
 
 	saveTime := time.Since(saveStart).Seconds()
 	if saveTime < 1 {
-		Logf(LogDebug, "Saved known destinations to storage in %.2fms", saveTime*1000)
+		Log(fmt.Sprintf("Saved known destinations to storage in %.2fms", saveTime*1000), LogDebug)
 	} else {
-		Logf(LogDebug, "Saved known destinations to storage in %.2fs", saveTime)
+		Log(fmt.Sprintf("Saved known destinations to storage in %.2fs", saveTime), LogDebug)
 	}
 	return nil
 }
@@ -528,17 +527,17 @@ func IdentityLoadKnownDestinations() error {
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		Logf(LogVerbose, "Destinations file does not exist, no known destinations loaded")
+		Log(fmt.Sprintf("Destinations file does not exist, no known destinations loaded"), LogVerbose)
 		return nil
 	}
 	if err != nil {
-		Logf(LogError, "Error loading known destinations from disk, file will be recreated on exit")
+		Log(fmt.Sprintf("Error loading known destinations from disk, file will be recreated on exit"), LogError)
 		return nil
 	}
 
 	var raw map[any]any
 	if err := umsgpack.Unpackb(data, &raw); err != nil {
-		Logf(LogError, "Error loading known destinations from disk, file will be recreated on exit")
+		Log(fmt.Sprintf("Error loading known destinations from disk, file will be recreated on exit"), LogError)
 		return nil
 	}
 
@@ -603,8 +602,7 @@ func IdentityLoadKnownDestinations() error {
 	knownDestinations.Lock()
 	knownDestinations.entries = entries
 	knownDestinations.Unlock()
-
-	Logf(LogVerbose, "Loaded %d known destination from storage", len(entries))
+	Log(fmt.Sprintf("Loaded %d known destination from storage", len(entries)), LogVerbose)
 	return nil
 }
 
@@ -614,7 +612,7 @@ func IdentityPersistData() {
 		return
 	}
 	if err := IdentitySaveKnownDestinations(); err != nil {
-		Logf(LogError, "Error while saving known destinations to disk, the contained exception was: %v", err)
+		Log(fmt.Sprintf("Error while saving known destinations to disk, the contained exception was: %v", err), LogError)
 		TraceException(err)
 	}
 }
@@ -637,7 +635,7 @@ func IdentityCurrentRatchetID(destinationHash []byte) []byte {
 func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error occurred while validating announce. The contained exception was: %v", r)
+			Log(fmt.Sprintf("Error occurred while validating announce. The contained exception was: %v", r), LogError)
 			valid = false
 		}
 	}()
@@ -698,7 +696,7 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
 
 	announced := &Identity{curve: ecdh.X25519()}
 	if err := announced.LoadPublicKey(publicKey); err != nil {
-		Logf(LogError, "Error while loading public key, the contained exception was: %v", err)
+		Log(fmt.Sprintf("Error while loading public key, the contained exception was: %v", err), LogError)
 	}
 	if key, ok := func(hash []byte) (hashKey, bool) {
 		if len(hash) < truncatedHashBytes {
@@ -712,13 +710,13 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
 		_, blackholed := blackholedIdentities[key]
 		blackholeMu.RUnlock()
 		if blackholed {
-			Logf(LogExtreme, "Invalidated and dropped announce from blackholed identity %s", PrettyHexRep(announced.Hash))
+			Log(fmt.Sprintf("Invalidated and dropped announce from blackholed identity %s", PrettyHexRep(announced.Hash)), LogExtreme)
 			return false
 		}
 	}
 
 	if !(announced.pub != nil && announced.Validate(signature, signed)) {
-		Logf(LogDebug, "Received invalid announce for %s: Invalid signature.", PrettyHexRep(packet.DestinationHash))
+		Log(fmt.Sprintf("Received invalid announce for %s: Invalid signature.", PrettyHexRep(packet.DestinationHash)), LogDebug)
 		return false
 	}
 
@@ -730,7 +728,7 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
 	hashMaterial = append(hashMaterial, announced.Hash...)
 	expectedHash := FullHash(hashMaterial)[:ReticulumTruncatedHashLength/8]
 	if len(packet.DestinationHash) != ReticulumTruncatedHashLength/8 || !bytes.Equal(packet.DestinationHash, expectedHash) {
-		Logf(LogDebug, "Received invalid announce for %s: Destination mismatch.", PrettyHexRep(packet.DestinationHash))
+		Log(fmt.Sprintf("Received invalid announce for %s: Destination mismatch.", PrettyHexRep(packet.DestinationHash)), LogDebug)
 		return false
 	}
 
@@ -763,11 +761,13 @@ func ValidateAnnounce(packet *Packet, onlyValidateSignature bool) (valid bool) {
 		}
 	}
 	if len(packet.TransportID) > 0 {
-		Logf(LogExtreme, "Valid announce for %s %d hops away, received via %s on %v%s",
-			PrettyHexRep(packet.DestinationHash), packet.Hops, PrettyHexRep(packet.TransportID), packet.ReceivingInterface, signal)
+		Log(fmt.Sprintf("Valid announce for %s %d hops away, received via %s on %v%s",
+			PrettyHexRep(packet.DestinationHash), packet.Hops, PrettyHexRep(packet.TransportID), packet.ReceivingInterface, signal), LogExtreme,
+		)
 	} else {
-		Logf(LogExtreme, "Valid announce for %s %d hops away, received on %v%s",
-			PrettyHexRep(packet.DestinationHash), packet.Hops, packet.ReceivingInterface, signal)
+		Log(fmt.Sprintf("Valid announce for %s %d hops away, received on %v%s",
+			PrettyHexRep(packet.DestinationHash), packet.Hops, packet.ReceivingInterface, signal), LogExtreme,
+		)
 	}
 	return true
 }
@@ -856,7 +856,7 @@ func (id *Identity) Decrypt(ciphertextToken []byte, ratchets [][]byte, enforceRa
 
 	peerPub, err := id.curve.NewPublicKey(peerPubBytes)
 	if err != nil {
-		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(id.Hash), err), LogDebug)
 		return nil, nil
 	}
 
@@ -879,18 +879,18 @@ func (id *Identity) Decrypt(ciphertextToken []byte, ratchets [][]byte, enforceRa
 	}
 
 	if enforceRatchets {
-		Logf(LogDebug, "Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(id.Hash))
+		Log(fmt.Sprintf("Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(id.Hash)), LogDebug)
 		return nil, nil
 	}
 
 	shared, err := id.prv.ECDH(peerPub)
 	if err != nil {
-		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(id.Hash), err), LogDebug)
 		return nil, nil
 	}
 	pt, err := id.decryptWithShared(shared, ciphertext)
 	if err != nil {
-		Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(id.Hash), err)
+		Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(id.Hash), err), LogDebug)
 		return nil, nil
 	}
 	return pt, nil
@@ -903,7 +903,7 @@ func (id *Identity) Sign(msg []byte) (sig []byte, err error) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "The identity %s could not sign the requested message. The contained exception was: %v", id, r)
+			Log(fmt.Sprintf("The identity %s could not sign the requested message. The contained exception was: %v", id, r), LogError)
 			panic(r)
 		}
 	}()
@@ -968,7 +968,7 @@ func (id *Identity) Prove(packet *Packet, destination *Destination) {
 	proof.FromPacked = true
 	proof.Destination = destination
 	if proof.Send() == nil {
-		Logf(LogDebug, "Sent proof for %s", PrettyHexRep(packetHash))
+		Log(fmt.Sprintf("Sent proof for %s", PrettyHexRep(packetHash)), LogDebug)
 	}
 }
 
@@ -998,8 +998,8 @@ func IdentityRatchetPublicBytes(private []byte) []byte {
 func IdentityRememberRatchet(destHash, ratchet []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Could not persist ratchet for %s to storage.", PrettyHexRep(destHash))
-			Logf(LogVerbose, "The contained exception was: %v", r)
+			Log(fmt.Sprintf("Could not persist ratchet for %s to storage.", PrettyHexRep(destHash)), LogError)
+			Log(fmt.Sprintf("The contained exception was: %v", r), LogVerbose)
 			TraceException(r)
 		}
 	}()
@@ -1018,7 +1018,7 @@ func IdentityRememberRatchet(destHash, ratchet []byte) {
 	}
 
 	ratchetID := IdentityGetRatchetID(ratchet)
-	Logf(LogExtreme, "Remembering ratchet %s for %s", PrettyHexRep(ratchetID), PrettyHexRep(destHash))
+	Log(fmt.Sprintf("Remembering ratchet %s for %s", PrettyHexRep(ratchetID), PrettyHexRep(destHash)), LogExtreme)
 
 	if instance != nil && instance.IsConnectedToSharedInstance {
 		return
@@ -1029,8 +1029,8 @@ func IdentityRememberRatchet(destHash, ratchet []byte) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				Logf(LogError, "Could not persist ratchet for %s to storage.", PrettyHexRep(destCopy))
-				Logf(LogError, "The contained exception was: %v", r)
+				Log(fmt.Sprintf("Could not persist ratchet for %s to storage.", PrettyHexRep(destCopy)), LogError)
+				Log(fmt.Sprintf("The contained exception was: %v", r), LogError)
 			}
 		}()
 
@@ -1090,30 +1090,30 @@ func IdentityGetRatchet(destHash []byte) []byte {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+			Log(fmt.Sprintf("Could not load ratchet for %s", PrettyHexRep(destHash)), LogDebug)
 			return nil
 		}
-		Logf(LogError, "An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash))
-		Logf(LogError, "The contained exception was: %v", err)
+		Log(fmt.Sprintf("An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash)), LogError)
+		Log(fmt.Sprintf("The contained exception was: %v", err), LogError)
 		return nil
 	}
 	var rec ratchetRecord
 	if err := umsgpack.Unpackb(data, &rec); err != nil {
-		Logf(LogError, "An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash))
-		Logf(LogError, "The contained exception was: %v", err)
+		Log(fmt.Sprintf("An error occurred while loading ratchet data for %s from storage.", PrettyHexRep(destHash)), LogError)
+		Log(fmt.Sprintf("The contained exception was: %v", err), LogError)
 		return nil
 	}
 	if len(rec.Ratchet) != x25519KeyLen {
-		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+		Log(fmt.Sprintf("Could not load ratchet for %s", PrettyHexRep(destHash)), LogDebug)
 		return nil
 	}
 	if time.Since(time.Unix(int64(math.Floor(rec.Received)), int64((rec.Received-math.Floor(rec.Received))*1e9))) > ratchetExpiry {
-		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+		Log(fmt.Sprintf("Could not load ratchet for %s", PrettyHexRep(destHash)), LogDebug)
 		return nil
 	}
 	ratchet := rec.Ratchet
 	if len(ratchet) == 0 {
-		Logf(LogDebug, "Could not load ratchet for %s", PrettyHexRep(destHash))
+		Log(fmt.Sprintf("Could not load ratchet for %s", PrettyHexRep(destHash)), LogDebug)
 		return nil
 	}
 
@@ -1141,7 +1141,7 @@ func IdentityCleanRatchets() {
 		if os.IsNotExist(err) {
 			return
 		}
-		Logf(LogError, "An error occurred while cleaning ratchets. The contained exception was: %v", err)
+		Log(fmt.Sprintf("An error occurred while cleaning ratchets. The contained exception was: %v", err), LogError)
 		return
 	}
 
@@ -1154,16 +1154,16 @@ func IdentityCleanRatchets() {
 		func() {
 			data, err := os.ReadFile(path)
 			if err != nil {
-				Logf(LogError, "An error occurred while cleaning ratchets, in the processing of %s.", path)
-				Logf(LogError, "The contained exception was: %v", err)
+				Log(fmt.Sprintf("An error occurred while cleaning ratchets, in the processing of %s.", path), LogError)
+				Log(fmt.Sprintf("The contained exception was: %v", err), LogError)
 				return
 			}
 
 			var rec ratchetRecord
 			if err := umsgpack.Unpackb(data, &rec); err != nil {
-				Logf(LogError, "Corrupted ratchet data while reading %s, removing file", path)
+				Log(fmt.Sprintf("Corrupted ratchet data while reading %s, removing file", path), LogError)
 				if err := os.Remove(path); err != nil {
-					Logf(LogError, "Could not remove ratchet file %s: %v", path, err)
+					Log(fmt.Sprintf("Could not remove ratchet file %s: %v", path, err), LogError)
 				}
 				return
 			}
@@ -1175,7 +1175,7 @@ func IdentityCleanRatchets() {
 			}
 			if now.Sub(stored) > ratchetExpiry {
 				if err := os.Remove(path); err != nil {
-					Logf(LogError, "Could not remove ratchet file %s: %v", path, err)
+					Log(fmt.Sprintf("Could not remove ratchet file %s: %v", path, err), LogError)
 				}
 			}
 		}()

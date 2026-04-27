@@ -214,7 +214,7 @@ func logExternalInterfaceStderr(ifType, name string, r io.Reader) {
 		if line == "" {
 			continue
 		}
-		Logf(LogNotice, "external python interface %s / %s: %s", ifType, name, line)
+		Log(fmt.Sprintf("external python interface %s / %s: %s", ifType, name, line), LogNotice)
 	}
 }
 
@@ -298,7 +298,7 @@ func (d *pythonExternalInterfaceDriver) readLoop(scanner *bufio.Scanner) {
 		event, err := readExternalInterfaceEvent(scanner)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				Logf(LogError, "external python interface %s: %v", d.ifc, err)
+				Log(fmt.Sprintf("external python interface %s: %v", d.ifc, err), LogError)
 			}
 			return
 		}
@@ -307,7 +307,7 @@ func (d *pythonExternalInterfaceDriver) readLoop(scanner *bufio.Scanner) {
 		case "inbound":
 			payload, err := base64.StdEncoding.DecodeString(event.Data)
 			if err != nil {
-				Logf(LogError, "could not decode inbound payload from external interface %s: %v", d.ifc, err)
+				Log(fmt.Sprintf("could not decode inbound payload from external interface %s: %v", d.ifc, err), LogError)
 				continue
 			}
 			atomic.AddUint64(&d.ifc.RXB, uint64(len(payload)))
@@ -322,9 +322,9 @@ func (d *pythonExternalInterfaceDriver) readLoop(scanner *bufio.Scanner) {
 			if event.Level != nil {
 				level = *event.Level
 			}
-			Logf(level, "external python interface %s: %s", d.ifc, event.Message)
+			Log(fmt.Sprintf("external python interface %s: %s", d.ifc, event.Message), level)
 		case "error":
-			Logf(LogError, "external python interface %s: %s", d.ifc, event.Message)
+			Log(fmt.Sprintf("external python interface %s: %s", d.ifc, event.Message), LogError)
 		case "state":
 			if event.Online != nil {
 				d.ifc.Online = *event.Online

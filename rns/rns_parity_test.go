@@ -11,20 +11,20 @@ import (
 )
 
 func TestVersionString_MatchesPython115(t *testing.T) {
-	if got := VersionString(); got != "1.1.5" {
-		t.Fatalf("VersionString()=%q, want 1.1.5", got)
+	if got := Version(); got != "1.1.5" {
+		t.Fatalf("Version=%q, want 1.1.5", got)
 	}
 }
 
 func TestCompiled_DefaultsFalse(t *testing.T) {
-	prev := compiledFlag
-	compiledFlag = false
+	prev := Compiled
+	Compiled = false
 	t.Cleanup(func() {
-		compiledFlag = prev
+		Compiled = prev
 	})
 
-	if Compiled() {
-		t.Fatal("Compiled()=true, want false by default")
+	if Compiled {
+		t.Fatal("Compiled=true, want false by default")
 	}
 }
 
@@ -95,7 +95,7 @@ func TestProfilerResults_PreservesCreationOrder(t *testing.T) {
 		os.Stdout = oldStdout
 	}()
 
-	ProfilerResults()
+	(Profiler{}).Results()
 
 	_ = w.Close()
 	out, err := io.ReadAll(r)
@@ -116,12 +116,12 @@ func TestProfilerResults_PreservesCreationOrder(t *testing.T) {
 
 func TestTraceException_UsesVerboseErrorWhenAvailable(t *testing.T) {
 	prevDest := logDest
-	prevLevel := logLevel
+	prevLevel := Loglevel
 	logDest = LogStdout
-	logLevel = LogError
+	Loglevel = LogError
 	t.Cleanup(func() {
 		logDest = prevDest
-		logLevel = prevLevel
+		Loglevel = prevLevel
 	})
 
 	oldStdout := os.Stdout
@@ -149,12 +149,12 @@ func TestTraceException_UsesVerboseErrorWhenAvailable(t *testing.T) {
 
 func TestTraceException_PlainErrorDoesNotLogCurrentGoroutineStack(t *testing.T) {
 	prevDest := logDest
-	prevLevel := logLevel
+	prevLevel := Loglevel
 	logDest = LogStdout
-	logLevel = LogError
+	Loglevel = LogError
 	t.Cleanup(func() {
 		logDest = prevDest
-		logLevel = prevLevel
+		Loglevel = prevLevel
 	})
 
 	oldStdout := os.Stdout

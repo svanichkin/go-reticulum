@@ -52,11 +52,11 @@ func main() {
 	if _, err := rns.NewReticulum(configPtr, &logLevel, nil, nil, false, nil); err != nil {
 		fatalf("reticulum init failed: %v", err)
 	}
-	rns.SetCompactLogFormat(true)
+	rns.CompactLogFmt = true
 	if traceMode {
-		rns.SetLogLevel(rns.LOG_DEBUG)
+		rns.Loglevel = rns.LOG_DEBUG
 	} else {
-		rns.SetLogLevel(-1)
+		rns.Loglevel = -1
 	}
 
 	id, err := loadOrCreateIdentity(identityPath)

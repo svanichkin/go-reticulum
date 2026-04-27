@@ -174,3 +174,148 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		t.Fatal("linkTable entry was not marked validated")
 	}
 }
+
+func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *testing.T) {
+	prevTransportEnabled := transportEnabled
+	prevTransportIdentity := TransportIdentity
+	prevInterfaces := Interfaces
+	prevLocalClients := LocalClientInterfaces
+	prevDestinations := Destinations
+	prevPathTable := pathTable
+	prevPending := PendingLinks
+	prevActive := ActiveLinks
+	prevOwner := Owner
+	prevPacketHashSet := PacketHashSet
+	prevPacketHashSet2 := PacketHashSet2
+
+	transportEnabled = false
+	Interfaces = nil
+	LocalClientInterfaces = nil
+	Destinations = nil
+	pathTable = make(map[hashKey]*PathEntry)
+	PendingLinks = nil
+	ActiveLinks = nil
+	Owner = nil
+	PacketHashSet = make(map[hashKey]struct{})
+	PacketHashSet2 = make(map[hashKey]struct{})
+
+	t.Cleanup(func() {
+		transportEnabled = prevTransportEnabled
+		TransportIdentity = prevTransportIdentity
+		Interfaces = prevInterfaces
+		LocalClientInterfaces = prevLocalClients
+		Destinations = prevDestinations
+		pathTable = prevPathTable
+		PendingLinks = prevPending
+		ActiveLinks = prevActive
+		Owner = prevOwner
+		PacketHashSet = prevPacketHashSet
+		PacketHashSet2 = prevPacketHashSet2
+	})
+
+	transportID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(transport): %v", err)
+	}
+	TransportIdentity = transportID
+
+	clientIfc := &Interface{Name: "LocalInterface[shared]", Type: "LocalInterface", LocalIsSharedClient: true, OUT: true}
+	clientIfc.SetProcessOutgoingFunc(func([]byte) error { return nil })
+	Interfaces = []*Interface{clientIfc}
+
+	serverID, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity(server): %v", err)
+	}
+	serverDest := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationOUT,
+		identity:  serverID,
+		Hash:      append([]byte(nil), serverID.Hash...),
+		hexhash:   PrettyHexRep(serverID.Hash),
+	}
+
+	key, ok := func(hash []byte) (hashKey, bool) {
+		if len(hash) < truncatedHashBytes {
+			return hashKey{}, false
+		}
+		var key hashKey
+		copy(key[:], hash[:truncatedHashBytes])
+		return key, true
+	}(serverDest.Hash)
+	if !ok {
+		t.Fatal("hash key conversion failed")
+	}
+	pathTable[key] = &PathEntry{
+		NextHop:       append([]byte(nil), serverDest.Hash...),
+		RecvInterface: clientIfc,
+		Hops:          0,
+		ExpiresAt:     time.Now().Add(time.Hour),
+	}
+
+	initiator, err := NewLink(serverDest, nil, LinkModeDefault, nil, nil)
+	if err != nil {
+		t.Fatalf("NewLink(initiator): %v", err)
+	}
+	if initiator == nil {
+		t.Fatal("NewLink(initiator) returned nil")
+	}
+	t.Cleanup(func() { initiator.Status = LinkClosed })
+	if initiator.expectedHops != 0 {
+		t.Fatalf("initiator.expectedHops=%d, want 0 for shared-instance local path", initiator.expectedHops)
+	}
+
+	serverOwner := &Destination{
+		Type:      DestinationSINGLE,
+		Direction: DestinationIN,
+		identity:  serverID,
+		Hash:      append([]byte(nil), serverDest.Hash...),
+		hexhash:   PrettyHexRep(serverDest.Hash),
+	}
+	responder, err := NewLink(nil, serverOwner, LinkModeDefault, nil, nil)
+	if err != nil {
+		t.Fatalf("NewLink(responder): %v", err)
+	}
+	if responder == nil {
+		t.Fatal("NewLink(responder) returned nil")
+	}
+	responder.LinkID = append([]byte(nil), initiator.LinkID...)
+	responder.destination = serverOwner
+	serverSide := &Interface{Name: "server-side-local", Type: "LocalInterface", Parent: &Interface{LocalIsSharedInstance: true}, OUT: true}
+	var captured [][]byte
+	serverSide.SetProcessOutgoingFunc(func(data []byte) error {
+		captured = append(captured, append([]byte(nil), data...))
+		return nil
+	})
+	responder.attachedInterface = serverSide
+	if err := responder.loadPeer(append([]byte(nil), initiator.pub...), append([]byte(nil), initiator.sigPub...)); err != nil {
+		t.Fatalf("responder.loadPeer(): %v", err)
+	}
+	if err := responder.Handshake(); err != nil {
+		t.Fatalf("responder.Handshake(): %v", err)
+	}
+	responder.prove()
+
+	if len(captured) != 1 {
+		t.Fatalf("captured proofs=%d, want 1", len(captured))
+	}
+
+	pkt := NewPacket(nil, captured[0], PacketTypeData, PacketCtxNone, Broadcast, HeaderType1, nil, nil, true, FlagUnset)
+	if pkt == nil || !pkt.Unpack() {
+		t.Fatal("captured LRPROOF could not be unpacked")
+	}
+	if !bytes.Equal(pkt.DestinationHash, initiator.LinkID) {
+		t.Fatalf("proof destination hash=%x, want link id %x", pkt.DestinationHash, initiator.LinkID)
+	}
+	if len(PendingLinks) != 1 || PendingLinks[0] != initiator {
+		t.Fatalf("pending links=%d, want 1 matching initiator", len(PendingLinks))
+	}
+	PacketHashSet = make(map[hashKey]struct{})
+	PacketHashSet2 = make(map[hashKey]struct{})
+
+	Inbound(captured[0], clientIfc)
+
+	if initiator.Status != LinkActive {
+		t.Fatalf("initiator.Status=%d, want %d (proof hops=%d expected_hops=%d)", initiator.Status, LinkActive, pkt.Hops, initiator.expectedHops)
+	}
+}

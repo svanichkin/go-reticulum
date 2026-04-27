@@ -157,7 +157,7 @@ func init() {
 	discoveryHandlerFactory = func(requiredValue int, discoverInterfaces bool) any {
 		d, err := NewInterfaceDiscovery(requiredValue, nil, discoverInterfaces)
 		if err != nil {
-			Logf(LogError, "Could not initialise interface discovery: %v", err)
+			Log(fmt.Sprintf("Could not initialise interface discovery: %v", err), LogError)
 			return nil
 		}
 		return d
@@ -187,7 +187,7 @@ func NewInterfaceAnnouncer() *InterfaceAnnouncer {
 	}
 	dest, err := NewDestination(identity, DestinationIN, DestinationSINGLE, TransportAppName, "discovery", "interface")
 	if err != nil {
-		Logf(LogError, "Could not create discovery destination: %v", err)
+		Log(fmt.Sprintf("Could not create discovery destination: %v", err), LogError)
 		return &InterfaceAnnouncer{stampCache: make(map[string][]byte)}
 	}
 	return &InterfaceAnnouncer{dest: dest, stampCache: make(map[string][]byte)}
@@ -238,7 +238,7 @@ func (a *InterfaceAnnouncer) job() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Error while preparing interface discovery announces: %v", r)
+					Log(fmt.Sprintf("Error while preparing interface discovery announces: %v", r), LogError)
 					TraceException(r)
 				}
 			}()
@@ -260,13 +260,13 @@ func (a *InterfaceAnnouncer) job() {
 			}
 			selected := due[0]
 			selected.LastDiscoveryAnnounce = time.Now()
-			Logf(LogDebug, "Preparing interface discovery announce for %s", selected.Name)
+			Log(fmt.Sprintf("Preparing interface discovery announce for %s", selected.Name), LogDebug)
 			appData, err := a.GetInterfaceAnnounceData(selected)
 			if err != nil {
-				Logf(LogError, "Could not generate interface discovery announce data for %s", selected.Name)
+				Log(fmt.Sprintf("Could not generate interface discovery announce data for %s", selected.Name), LogError)
 				return
 			}
-			Logf(LogDebug, "Sending interface discovery announce for %s with %dB payload", selected.Name, len(appData))
+			Log(fmt.Sprintf("Sending interface discovery announce for %s with %dB payload", selected.Name, len(appData)), LogDebug)
 			a.dest.Announce(appData, false, nil, nil, true)
 		}()
 	}
@@ -285,7 +285,7 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 		return nil, fmt.Errorf("interface type %q does not support discovery", ifType)
 	}
 	if ifType == "TCPClientInterface" && !ifc.DiscoveryKISSFraming() {
-		Logf(LogError, "Invalid interface discovery configuration for %s, aborting discovery announce", ifc.Name)
+		Log(fmt.Sprintf("Invalid interface discovery configuration for %s, aborting discovery announce", ifc.Name), LogError)
 		return nil, fmt.Errorf("invalid interface discovery configuration for %s", ifc.Name)
 	}
 
@@ -344,23 +344,23 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 				return expanded, true
 			}
 			if execPath, ok := resolveExecutablePath(reachableOn); ok {
-				Logf(LogDebug, "Evaluating reachable_on from executable at %s", execPath)
+				Log(fmt.Sprintf("Evaluating reachable_on from executable at %s", execPath), LogDebug)
 				out, err := exec.Command(execPath).Output()
 				if err != nil {
-					Logf(LogError, "Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), err)
+					Log(fmt.Sprintf("Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), err), LogError)
 					Log("Aborting discovery announce", LogError)
 					return nil, fmt.Errorf("error while getting reachable_on from executable at %s: %w", ifc.DiscoveryReachableOnValue(), err)
 				}
 				reachableOn = sanitizeDiscoveryString(string(out))
 				if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
 					execErr := fmt.Errorf("Valid IP address or hostname was not found in external script output %q", reachableOn)
-					Logf(LogError, "Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), execErr)
+					Log(fmt.Sprintf("Error while getting reachable_on from executable at %s: %v", ifc.DiscoveryReachableOnValue(), execErr), LogError)
 					Log("Aborting discovery announce", LogError)
 					return nil, execErr
 				}
 			}
 			if !(isIPAddress(reachableOn) || isHostname(reachableOn)) {
-				Logf(LogError, "The configured reachable_on parameter \"%s\" for %s is not a valid IP address or hostname", reachableOn, ifc.Name)
+				Log(fmt.Sprintf("The configured reachable_on parameter \"%s\" for %s is not a valid IP address or hostname", reachableOn, ifc.Name), LogError)
 				Log("Aborting discovery announce", LogError)
 				return nil, fmt.Errorf("invalid reachable_on %q for %s", reachableOn, ifc.Name)
 			}
@@ -569,7 +569,7 @@ func (a *InterfaceAnnouncer) GetInterfaceAnnounceData(ifc *Interface) ([]byte, e
 	payload := append(append([]byte(nil), packedInfo.Bytes()...), stamp...)
 	if ifc.DiscoveryEncrypt {
 		if !HasNetworkIdentity() {
-			Logf(LogError, "Discovery encryption requested for %s, but no network identity configured. Aborting discovery announce.", ifc.Name)
+			Log(fmt.Sprintf("Discovery encryption requested for %s, but no network identity configured. Aborting discovery announce.", ifc.Name), LogError)
 			return nil, errors.New("discovery encryption requested without network identity")
 		}
 		flags |= discoveryFlagEncrypted
@@ -603,7 +603,7 @@ func (h *InterfaceAnnounceHandler) AspectFilter() any {
 func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, announcedIdentity *Identity, appData []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogDebug, "An error occurred while trying to decode discovered interface. The contained exception was: %v", r)
+			Log(fmt.Sprintf("An error occurred while trying to decode discovered interface. The contained exception was: %v", r), LogDebug)
 		}
 	}()
 	if h == nil || announcedIdentity == nil || len(appData) <= 1 || DiscoveryStampProvider == nil {
@@ -619,7 +619,7 @@ func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, anno
 			}
 		}
 		if !allowed {
-			Logf(LogDebug, "Interface discovered from non-authorized network identity %s, ignoring", PrettyHexRep(announcedIdentity.Hash))
+			Log(fmt.Sprintf("Interface discovered from non-authorized network identity %s, ignoring", PrettyHexRep(announcedIdentity.Hash)), LogDebug)
 			return
 		}
 	}
@@ -652,7 +652,7 @@ func (h *InterfaceAnnounceHandler) ReceivedAnnounce(destinationHash []byte, anno
 	}
 	value := DiscoveryStampProvider.StampValue(workblock, stamp)
 	if value < h.requiredValue {
-		Logf(LogDebug, "Ignored discovered interface with stamp value %d", value)
+		Log(fmt.Sprintf("Ignored discovered interface with stamp value %d", value), LogDebug)
 		return
 	}
 
@@ -988,7 +988,7 @@ func NewInterfaceDiscovery(requiredValue int, callback func(map[string]any), dis
 func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error processing discovered interface data: %v", r)
+			Log(fmt.Sprintf("Error processing discovered interface data: %v", r), LogError)
 			TraceException(r)
 		}
 	}()
@@ -1021,7 +1021,7 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 	if hops == 1 {
 		ms = ""
 	}
-	Logf(LogDebug, "Discovered %s %d hop%s away with stamp value %d: %s", ifType, hops, ms, stampValue, ifName)
+	Log(fmt.Sprintf("Discovered %s %d hop%s away with stamp value %d: %s", ifType, hops, ms, stampValue, ifName), LogDebug)
 	switch x := info["received"].(type) {
 	case float64:
 		received = x
@@ -1060,12 +1060,12 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 
 	buf, err := umsgpack.Packb(merged)
 	if err != nil {
-		Logf(LogError, "Error while persisting discovered interface data: %v", err)
+		Log(fmt.Sprintf("Error while persisting discovered interface data: %v", err), LogError)
 		TraceException(err)
 		return
 	}
 	if err := os.WriteFile(path, buf, 0o600); err != nil {
-		Logf(LogError, "Error while persisting discovered interface data: %v", err)
+		Log(fmt.Sprintf("Error while persisting discovered interface data: %v", err), LogError)
 		TraceException(err)
 	}
 
@@ -1074,7 +1074,7 @@ func (d *InterfaceDiscovery) interfaceDiscovered(info map[string]any) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Error while processing external interface discovery callback: %v", r)
+					Log(fmt.Sprintf("Error while processing external interface discovery callback: %v", r), LogError)
 				}
 			}()
 			d.callback(merged)
@@ -1139,23 +1139,23 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 		path := filepath.Join(d.storagePath, entry.Name())
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			Logf(LogError, "Error while loading discovered interface data: %v", err)
-			Logf(LogError, "The interface data file %s may be corrupt", path)
+			Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+			Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 			TraceException(err)
 			continue
 		}
 		info := map[string]any{}
 		if err := umsgpack.Unpackb(raw, &info); err != nil {
-			Logf(LogError, "Error while loading discovered interface data: %v", err)
-			Logf(LogError, "The interface data file %s may be corrupt", path)
+			Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+			Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 			TraceException(err)
 			continue
 		}
 		lastHeardRaw, ok := info["last_heard"]
 		if !ok || lastHeardRaw == nil {
 			err := errors.New("last_heard")
-			Logf(LogError, "Error while loading discovered interface data: %v", err)
-			Logf(LogError, "The interface data file %s may be corrupt", path)
+			Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+			Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 			TraceException(err)
 			continue
 		}
@@ -1168,15 +1168,15 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			}
 			networkID, ok := strOf(networkRaw)
 			if !ok {
-				Logf(LogError, "Error while loading discovered interface data: invalid network_id")
-				Logf(LogError, "The interface data file %s may be corrupt", path)
+				Log(fmt.Sprintf("Error while loading discovered interface data: invalid network_id"), LogError)
+				Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 				continue
 			}
 			networkID = strings.TrimSpace(networkID)
 			decoded, err := hex.DecodeString(networkID)
 			if err != nil {
-				Logf(LogError, "Error while loading discovered interface data: %v", err)
-				Logf(LogError, "The interface data file %s may be corrupt", path)
+				Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+				Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 				continue
 			}
 			allowed := false
@@ -1238,16 +1238,16 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 			transportRaw, ok := info["transport"]
 			if !ok || transportRaw == nil {
 				err := errors.New("transport")
-				Logf(LogError, "Error while loading discovered interface data: %v", err)
-				Logf(LogError, "The interface data file %s may be corrupt", path)
+				Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+				Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 				TraceException(err)
 				continue
 			}
 			transport, ok := transportRaw.(bool)
 			if !ok {
 				err := errors.New("transport")
-				Logf(LogError, "Error while loading discovered interface data: %v", err)
-				Logf(LogError, "The interface data file %s may be corrupt", path)
+				Log(fmt.Sprintf("Error while loading discovered interface data: %v", err), LogError)
+				Log(fmt.Sprintf("The interface data file %s may be corrupt", path), LogError)
 				TraceException(err)
 				continue
 			}
@@ -1277,7 +1277,7 @@ func (d *InterfaceDiscovery) ListDiscoveredInterfaces(onlyAvailable, onlyTranspo
 func (d *InterfaceDiscovery) connectDiscovered() {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while reconnecting discovered interfaces: %v", r)
+			Log(fmt.Sprintf("Error while reconnecting discovered interfaces: %v", r), LogError)
 		}
 	}()
 	if d == nil || !ShouldAutoconnectDiscoveredInterfaces() {
@@ -1362,7 +1362,7 @@ func (d *InterfaceDiscovery) autoconnectCount() int {
 func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogError, "Error while auto-connecting discovered interface: %v", r)
+			Log(fmt.Sprintf("Error while auto-connecting discovered interface: %v", r), LogError)
 			TraceException(r)
 		}
 	}()
@@ -1383,7 +1383,7 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 		return
 	}
 	if d.interfaceExists(info) {
-		Logf(LogDebug, "Discovered %s already exists, not auto-connecting", interfaceType)
+		Log(fmt.Sprintf("Discovered %s already exists, not auto-connecting", interfaceType), LogDebug)
 		return
 	}
 
@@ -1404,12 +1404,12 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 		}
 	}(info["port"])
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(reachableOn) == "" || port <= 0 {
-		Logf(LogWarning, "Could not auto-connect discovered %s %q: %v", interfaceType, name, errors.New("discovered interface missing reachable_on or port"))
+		Log(fmt.Sprintf("Could not auto-connect discovered %s %q: %v", interfaceType, name, errors.New("discovered interface missing reachable_on or port")), LogWarning)
 		return
 	}
 	ifc, err := discoveryAutoconnectInterfaceFactory(info)
 	if err != nil {
-		Logf(LogWarning, "Could not auto-connect discovered %s %q: %v", interfaceType, name, err)
+		Log(fmt.Sprintf("Could not auto-connect discovered %s %q: %v", interfaceType, name, err), LogWarning)
 		return
 	}
 	endpointHash := d.endpointHash(info)
@@ -1418,7 +1418,7 @@ func (d *InterfaceDiscovery) autoconnect(info map[string]any) {
 		ifc.AutoconnectSource = networkID
 	}
 	ifc.OUT = true
-	Logf(LogVerbose, "Auto-connecting discovered %s %s", interfaceType, name)
+	Log(fmt.Sprintf("Auto-connecting discovered %s %s", interfaceType, name), LogVerbose)
 
 	var bitrate *int
 	configuredBitrate := discoveryAutoconnectBitrate
@@ -1529,24 +1529,24 @@ func (d *InterfaceDiscovery) monitorJob() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						Logf(LogError, "Error while checking auto-connected interface state for %s: %v", ifc, r)
+						Log(fmt.Sprintf("Error while checking auto-connected interface state for %s: %v", ifc, r), LogError)
 					}
 				}()
 				if ifc.Online {
 					online++
 					if !ifc.AutoconnectDown.IsZero() {
-						Logf(LogVerbose, "Auto-discovered interface %s reconnected", ifc)
+						Log(fmt.Sprintf("Auto-discovered interface %s reconnected", ifc), LogVerbose)
 						ifc.AutoconnectDown = time.Time{}
 					}
 					return
 				}
 				if ifc.AutoconnectDown.IsZero() {
-					Logf(LogDebug, "Auto-discovered interface %s disconnected", ifc)
+					Log(fmt.Sprintf("Auto-discovered interface %s disconnected", ifc), LogDebug)
 					ifc.AutoconnectDown = now
 					return
 				}
 				if downFor := now.Sub(ifc.AutoconnectDown); downFor >= detachAfter {
-					Logf(LogDebug, "Auto-discovered interface %s has been down for %s, detaching", ifc, PrettyTime(downFor.Seconds(), false, false))
+					Log(fmt.Sprintf("Auto-discovered interface %s has been down for %s, detaching", ifc, PrettyTime(downFor.Seconds(), false, false)), LogDebug)
 					detached = append(detached, ifc)
 				}
 			}()
@@ -1564,7 +1564,7 @@ func (d *InterfaceDiscovery) monitorJob() {
 				if ifc == nil || !ifc.BootstrapOnly {
 					continue
 				}
-				Logf(LogInfo, "Tearing down bootstrap-only %s since target connected auto-discovered interface count has been reached", ifc)
+				Log(fmt.Sprintf("Tearing down bootstrap-only %s since target connected auto-discovered interface count has been reached", ifc), LogInfo)
 				alreadyDetached := false
 				for _, gone := range detached {
 					if gone == ifc {
@@ -1600,7 +1600,7 @@ func (d *InterfaceDiscovery) monitorJob() {
 				}
 				_, err := Owner.synthesizeInterface(name, entry, false)
 				if err != nil {
-					Logf(LogError, "Could not re-enable bootstrap interface %s: %v", name, err)
+					Log(fmt.Sprintf("Could not re-enable bootstrap interface %s: %v", name, err), LogError)
 				}
 			}
 		}
@@ -1619,7 +1619,7 @@ func (d *InterfaceDiscovery) monitorJob() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						Logf(LogError, "Error while de-registering auto-connected interface from transport: %v", r)
+						Log(fmt.Sprintf("Error while de-registering auto-connected interface from transport: %v", r), LogError)
 					}
 				}()
 				d.teardownInterface(ifc)
@@ -1674,7 +1674,7 @@ func (u *BlackholeUpdater) Start() {
 	if sourceCount != 1 {
 		ms = "s"
 	}
-	Logf(LogDebug, "Starting blackhole updater with %d source%s", sourceCount, ms)
+	Log(fmt.Sprintf("Starting blackhole updater with %d source%s", sourceCount, ms), LogDebug)
 	u.shouldRun = true
 	u.mu.Unlock()
 	go u.job()
@@ -1706,7 +1706,7 @@ func (u *BlackholeUpdater) job() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					Logf(LogError, "Error in blackhole list updater job: %v", r)
+					Log(fmt.Sprintf("Error in blackhole list updater job: %v", r), LogError)
 					TraceException(r)
 				}
 			}()
@@ -1731,9 +1731,9 @@ func (u *BlackholeUpdater) job() {
 				if err != nil || len(destinationHash) == 0 {
 					continue
 				}
-				Logf(LogDebug, "Attempting blackhole list update from %s...", PrettyHexRep(sourceHash))
+				Log(fmt.Sprintf("Attempting blackhole list update from %s...", PrettyHexRep(sourceHash)), LogDebug)
 				if u.awaitPath != nil && !u.awaitPath(destinationHash, 0, nil) {
-					Logf(LogVerbose, "No path available for blackhole list update from %s, retrying later", PrettyHexRep(sourceHash))
+					Log(fmt.Sprintf("No path available for blackhole list update from %s, retrying later", PrettyHexRep(sourceHash)), LogVerbose)
 					continue
 				}
 				timeout := u.sourceTimeout
@@ -1801,7 +1801,7 @@ func (u *BlackholeUpdater) job() {
 					}
 				}
 				if err != nil {
-					Logf(LogError, "Error while establishing link for blackhole list update from %s: %v", PrettyHexRep(sourceHash), err)
+					Log(fmt.Sprintf("Error while establishing link for blackhole list update from %s: %v", PrettyHexRep(sourceHash), err), LogError)
 					continue
 				}
 				decoded := make(map[hashKey]*blackholeEntry)
@@ -2096,16 +2096,16 @@ func (u *BlackholeUpdater) job() {
 						}
 						packed, err := umsgpack.Packb(payload)
 						if err != nil {
-							Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+							Log(fmt.Sprintf("Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err), LogError)
 						} else {
 							if err := os.WriteFile(tmppath, packed, 0o600); err != nil {
-								Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+								Log(fmt.Sprintf("Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err), LogError)
 							} else {
 								if st, err := os.Stat(sourcelistpath); err == nil && !st.IsDir() {
 									_ = os.Remove(sourcelistpath)
 								}
 								if err := os.Rename(tmppath, sourcelistpath); err != nil {
-									Logf(LogError, "Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err)
+									Log(fmt.Sprintf("Error while persisting blackhole list from %s: %v", PrettyHexRep(sourceHash), err), LogError)
 								}
 							}
 						}
@@ -2115,14 +2115,14 @@ func (u *BlackholeUpdater) job() {
 				if added == 1 {
 					spec = "identity"
 				}
-				Logf(LogDebug, "Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash))
+				Log(fmt.Sprintf("Added %d blackholed %s from %s", added, spec, PrettyHexRep(sourceHash)), LogDebug)
 				u.mu.Lock()
 				if u.lastUpdates == nil {
 					u.lastUpdates = make(map[hashKey]time.Time)
 				}
 				u.lastUpdates[sourceKey] = now
 				u.mu.Unlock()
-				Logf(LogDebug, "Blackhole list update from %s completed", PrettyHexRep(sourceHash))
+				Log(fmt.Sprintf("Blackhole list update from %s completed", PrettyHexRep(sourceHash)), LogDebug)
 			}
 		}()
 		interval := u.jobInterval

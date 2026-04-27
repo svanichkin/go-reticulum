@@ -207,7 +207,7 @@ func (r *Reticulum) DiscoveredInterfaces() []map[string]any {
 func (r *Reticulum) GetBlackholedIdentities() map[hashKey]map[string]any {
 	defer func() {
 		if rec := recover(); rec != nil {
-			Logf(LogError, "Error while getting blackholed identities: %v", rec)
+			Log(fmt.Sprintf("Error while getting blackholed identities: %v", rec), LogError)
 			panic(rec)
 		}
 	}()
@@ -491,9 +491,17 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 
 	// logging (adapt log destination to your logger)
 	if lf, ok := logdest.(LogFileMarker); ok && lf == LogFile {
-		SetLogDestFile(filepath.Join(r.ConfigDir, "logfile"))
-	} else if cb, ok := logdest.(func(level int, msg string)); ok {
-		SetLogDestCallback(cb)
+		logMu.Lock()
+		logFilePath = filepath.Join(r.ConfigDir, "logfile")
+		logDest = LogFile
+		alwaysOverrideDest = false
+		logMu.Unlock()
+	} else if cb, ok := logdest.(func(msg string)); ok {
+		logMu.Lock()
+		logCallback = cb
+		logDest = LogCallback
+		alwaysOverrideDest = false
+		logMu.Unlock()
 	}
 
 	// log level
@@ -505,7 +513,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		if ll < LOG_CRITICAL {
 			ll = LOG_CRITICAL
 		}
-		SetLogLevel(ll)
+		Loglevel = ll
 		r.RequestedLoglevel = &ll
 	}
 	if verbosity != nil {
@@ -578,8 +586,7 @@ func NewReticulum(configDir *string, loglevel *int, logdest any, verbosity *int,
 		}
 		Log("System interfaces are ready", LogVerbose)
 	}
-
-	Logf(LogDebug, "Utilising cryptography backend %q", cryptography.ProviderBackend())
+	Log(fmt.Sprintf("Utilising cryptography backend %q", cryptography.ProviderBackend()), LogDebug)
 	Log("Configuration loaded from "+r.ConfigPath, LogVerbose)
 
 	_ = IdentityLoadKnownDestinations()
@@ -755,10 +762,10 @@ func exitHandler() {
 	ExitHandler()
 	IdentityExitHandler()
 
-	if ProfilerRan() {
-		ProfilerResults()
+	if (Profiler{}).Ran() {
+		(Profiler{}).Results()
 	}
-	SetLogLevel(-1)
+	Loglevel = -1
 }
 
 func sigintHandler() {
@@ -791,11 +798,11 @@ func waitForLocalClientsToDisconnect(timeout time.Duration) bool {
 	for len(LocalClientInterfaces) > 0 {
 		remaining := len(LocalClientInterfaces)
 		if !reported {
-			Logf(LogDebug, "Waiting for %d local client(s) to disconnect before exiting", remaining)
+			Log(fmt.Sprintf("Waiting for %d local client(s) to disconnect before exiting", remaining), LogDebug)
 			reported = true
 		}
 		if timeout > 0 && time.Since(started) > timeout {
-			Logf(LogWarning, "Timed out waiting for local clients to disconnect (%d remaining)", remaining)
+			Log(fmt.Sprintf("Timed out waiting for local clients to disconnect (%d remaining)", remaining), LogWarning)
 			return false
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -821,7 +828,7 @@ func (r *Reticulum) applyConfig() error {
 				if ll > 7 {
 					ll = 7
 				}
-				SetLogLevel(ll)
+				Loglevel = ll
 			}
 		}
 	}
@@ -830,10 +837,90 @@ func (r *Reticulum) applyConfig() error {
 	if r.Config != nil && r.Config.HasSection("reticulum") {
 		sec := r.Config.Section("reticulum")
 		if mtu, err := sec.AsInt("mtu"); err == nil && mtu > 0 {
-			if err := SetMTU(mtu); err != nil {
-				Logf(LogWarning, "Ignoring invalid MTU value %d: %v", mtu, err)
+			plain := mtu - HEADER_MAXSIZE - IFAC_MIN_SIZE
+			if plain < 0 {
+				plain = 0
+			}
+			link := func() int {
+				payload := mtu - IFAC_MIN_SIZE - HEADER_MINSIZE - cryptography.Overhead
+				if payload <= 0 {
+					return 0
+				}
+				blocks := payload / identityAESBlockSize
+				if blocks <= 0 {
+					return 0
+				}
+				return blocks*identityAESBlockSize - 1
+			}()
+			hashLen := int(math.Floor(float64(link-AdvOverhead) / float64(MapHashLen)))
+			encrypted := func() int {
+				usable := plain - cryptography.Overhead - (identityPubKeyLen / 2)
+				if usable <= 0 {
+					return 0
+				}
+				blocks := usable / identityAESBlockSize
+				if blocks <= 0 {
+					return 0
+				}
+				return blocks*identityAESBlockSize - 1
+			}()
+			if plain <= 0 {
+				Log(fmt.Sprintf("Ignoring invalid MTU value %d: MTU %d leaves no room for packet payloads", mtu, mtu), LogWarning)
+			} else if link <= 0 {
+				Log(fmt.Sprintf("Ignoring invalid MTU value %d: MTU %d leaves no room for link payloads", mtu, mtu), LogWarning)
+			} else if hashLen <= 0 {
+				Log(fmt.Sprintf("Ignoring invalid MTU value %d: MTU %d leaves no room for resource hashmaps", mtu, mtu), LogWarning)
+			} else if encrypted <= 0 {
+				Log(fmt.Sprintf("Ignoring invalid MTU value %d: MTU %d leaves no room for encrypted packet payloads", mtu, mtu), LogWarning)
 			} else {
-				Logf(LogDebug, "Configured Reticulum MTU set to %d bytes", mtu)
+				mtuMu.Lock()
+				prevPlain := PacketPlainMDU
+				prevEncrypted := PacketEncryptedMDU
+				prevLink := LinkMDU
+				MTU = mtu
+				MDU = plain
+				PacketMDU = plain
+				PacketPLAIN_MDU = plain
+				PacketENCRYPTED_MDU = encrypted
+				PacketPlainMDU = plain
+				PacketEncryptedMDU = encrypted
+				LinkMDU = link
+				HashmapMaxLen = hashLen
+				CollisionGuardSize = 2*ResourceWindowMax + HashmapMaxLen
+				if plain != prevPlain || encrypted != prevEncrypted || link != prevLink {
+					go func(prevPlain, newPlain, prevLink, newLink int) {
+						for _, dst := range Destinations {
+							if dst == nil {
+								continue
+							}
+							if dst.mtu == 0 || dst.mtu == prevPlain {
+								dst.mtu = newPlain
+							}
+						}
+						linkMu.Lock()
+						for _, l := range PendingLinks {
+							if l == nil {
+								continue
+							}
+							if prevLink == 0 || l.MTU == prevLink {
+								l.MTU = newLink
+								l.updateMDU()
+							}
+						}
+						for _, l := range ActiveLinks {
+							if l == nil {
+								continue
+							}
+							if prevLink == 0 || l.MTU == prevLink {
+								l.MTU = newLink
+								l.updateMDU()
+							}
+						}
+						linkMu.Unlock()
+					}(prevPlain, plain, prevLink, link)
+				}
+				mtuMu.Unlock()
+				Log(fmt.Sprintf("Configured Reticulum MTU set to %d bytes", mtu), LogDebug)
 			}
 		}
 		if _, ok := sec.Get("share_instance"); ok {
@@ -929,7 +1016,7 @@ func (r *Reticulum) applyConfig() error {
 			sharedInstanceForcedBitrate = v
 			sharedInstanceMu.Unlock()
 			if v > 0 {
-				Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(v)))
+				Log(fmt.Sprintf("Forcing shared instance bitrate of %s", PrettySpeed(float64(v))), LogWarning)
 			}
 		}
 		if v, err := sec.AsBool("panic_on_interface_error"); err == nil {
@@ -983,7 +1070,7 @@ func (r *Reticulum) applyConfig() error {
 		}
 	}
 
-	if Compiled() {
+	if Compiled {
 		Log("Reticulum running in compiled mode", LogDebug)
 	} else {
 		Log("Reticulum running in interpreted mode", LogDebug)
@@ -1060,7 +1147,7 @@ func (r *Reticulum) startLocalInterface() error {
 	sharedInstanceMu.RUnlock()
 	if br > 0 {
 		sharedIfc.Bitrate = br
-		Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(sharedIfc.Bitrate)))
+		Log(fmt.Sprintf("Forcing shared instance bitrate of %s", PrettySpeed(float64(sharedIfc.Bitrate))), LogWarning)
 	}
 	sharedIfc.ForceBitrateLatency = true
 
@@ -1105,7 +1192,7 @@ func (r *Reticulum) startLocalInterface() error {
 		r.IsSharedInstance = true
 		r.IsStandaloneInstance = false
 		r.IsConnectedToSharedInstance = false
-		Logf(LogDebug, "Started shared instance interface: %s", r.SharedInstanceInterface)
+		Log(fmt.Sprintf("Started shared instance interface: %s", r.SharedInstanceInterface), LogDebug)
 		r.startJobs()
 		return nil
 	}
@@ -1126,7 +1213,7 @@ func (r *Reticulum) startLocalInterface() error {
 	sharedInstanceMu.RUnlock()
 	if clientBitrate > 0 {
 		clientIfc.Bitrate = clientBitrate
-		Logf(LogWarning, "Forcing shared instance bitrate of %s", PrettySpeed(float64(clientIfc.Bitrate)))
+		Log(fmt.Sprintf("Forcing shared instance bitrate of %s", PrettySpeed(float64(clientIfc.Bitrate))), LogWarning)
 	}
 	clientIfc.ForceBitrateLatency = true
 
@@ -1146,7 +1233,7 @@ func (r *Reticulum) startLocalInterface() error {
 		transportEnabled = false
 		remoteManagementEnabled = false
 		allowProbes = false
-		Logf(LogDebug, "Connected to locally available Reticulum instance via: %s", clientIfc)
+		Log(fmt.Sprintf("Connected to locally available Reticulum instance via: %s", clientIfc), LogDebug)
 		return nil
 	}
 
@@ -1314,7 +1401,7 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 
 	enabled := truthy(first("interface_enabled", "enabled", "enable"), false)
 	if !enabled {
-		Logf(LogDebug, "Skipping disabled interface %q", name)
+		Log(fmt.Sprintf("Skipping disabled interface %q", name), LogDebug)
 		return false, nil
 	}
 
@@ -1444,7 +1531,7 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 	var externalIfc *Interface
 	if loaded, handled, err := loadExternalInterfacePlugin(r.InterfacePath, ifType, name, kv); handled {
 		if err != nil {
-			Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+			Log(fmt.Sprintf("External interface initialisation failed for %s / %s: %v", ifType, name, err), LogError)
 			return false, nil
 		}
 		externalIfc = loaded
@@ -1452,7 +1539,7 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 	if externalIfc == nil {
 		if loaded, handled, err := loadExternalInterfacePython(r.InterfacePath, ifType, name, kv); handled {
 			if err != nil {
-				Logf(LogError, "External interface initialisation failed for %s / %s: %v", ifType, name, err)
+				Log(fmt.Sprintf("External interface initialisation failed for %s / %s: %v", ifType, name, err), LogError)
 				return false, nil
 			}
 			externalIfc = loaded
@@ -1477,11 +1564,11 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 		if strings.TrimSpace(r.InterfacePath) != "" {
 			goPath := filepath.Join(r.InterfacePath, ifType+".go")
 			if _, err := os.Stat(goPath); err == nil {
-				Logf(LogError, "External interface %q found at %s but source-based Go interfaces are not supported, build a .so plugin instead", ifType, goPath)
+				Log(fmt.Sprintf("External interface %q found at %s but source-based Go interfaces are not supported, build a .so plugin instead", ifType, goPath), LogError)
 				return false, nil
 			}
 		}
-		Logf(LogError, "Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath)
+		Log(fmt.Sprintf("Could not locate external interface module %q in %q", ifType+".py", r.InterfacePath), LogError)
 		return false, nil
 	}
 
@@ -1533,12 +1620,12 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 			if strings.EqualFold(ifType, "RNodeInterface") || strings.EqualFold(ifType, "RNodeMultiInterface") {
 				mode = InterfaceModeAccessPoint
 				if !ignoreConfigWarnings {
-					Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to AP mode.", name)
+					Log(fmt.Sprintf("Discovery enabled on interface %s without gateway or AP mode. Auto-configured to AP mode.", name), LogNotice)
 				}
 			} else {
 				mode = InterfaceModeGateway
 				if !ignoreConfigWarnings {
-					Logf(LogNotice, "Discovery enabled on interface %s without gateway or AP mode. Auto-configured to gateway mode.", name)
+					Log(fmt.Sprintf("Discovery enabled on interface %s without gateway or AP mode. Auto-configured to gateway mode.", name), LogNotice)
 				}
 			}
 		}
@@ -1938,7 +2025,9 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 			ifacNetkeyVal = *ifacNetkey
 		}
 
-		logger := Logf
+		logger := ifaces.TCPLog(func(level int, format string, args ...any) {
+			Log(fmt.Sprintf(format, args...), level)
+		})
 		server, err := ifaces.NewTCPServerFromConfig(nil, logger, ifaces.TCPServerConfig{
 			Name:        strings.TrimSpace(name),
 			Device:      device,
@@ -2141,7 +2230,7 @@ func (r *Reticulum) AddInterface(
 		originHash := FullHash(origin)
 		ifacKey, err := cryptography.HKDF(64, originHash, r.ifacSalt, nil)
 		if err != nil {
-			Logf(LogError, "Could not derive IFAC key: %v", err)
+			Log(fmt.Sprintf("Could not derive IFAC key: %v", err), LogError)
 			return
 		}
 		ifacIdentity, _ := IdentityFromBytes(ifacKey)
@@ -3742,7 +3831,7 @@ func (r *Reticulum) GetFirstHopTimeout(destination []byte) float64 {
 		sharedInstanceMu.RUnlock()
 		if bitrate > 0 {
 			simulatedLatency := (float64(MTU) * 8.0) / float64(bitrate)
-			Logf(LogDebug, "Adding simulated latency of %s to first hop timeout", PrettyTime(simulatedLatency, false, false))
+			Log(fmt.Sprintf("Adding simulated latency of %s to first hop timeout", PrettyTime(simulatedLatency, false, false)), LogDebug)
 			resp += simulatedLatency
 		}
 		return resp

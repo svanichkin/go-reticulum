@@ -31,7 +31,12 @@
       "Bash(awk 'NR>=1590 && NR<=1730' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
       "Bash(awk 'NR>=1590 && NR<=1800' /Users/alien/Vault/Projects/Self/Golang/Reticulum/go-reticulum/python/RNS/Transport.py)",
       "Bash(bash tests/runners/smoke/run.sh)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(bash tests/runners/parity/run.sh)",
+      "Bash(bash tests/runners/parity/cmd/compare_rnid_py_vs_go.sh)",
+      "Bash(bash tests/runners/parity/cmd/compare_rnpath_py_vs_go.sh)",
+      "Bash(bash tests/runners/parity/cmd/compare_examples_py_vs_go.sh)",
+      "Bash(ls python/RNS/*.py)"
     ]
   }
 }

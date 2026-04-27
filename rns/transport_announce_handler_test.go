@@ -3,6 +3,7 @@ package rns
 import (
 	"bytes"
 	"crypto/ed25519"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -154,7 +155,7 @@ func notifyAnnounceHandlersForTest(packet *Packet) {
 		go func(handler any) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					Logf(LogError, "Announce handler panic: %v", rec)
+					Log(fmt.Sprintf("Announce handler panic: %v", rec), LogError)
 				}
 			}()
 

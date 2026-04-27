@@ -759,14 +759,12 @@ for ex in "${examples[@]}"; do
     ratchets)
       if ! run_simple_enter_smoke \
         "ratchets.python" "$py_out" "$py_cfg" \
-        "Ratcheted echo server" \
-        "$PYTHON -u $ROOT/python/Examples/Ratchets.py --config $py_cfg --server"; then
+        "$PYTHON" -u "$ROOT/python/Examples/Ratchets.py" --config "$py_cfg" --server; then
         overall=1
       fi
       if ! run_simple_enter_smoke \
         "ratchets.go" "$go_out" "$go_cfg" \
-        "Ratcheted echo server" \
-        "$GO_EXAMPLES_BIN/ratchets -config $go_cfg -server"; then
+        "$GO_EXAMPLES_BIN/ratchets" -config "$go_cfg" -server; then
         overall=1
       fi
       ;;

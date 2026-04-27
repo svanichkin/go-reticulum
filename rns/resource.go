@@ -343,14 +343,14 @@ func (r *Resource) accept(advPkt *Packet, cb func(*Resource), progCb func(*Resou
 	}
 
 	if advPkt.Link.HasIncomingResource(res) {
-		Log("Ignoring resource advertisement for "+PrettyHex(res.hash)+", resource already transferring", LOG_DEBUG)
+		Log("Ignoring resource advertisement for "+PrettyHexRep(res.hash)+", resource already transferring", LOG_DEBUG)
 		return nil
 	}
 
 	advPkt.Link.RegisterIncomingResource(res)
 	Log(fmt.Sprintf(
 		"Accepting resource advertisement for %s. Transfer size is %s in %d parts.",
-		PrettyHex(res.hash), PrettySize(float64(res.size)), res.totalParts,
+		PrettyHexRep(res.hash), PrettySize(float64(res.size)), res.totalParts,
 	), LOG_DEBUG)
 
 	if advPkt.Link.callbacks.ResourceStarted != nil {
@@ -918,7 +918,7 @@ func (r *Resource) advertiseJob() {
 	r.Status = ResourceAdvertised
 	r.retriesLeft = r.maxAdvRetries
 	r.Link.RegisterOutgoingResource(r)
-	Log("Sent resource advertisement for "+PrettyHex(r.hash), LOG_EXTREME)
+	Log("Sent resource advertisement for "+PrettyHexRep(r.hash), LOG_EXTREME)
 	r.WatchdogJob()
 }
 

@@ -325,6 +325,10 @@ func (d *Destination) SetProofStrategy(strategy int) {
 	d.proofStrategy = strategy
 }
 
+func (d *Destination) GetProofStrategy() int {
+	return d.proofStrategy
+}
+
 // IncomingLinkRequest mirrors Destination.incoming_link_request() in Python.
 // It validates the link request and appends it to the destination if accepted.
 func (d *Destination) IncomingLinkRequest(data []byte, packet *Packet) {
@@ -592,7 +596,7 @@ func (d *Destination) Receive(packet *Packet) bool {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						Logf(LOG_ERROR, "Error while executing receive callback from %s. The contained exception was: %v", str(d), r)
+						Log(fmt.Sprintf("Error while executing receive callback from %s. The contained exception was: %v", str(d), r), LOG_ERROR)
 					}
 				}()
 				d.callbacks.Packet(plaintext, packet)
@@ -817,7 +821,7 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 
 			peerPub, err := d.identity.curve.NewPublicKey(peerPubBytes)
 			if err != nil {
-				Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+				Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
 				return nil
 			}
 
@@ -849,7 +853,7 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 			}
 
 			if d.enforceRatchets && decrypted == nil {
-				Logf(LogDebug, "Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(d.identity.Hash))
+				Log(fmt.Sprintf("Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(d.identity.Hash)), LogDebug)
 				d.latestRatchetID = nil
 				return nil
 			}
@@ -857,13 +861,13 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 			if decrypted == nil {
 				shared, err := d.identity.prv.ECDH(peerPub)
 				if err != nil {
-					Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
 					d.latestRatchetID = nil
 					return nil
 				}
 				pt, err := d.identity.decryptWithShared(shared, ciphertextBody)
 				if err != nil {
-					Logf(LogDebug, "Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err)
+					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
 					d.latestRatchetID = nil
 					return nil
 				}

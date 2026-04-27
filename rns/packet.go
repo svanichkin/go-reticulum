@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	cryptography "github.com/svanichkin/go-reticulum/rns/cryptography"
 )
 
 // ===== Packet types =====
@@ -135,9 +137,29 @@ var (
 	PacketHEADER_MAXSIZE = HEADER_MAXSIZE
 	PacketMDU            = MDU
 	PacketPLAIN_MDU      = MDU
-	PacketENCRYPTED_MDU  = computeEncryptedPacketMDU(MDU)
-	PacketPlainMDU       = MDU
-	PacketEncryptedMDU   = computeEncryptedPacketMDU(MDU)
+	PacketENCRYPTED_MDU  = func() int {
+		usable := MDU - cryptography.Overhead - (identityPubKeyLen / 2)
+		if usable <= 0 {
+			return 0
+		}
+		blocks := usable / identityAESBlockSize
+		if blocks <= 0 {
+			return 0
+		}
+		return blocks*identityAESBlockSize - 1
+	}()
+	PacketPlainMDU     = MDU
+	PacketEncryptedMDU = func() int {
+		usable := MDU - cryptography.Overhead - (identityPubKeyLen / 2)
+		if usable <= 0 {
+			return 0
+		}
+		blocks := usable / identityAESBlockSize
+		if blocks <= 0 {
+			return 0
+		}
+		return blocks*identityAESBlockSize - 1
+	}()
 )
 
 // Python: Packet.TIMEOUT_PER_HOP = Reticulum.DEFAULT_PER_HOP_TIMEOUT
@@ -403,7 +425,7 @@ func (p *Packet) Pack() error {
 func (p *Packet) Unpack() (ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			Logf(LogExtreme, "Received malformed packet, dropping it. The contained exception was: %v", r)
+			Log(fmt.Sprintf("Received malformed packet, dropping it. The contained exception was: %v", r), LogExtreme)
 		}
 	}()
 
@@ -707,8 +729,8 @@ func (r *PacketReceipt) validateLinkProof(proof []byte, link *Link, proofPacket 
 		func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					Logf(LogError, "An error occurred while evaluating external delivery callback for %v", link)
-					Logf(LogError, "The contained exception was: %v", rec)
+					Log(fmt.Sprintf("An error occurred while evaluating external delivery callback for %v", link), LogError)
+					Log(fmt.Sprintf("The contained exception was: %v", rec), LogError)
 					TraceException(rec)
 				}
 			}()
@@ -737,7 +759,7 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						Logf(LogError, "Error while executing proof validated callback. The contained exception was: %v", rec)
+						Log(fmt.Sprintf("Error while executing proof validated callback. The contained exception was: %v", rec), LogError)
 					}
 				}()
 				r.Callbacks.Delivery(r)
@@ -762,7 +784,7 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						Logf(LogError, "Error while executing proof validated callback. The contained exception was: %v", rec)
+						Log(fmt.Sprintf("Error while executing proof validated callback. The contained exception was: %v", rec), LogError)
 					}
 				}()
 				r.Callbacks.Delivery(r)
@@ -797,7 +819,7 @@ func (r *PacketReceipt) CheckTimeout() {
 			go func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						Logf(LogError, "Error while executing packet receipt timeout callback: %v", rec)
+						Log(fmt.Sprintf("Error while executing packet receipt timeout callback: %v", rec), LogError)
 					}
 				}()
 				r.Callbacks.Timeout(r)

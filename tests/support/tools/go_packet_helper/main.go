@@ -47,8 +47,8 @@ func main() {
 	if _, err := rns.NewReticulum(configPtr, &logLevel, nil, nil, false, nil); err != nil {
 		fatalf("reticulum init failed: %v", err)
 	}
-	rns.SetCompactLogFormat(true)
-	rns.SetLogLevel(-1)
+	rns.CompactLogFmt = true
+	rns.Loglevel = -1
 
 	if mode != "plain" && mode != "group" {
 		fatalf("mode must be plain or group")

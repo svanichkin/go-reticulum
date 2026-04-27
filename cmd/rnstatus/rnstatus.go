@@ -28,7 +28,7 @@ func destinationHashFromNameAndIdentityHash(fullName string, identityHash []byte
 	return append([]byte(nil), full[:rns.ReticulumTruncatedHashLength/8]...)
 }
 
-var rnstatusVersion = fmt.Sprintf("rnstatus %s", rns.GetVersion())
+var rnstatusVersion = fmt.Sprintf("rnstatus %s", rns.Version())
 
 type countFlag int
 
@@ -244,7 +244,7 @@ func programSetup(
 		if err != nil {
 			return exitError{code: 20, err: fmt.Errorf("invalid destination entered; check your input")}
 		}
-		remotePretty = rns.PrettyHex(identityHash)
+		remotePretty = rns.PrettyHexRep(identityHash)
 
 		destHash := destinationHashFromNameAndIdentityHash("rnstransport.remote.management", identityHash)
 		id, err := rns.IdentityFromFile(expandUser(managementIdentity))
@@ -593,9 +593,9 @@ func programSetup(
 	}
 
 	if tid, ok := stats["transport_id"].([]byte); ok && tid != nil {
-		fmt.Printf("\n Transport Instance %s running\n", rns.PrettyHex(tid))
+		fmt.Printf("\n Transport Instance %s running\n", rns.PrettyHexRep(tid))
 		if pr, ok := stats["probe_responder"].([]byte); ok && pr != nil {
-			fmt.Printf(" Probe responder at %s active\n", rns.PrettyHex(pr))
+			fmt.Printf(" Probe responder at %s active\n", rns.PrettyHexRep(pr))
 		}
 		if ut, ok := numField(stats, "transport_uptime"); ok {
 			fmt.Printf(" Uptime is %s%s\n", rns.PrettyTime(float64(ut), false, false), lstr)
@@ -613,7 +613,7 @@ func programSetup(
 func getRemoteStatus(destHash []byte, includeLstats bool, identity *rns.Identity, noOutput bool, timeout float64) (map[string]any, *int, error) {
 	if !rns.HasPath(destHash) {
 		if !noOutput {
-			fmt.Print("Path to " + rns.PrettyHex(destHash) + " requested ")
+			fmt.Print("Path to " + rns.PrettyHexRep(destHash) + " requested ")
 			os.Stdout.Sync()
 		}
 		rns.RequestPath(destHash, nil, nil, false)
