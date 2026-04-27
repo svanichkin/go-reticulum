@@ -1255,44 +1255,39 @@ func (r *Reticulum) synthesizeConfiguredInterfaces() error {
 	if interfaces == nil {
 		return nil
 	}
+	interfaceDict := interfaces.Dict()
 	seenNames := make(map[string]struct{}, len(interfaces.Sections()))
 
 	for _, name := range interfaces.Sections() {
-		sub := interfaces.Subsection(name)
-		if sub == nil {
-			continue
-		}
 		kv := map[string]string{}
-		var collect func(sec *configobj.Section, prefix string)
-		collect = func(sec *configobj.Section, prefix string) {
-			if sec == nil {
-				return
-			}
-			for _, key := range sec.Keys() {
-				if val, ok := sec.Get(key); ok {
-					if prefix != "" {
-						kv[prefix+strings.ToLower(key)] = val
-					} else {
-						kv[strings.ToLower(key)] = val
+		if raw, ok := interfaceDict[name]; ok {
+			if top, ok := raw.(map[string]any); ok {
+				var collect func(prefix string, src map[string]any)
+				collect = func(prefix string, src map[string]any) {
+					for key, val := range src {
+						lkey := strings.ToLower(strings.TrimSpace(key))
+						switch typed := val.(type) {
+						case map[string]any:
+							childPrefix := prefix
+							if childPrefix != "" {
+								childPrefix += "sub."
+							} else {
+								childPrefix = "sub."
+							}
+							childPrefix += lkey + "."
+							collect(childPrefix, typed)
+						case []string:
+							kv[prefix+lkey] = strings.Join(typed, ", ")
+						case nil:
+							kv[prefix+lkey] = ""
+						default:
+							kv[prefix+lkey] = fmt.Sprint(typed)
+						}
 					}
 				}
-			}
-			for _, subName := range sec.Sections() {
-				child := sec.Subsection(subName)
-				if child == nil {
-					continue
-				}
-				childPrefix := prefix
-				if childPrefix != "" {
-					childPrefix += "sub."
-				} else {
-					childPrefix = "sub."
-				}
-				childPrefix += strings.ToLower(subName) + "."
-				collect(child, childPrefix)
+				collect("", top)
 			}
 		}
-		collect(sub, "")
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue

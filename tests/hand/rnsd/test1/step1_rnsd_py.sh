@@ -12,7 +12,7 @@ LOGFILE="$RUN_DIR/logfile.py"
 PIDFILE="$RUN_DIR/python-rnsd.pid"
 SHARED_PORT=37430
 CONTROL_PORT=37431
-RNSD_CMD=("$PYTHON" "$ROOT/python/RNS/Utilities/rnsd.py" --config "$CFG" -vvvvvvv)
+RNSD_CMD=("$PYTHON" -u "$ROOT/python/RNS/Utilities/rnsd.py" --config "$CFG" -vvvvvvv)
 
 mkdir -p "$ARTIFACTS_DIR" "$RUN_DIR"
 cp "$TEST_DIR/config" "$CONFIG_FILE"
@@ -57,8 +57,8 @@ trap cleanup EXIT INT TERM
 
 rm -f "$LOGFILE" "$LOGFILE.1"
 
-echo "Command: ${RNSD_CMD[*]}"
-"${RNSD_CMD[@]}" >"$LOGFILE" 2>&1 &
+echo "Command: PYTHONUNBUFFERED=1 PYTHONPATH=$ROOT/python ${RNSD_CMD[*]}"
+PYTHONUNBUFFERED=1 PYTHONPATH="$ROOT/python" "${RNSD_CMD[@]}" >"$LOGFILE" 2>&1 &
 RNSD_PID=$!
 echo "$RNSD_PID" > "$PIDFILE"
 

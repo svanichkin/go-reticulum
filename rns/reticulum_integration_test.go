@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -121,6 +122,57 @@ func TestIntegration_Reticulum_SharedInstanceRPC_Getters(t *testing.T) {
 			}
 			if !bytes.Equal(resp, rpcWelcome) {
 				return errors.New("digest sent was rejected")
+			}
+			randBytes := make([]byte, 20)
+			if _, err := rand.Read(randBytes); err != nil {
+				return err
+			}
+			msg = append(append([]byte(nil), rpcChallenge...), randBytes...)
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(msg)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(msg) > 0 {
+				if _, err := conn.Write(msg); err != nil {
+					return err
+				}
+			}
+			if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+				return err
+			}
+			n = int(binary.BigEndian.Uint32(hdr[:]))
+			if n > 256 {
+				return fmt.Errorf("rpc message too large: %d bytes", n)
+			}
+			resp = make([]byte, n)
+			if _, err := io.ReadFull(conn, resp); err != nil {
+				return err
+			}
+			mac = hmac.New(md5.New, key)
+			if _, err := mac.Write(randBytes); err != nil {
+				return err
+			}
+			expected := mac.Sum(nil)
+			if !bytes.Equal(resp, expected) {
+				binary.BigEndian.PutUint32(hdr[:], uint32(len(rpcFailure)))
+				if _, err := conn.Write(hdr[:]); err != nil {
+					return err
+				}
+				if len(rpcFailure) > 0 {
+					if _, err := conn.Write(rpcFailure); err != nil {
+						return err
+					}
+				}
+				return errors.New("digest received was wrong")
+			}
+			binary.BigEndian.PutUint32(hdr[:], uint32(len(rpcWelcome)))
+			if _, err := conn.Write(hdr[:]); err != nil {
+				return err
+			}
+			if len(rpcWelcome) > 0 {
+				if _, err := conn.Write(rpcWelcome); err != nil {
+					return err
+				}
 			}
 			return nil
 		}

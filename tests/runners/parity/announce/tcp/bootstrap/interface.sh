@@ -15,6 +15,9 @@ announce_prepare_scenario() {
 
 announce_tcp_bootstrap_interfaces() {
   cat <<'EOF'
+  # NOTE: These parity configs intentionally define two bootstrap interfaces.
+  # NOTE: A single bootstrap failing by DNS/reachability is expected noise.
+  # NOTE: Treat only "no bootstrap became ready" as bootstrap failure.
   [[TCP bootstrap dead]]
     type = TCPClientInterface
     enabled = yes
@@ -94,6 +97,7 @@ announce_wait_sender_ready() {
     return 0
   fi
   echo "$(announce_prefix) $label: sender-side bootstrap transport did not observe any announce before sender start; see $log_path"
+  echo "$(announce_prefix) $label: note: these configs intentionally tolerate one bootstrap interface failing; only zero observed bootstrap traffic is a bootstrap readiness failure"
   return 1
 }
 
@@ -104,5 +108,6 @@ announce_wait_receiver_ready() {
     return 0
   fi
   echo "$(announce_prefix) $label: receiver did not observe any bootstrap announce before sender start; see $log_path"
+  echo "$(announce_prefix) $label: note: these configs intentionally tolerate one bootstrap interface failing; only zero observed bootstrap traffic is a bootstrap readiness failure"
   return 1
 }
