@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -85,6 +86,9 @@ type Destination struct {
 	hexhash  string
 
 	defaultAppData interface{}
+	// StampCost mirrors Python Destination.stamp_cost and intentionally allows
+	// three states: nil, int, and false.
+	StampCost any
 
 	// ratchets
 	ratchets          [][]byte
@@ -327,6 +331,47 @@ func (d *Destination) SetProofStrategy(strategy int) {
 
 func (d *Destination) GetProofStrategy() int {
 	return d.proofStrategy
+}
+
+func (d *Destination) SetStampCost(stampCost any) {
+	switch v := stampCost.(type) {
+	case nil:
+		d.StampCost = nil
+		return
+	case bool:
+		if v {
+			panic(&DestinationValueError{Message: "Stamp cost can only be false, nil, or an integer"})
+		}
+		d.StampCost = false
+		return
+	}
+
+	value := reflect.ValueOf(stampCost)
+	switch value.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		cost := int(value.Int())
+		if cost < 1 {
+			d.StampCost = nil
+		} else if cost >= 255 {
+			d.StampCost = false
+		} else {
+			d.StampCost = cost
+		}
+		return
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		cost := value.Uint()
+		if cost < 1 {
+			d.StampCost = nil
+		} else if cost >= 255 {
+			d.StampCost = false
+		} else {
+			d.StampCost = int(cost)
+		}
+		return
+	}
+
+	panic(&DestinationValueError{Message: "Stamp cost can only be false, nil, or an integer"})
 }
 
 // IncomingLinkRequest mirrors Destination.incoming_link_request() in Python.

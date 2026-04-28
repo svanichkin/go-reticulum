@@ -1590,7 +1590,7 @@ func (r *Reticulum) synthesizeInterface(name string, kv map[string]string, insta
 				discoveryAnnounceInterval = 5 * time.Minute
 			}
 		}
-		if v, ok := intValue(first("discovery_stamp_value")); ok && v > 0 {
+		if v, ok := intValue(first("discovery_stamp_value")); ok {
 			discoveryStampValue = &v
 		}
 		if v, ok := floatValue(first("latitude")); ok {
