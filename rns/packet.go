@@ -266,7 +266,7 @@ func NewPacket(target interface{}, data []byte, packetType byte, context byte, t
 			return nil
 		}
 		link = v
-		dest = v.destination
+		dest = v.Destination
 	default:
 		Log(fmt.Sprintf("Unsupported packet target %T", target), LogError)
 		return nil

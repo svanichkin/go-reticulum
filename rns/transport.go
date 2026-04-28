@@ -2109,8 +2109,8 @@ func Jobs() {
 			if link.Status == LinkClosed {
 				// Python parity: if a pending link closes without being activated on a
 				// non-transport instance, expire the associated path and try rediscovery.
-				if !TransportEnabled() && link.destination != nil {
-					destHash := link.destination.Hash
+				if !TransportEnabled() && link.Destination != nil {
+					destHash := link.Destination.Hash
 					if ExpirePath(destHash) {
 						if Owner == nil || !Owner.IsConnectedToSharedInstance {
 							if key, ok := func(hash []byte) (hashKey, bool) {
@@ -3468,7 +3468,7 @@ func Outbound(p *Packet) bool {
 		if p == nil || p.Link == nil {
 			return nil
 		}
-		if attached, ok := p.Link.attachedInterface.(*Interface); ok {
+		if attached, ok := p.Link.AttachedInterface.(*Interface); ok {
 			return attached
 		}
 		return nil
@@ -4950,7 +4950,7 @@ func Inbound(raw []byte, ifc *Interface) {
 				// if the packet arrived on the link's attached interface. If not, remove
 				// the packet hash from the filter so the link can receive it when it
 				// finally arrives over the correct path (Python lines 1977-1986).
-				if p.Type == PacketData && link.attachedInterface != nil && link.attachedInterface != p.ReceivingInterface {
+				if p.Type == PacketData && link.AttachedInterface != nil && link.AttachedInterface != p.ReceivingInterface {
 					packetHashMu.Lock()
 					if len(p.PacketHash) >= truncatedHashBytes {
 						var k hashKey
@@ -5130,7 +5130,7 @@ func Inbound(raw []byte, ifc *Interface) {
 					if link == nil || !bytes.Equal(link.LinkID, p.DestinationHash) {
 						continue
 					}
-					if p.Hops == uint8(link.expectedHops) || link.expectedHops == PathfinderMaxHops {
+					if p.Hops == uint8(link.ExpectedHops) || link.ExpectedHops == PathfinderMaxHops {
 						AddPacketHash(p.PacketHash)
 						p.Link = link
 						link.validateProof(p)
@@ -5983,9 +5983,9 @@ func CacheRequest(hash []byte, link *Link) {
 		return
 	}
 	var attached *Interface
-	if ifc, ok := link.attachedInterface.(*Interface); ok && ifc != nil {
+	if ifc, ok := link.AttachedInterface.(*Interface); ok && ifc != nil {
 		attached = ifc
-	} else if link.destination != nil {
+	} else if link.Destination != nil {
 		var entry *PathEntry
 		if key, ok := func(hash []byte) (hashKey, bool) {
 			if len(hash) < truncatedHashBytes {
@@ -5994,7 +5994,7 @@ func CacheRequest(hash []byte, link *Link) {
 			var key hashKey
 			copy(key[:], hash[:truncatedHashBytes])
 			return key, true
-		}(link.destination.Hash); ok {
+		}(link.Destination.Hash); ok {
 			pathTableMu.RLock()
 			entry = pathTable[key]
 			pathTableMu.RUnlock()

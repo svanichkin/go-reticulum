@@ -133,10 +133,10 @@ type Link struct {
 	Keepalive              time.Duration
 	StaleTime              time.Duration
 
-	owner             *Destination
-	destination       *Destination
-	expectedHops      int
-	attachedInterface any
+	Owner             *Destination
+	Destination       *Destination
+	ExpectedHops      int
+	AttachedInterface any
 
 	requestData []byte
 	packet      *Packet
@@ -169,7 +169,7 @@ type Link struct {
 	watchdogLock   bool
 	watchdogOnce   sync.Once
 	watchdogStop   chan struct{}
-	remoteIdentity *Identity
+	RemoteIdentity *Identity
 
 	trackPhyStats bool
 	rssi          *float64
@@ -204,8 +204,8 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		StaleTime:              linkKeepaliveMax * linkStaleFactor,
 		TrafficTimeoutFactor:   linkTrafficTimeoutFact,
 		KeepaliveTimeoutFactor: linkKeepaliveFact,
-		owner:                  owner,
-		destination:            destination,
+		Owner:                  owner,
+		Destination:            destination,
 		curve:                  ecdh.X25519(),
 		resourceStrategy:       LinkAcceptNone,
 		outgoingResources:      make([]*Resource, 0),
@@ -248,8 +248,8 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 			Log(fmt.Sprintf("Establishing link with mode %s", desc), LOG_DEBUG)
 		}
 		if destination != nil {
-			l.expectedHops = HopsTo(destination.Hash)
-			hopsForTimeout := l.expectedHops
+			l.ExpectedHops = HopsTo(destination.Hash)
+			hopsForTimeout := l.ExpectedHops
 			if hopsForTimeout < 1 {
 				hopsForTimeout = 1
 			}
@@ -362,7 +362,7 @@ func (l *Link) Channel() *Channel {
 func (l *Link) GetRemoteIdentity() *Identity {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.remoteIdentity
+	return l.RemoteIdentity
 }
 
 func (l *Link) GetAge() *float64 {
@@ -1293,8 +1293,8 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 		Log(fmt.Sprintf("Incoming link request with mode %s", desc), LOG_DEBUG)
 	}
 	if packet != nil {
-		link.attachedInterface = packet.ReceivingInterface
-		link.destination = packet.Destination
+		link.AttachedInterface = packet.ReceivingInterface
+		link.Destination = packet.Destination
 		link.EstablishmentCost += len(packet.Raw)
 	}
 
@@ -1337,7 +1337,7 @@ func LinkValidateRequest(owner *Destination, data []byte, packet *Packet) *Link 
 	}
 
 	link.startWatchdog()
-	Log(fmt.Sprintf("Incoming link request %s accepted on %v", link, link.attachedInterface), LOG_DEBUG)
+	Log(fmt.Sprintf("Incoming link request %s accepted on %v", link, link.AttachedInterface), LOG_DEBUG)
 	return link
 }
 
@@ -1361,8 +1361,8 @@ func (l *Link) Receive(packet *Packet) {
 	if l.Initiator && packet.Context == PacketCtxKeepalive && len(packet.Data) == 1 && packet.Data[0] == 0xFF {
 		return
 	}
-	if packet.ReceivingInterface != l.attachedInterface {
-		Log(fmt.Sprintf("Link-associated packet received on unexpected interface %v instead of %v! Someone might be trying to manipulate your communication!", packet.ReceivingInterface, l.attachedInterface), LOG_ERROR)
+	if packet.ReceivingInterface != l.AttachedInterface {
+		Log(fmt.Sprintf("Link-associated packet received on unexpected interface %v instead of %v! Someone might be trying to manipulate your communication!", packet.ReceivingInterface, l.AttachedInterface), LOG_ERROR)
 		return
 	}
 	now := time.Now()
@@ -1423,19 +1423,19 @@ func (l *Link) Receive(packet *Packet) {
 				cb(plaintext, packet)
 			}()
 		}
-		if l.destination != nil {
-			switch l.destination.ProofStrategy {
+		if l.Destination != nil {
+			switch l.Destination.ProofStrategy {
 			case DestinationPROVE_ALL:
 				l.ProvePacket(packet)
 			case DestinationPROVE_APP:
-				if l.destination.Callbacks.ProofRequested != nil {
+				if l.Destination.Callbacks.ProofRequested != nil {
 					func() {
 						defer func() {
 							if r := recover(); r != nil {
 								Log(fmt.Sprintf("Error while executing proof request callback from %s. The contained exception was: %v", l, r), LOG_ERROR)
 							}
 						}()
-						if l.destination.Callbacks.ProofRequested(packet) {
+						if l.Destination.Callbacks.ProofRequested(packet) {
 							l.ProvePacket(packet)
 						}
 					}()
@@ -1516,11 +1516,11 @@ func (l *Link) Receive(packet *Packet) {
 			return
 		}
 		l.mu.Lock()
-		if l.remoteIdentity != nil {
+		if l.RemoteIdentity != nil {
 			l.mu.Unlock()
 			return
 		}
-		l.remoteIdentity = remote
+		l.RemoteIdentity = remote
 		cb := l.callbacks.RemoteIdentified
 		l.mu.Unlock()
 		if cb != nil {
@@ -1943,7 +1943,7 @@ func (l *Link) sendKeepalive() {
 
 func (l *Link) prove() {
 	// Only the destination side proves link requests.
-	if l == nil || l.Initiator || l.owner == nil || l.owner.Identity == nil {
+	if l == nil || l.Initiator || l.Owner == nil || l.Owner.Identity == nil {
 		return
 	}
 	if len(l.LinkID) == 0 || len(l.pub) == 0 || len(l.sigPub) == 0 {
@@ -1958,7 +1958,7 @@ func (l *Link) prove() {
 	signed = append(signed, l.pub...)
 	signed = append(signed, l.sigPub...)
 	signed = append(signed, signalling...)
-	sig, err := l.owner.Identity.Sign(signed)
+	sig, err := l.Owner.Identity.Sign(signed)
 	if err != nil {
 		return
 	}
@@ -2038,7 +2038,7 @@ func (l *Link) validateProof(packet *Packet) {
 			Log(fmt.Sprintf("The contained exception was: %v", r), LOG_ERROR)
 		}
 	}()
-	if l == nil || packet == nil || l.Status != LinkPending || !l.Initiator || l.destination == nil || l.destination.Identity == nil {
+	if l == nil || packet == nil || l.Status != LinkPending || !l.Initiator || l.Destination == nil || l.Destination.Identity == nil {
 		return
 	}
 
@@ -2071,7 +2071,7 @@ func (l *Link) validateProof(packet *Packet) {
 	}
 
 	peerPub := proofData[ed25519.SignatureSize : ed25519.SignatureSize+linkEcPubSize/2]
-	peerSigPub := l.destination.Identity.GetPublicKey()[linkEcPubSize/2 : linkEcPubSize]
+	peerSigPub := l.Destination.Identity.GetPublicKey()[linkEcPubSize/2 : linkEcPubSize]
 	if err := l.loadPeer(peerPub, peerSigPub); err != nil {
 		panic(err)
 	}
@@ -2087,7 +2087,7 @@ func (l *Link) validateProof(packet *Packet) {
 	signed = append(signed, signalling...)
 	signature := proofData[:ed25519.SignatureSize]
 
-	if !l.destination.Identity.Validate(signature, signed) {
+	if !l.Destination.Identity.Validate(signature, signed) {
 		Log(fmt.Sprintf("Invalid link proof signature received by %s. Ignoring.", l), LOG_DEBUG)
 		return
 	}
@@ -2096,8 +2096,8 @@ func (l *Link) validateProof(packet *Packet) {
 	}
 
 	l.RTT = time.Since(l.requestTime)
-	l.attachedInterface = packet.ReceivingInterface
-	l.remoteIdentity = l.destination.Identity
+	l.AttachedInterface = packet.ReceivingInterface
+	l.RemoteIdentity = l.Destination.Identity
 	if confirmedMTU > 0 {
 		l.MTU = confirmedMTU
 	} else {
@@ -2108,7 +2108,7 @@ func (l *Link) validateProof(packet *Packet) {
 	l.activatedAt = time.Now()
 	l.lastProof = l.activatedAt
 	activateLink(l)
-	Log(fmt.Sprintf("Link %s established with %v, RTT is %s", l, l.destination, PrettyShortTime(l.RTT.Seconds(), true, false)), LOG_DEBUG)
+	Log(fmt.Sprintf("Link %s established with %v, RTT is %s", l, l.Destination, PrettyShortTime(l.RTT.Seconds(), true, false)), LOG_DEBUG)
 
 	if l.RTT > 0 && l.EstablishmentCost > 0 {
 		l.EstablishmentRate = float64(l.EstablishmentCost) / l.RTT.Seconds()
@@ -2161,14 +2161,14 @@ func (l *Link) rttPacket(packet *Packet) {
 
 	l.updateKeepalive()
 
-	if l.owner != nil && l.owner.Callbacks.LinkEstablished != nil {
+	if l.Owner != nil && l.Owner.Callbacks.LinkEstablished != nil {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					Log(fmt.Sprintf("Error occurred in external link establishment callback. The contained exception was: %v", r), LOG_ERROR)
 				}
 			}()
-			l.owner.Callbacks.LinkEstablished(l)
+			l.Owner.Callbacks.LinkEstablished(l)
 		}()
 	}
 }
@@ -2570,7 +2570,7 @@ func (l *Link) linkClosed() {
 	l.incomingResources = nil
 	l.outgoingResources = nil
 	cb := l.callbacks.LinkClosed
-	destination := l.destination
+	destination := l.Destination
 	l.mu.Unlock()
 
 	for _, resource := range incomingResources {
@@ -2643,8 +2643,8 @@ func (l *Link) handleRequest(requestID []byte, unpacked []any, packet *Packet) {
 	requestData := unpacked[2]
 
 	l.mu.Lock()
-	dest := l.destination
-	remoteID := l.remoteIdentity
+	dest := l.Destination
+	remoteID := l.RemoteIdentity
 	linkID := append([]byte{}, l.LinkID...)
 	l.mu.Unlock()
 

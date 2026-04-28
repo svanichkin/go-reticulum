@@ -87,8 +87,8 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 		Mode:        linkDefaultMode,
 		MTU:         mtu,
 		LinkID:      append([]byte(nil), linkID...),
-		owner:       dest,
-		destination: dest,
+		Owner:       dest,
+		Destination: dest,
 		pub:         append([]byte(nil), initPub...),
 		sigPub:      append([]byte(nil), initSigPub...),
 	}
@@ -261,8 +261,8 @@ func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *test
 		t.Fatal("NewLink(initiator) returned nil")
 	}
 	t.Cleanup(func() { initiator.Status = LinkClosed })
-	if initiator.expectedHops != 0 {
-		t.Fatalf("initiator.expectedHops=%d, want 0 for shared-instance local path", initiator.expectedHops)
+	if initiator.ExpectedHops != 0 {
+		t.Fatalf("initiator.ExpectedHops=%d, want 0 for shared-instance local path", initiator.ExpectedHops)
 	}
 
 	serverOwner := &Destination{
@@ -280,14 +280,14 @@ func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *test
 		t.Fatal("NewLink(responder) returned nil")
 	}
 	responder.LinkID = append([]byte(nil), initiator.LinkID...)
-	responder.destination = serverOwner
+	responder.Destination = serverOwner
 	serverSide := &Interface{Name: "server-side-local", Type: "LocalInterface", Parent: &Interface{LocalIsSharedInstance: true}, OUT: true}
 	var captured [][]byte
 	serverSide.SetProcessOutgoingFunc(func(data []byte) error {
 		captured = append(captured, append([]byte(nil), data...))
 		return nil
 	})
-	responder.attachedInterface = serverSide
+	responder.AttachedInterface = serverSide
 	if err := responder.loadPeer(append([]byte(nil), initiator.pub...), append([]byte(nil), initiator.sigPub...)); err != nil {
 		t.Fatalf("responder.loadPeer(): %v", err)
 	}
@@ -316,6 +316,6 @@ func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *test
 	Inbound(captured[0], clientIfc)
 
 	if initiator.Status != LinkActive {
-		t.Fatalf("initiator.Status=%d, want %d (proof hops=%d expected_hops=%d)", initiator.Status, LinkActive, pkt.Hops, initiator.expectedHops)
+		t.Fatalf("initiator.Status=%d, want %d (proof hops=%d expected_hops=%d)", initiator.Status, LinkActive, pkt.Hops, initiator.ExpectedHops)
 	}
 }

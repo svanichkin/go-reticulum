@@ -104,7 +104,7 @@ func TestResourceHandleIncomingCompletion_PreservesNonMapMetadata(t *testing.T) 
 	hash := FullHash(append(append([]byte(nil), assembled...), randomHash...))
 
 	r := &Resource{
-		Link:            &Link{Status: LinkClosed, destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
+		Link:            &Link{Status: LinkClosed, Destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
 		parts:           []any{append(randomHash, assembled...)},
 		randomHash:      randomHash,
 		hash:            hash,
@@ -139,7 +139,7 @@ func TestResourceHandleIncomingCompletion_CleansReceiverFileAfterCallback(t *tes
 	var sawExists atomic.Bool
 	var sawData atomic.Bool
 	r := &Resource{
-		Link:          &Link{Status: LinkClosed, destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
+		Link:          &Link{Status: LinkClosed, Destination: &Destination{Type: DestinationOUT, Hash: make([]byte, truncatedHashBytes)}},
 		parts:         []any{append(randomHash, payload...)},
 		randomHash:    randomHash,
 		hash:          hash,

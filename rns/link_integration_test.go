@@ -112,12 +112,12 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 			if p.Link.Initiator {
 				if responder := findResponderLinkByIDTest(p.Link.LinkID); responder != nil {
 					pkt.Link = responder
-					pkt.Destination = responder.destination
+					pkt.Destination = responder.Destination
 				}
 			} else {
 				if initiator := findInitiatorLinkByIDTest(p.Link.LinkID); initiator != nil {
 					pkt.Link = initiator
-					pkt.Destination = initiator.destination
+					pkt.Destination = initiator.Destination
 				}
 			}
 		}
@@ -136,7 +136,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 				}
 				if l != nil {
 					pkt.Link = l
-					pkt.Destination = l.destination
+					pkt.Destination = l.Destination
 				} else if pkt.Context == PacketCtxLRProof {
 					// Outgoing link might not be registered yet; stash and retry later.
 					rawCopy := append([]byte(nil), pkt.Raw...)
@@ -177,7 +177,7 @@ func (it *integrationTransport) Outbound(p *Packet) bool {
 			if pkt.DestinationType == byte(DestinationLINK) && pkt.Context == PacketCtxNone {
 				if initiator := findInitiatorLinkByIDTest(pkt.DestinationHash); initiator != nil {
 					pkt.Link = initiator
-					pkt.Destination = initiator.destination
+					pkt.Destination = initiator.Destination
 				}
 			}
 			Inbound(pkt.Raw, pkt.ReceivingInterface)
