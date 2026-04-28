@@ -21,6 +21,35 @@ func TestDestinationAppAndAspectsFromName(t *testing.T) {
 	}
 }
 
+func TestDestinationExportsPythonLikeMetadata(t *testing.T) {
+	id, err := NewIdentity()
+	if err != nil {
+		t.Fatalf("NewIdentity: %v", err)
+	}
+	dst, err := NewDestination(id, DestinationIN, DestinationSINGLE, "test", "meta")
+	if err != nil {
+		t.Fatalf("NewDestination: %v", err)
+	}
+
+	if dst.Identity != id {
+		t.Fatalf("identity=%p, want %p", dst.Identity, id)
+	}
+	if dst.Name == "" {
+		t.Fatalf("expected exported Name")
+	}
+	if len(dst.NameHash) == 0 {
+		t.Fatalf("expected exported NameHash")
+	}
+	if dst.HexHash == "" {
+		t.Fatalf("expected exported HexHash")
+	}
+
+	dst.SetDefaultAppData([]byte("abc"))
+	if got, ok := dst.DefaultAppData.([]byte); !ok || string(got) != "abc" {
+		t.Fatalf("DefaultAppData=%#v, want []byte(\"abc\")", dst.DefaultAppData)
+	}
+}
+
 func TestDestinationSetStampCostParity(t *testing.T) {
 	d := &Destination{}
 

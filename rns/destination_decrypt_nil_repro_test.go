@@ -25,7 +25,7 @@ func TestDestinationReceive_NilDecryptWithNilErrorDoesNotPanic(t *testing.T) {
 	// is intentionally too short, which makes the identity decryption path
 	// return (nil, nil, nil). The regression guard here is that Receive() must
 	// fail closed instead of panicking on the retry path.
-	dst.ratchets = [][]byte{[]byte("placeholder-ratchet")}
+	dst.Ratchets = [][]byte{[]byte("placeholder-ratchet")}
 
 	pkt := &Packet{
 		PacketType: PacketDATA,

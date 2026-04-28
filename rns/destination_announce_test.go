@@ -18,7 +18,7 @@ func TestDestinationAnnounce_CachesAnnounceDataForTagWithoutPathResponse(t *test
 		t.Fatal("Announce returned nil")
 	}
 
-	entry := dst.pathResponses[string(tag)]
+	entry := dst.PathResponses[string(tag)]
 	if entry == nil {
 		t.Fatal("announce data was not cached for tag")
 	}

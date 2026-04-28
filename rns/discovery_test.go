@@ -289,14 +289,14 @@ func TestInterfaceDiscovery_PersistsDiscoveredInterfaceFromAnnounce(t *testing.T
 	discoveryDest := &Destination{
 		Type:            DestinationSINGLE,
 		Direction:       DestinationIN,
-		identity:        TransportIdentity,
-		name:            nameWithIdentity,
+		Identity:        TransportIdentity,
+		Name:            nameWithIdentity,
 		Hash:            discoveryHash,
-		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
-		hexhash:         PrettyHexRep(discoveryHash),
-		pathResponses:   make(map[string]*pathResponseEntry),
-		requestHandlers: make(map[string]*RequestHandler),
-		links:           []*Link{},
+		NameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
+		HexHash:         PrettyHexRep(discoveryHash),
+		PathResponses:   make(map[string]*pathResponseEntry),
+		RequestHandlers: make(map[string]*RequestHandler),
+		Links:           []*Link{},
 	}
 	packet := discoveryDest.Announce(appData, false, nil, nil, false)
 	if packet == nil {
@@ -582,14 +582,14 @@ func TestInterfaceDiscovery_SourceFilterSkipsUnauthorizedAnnounce(t *testing.T) 
 	discoveryDest := &Destination{
 		Type:            DestinationSINGLE,
 		Direction:       DestinationIN,
-		identity:        remoteID,
-		name:            nameWithIdentity,
+		Identity:        remoteID,
+		Name:            nameWithIdentity,
 		Hash:            discoveryHash,
-		nameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
-		hexhash:         PrettyHexRep(discoveryHash),
-		pathResponses:   make(map[string]*pathResponseEntry),
-		requestHandlers: make(map[string]*RequestHandler),
-		links:           []*Link{},
+		NameHash:        FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8],
+		HexHash:         PrettyHexRep(discoveryHash),
+		PathResponses:   make(map[string]*pathResponseEntry),
+		RequestHandlers: make(map[string]*RequestHandler),
+		Links:           []*Link{},
 	}
 	packet := discoveryDest.Announce(appData, false, nil, nil, false)
 	if packet == nil {

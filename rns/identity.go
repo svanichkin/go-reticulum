@@ -337,7 +337,7 @@ func IdentityRecall(targetHash []byte, fromIdentityHash ...bool) *Identity {
 		}
 		if bytes.Equal(targetHash, dst.Hash) {
 			id := &Identity{}
-			_ = id.LoadPublicKey(dst.identity.GetPublicKey())
+			_ = id.LoadPublicKey(dst.Identity.GetPublicKey())
 			id.AppData = nil
 			return id
 		}

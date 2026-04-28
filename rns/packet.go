@@ -377,7 +377,7 @@ func (p *Packet) Pack() error {
 						return err
 					}
 					p.Ciphertext = ct
-				} else if p.Destination != nil && p.Destination.Type == DestinationSINGLE && p.Destination.identity == nil {
+				} else if p.Destination != nil && p.Destination.Type == DestinationSINGLE && p.Destination.Identity == nil {
 					// Python ProofDestination: type SINGLE, but no encryption.
 					p.Ciphertext = p.Data
 				} else if p.Destination != nil {
@@ -389,8 +389,8 @@ func (p *Packet) Pack() error {
 				} else {
 					return errors.New("no destination")
 				}
-				if p.Destination != nil && len(p.Destination.latestRatchetID) > 0 {
-					p.RatchetID = append([]byte{}, p.Destination.latestRatchetID...)
+				if p.Destination != nil && len(p.Destination.LatestRatchetID) > 0 {
+					p.RatchetID = append([]byte{}, p.Destination.LatestRatchetID...)
 				}
 			}
 		}
@@ -518,8 +518,8 @@ type ProofDestination = Destination
 // Prove / ProofDestination
 
 func (p *Packet) Prove(dest *Destination) {
-	if p.FromPacked && p.Destination != nil && p.Destination.identity != nil && p.Destination.identity.prv != nil {
-		p.Destination.identity.Prove(p, dest)
+	if p.FromPacked && p.Destination != nil && p.Destination.Identity != nil && p.Destination.Identity.prv != nil {
+		p.Destination.Identity.Prove(p, dest)
 	} else if p.FromPacked && p.Link != nil {
 		p.Link.ProvePacket(p)
 	} else {
@@ -745,10 +745,10 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 		proofHash := proof[:HashLengthBytes]
 		sig := proof[HashLengthBytes : HashLengthBytes+SigLengthBytes]
 
-		if !bytes.Equal(proofHash, r.Hash) || r.Destination == nil || r.Destination.identity == nil {
+		if !bytes.Equal(proofHash, r.Hash) || r.Destination == nil || r.Destination.Identity == nil {
 			return false
 		}
-		if !r.Destination.identity.Validate(sig, r.Hash) {
+		if !r.Destination.Identity.Validate(sig, r.Hash) {
 			return false
 		}
 		r.Status = PacketReceiptDELIVERED
@@ -769,11 +769,11 @@ func (r *PacketReceipt) ValidateProof(proof []byte, proofPacket *Packet) bool {
 	}
 
 	if len(proof) == ReceiptImplLength {
-		if r.Destination == nil || r.Destination.identity == nil {
+		if r.Destination == nil || r.Destination.Identity == nil {
 			return false
 		}
 		sig := proof[:SigLengthBytes]
-		if !r.Destination.identity.Validate(sig, r.Hash) {
+		if !r.Destination.Identity.Validate(sig, r.Hash) {
 			return false
 		}
 		r.Status = PacketReceiptDELIVERED

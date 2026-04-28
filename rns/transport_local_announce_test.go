@@ -36,12 +36,12 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 	if len(randomBlob) != announceRandomHashLen {
 		t.Fatalf("random blob length=%d, want %d", len(randomBlob), announceRandomHashLen)
 	}
-	if dst.identity == nil {
+	if dst.Identity == nil {
 		t.Fatal("destination identity is nil")
 	}
 
-	publicKey := dst.identity.GetPublicKey()
-	nameHash := append([]byte(nil), dst.nameHash...)
+	publicKey := dst.Identity.GetPublicKey()
+	nameHash := append([]byte(nil), dst.NameHash...)
 	destinationHash := append([]byte(nil), dst.Hash...)
 
 	signed := make([]byte, 0, len(destinationHash)+len(publicKey)+len(nameHash)+len(randomBlob)+len(appData))
@@ -51,7 +51,7 @@ func buildAnnounceWithRandomBlob(t *testing.T, dst *Destination, appData []byte,
 	signed = append(signed, randomBlob...)
 	signed = append(signed, appData...)
 
-	signature, err := dst.identity.Sign(signed)
+	signature, err := dst.Identity.Sign(signed)
 	if err != nil {
 		t.Fatalf("Sign(): %v", err)
 	}
@@ -398,7 +398,7 @@ func TestHandleInboundAnnounce_SharedInstanceClientProcessesAnnounceWhenTranspor
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
 		Hash:      append([]byte(nil), dst.Hash...),
-		hexhash:   PrettyHexRep(dst.Hash),
+		HexHash:   PrettyHexRep(dst.Hash),
 	}
 	forwarded := NewPacket(
 		forwardedDst,
@@ -1343,9 +1343,9 @@ func TestHandleInboundAnnounce_DuplicateExternalReturnForLocalClientPathIsIgnore
 	announceDestination := &Destination{
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
-		identity:  announceIdentity,
+		Identity:  announceIdentity,
 		Hash:      append([]byte(nil), localAnnounce.DestinationHash...),
-		hexhash:   PrettyHexRep(localAnnounce.DestinationHash),
+		HexHash:   PrettyHexRep(localAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
 		announceDestination,
@@ -1488,9 +1488,9 @@ func TestHandleInboundAnnounce_LocalPathResponseThenNormalAnnounceKeepsSingleCal
 	announceDestination := &Destination{
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
-		identity:  announceIdentity,
+		Identity:  announceIdentity,
 		Hash:      append([]byte(nil), normalAnnounce.DestinationHash...),
-		hexhash:   PrettyHexRep(normalAnnounce.DestinationHash),
+		HexHash:   PrettyHexRep(normalAnnounce.DestinationHash),
 	}
 	returnedAnnounce := NewPacket(
 		announceDestination,

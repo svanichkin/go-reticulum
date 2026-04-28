@@ -354,7 +354,7 @@ func RegisterDestination(d *Destination) error {
 	if d == nil {
 		return nil
 	}
-	d.mtu = MTU
+	d.MTU = MTU
 	if d.Direction != DestinationIN {
 		return nil
 	}
@@ -2210,9 +2210,9 @@ func Jobs() {
 			announceDestination := &Destination{
 				Type:      DestinationSINGLE,
 				Direction: DestinationOUT,
-				identity:  announceIdentity,
+				Identity:  announceIdentity,
 				Hash:      append([]byte(nil), entry.Packet.DestinationHash...),
-				hexhash:   PrettyHexRep(entry.Packet.DestinationHash),
+				HexHash:   PrettyHexRep(entry.Packet.DestinationHash),
 			}
 			announceContext := byte(PacketNONE)
 			if entry.BlockRebroadcasts {
@@ -3037,7 +3037,7 @@ func pathRequest(destinationHash []byte, isFromLocalClient bool, attachedInterfa
 			Type:      DestinationSINGLE,
 			Direction: DestinationOUT,
 			Hash:      append([]byte(nil), destinationHash...),
-			hexhash:   PrettyHexRep(destinationHash),
+			HexHash:   PrettyHexRep(destinationHash),
 		}
 		resp := NewPacket(
 			dest,
@@ -4579,9 +4579,9 @@ func Inbound(raw []byte, ifc *Interface) {
 			announceDestination := &Destination{
 				Type:      DestinationSINGLE,
 				Direction: DestinationOUT,
-				identity:  announceIdentity,
+				Identity:  announceIdentity,
 				Hash:      append([]byte(nil), p.DestinationHash...),
-				hexhash:   PrettyHexRep(p.DestinationHash),
+				HexHash:   PrettyHexRep(p.DestinationHash),
 			}
 			for _, cif := range LocalClientInterfaces {
 				if cif == nil || p.ReceivingInterface == cif {
@@ -4646,7 +4646,7 @@ func Inbound(raw []byte, ifc *Interface) {
 						Type:      DestinationSINGLE,
 						Direction: DestinationOUT,
 						Hash:      append([]byte(nil), p.DestinationHash...),
-						hexhash:   PrettyHexRep(p.DestinationHash),
+						HexHash:   PrettyHexRep(p.DestinationHash),
 					}
 
 					response := NewPacket(
@@ -5298,14 +5298,14 @@ func Inbound(raw []byte, ifc *Interface) {
 			case DestinationPROVE_ALL:
 				p.Prove(nil)
 			case DestinationPROVE_APP:
-				if dst.callbacks.ProofRequested != nil {
+				if dst.Callbacks.ProofRequested != nil {
 					func() {
 						defer func() {
 							if r := recover(); r != nil {
 								Log(fmt.Sprintf("Error while executing proof request callback. The contained exception was: %v", r), LogError)
 							}
 						}()
-						if dst.callbacks.ProofRequested(p) {
+						if dst.Callbacks.ProofRequested(p) {
 							p.Prove(nil)
 						}
 					}()

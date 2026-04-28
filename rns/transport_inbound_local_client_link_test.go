@@ -48,9 +48,9 @@ func TestInbound_ForLocalClientLinkRoutesLRProofWhenTransportDisabled(t *testing
 	dest := &Destination{
 		Type:      DestinationPLAIN,
 		Direction: DestinationOUT,
-		identity:  remoteID,
+		Identity:  remoteID,
 		Hash:      append([]byte(nil), remoteID.Hash...),
-		hexhash:   PrettyHexRep(remoteID.Hash),
+		HexHash:   PrettyHexRep(remoteID.Hash),
 	}
 	Destinations = []*Destination{dest}
 
@@ -230,9 +230,9 @@ func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *test
 	serverDest := &Destination{
 		Type:      DestinationSINGLE,
 		Direction: DestinationOUT,
-		identity:  serverID,
+		Identity:  serverID,
 		Hash:      append([]byte(nil), serverID.Hash...),
-		hexhash:   PrettyHexRep(serverID.Hash),
+		HexHash:   PrettyHexRep(serverID.Hash),
 	}
 
 	key, ok := func(hash []byte) (hashKey, bool) {
@@ -268,9 +268,9 @@ func TestInbound_SharedInstanceClientReceivesDirectLRProofForPendingLink(t *test
 	serverOwner := &Destination{
 		Type:      DestinationSINGLE,
 		Direction: DestinationIN,
-		identity:  serverID,
+		Identity:  serverID,
 		Hash:      append([]byte(nil), serverDest.Hash...),
-		hexhash:   PrettyHexRep(serverDest.Hash),
+		HexHash:   PrettyHexRep(serverDest.Hash),
 	}
 	responder, err := NewLink(nil, serverOwner, LinkModeDefault, nil, nil)
 	if err != nil {

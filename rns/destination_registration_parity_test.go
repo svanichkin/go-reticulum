@@ -59,8 +59,8 @@ func TestRegisterDestination_SetsMTUAndSkipsOutboundRegistration(t *testing.T) {
 					if dst == nil {
 						continue
 					}
-					if dst.mtu == 0 || dst.mtu == prevPlain {
-						dst.mtu = newPlain
+					if dst.MTU == 0 || dst.MTU == prevPlain {
+						dst.MTU = newPlain
 					}
 				}
 				linkMu.Lock()
@@ -135,8 +135,8 @@ func TestRegisterDestination_SetsMTUAndSkipsOutboundRegistration(t *testing.T) {
 				if dst == nil {
 					continue
 				}
-				if dst.mtu == 0 || dst.mtu == prevPlain {
-					dst.mtu = newPlain
+				if dst.MTU == 0 || dst.MTU == prevPlain {
+					dst.MTU = newPlain
 				}
 			}
 			linkMu.Lock()
@@ -172,8 +172,8 @@ func TestRegisterDestination_SetsMTUAndSkipsOutboundRegistration(t *testing.T) {
 		t.Fatalf("RegisterDestination: %v", err)
 	}
 
-	if d.mtu != MTU {
-		t.Fatalf("destination mtu=%d, want %d", d.mtu, MTU)
+	if d.MTU != MTU {
+		t.Fatalf("destination mtu=%d, want %d", d.MTU, MTU)
 	}
 	if len(Destinations) != 0 {
 		t.Fatalf("destinations len=%d, want 0 for outbound destination", len(Destinations))
@@ -192,15 +192,15 @@ func TestRegisterDestination_DuplicateHashPanics(t *testing.T) {
 	if err := RegisterDestination(first); err != nil {
 		t.Fatalf("RegisterDestination(first): %v", err)
 	}
-	if first.mtu != MTU {
-		t.Fatalf("first destination mtu=%d, want %d", first.mtu, MTU)
+	if first.MTU != MTU {
+		t.Fatalf("first destination mtu=%d, want %d", first.MTU, MTU)
 	}
 
 	if err := RegisterDestination(second); err == nil {
 		t.Fatal("RegisterDestination did not return error on duplicate hash")
 	}
-	if second.mtu != MTU {
-		t.Fatalf("second destination mtu=%d, want %d", second.mtu, MTU)
+	if second.MTU != MTU {
+		t.Fatalf("second destination mtu=%d, want %d", second.MTU, MTU)
 	}
 }
 

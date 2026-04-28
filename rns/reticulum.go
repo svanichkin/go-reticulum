@@ -893,8 +893,8 @@ func (r *Reticulum) applyConfig() error {
 							if dst == nil {
 								continue
 							}
-							if dst.mtu == 0 || dst.mtu == prevPlain {
-								dst.mtu = newPlain
+							if dst.MTU == 0 || dst.MTU == prevPlain {
+								dst.MTU = newPlain
 							}
 						}
 						linkMu.Lock()

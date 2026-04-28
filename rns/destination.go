@@ -73,43 +73,46 @@ type Destination struct {
 	Type      int
 	Direction int
 
-	acceptLinkRequests bool
-	callbacks          Callbacks
+	AcceptLinkRequests bool
+	Callbacks          Callbacks
 
-	proofStrategy int
+	ProofStrategy int
 
-	identity *Identity
-
-	name     string
+	Identity *Identity
+	Name     string
 	Hash     []byte
-	nameHash []byte
-	hexhash  string
+	NameHash []byte
+	HexHash  string
 
-	defaultAppData interface{}
+	DefaultAppData interface{}
+	Callback       any
+	ProofCallback  any
 	// StampCost mirrors Python Destination.stamp_cost and intentionally allows
 	// three states: nil, int, and false.
 	StampCost any
 
 	// ratchets
-	ratchets          [][]byte
-	ratchetsPath      string
-	ratchetInterval   int
+	Ratchets          [][]byte
+	RatchetsPath      string
+	RatchetInterval   int
 	ratchetFileLock   sync.Mutex
-	retainedRatchets  int
-	latestRatchetTime float64
-	latestRatchetID   []byte
+	RetainedRatchets  int
+	LatestRatchetTime float64
+	LatestRatchetID   []byte
 	enforceRatchets   bool
 
 	// misc
-	mtu             int
-	pathResponses   map[string]*pathResponseEntry
-	requestHandlers map[string]*RequestHandler
-	links           []*Link
+	MTU             int
+	PathResponses   map[string]*pathResponseEntry
+	RequestHandlers map[string]*RequestHandler
+	Links           []*Link
 	linksMu         sync.Mutex
 
 	groupTokenMu    sync.Mutex
 	groupTokenBytes []byte
 	groupToken      *Cryptography.Token
+	PrvBytes        []byte
+	Prv             *Cryptography.Token
 }
 
 type pathResponseEntry struct {
@@ -143,7 +146,7 @@ func str(d *Destination) string {
 	if d == nil {
 		return "<nil>"
 	}
-	return "<" + d.name + ":" + d.hexhash + ">"
+	return "<" + d.Name + ":" + d.HexHash + ">"
 }
 
 func pathResponseKey(tag []byte) string {
@@ -238,18 +241,18 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 	d := &Destination{
 		Type:               dstType,
 		Direction:          direction,
-		acceptLinkRequests: true,
-		callbacks:          Callbacks{},
-		proofStrategy:      DestinationPROVE_NONE,
-		ratchets:           nil,
-		ratchetsPath:       "",
-		ratchetInterval:    DestinationRATCHET_INTERVAL,
-		retainedRatchets:   DestinationRATCHET_COUNT,
+		AcceptLinkRequests: true,
+		Callbacks:          Callbacks{},
+		ProofStrategy:      DestinationPROVE_NONE,
+		Ratchets:           nil,
+		RatchetsPath:       "",
+		RatchetInterval:    DestinationRATCHET_INTERVAL,
+		RetainedRatchets:   DestinationRATCHET_COUNT,
 		enforceRatchets:    false,
-		mtu:                0,
-		pathResponses:      make(map[string]*pathResponseEntry),
-		requestHandlers:    make(map[string]*RequestHandler),
-		links:              []*Link{},
+		MTU:                0,
+		PathResponses:      make(map[string]*pathResponseEntry),
+		RequestHandlers:    make(map[string]*RequestHandler),
+		Links:              []*Link{},
 	}
 
 	if identity == nil && direction == DestinationIN && dstType != DestinationPLAIN {
@@ -269,13 +272,13 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 		return nil, errors.New("selected destination type PLAIN cannot hold an identity")
 	}
 
-	d.identity = identity
+	d.Identity = identity
 
 	nameWithIdentity, err := (&Destination{}).ExpandName(identity, appName, aspects...)
 	if err != nil {
 		return nil, err
 	}
-	d.name = nameWithIdentity
+	d.Name = nameWithIdentity
 
 	hash, err := destinationHash(identity, appName, aspects...)
 	if err != nil {
@@ -287,8 +290,8 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 	if err != nil {
 		return nil, err
 	}
-	d.nameHash = FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8]
-	d.hexhash = HexRep(hash, false)
+	d.NameHash = FullHash([]byte(nameWithoutIdentity))[:IdentityNameHashLength/8]
+	d.HexHash = HexRep(hash, false)
 
 	// registration
 	if err := RegisterDestination(d); err != nil {
@@ -304,33 +307,33 @@ func NewDestination(identity *Identity, direction int, dstType int, appName stri
 // requests. Call without arguments to query, or pass a bool to update.
 func (d *Destination) AcceptsLinks(accept ...bool) bool {
 	if len(accept) == 0 {
-		return d.acceptLinkRequests
+		return d.AcceptLinkRequests
 	}
-	d.acceptLinkRequests = accept[0]
-	return d.acceptLinkRequests
+	d.AcceptLinkRequests = accept[0]
+	return d.AcceptLinkRequests
 }
 
 func (d *Destination) SetLinkEstablishedCallback(cb func(*Link)) {
-	d.callbacks.LinkEstablished = cb
+	d.Callbacks.LinkEstablished = cb
 }
 
 func (d *Destination) SetPacketCallback(cb func([]byte, *Packet)) {
-	d.callbacks.Packet = cb
+	d.Callbacks.Packet = cb
 }
 
 func (d *Destination) SetProofRequestedCallback(cb func(*Packet) bool) {
-	d.callbacks.ProofRequested = cb
+	d.Callbacks.ProofRequested = cb
 }
 
 func (d *Destination) SetProofStrategy(strategy int) {
 	if strategy != DestinationPROVE_NONE && strategy != DestinationPROVE_APP && strategy != DestinationPROVE_ALL {
 		panic(&DestinationTypeError{Message: "Unsupported proof strategy"})
 	}
-	d.proofStrategy = strategy
+	d.ProofStrategy = strategy
 }
 
 func (d *Destination) GetProofStrategy() int {
-	return d.proofStrategy
+	return d.ProofStrategy
 }
 
 func (d *Destination) SetStampCost(stampCost any) {
@@ -377,7 +380,7 @@ func (d *Destination) SetStampCost(stampCost any) {
 // IncomingLinkRequest mirrors Destination.incoming_link_request() in Python.
 // It validates the link request and appends it to the destination if accepted.
 func (d *Destination) IncomingLinkRequest(data []byte, packet *Packet) {
-	if !d.acceptLinkRequests {
+	if !d.AcceptLinkRequests {
 		return
 	}
 	destinationIncomingLinkRequest(d, data, packet)
@@ -385,26 +388,26 @@ func (d *Destination) IncomingLinkRequest(data []byte, packet *Packet) {
 
 // internal
 func (d *Destination) cleanRatchets() {
-	if d.ratchets != nil && len(d.ratchets) > d.retainedRatchets {
-		n := len(d.ratchets)
+	if d.Ratchets != nil && len(d.Ratchets) > d.RetainedRatchets {
+		n := len(d.Ratchets)
 		if n > DestinationRATCHET_COUNT {
 			n = DestinationRATCHET_COUNT
 		}
-		d.ratchets = d.ratchets[:n]
+		d.Ratchets = d.Ratchets[:n]
 	}
 }
 
 func (d *Destination) persistRatchets() error {
-	if d.ratchetsPath == "" {
+	if d.RatchetsPath == "" {
 		return errors.New("no ratchets path set")
 	}
 
 	d.ratchetFileLock.Lock()
 	defer d.ratchetFileLock.Unlock()
 
-	tempPath := d.ratchetsPath + ".tmp"
+	tempPath := d.RatchetsPath + ".tmp"
 
-	packedRatchets, err := umsgpack.Packb(d.ratchets)
+	packedRatchets, err := umsgpack.Packb(d.Ratchets)
 	if err != nil {
 		return err
 	}
@@ -422,19 +425,19 @@ func (d *Destination) persistRatchets() error {
 
 	if err := os.WriteFile(tempPath, buf, 0o600); err != nil {
 		TraceException(err)
-		d.ratchets = nil
-		d.ratchetsPath = ""
+		d.Ratchets = nil
+		d.RatchetsPath = ""
 		Log("Could not write ratchet file contents for "+str(d)+". The contained exception was: "+err.Error(), LOG_ERROR)
 		return errors.New("could not write ratchet file contents for " + str(d) + ": " + err.Error())
 	}
 
-	if _, err := os.Stat(d.ratchetsPath); err == nil {
-		_ = os.Remove(d.ratchetsPath)
+	if _, err := os.Stat(d.RatchetsPath); err == nil {
+		_ = os.Remove(d.RatchetsPath)
 	}
-	if err := os.Rename(tempPath, d.ratchetsPath); err != nil {
+	if err := os.Rename(tempPath, d.RatchetsPath); err != nil {
 		TraceException(err)
-		d.ratchets = nil
-		d.ratchetsPath = ""
+		d.Ratchets = nil
+		d.RatchetsPath = ""
 		Log("Could not write ratchet file contents for "+str(d)+". The contained exception was: "+err.Error(), LOG_ERROR)
 		return errors.New("could not move ratchet temp file for " + str(d) + ": " + err.Error())
 	}
@@ -443,16 +446,16 @@ func (d *Destination) persistRatchets() error {
 }
 
 func (d *Destination) RotateRatchets() bool {
-	if d.ratchets == nil {
+	if d.Ratchets == nil {
 		panic(errors.New("Cannot rotate ratchet on " + str(d) + ", ratchets are not enabled"))
 	}
 	// Python uses time.time() (float seconds).
 	now := float64(time.Now().UnixNano()) / 1e9
-	if now > d.latestRatchetTime+float64(d.ratchetInterval) {
+	if now > d.LatestRatchetTime+float64(d.RatchetInterval) {
 		Log("Rotating ratchets for "+str(d), LOG_DEBUG)
 		newRatchet := IdentityGenerateRatchet()
-		d.ratchets = append([][]byte{newRatchet}, d.ratchets...)
-		d.latestRatchetTime = now
+		d.Ratchets = append([][]byte{newRatchet}, d.Ratchets...)
+		d.LatestRatchetTime = now
 		d.cleanRatchets()
 		if err := d.persistRatchets(); err != nil {
 			panic(err)
@@ -474,16 +477,16 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 	now := float64(time.Now().UnixNano()) / 1e9
 
 	// purge old path_responses
-	for k, v := range d.pathResponses {
+	for k, v := range d.PathResponses {
 		if now > v.Timestamp+DestinationPR_TAG_WINDOW {
-			delete(d.pathResponses, k)
+			delete(d.PathResponses, k)
 		}
 	}
 
 	var announceData []byte
 
 	if pathResponse && tag != nil {
-		if entry, ok := d.pathResponses[pathResponseKey(tag)]; ok {
+		if entry, ok := d.PathResponses[pathResponseKey(tag)]; ok {
 			Log("Using cached announce data for answering path request with tag "+PrettyHexRep(tag), LOG_EXTREME)
 			announceData = entry.Data
 		}
@@ -498,16 +501,16 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 		binary.BigEndian.PutUint64(tsBuf[:], uint64(time.Now().Unix()))
 		copy(randomHash[5:], tsBuf[3:])
 
-		if d.ratchets != nil {
+		if d.Ratchets != nil {
 			_ = d.RotateRatchets()
-			if len(d.ratchets) > 0 {
-				ratchetPub = IdentityRatchetPublicBytes(d.ratchets[0])
+			if len(d.Ratchets) > 0 {
+				ratchetPub = IdentityRatchetPublicBytes(d.Ratchets[0])
 				IdentityRememberRatchet(destHash, ratchetPub)
 			}
 		}
 
-		if appData == nil && d.defaultAppData != nil {
-			switch v := d.defaultAppData.(type) {
+		if appData == nil && d.DefaultAppData != nil {
+			switch v := d.DefaultAppData.(type) {
 			case []byte:
 				appData = v
 			case func() []byte:
@@ -519,21 +522,21 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 		}
 
 		signed := append([]byte{}, destHash...)
-		signed = append(signed, d.identity.GetPublicKey()...)
-		signed = append(signed, d.nameHash...)
+		signed = append(signed, d.Identity.GetPublicKey()...)
+		signed = append(signed, d.NameHash...)
 		signed = append(signed, randomHash...)
 		signed = append(signed, ratchetPub...)
 		if appData != nil {
 			signed = append(signed, appData...)
 		}
 
-		signature, err := d.identity.Sign(signed)
+		signature, err := d.Identity.Sign(signed)
 		if err != nil {
 			panic(errors.New("Failed to sign announce for " + str(d) + ": " + err.Error()))
 		}
 
-		announceData = append([]byte{}, d.identity.GetPublicKey()...)
-		announceData = append(announceData, d.nameHash...)
+		announceData = append([]byte{}, d.Identity.GetPublicKey()...)
+		announceData = append(announceData, d.NameHash...)
 		announceData = append(announceData, randomHash...)
 		announceData = append(announceData, ratchetPub...)
 		announceData = append(announceData, signature...)
@@ -542,7 +545,7 @@ func (d *Destination) Announce(appData []byte, pathResponse bool, attachedInterf
 		}
 
 		key := pathResponseKey(tag)
-		d.pathResponses[key] = &pathResponseEntry{
+		d.PathResponses[key] = &pathResponseEntry{
 			Timestamp: float64(time.Now().UnixNano()) / 1e9,
 			Data:      announceData,
 		}
@@ -603,7 +606,7 @@ func (d *Destination) RegisterRequestHandler(
 		auto = autoCompress[0]
 	}
 
-	d.requestHandlers[string(pathHash)] = &RequestHandler{
+	d.RequestHandlers[string(pathHash)] = &RequestHandler{
 		Path:         path,
 		ResponseGen:  responseGen,
 		AllowPolicy:  allow,
@@ -616,8 +619,8 @@ func (d *Destination) RegisterRequestHandler(
 func (d *Destination) DeregisterRequestHandler(path string) bool {
 	pathHash := TruncatedHash([]byte(path))
 	key := string(pathHash)
-	if _, ok := d.requestHandlers[key]; ok {
-		delete(d.requestHandlers, key)
+	if _, ok := d.RequestHandlers[key]; ok {
+		delete(d.RequestHandlers, key)
 		return true
 	}
 	return false
@@ -631,20 +634,20 @@ func (d *Destination) Receive(packet *Packet) bool {
 	}
 
 	plaintext := d.Decrypt(packet.Data)
-	packet.RatchetID = d.latestRatchetID
+	packet.RatchetID = d.LatestRatchetID
 	if plaintext == nil {
 		return false
 	}
 
 	if packet.PacketType == PacketDATA {
-		if d.callbacks.Packet != nil {
+		if d.Callbacks.Packet != nil {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
 						Log(fmt.Sprintf("Error while executing receive callback from %s. The contained exception was: %v", str(d), r), LOG_ERROR)
 					}
 				}()
-				d.callbacks.Packet(plaintext, packet)
+				d.Callbacks.Packet(plaintext, packet)
 			}()
 		}
 	}
@@ -652,7 +655,7 @@ func (d *Destination) Receive(packet *Packet) bool {
 }
 
 func destinationIncomingLinkRequest(d *Destination, data []byte, packet *Packet) {
-	if !d.acceptLinkRequests {
+	if !d.AcceptLinkRequests {
 		return
 	}
 	link := LinkValidateRequest(d, data, packet)
@@ -660,12 +663,12 @@ func destinationIncomingLinkRequest(d *Destination, data []byte, packet *Packet)
 		return
 	}
 	d.linksMu.Lock()
-	d.links = append(d.links, link)
+	d.Links = append(d.Links, link)
 	d.linksMu.Unlock()
 }
 
 func destinationDispatchRequest(d *Destination, path string, data any, requestID []byte, linkID []byte, remoteIdentity *Identity, requestedAt time.Time) (any, bool) {
-	handler, ok := d.requestHandlers[string(TruncatedHash([]byte(path)))]
+	handler, ok := d.RequestHandlers[string(TruncatedHash([]byte(path)))]
 	if !ok || handler == nil {
 		return nil, false
 	}
@@ -700,8 +703,8 @@ func destinationRequestAllowed(handler *RequestHandler, remote *Identity) bool {
 func (d *Destination) reloadRatchets(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		Log("No existing ratchet data found, initialising new ratchet file for "+str(d), LOG_DEBUG)
-		d.ratchets = [][]byte{}
-		d.ratchetsPath = path
+		d.Ratchets = [][]byte{}
+		d.RatchetsPath = path
 		return d.persistRatchets()
 	}
 
@@ -722,15 +725,15 @@ func (d *Destination) reloadRatchets(path string) error {
 		if !ok1 || !ok2 {
 			return errors.New("invalid ratchet file format")
 		}
-		if !d.identity.Validate(sig, rawRatchets) {
+		if !d.Identity.Validate(sig, rawRatchets) {
 			return errors.New("invalid ratchet file signature")
 		}
 		var ratchets [][]byte
 		if err := umsgpack.Unpackb(rawRatchets, &ratchets); err != nil {
 			return err
 		}
-		d.ratchets = ratchets
-		d.ratchetsPath = path
+		d.Ratchets = ratchets
+		d.RatchetsPath = path
 		return nil
 	}
 
@@ -739,8 +742,8 @@ func (d *Destination) reloadRatchets(path string) error {
 		Log("First ratchet reload attempt for "+str(d)+" failed. Possible I/O conflict. Retrying in 500ms.", LOG_ERROR)
 		time.Sleep(500 * time.Millisecond)
 		if err2 := loadAttempt(); err2 != nil {
-			d.ratchets = nil
-			d.ratchetsPath = ""
+			d.Ratchets = nil
+			d.RatchetsPath = ""
 			TraceException(err2)
 			Log("The ratchet file located at "+path+" could not be loaded. This could indicate that the ratchet file has become corrupt.", LOG_CRITICAL)
 			Log("You can attempt to manually recover the ratchet file, or simply remove it to have Reticulum recreate it on the next use.", LOG_CRITICAL)
@@ -757,7 +760,7 @@ func (d *Destination) EnableRatchets(path string) (bool, error) {
 	if path == "" {
 		panic(&DestinationValueError{Message: "No ratchet file path specified for " + str(d)})
 	}
-	d.latestRatchetTime = 0
+	d.LatestRatchetTime = 0
 	if err := d.reloadRatchets(path); err != nil {
 		panic(err)
 	}
@@ -766,7 +769,7 @@ func (d *Destination) EnableRatchets(path string) (bool, error) {
 }
 
 func (d *Destination) EnforceRatchets() bool {
-	if d.ratchets == nil {
+	if d.Ratchets == nil {
 		return false
 	}
 	d.enforceRatchets = true
@@ -778,7 +781,7 @@ func (d *Destination) SetRetainedRatchets(n int) bool {
 	if n <= 0 {
 		return false
 	}
-	d.retainedRatchets = n
+	d.RetainedRatchets = n
 	d.cleanRatchets()
 	return true
 }
@@ -787,7 +790,7 @@ func (d *Destination) SetRatchetInterval(interval int) bool {
 	if interval <= 0 {
 		return false
 	}
-	d.ratchetInterval = interval
+	d.RatchetInterval = interval
 	return true
 }
 
@@ -812,12 +815,12 @@ func (d *Destination) Encrypt(plaintext []byte) []byte {
 	if d.Type == DestinationPLAIN {
 		return plaintext
 	}
-	if d.Type == DestinationSINGLE && d.identity != nil {
+	if d.Type == DestinationSINGLE && d.Identity != nil {
 		selectedRatchet := IdentityGetRatchet(d.Hash)
 		if selectedRatchet != nil {
-			d.latestRatchetID = IdentityGetRatchetID(selectedRatchet)
+			d.LatestRatchetID = IdentityGetRatchetID(selectedRatchet)
 		}
-		ct, err := d.identity.Encrypt(plaintext, selectedRatchet)
+		ct, err := d.Identity.Encrypt(plaintext, selectedRatchet)
 		if err != nil {
 			Log("Failed to encrypt payload for "+str(d)+": "+err.Error(), LOG_ERROR)
 			return nil
@@ -847,35 +850,35 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 	if d.Type == DestinationPLAIN {
 		return ciphertext
 	}
-	if d.Type == DestinationSINGLE && d.identity != nil {
-		d.latestRatchetID = nil
-		if len(d.ratchets) > 0 {
-			if d.identity.prv == nil {
+	if d.Type == DestinationSINGLE && d.Identity != nil {
+		d.LatestRatchetID = nil
+		if len(d.Ratchets) > 0 {
+			if d.Identity.prv == nil {
 				panic(errors.New("Decryption failed because identity does not hold a private key"))
 			}
 			if len(ciphertext) <= x25519KeyLen {
 				Log("Decryption failed because the token size was invalid.", LogDebug)
 				return nil
 			}
-			if d.identity.curve == nil {
-				d.identity.curve = ecdh.X25519()
+			if d.Identity.curve == nil {
+				d.Identity.curve = ecdh.X25519()
 			}
 
 			peerPubBytes := ciphertext[:x25519KeyLen]
 			ciphertextBody := ciphertext[x25519KeyLen:]
 
-			peerPub, err := d.identity.curve.NewPublicKey(peerPubBytes)
+			peerPub, err := d.Identity.curve.NewPublicKey(peerPubBytes)
 			if err != nil {
-				Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
+				Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.Identity.Hash), err), LogDebug)
 				return nil
 			}
 
 			decrypted := []byte(nil)
-			for _, ratchet := range d.ratchets {
+			for _, ratchet := range d.Ratchets {
 				if ratchet == nil {
 					continue
 				}
-				ratchetPrv, err := d.identity.curve.NewPrivateKey(ratchet)
+				ratchetPrv, err := d.Identity.curve.NewPrivateKey(ratchet)
 				if err != nil {
 					continue
 				}
@@ -883,14 +886,14 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 				if err != nil {
 					continue
 				}
-				pt, err := d.identity.decryptWithShared(shared, ciphertextBody)
+				pt, err := d.Identity.decryptWithShared(shared, ciphertextBody)
 				if err == nil {
 					ratchetPub := ratchetPrv.PublicKey().Bytes()
 					ratchetID := IdentityGetRatchetID(ratchetPub)
 					if len(ratchetID) == 0 {
-						d.latestRatchetID = nil
+						d.LatestRatchetID = nil
 					} else {
-						d.latestRatchetID = append([]byte{}, ratchetID...)
+						d.LatestRatchetID = append([]byte{}, ratchetID...)
 					}
 					decrypted = pt
 					break
@@ -898,31 +901,31 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 			}
 
 			if d.enforceRatchets && decrypted == nil {
-				Log(fmt.Sprintf("Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(d.identity.Hash)), LogDebug)
-				d.latestRatchetID = nil
+				Log(fmt.Sprintf("Decryption with ratchet enforcement by %s failed. Dropping packet.", PrettyHexRep(d.Identity.Hash)), LogDebug)
+				d.LatestRatchetID = nil
 				return nil
 			}
 
 			if decrypted == nil {
-				shared, err := d.identity.prv.ECDH(peerPub)
+				shared, err := d.Identity.prv.ECDH(peerPub)
 				if err != nil {
-					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
-					d.latestRatchetID = nil
+					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.Identity.Hash), err), LogDebug)
+					d.LatestRatchetID = nil
 					return nil
 				}
-				pt, err := d.identity.decryptWithShared(shared, ciphertextBody)
+				pt, err := d.Identity.decryptWithShared(shared, ciphertextBody)
 				if err != nil {
-					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.identity.Hash), err), LogDebug)
-					d.latestRatchetID = nil
+					Log(fmt.Sprintf("Decryption by %s failed: %v", PrettyHexRep(d.Identity.Hash), err), LogDebug)
+					d.LatestRatchetID = nil
 					return nil
 				}
-				d.latestRatchetID = nil
+				d.LatestRatchetID = nil
 				return pt
 			}
 			return decrypted
 		}
-		decrypted, _ := d.identity.Decrypt(ciphertext, nil, d.enforceRatchets)
-		d.latestRatchetID = nil
+		decrypted, _ := d.Identity.Decrypt(ciphertext, nil, d.enforceRatchets)
+		d.LatestRatchetID = nil
 		return decrypted
 	}
 
@@ -946,8 +949,8 @@ func (d *Destination) Decrypt(ciphertext []byte) []byte {
 }
 
 func (d *Destination) Sign(message []byte) []byte {
-	if d.Type == DestinationSINGLE && d.identity != nil {
-		sig, err := d.identity.Sign(message)
+	if d.Type == DestinationSINGLE && d.Identity != nil {
+		sig, err := d.Identity.Sign(message)
 		if err != nil {
 			Log("Failed to sign message for "+str(d)+": "+err.Error(), LOG_ERROR)
 			return nil
@@ -958,7 +961,7 @@ func (d *Destination) Sign(message []byte) []byte {
 }
 
 func (d *Destination) SetDefaultAppData(appData interface{}) {
-	d.defaultAppData = appData
+	d.DefaultAppData = appData
 }
 
 func (d *Destination) ClearDefaultAppData() {
@@ -980,6 +983,8 @@ func (d *Destination) LoadPrivateKey(key []byte) {
 	defer d.groupTokenMu.Unlock()
 	d.groupTokenBytes = append([]byte{}, key...)
 	d.groupToken = tok
+	d.PrvBytes = append([]byte{}, key...)
+	d.Prv = tok
 }
 
 func (d *Destination) GetPrivateKey() []byte {

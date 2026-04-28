@@ -233,9 +233,9 @@ func NewLink(destination *Destination, owner *Destination, mode int, established
 		}
 		l.sigPriv = sig
 		l.sigPub = sig.Public().(ed25519.PublicKey)
-	} else if owner != nil && owner.identity != nil {
-		l.sigPriv = owner.identity.sigPriv
-		l.sigPub = owner.identity.sigPub
+	} else if owner != nil && owner.Identity != nil {
+		l.sigPriv = owner.Identity.sigPriv
+		l.sigPub = owner.Identity.sigPub
 	} else {
 		return nil, errors.New("owner identity required for incoming link")
 	}
@@ -1424,18 +1424,18 @@ func (l *Link) Receive(packet *Packet) {
 			}()
 		}
 		if l.destination != nil {
-			switch l.destination.proofStrategy {
+			switch l.destination.ProofStrategy {
 			case DestinationPROVE_ALL:
 				l.ProvePacket(packet)
 			case DestinationPROVE_APP:
-				if l.destination.callbacks.ProofRequested != nil {
+				if l.destination.Callbacks.ProofRequested != nil {
 					func() {
 						defer func() {
 							if r := recover(); r != nil {
 								Log(fmt.Sprintf("Error while executing proof request callback from %s. The contained exception was: %v", l, r), LOG_ERROR)
 							}
 						}()
-						if l.destination.callbacks.ProofRequested(packet) {
+						if l.destination.Callbacks.ProofRequested(packet) {
 							l.ProvePacket(packet)
 						}
 					}()
@@ -1943,7 +1943,7 @@ func (l *Link) sendKeepalive() {
 
 func (l *Link) prove() {
 	// Only the destination side proves link requests.
-	if l == nil || l.Initiator || l.owner == nil || l.owner.identity == nil {
+	if l == nil || l.Initiator || l.owner == nil || l.owner.Identity == nil {
 		return
 	}
 	if len(l.LinkID) == 0 || len(l.pub) == 0 || len(l.sigPub) == 0 {
@@ -1958,7 +1958,7 @@ func (l *Link) prove() {
 	signed = append(signed, l.pub...)
 	signed = append(signed, l.sigPub...)
 	signed = append(signed, signalling...)
-	sig, err := l.owner.identity.Sign(signed)
+	sig, err := l.owner.Identity.Sign(signed)
 	if err != nil {
 		return
 	}
@@ -2038,7 +2038,7 @@ func (l *Link) validateProof(packet *Packet) {
 			Log(fmt.Sprintf("The contained exception was: %v", r), LOG_ERROR)
 		}
 	}()
-	if l == nil || packet == nil || l.Status != LinkPending || !l.Initiator || l.destination == nil || l.destination.identity == nil {
+	if l == nil || packet == nil || l.Status != LinkPending || !l.Initiator || l.destination == nil || l.destination.Identity == nil {
 		return
 	}
 
@@ -2071,7 +2071,7 @@ func (l *Link) validateProof(packet *Packet) {
 	}
 
 	peerPub := proofData[ed25519.SignatureSize : ed25519.SignatureSize+linkEcPubSize/2]
-	peerSigPub := l.destination.identity.GetPublicKey()[linkEcPubSize/2 : linkEcPubSize]
+	peerSigPub := l.destination.Identity.GetPublicKey()[linkEcPubSize/2 : linkEcPubSize]
 	if err := l.loadPeer(peerPub, peerSigPub); err != nil {
 		panic(err)
 	}
@@ -2087,7 +2087,7 @@ func (l *Link) validateProof(packet *Packet) {
 	signed = append(signed, signalling...)
 	signature := proofData[:ed25519.SignatureSize]
 
-	if !l.destination.identity.Validate(signature, signed) {
+	if !l.destination.Identity.Validate(signature, signed) {
 		Log(fmt.Sprintf("Invalid link proof signature received by %s. Ignoring.", l), LOG_DEBUG)
 		return
 	}
@@ -2097,7 +2097,7 @@ func (l *Link) validateProof(packet *Packet) {
 
 	l.RTT = time.Since(l.requestTime)
 	l.attachedInterface = packet.ReceivingInterface
-	l.remoteIdentity = l.destination.identity
+	l.remoteIdentity = l.destination.Identity
 	if confirmedMTU > 0 {
 		l.MTU = confirmedMTU
 	} else {
@@ -2161,14 +2161,14 @@ func (l *Link) rttPacket(packet *Packet) {
 
 	l.updateKeepalive()
 
-	if l.owner != nil && l.owner.callbacks.LinkEstablished != nil {
+	if l.owner != nil && l.owner.Callbacks.LinkEstablished != nil {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
 					Log(fmt.Sprintf("Error occurred in external link establishment callback. The contained exception was: %v", r), LOG_ERROR)
 				}
 			}()
-			l.owner.callbacks.LinkEstablished(l)
+			l.owner.Callbacks.LinkEstablished(l)
 		}()
 	}
 }
@@ -2586,9 +2586,9 @@ func (l *Link) linkClosed() {
 
 	if destination != nil && destination.Direction == DestinationIN {
 		destination.linksMu.Lock()
-		for i, existing := range destination.links {
+		for i, existing := range destination.Links {
 			if existing == l {
-				destination.links = append(destination.links[:i], destination.links[i+1:]...)
+				destination.Links = append(destination.Links[:i], destination.Links[i+1:]...)
 				break
 			}
 		}
@@ -2652,7 +2652,7 @@ func (l *Link) handleRequest(requestID []byte, unpacked []any, packet *Packet) {
 		return
 	}
 
-	handler, ok := dest.requestHandlers[string(pathHash)]
+	handler, ok := dest.RequestHandlers[string(pathHash)]
 	if !ok || handler == nil {
 		return
 	}
